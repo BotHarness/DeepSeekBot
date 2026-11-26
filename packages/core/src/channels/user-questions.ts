@@ -104,7 +104,11 @@ type Pending = {
   deliverNative?: NativeDelivery | undefined;
 };
 
-function validAnswer(questions: AskUserQuestionItem[], answer: AskUserQuestionAnswer): boolean {
+export function validQuestionAnswer(
+  questions: AskUserQuestionItem[],
+  answer: AskUserQuestionAnswer,
+  { allowSkipped = false } = {},
+): boolean {
   if (!Array.isArray(answer.answers) || answer.answers.length !== questions.length) return false;
   const seen = new Set<string>();
   for (const item of answer.answers) {
@@ -125,7 +129,7 @@ function validAnswer(questions: AskUserQuestionItem[], answer: AskUserQuestionAn
       (typeof item.custom !== 'string' || item.custom.trim().length === 0)
     )
       return false;
-    if (item.selected.length === 0 && item.custom === undefined) return false;
+    if (!allowSkipped && item.selected.length === 0 && item.custom === undefined) return false;
   }
   return true;
 }
@@ -421,7 +425,7 @@ export class ChannelUserQuestions {
     this.approvals?.requireRequest(human, pending.channelId, messageId);
     if (external && !external.authorized()) return false;
     if (!this.#holds(messageId, pending)) return false;
-    if (!validAnswer(pending.questions, answer)) return false;
+    if (!validQuestionAnswer(pending.questions, answer)) return false;
     if (
       this.#channels
         .readMessages(pending.channelId)
@@ -554,7 +558,7 @@ export class ChannelUserQuestions {
     if (
       resolution?.state !== 'answered' ||
       !resolution.answers ||
-      !validAnswer(pending.questions, { answers: resolution.answers })
+      !validQuestionAnswer(pending.questions, { answers: resolution.answers })
     )
       return false;
     this.#pending.delete(messageId);
@@ -641,7 +645,10 @@ export class ChannelUserQuestions {
       if (!this.#holds(id, pending)) continue;
       const native = this.#timed?.read(pending.sessionId, pending.callId);
       if (native === undefined) this.#cancel(id);
-      else if (native.state === 'answered' && validAnswer(pending.questions, native.answer)) {
+      else if (
+        native.state === 'answered' &&
+        validQuestionAnswer(pending.questions, native.answer)
+      ) {
         pending.deciding = true;
         try {
           const answeringHuman =

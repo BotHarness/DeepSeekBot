@@ -1,6 +1,6 @@
 # Android Chats -1 screen (spike)
 
-Unused since [ADR-0364](../../../../docs/adr/0364-environment-switching-lives-in-settings.md) removed the Android workspace drawer; `DismissibleDrawerView` awaits removal. `EndSheetView` in this module still backs the Android conversation profile side sheet.
+Unused since [ADR-0364](../../../../docs/decisions/mobile-ui.md#adr-0364) removed the Android workspace drawer; `DismissibleDrawerView` awaits removal. `EndSheetView` in this module still backs the Android conversation profile side sheet.
 
 Local Expo UI extension that wraps Compose Material 3 `DismissibleNavigationDrawer` with two
 React Native slots, `panel` (the workspace panel) and `content` (Chats). There is no scrim: the
@@ -45,3 +45,22 @@ Record each row on #3015 with a screen recording, on an Android 14+ phone with g
 6. Panel content is not clipped or offset, in portrait and landscape, light and dark.
 7. TalkBack: the workspace button opens the panel and focus moves into it; the close button and
    the dismiss action close it.
+
+## Session drawer
+
+`SessionDrawerView` wraps Compose Material 3 `ModalNavigationDrawer` around the phone's Sessions
+stack (#5255): its `content` slot holds the React Native stack and its `panel` slot the drawer
+contents. The drawer owns the gesture and the motion. While `gesturesEnabled` (a Drawer-style
+Session root), a horizontal drag anywhere on the stack opens it; the panel slides in over the
+stack, which never moves, under the M3 scrim, and a scrim tap or a drag back closes it. The
+drawer is nearly full width (`sessionDrawerWidthDp`: the window minus a 56dp strip).
+`ModalDrawerSheet` takes no `drawerState`, so its own Back handler doesn't compete with the
+React Native Back callback that JavaScript holds while the drawer is open. `onOpenChange` reports
+each settled value and `onProgress` streams the open fraction in 1% steps, which fades the tab
+island. `hasModalSessionDrawer()` tells JavaScript the installed build has this wrapping view; an
+older development build (with the earlier overlay view) falls back to the React Native drawer. A
+new Android development build is required.
+
+Check on a device: the Composer, the island and keyboard insets inside a Session now sit in the
+`content` slot through `RNHostView`, so verify a Session's keyboard and the island stay as on
+other screens.

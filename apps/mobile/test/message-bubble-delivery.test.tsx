@@ -258,6 +258,14 @@ describe('outgoing delivery presentation through Conversation', () => {
       vi.advanceTimersByTime(2_900);
     });
     await view.settle();
+    expect(view.target.getSnapshot().messages).toEqual([
+      expect.objectContaining({
+        id: 'quiet-message',
+        body: 'A quiet message',
+        delivery: 'committed',
+      }),
+    ]);
+    expect(view.container.querySelector('[data-testid="message-retry-quiet-message"]')).toBeNull();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
     act(() => {

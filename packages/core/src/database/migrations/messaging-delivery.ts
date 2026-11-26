@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { OperationalDatabaseError } from '../owner.js';
+import { OperationalDatabaseError } from '../owner-errors.js';
 import type { SchemaMigration } from '../schema.js';
 
 export const MESSAGING_OUTBOUND_MIGRATION: SchemaMigration = {
@@ -643,5 +643,60 @@ export const QQ_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
       CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
         BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
     `);
+  },
+};
+
+export const BINDING_GROUP_INTERACTIONS_MIGRATION: SchemaMigration = {
+  id: 'binding-group-interactions',
+  module: 'messaging',
+  description:
+    'Let one Binding opt in or out of group approvals and answers apart from its platform',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE messaging_bindings ADD COLUMN group_interactions INTEGER CHECK (group_interactions IS NULL OR group_interactions IN (0, 1));
+      ALTER TABLE messaging_bindings ADD COLUMN group_interactions_revision INTEGER NOT NULL DEFAULT 1 CHECK (group_interactions_revision >= 1);
+    `);
+  },
+};
+
+export const SENDER_DEFAULT_ROLE_MIGRATION: SchemaMigration = {
+  id: 'sender-default-role',
+  module: 'messaging',
+  description: 'Let a Bot name the Role a pairing approval uses when no Role is given',
+  migrate(database) {
+    database.exec('ALTER TABLE messaging_sender_policies ADD COLUMN default_role_id TEXT;');
+  },
+};
+
+export const SENDER_BLOCK_MIGRATION: SchemaMigration = {
+  id: 'sender-block',
+  module: 'messaging',
+  description: 'Keep one sender of a bound app out of the Bot Inbox without the model',
+  migrate(database) {
+    database.exec(`CREATE TABLE messaging_sender_blocks (
+      bot_slug TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      body TEXT NOT NULL CHECK (json_valid(body)),
+      PRIMARY KEY (bot_slug, fingerprint, actor_id)
+    );`);
+  },
+};
+
+export const SOURCE_BLOCK_MIGRATION: SchemaMigration = {
+  id: 'source-block',
+  module: 'messaging',
+  description: 'Keep one conversation of a bound app out of the Bot Inbox except for the Owner',
+  migrate(database) {
+    database.exec(`CREATE TABLE messaging_source_blocks (
+      bot_slug TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      conversation_kind TEXT NOT NULL CHECK (conversation_kind IN ('dm', 'group')),
+      conversation_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      body TEXT NOT NULL CHECK (json_valid(body)),
+      PRIMARY KEY (bot_slug, fingerprint, conversation_kind, conversation_id)
+    );`);
   },
 };

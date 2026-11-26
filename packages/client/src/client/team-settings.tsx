@@ -127,6 +127,7 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'device-not-found': 'team.error.deviceNotFound',
   'member-suspended': 'team.error.memberSuspended',
   'permission-not-grantable': 'team.error.permissionNotGrantable',
+  'permission-conflict': 'team.error.permissionConflict',
   'owner-transfer-target-unverified': 'team.error.ownerTransferUnverified',
   'transfer-target-invalid': 'team.error.transferTargetInvalid',
   'transfer-required': 'team.error.transferRequired',

@@ -12,6 +12,7 @@ import { createAcceptedLedger } from './accepted-ledger.js';
 import { createAcceptedTurn } from './accepted-turn.js';
 import { createMemoryReads } from './accepted-reads.js';
 import { createAcceptedHumanEdits } from './accepted-human.js';
+import { createAcceptedReviews } from './accepted-review.js';
 import { createAcceptedRepair } from './accepted-repair.js';
 import { createAcceptedVersions } from './accepted-versions.js';
 export { MemoryAcceptError } from './accepted-types.js';
@@ -144,6 +145,13 @@ export function createMemoryAcceptance(options: {
     accept,
     acceptedHead,
   });
+  const reviews = createAcceptedReviews({
+    assertIdle,
+    inFlight,
+    registry,
+    pendingRepair,
+    database,
+  });
   const repair = createAcceptedRepair({
     assertIdle,
     pendingRepair,
@@ -162,51 +170,6 @@ export function createMemoryAcceptance(options: {
     abortTurnAsync: turn.abortTurnAsync,
     pendingCommitsAsync: turn.pendingCommitsAsync,
     scanChangesAsync: observation.scanChangesAsync,
-    continueFromCommit(input) {
-      assertIdle(input.botSlug);
-      requireOwned(input.botSlug, input.sessionId);
-      const flight = inFlight.get(input.botSlug);
-      if (flight?.sessionId !== input.sessionId) {
-        throw new MemoryAcceptError('memory-conflict', 'Memory turn was not prepared');
-      }
-      const root = repository(registry, input.botSlug);
-      const from = branchOf(root);
-      if (from !== flight.branch) {
-        throw new MemoryAcceptError('memory-conflict', 'Memory branch changed during turn');
-      }
-      const branch = input.branch.trim();
-      if (branch.length === 0 || branch.length > 255 || branch !== input.branch) {
-        throw new MemoryAcceptError('memory-invalid', 'Invalid Memory branch name');
-      }
-      try {
-        run(root, ['check-ref-format', '--branch', branch]);
-      } catch {
-        throw new MemoryAcceptError('memory-invalid', 'Invalid Memory branch name');
-      }
-      let exists = false;
-      try {
-        run(root, ['show-ref', '--verify', '--quiet', 'refs/heads/' + branch]);
-        exists = true;
-      } catch {}
-      if (exists) throw new MemoryAcceptError('memory-conflict', 'Memory branch already exists');
-      if (!/^[0-9a-f]{40}$/u.test(input.sha)) {
-        throw new MemoryAcceptError('memory-unknown-commit', 'Unknown Memory Git commit');
-      }
-
-      this.gitCommitDiff(input.botSlug, input.sha);
-
-      try {
-        run(root, ['switch', '-c', branch, input.sha]);
-      } catch {
-        throw new MemoryAcceptError(
-          'memory-conflict',
-          'Git could not create and switch Memory branch',
-        );
-      }
-      inFlight.set(input.botSlug, { sessionId: input.sessionId, branch });
-      return { from, to: branch, head: input.sha };
-    },
-    switchBranch: humanEdits.switchBranch,
     prepareTurn,
     scanChanges,
     pendingCommits,
@@ -231,6 +194,8 @@ export function createMemoryAcceptance(options: {
     repairHuman: repair.repairHuman,
     saveHuman: humanEdits.saveHuman,
     restoreCommitHuman: humanEdits.restoreCommitHuman,
+    reviewHumanSave: reviews.reviewHumanSave,
+    reviewHumanRestore: reviews.reviewHumanRestore,
     versions: versions.versions,
     nameVersionHuman: versions.nameVersionHuman,
     removeVersionNameHuman: versions.removeVersionNameHuman,

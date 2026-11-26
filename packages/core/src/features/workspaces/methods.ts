@@ -6,7 +6,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { type HumanContext } from '../../humans/context.js';
 import {
   approveGrantRequest,
@@ -21,9 +21,15 @@ import {
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import { join } from 'node:path';
 import { FolderBrowseError, type FolderListing } from '../../workspaces/folder-browse.js';
+import {
+  createFolderWorkspace,
+  type CreatedFolderWorkspace,
+  type RegisterFolderWorkspace,
+} from '../../workspaces/folder-create.js';
 
 export interface WorkspacesBridgeDeps {
   grants?: WorkspaceGrantStore;
+  registerWorkspace?: RegisterFolderWorkspace;
 }
 
 export interface WorkspacesBridgeMethods {
@@ -275,6 +281,7 @@ export interface WorkspacesAdapterMethods {
     target: { path: string; relativePath: ''; kind: 'directory' };
   }>;
   folderBrowse(payload: unknown): Promise<BridgeResult<FolderListing>>;
+  folderCreate(payload: unknown): Promise<BridgeResult<CreatedFolderWorkspace>>;
 }
 
 export function createWorkspacesAdapterMethods(
@@ -358,6 +365,14 @@ export function createWorkspacesAdapterMethods(
           };
         throw error;
       }
+    },
+    folderCreate(payload) {
+      return createFolderWorkspace(payload, {
+        human,
+        owner: isHostOwner(),
+        team: deps.team,
+        registerWorkspace: deps.registerWorkspace,
+      });
     },
     workspaceFileTarget(payload) {
       const source = asObject(payload);

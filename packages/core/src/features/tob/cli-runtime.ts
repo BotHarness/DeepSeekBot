@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import { dmChannelId } from '../../channels/channel.js';
+import { humanDmForSource } from '../../tob/management-grants.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { HumanContext } from '../../humans/context.js';
@@ -32,8 +32,25 @@ export interface TobCliRequestLease {
   finishedAt: number | undefined;
 }
 
+export function managerShellAuthority(capture: () => TobCliAuthority | undefined): TobCliAuthority {
+  try {
+    const authority = capture();
+    if (authority) return authority;
+    throw new TobError('tob-authority-required');
+  } catch (error) {
+    const refuse = (): never => {
+      throw error;
+    };
+    const none: readonly string[] = [];
+    const authority: TobCliAuthority = Object.assign(refuse, { beginWrite: refuse, sources: none });
+    return Object.defineProperty(authority, 'sources', { get: refuse });
+  }
+}
+
 export interface TobCliAuthority {
   (): void;
+
+  readonly sources: readonly string[];
 
   beginWrite(): {
     approvalChannelId: string;
@@ -86,14 +103,11 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       return structuredClone(request.status);
     }
     if (!ports.tob) throw new TobError('tob-authority-required');
-    await ports.tob.ensure(human);
+    const { botSlug } = await ports.tob.ensure(human);
+    if (!ports.tob.holdsManagementGrant(botSlug)) throw new TobError('tob-authority-required');
     if (ports.closed()) throw new TobError('runtime-closed');
-    const bot = ports.registry
-      .list()
-      .find(
-        (candidate) => ports.tob?.isTob(candidate.slug) && botOwner(candidate) === human.humanId,
-      );
-    if (!bot || bot.paused || !ports.memberBotEnabled(bot))
+    const bot = ports.registry.get(botSlug);
+    if (!bot || botOwner(bot) !== human.humanId || bot.paused || !ports.memberBotEnabled(bot))
       throw new TobError('tob-authority-required');
     if (
       ports.tails.has(bot.slug) ||
@@ -195,21 +209,33 @@ export function createTobCliRuntime(ports: TobCliPorts) {
     }
   }
 
+  const botOwnerOf = (slug: string): string | undefined => {
+    const bot = ports.registry.get(slug);
+    return bot === undefined ? undefined : botOwner(bot);
+  };
+
   function captureTobCliAuthority(sessionId: string): TobCliAuthority {
     const owner = ports.ownership.resolve(sessionId);
+    const tob = ports.tob;
     if (
       ports.closed() ||
       !ports.ownership.contentAvailable(sessionId) ||
       owner?.rootRole !== 'orchestrator' ||
       owner.parentSessionId !== undefined ||
-      !ports.tob?.isTob(owner.botSlug)
+      !tob ||
+      !tob.holdsManagementGrant(owner.botSlug)
     )
       throw new TobError('tob-authority-required');
+    const bot = ports.registry.get(owner.botSlug);
+    if (!bot) throw new TobError('tob-authority-required');
+    const humanId = botOwner(bot);
     const turn = ports.turnSources.get(owner.botSlug);
     if (turn?.sessionId !== sessionId || turn.acceptedEventIds.size === 0)
       throw new TobError('human-dm-required');
     const accepted = new Set(turn.acceptedEventIds);
-    const dm = dmChannelId(owner.botSlug);
+    const ids = [...accepted];
+    const dm = ports.database.read((db) => humanDmForSource(db, owner.botSlug, humanId, ids[0]!));
+    if (dm === undefined) throw new TobError('human-dm-required');
     const requireOrigin = () => {
       const currentOwner = ports.ownership.resolve(sessionId);
       if (
@@ -218,7 +244,8 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         currentOwner?.botSlug !== owner.botSlug ||
         currentOwner.rootRole !== 'orchestrator' ||
         currentOwner.parentSessionId !== undefined ||
-        !ports.tob?.isTob(owner.botSlug)
+        !tob.holdsManagementGrant(owner.botSlug) ||
+        botOwnerOf(owner.botSlug) !== humanId
       )
         throw new TobError('tob-authority-required');
 
@@ -229,16 +256,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         throw new TobError('human-dm-required');
       ports.database.read((db) => {
         for (const id of accepted) {
-          const event = db
-            .prepare(
-              'SELECT source_kind, channel_id, human_id FROM source_events WHERE source_event_id = ?',
-            )
-            .get(id);
-          if (
-            event?.source_kind !== 'human-message' ||
-            event.channel_id !== dm ||
-            (event.human_id ?? 'local-human') !== botOwner(ports.registry.get(owner.botSlug)!)
-          )
+          if (humanDmForSource(db, owner.botSlug, humanId, id) !== dm)
             throw new TobError('human-dm-required');
           requireSourceEffects(db, id, owner.botSlug);
         }
@@ -250,6 +268,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
     };
     authorize();
     return Object.assign(authorize, {
+      sources: Object.freeze([...accepted]),
       beginWrite: () => {
         authorize();
         return {

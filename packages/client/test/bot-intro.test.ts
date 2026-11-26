@@ -114,6 +114,7 @@ function actionsFor(receipts: OnboardingSnapshot[] = [fresh]) {
     modelCatalog: vi.fn(async () => ({ models: [] })),
     onboardingModel: vi.fn(async () => {}),
     telemetryEvent: vi.fn(),
+    importableSessions: vi.fn(async () => []),
   };
 }
 
@@ -715,7 +716,7 @@ describe('intro modal', () => {
     }
   });
 
-  it('walks the six steps and applies a theme choice right away', async () => {
+  it('walks the seven steps and applies a theme choice right away', async () => {
     const actions = actionsFor() as unknown as BridgeActions;
     const controller = onboardingFor(actions);
     await controller.enter();
@@ -786,6 +787,9 @@ describe('intro modal', () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(dialog().querySelectorAll('[data-user-reviews] blockquote')).toHaveLength(3);
+    await click('下一步');
+    expect(step()).toBe('import');
+    expect(dialog().querySelectorAll('[data-import-source]')).toHaveLength(2);
     await click('下一步');
     expect(step()).toBe('start');
     expect(dialog().querySelectorAll('[data-persona]')).toHaveLength(4);

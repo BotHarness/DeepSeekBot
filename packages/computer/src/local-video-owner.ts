@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { ComputerPauseStore } from './computer-pause-store.js';
 import { desktopInputCall } from './desktop-view.js';
 import { parseLocalVideoInput } from './local-video-input.js';
@@ -17,6 +17,14 @@ import {
   type LocalVideoRefusal,
   type LocalVideoState,
 } from './local-video-contract.js';
+
+import {
+  correlation,
+  reportLocalVideoTrace,
+  type FailureSource,
+  type Initiator,
+  type OperationTrace,
+} from './local-video-trace.js';
 
 export { createComputerPauseStore, type ComputerPauseStore } from './computer-pause-store.js';
 
@@ -39,41 +47,6 @@ interface Viewer {
   closing?: Promise<void>;
 }
 
-type FailureSource =
-  | 'owner'
-  | 'pause-store'
-  | 'bot-drain'
-  | 'human-drain'
-  | 'geometry'
-  | 'driver'
-  | 'helper'
-  | 'signaling'
-  | 'cleanup'
-  | 'media'
-  | 'control';
-type Initiator = 'host-owner' | 'paired-device' | 'lifecycle' | 'helper' | 'timer';
-interface OperationTrace {
-  readonly id: string;
-  readonly phase: string;
-  readonly initiator: Initiator;
-  readonly started: number;
-  readonly runtime: string;
-  attempt: string;
-  grant: number;
-  source: FailureSource;
-  external:
-    | 'none'
-    | 'get_screen_size'
-    | 'media-open'
-    | 'media-answer'
-    | 'media-close'
-    | 'desktop-input'
-    | 'cursor-setup';
-  cause?: LocalVideoRefusal;
-}
-
-const correlation = (id: string): string =>
-  createHash('sha256').update(id).digest('hex').slice(0, 12);
 const COMMAND_PHASES = new Set([
   'open',
   'signal',
@@ -176,11 +149,13 @@ export function createLocalVideoOwner(options: {
   readonly onEvent?: (detail: string) => void;
   readonly operationTimeoutMs?: number;
   readonly cleanupTimeoutMs?: number;
+  readonly sessionUnlocked?: () => Promise<boolean>;
 }): LocalVideoOwner {
   const now = options.now ?? Date.now;
   const operationTimeout = options.operationTimeoutMs ?? LOCAL_VIDEO_LIMITS.operationTimeoutMs;
   const cleanupTimeout = options.cleanupTimeoutMs ?? LOCAL_VIDEO_LIMITS.cleanupTimeoutMs;
   let paused = true;
+  let unlockAbort: AbortController | undefined;
   let runtimeId = randomUUID();
   let generation = 0;
   const begin = (phase: string, initiator: Initiator, current?: Viewer): OperationTrace => ({
@@ -194,29 +169,8 @@ export function createLocalVideoOwner(options: {
     source: 'owner',
     external: 'none',
   });
-  const outcome = (trace: OperationTrace, code?: LocalVideoRefusal): void => {
-    const retryable =
-      trace.phase !== 'input' &&
-      code !== undefined &&
-      [
-        'queue-full',
-        'drain-timeout',
-        'not-ready',
-        'media-not-live',
-        'control-disconnected',
-      ].includes(code);
-    const detail =
-      `phase=local-video-${trace.phase} operation=${trace.id} initiator=${trace.initiator}` +
-      ` runtime=${trace.runtime} attempt=${trace.attempt} grant=${trace.grant}` +
-      ` durationMs=${Math.max(0, Math.round(now() - trace.started))}` +
-      ` outcome=${code === undefined ? 'ok' : 'refused'} refusal=${code ?? 'none'}` +
-      ` source=${code === undefined ? 'none' : trace.source} cause=${trace.cause ?? code ?? 'none'}` +
-      ` external=${trace.external}` +
-      ` retryable=${retryable} paused=${paused} bots=${paused ? 'remain-paused' : 'enabled'}`;
-    try {
-      options.onEvent?.(detail);
-    } catch {}
-  };
+  const outcome = (trace: OperationTrace, code?: LocalVideoRefusal): void =>
+    reportLocalVideoTrace(trace, now, paused, options.onEvent, code);
   const note = (
     phase: string,
     initiator: Initiator,
@@ -306,6 +260,13 @@ export function createLocalVideoOwner(options: {
     if (options.supported?.() === false)
       refuse('unsupported-platform', 'Local Computer video requires Windows or macOS.');
     if (!options.isRunning()) refuse('not-running', 'Start the Local Computer first.');
+  };
+  const requireUnlocked = async (): Promise<void> => {
+    if (
+      unlockAbort !== undefined ||
+      (options.sessionUnlocked !== undefined && !(await options.sessionUnlocked()))
+    )
+      refuse('control-required', 'Unlock this Computer before using desktop input.');
   };
   const requireRuntime = (value: string): void => {
     requireActive();
@@ -601,6 +562,8 @@ export function createLocalVideoOwner(options: {
       }
       if (command.kind === 'open') return await open(caller, trace, signal);
       if (command.kind === 'resume') {
+        if (unlockAbort !== undefined)
+          refuse('control-required', 'Wait for Computer unlock to finish before resuming Bots.');
         if (signal?.aborted) refuse('stale-attempt', 'The resume request was cancelled.');
         requireRuntime(command.runtimeId);
         if (command.binding !== undefined) checkViewer(caller, command.binding);
@@ -611,6 +574,8 @@ export function createLocalVideoOwner(options: {
         invalidate();
         const expectedGeneration = generation;
         return await transition(async () => {
+          if (unlockAbort !== undefined || options.sessionUnlocked !== undefined)
+            await requireUnlocked();
           if (signal?.aborted)
             refuse('stale-attempt', 'The resume request was cancelled. Bots remain paused.');
           requireRuntime(command.runtimeId);
@@ -686,7 +651,11 @@ export function createLocalVideoOwner(options: {
         }
       }
       if (command.kind === 'takeover') {
+        if (unlockAbort !== undefined)
+          refuse('control-required', 'Wait for Computer unlock to finish before taking control.');
         return await transition(async () => {
+          if (unlockAbort !== undefined || options.sessionUnlocked !== undefined)
+            await requireUnlocked();
           if (signal?.aborted) refuse('stale-attempt', 'The takeover request was cancelled.');
           checkViewer(caller, command.binding);
           requireRunning();
@@ -731,6 +700,8 @@ export function createLocalVideoOwner(options: {
         });
       }
       if (command.kind === 'input') {
+        if (unlockAbort !== undefined || options.sessionUnlocked !== undefined)
+          await requireUnlocked();
         if (typeof command.input !== 'object' || command.input === null)
           refuse('invalid-input', 'A desktop input is required.');
         const input = parseLocalVideoInput(command.input as unknown as Record<string, unknown>);
@@ -758,6 +729,8 @@ export function createLocalVideoOwner(options: {
         }
         const motionEpoch = scrollEpoch;
         const execute = async (): Promise<void> => {
+          if (unlockAbort !== undefined || options.sessionUnlocked !== undefined)
+            await requireUnlocked();
           if (signal?.aborted)
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
@@ -911,10 +884,16 @@ export function createLocalVideoOwner(options: {
       if (bots.size >= LOCAL_VIDEO_LIMITS.pendingRequests)
         refuse('queue-full', 'Too many Bot Computer operations are pending.');
       const epoch = botEpoch;
+      if (unlockAbort !== undefined || options.sessionUnlocked !== undefined)
+        await requireUnlocked();
+      if (paused || disposed || epoch !== botEpoch)
+        refuse('control-required', 'Computer Pause changed before this operation.');
       const pending = operation();
       bots.add(pending);
       try {
         const result = await pending;
+        if (unlockAbort !== undefined || options.sessionUnlocked !== undefined)
+          await requireUnlocked();
         if (paused || disposed || epoch !== botEpoch)
           refuse(
             'control-required',
@@ -923,6 +902,34 @@ export function createLocalVideoOwner(options: {
         return result;
       } finally {
         bots.delete(pending);
+      }
+    },
+    async runUnlock<T>(
+      operation: (signal: AbortSignal) => Promise<T>,
+      signal: AbortSignal,
+    ): Promise<T> {
+      requireRunning();
+      if (unlockAbort !== undefined || signal.aborted)
+        refuse('control-conflict', 'Computer unlock is unavailable.');
+      const expectedRuntime = runtimeId;
+      const controller = new AbortController();
+      unlockAbort = controller;
+      const attempt = AbortSignal.any([signal, controller.signal]);
+      invalidate();
+      blockBots();
+      try {
+        return await transition(async () => {
+          requireRunning();
+          persist(true);
+          await drain(bots);
+          await drain(humans);
+          requireRunning();
+          requireRuntime(expectedRuntime);
+          if (attempt.aborted) refuse('stale-attempt', 'The unlock request was cancelled.');
+          return operation(attempt);
+        });
+      } finally {
+        unlockAbort = undefined;
       }
     },
     async revoke(deviceId) {
@@ -942,6 +949,7 @@ export function createLocalVideoOwner(options: {
       }
     },
     async resetRuntime() {
+      unlockAbort?.abort();
       const trace = begin('runtime-reset', 'lifecycle', viewer);
       trace.source = 'cleanup';
       if (viewer !== undefined) trace.external = 'media-close';
@@ -961,6 +969,7 @@ export function createLocalVideoOwner(options: {
     },
     async dispose() {
       if (disposed) return;
+      unlockAbort?.abort();
       const trace = begin('dispose', 'lifecycle', viewer);
       trace.source = 'cleanup';
       if (viewer !== undefined) trace.external = 'media-close';

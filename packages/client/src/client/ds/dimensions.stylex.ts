@@ -11,5 +11,10 @@ export const dimension = stylex.defineConsts({
   pinnedTileMinWidth: '76px',
   pinnedTileAvatar: '54px',
   hiddenChannelListMaxHeight: '360px',
+  scheduleHistoryMaxHeight: '200px',
   questionCardWidth: '380px',
+  introToolCardMinWidth: '180px',
+  catalogCardMinWidth: '240px',
+  workbenchNavWidth: '220px',
+  workbenchListWidth: '300px',
 });

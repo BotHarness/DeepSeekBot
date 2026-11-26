@@ -8,7 +8,7 @@ import { parseMessage, sourceKind, eventPayload } from './sqlite-store.message-p
 import type { SqliteChannelStoreOptions } from './sqlite-store.types.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { createChannelAdmissions } from './sqlite-store.admissions.js';
-import type { BotSourcePolicyStore } from '../runtime/source-policy.js';
+import type { ChannelSourcePolicy } from './source-policy.js';
 
 export function importLegacyChannels({
   options,
@@ -22,7 +22,7 @@ export function importLegacyChannels({
   database: OperationalDatabaseModulePort;
   rootDir: string;
   sourceHumanIdentity: ReturnType<typeof createChannelAdmissions>['sourceHumanIdentity'];
-  sourcePolicy: BotSourcePolicyStore;
+  sourcePolicy: ChannelSourcePolicy;
   sql: {
     insertLegacySourceEvent: (sourceHumanIdentity: () => boolean) => string;
     updateLegacyPayload: string;

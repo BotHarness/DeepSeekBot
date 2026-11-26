@@ -5,6 +5,7 @@ import type { BotProfile } from '../src/host/bot-profile';
 import { shiftDay, today as localToday, trailingDays } from '../src/host/usage-days';
 import type { ProfileActivity } from '@botharness/host-protocol/wire';
 import type { RosterBot } from '@botharness/host-client/client';
+import { parseSchedule } from '@botharness/host-client/schedules';
 import { BotProfilePage } from '../src/ui/chat/bot-profile';
 import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
 import profileWire from './fixtures/profile-wire.json';
@@ -99,7 +100,7 @@ export const full: BotProfile = {
   },
   routines: {
     status: 'ready',
-    value: profileWire.rpc.scheduleList.schedules as never,
+    value: profileWire.rpc.scheduleList.schedules.map(parseSchedule),
   },
   files: {
     status: 'ready',

@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { View, type ColorValue, type LayoutChangeEvent } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {
   KeyboardAvoidingView,
   KeyboardProvider,
   useKeyboardState,
 } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { space } from '../design/tokens';
+import { useComposerDrop } from './composer-drop';
+import { composerKeyboardGap, useChatBottom } from './chat-keyboard';
 
 export interface KeyboardChatFrameProps {
   children: ReactNode;
@@ -19,7 +20,7 @@ export interface KeyboardChatFrameProps {
 }
 
 export function useListBottomSafeArea(): number {
-  const bottom = useSafeAreaInsets().bottom;
+  const bottom = useChatBottom().safe;
   const open = useKeyboardState((state) => state.isVisible);
   return open ? 0 : bottom;
 }
@@ -36,23 +37,24 @@ export function KeyboardChatFrame({
   onMount,
   onComposerLayout,
 }: KeyboardChatFrameProps) {
-  const bottom = useSafeAreaInsets().bottom;
+  const { safe, island } = useChatBottom();
+  const lowered = useComposerDrop(island);
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, marginBottom: island - lowered.settled }}
         behavior="padding"
-        keyboardVerticalOffset={-Math.max(0, bottom - space.x3)}
+        keyboardVerticalOffset={-composerKeyboardGap(safe)}
       >
         <View style={{ flex: 1 }}>
           {children}
-          <View
+          <Animated.View
             onLayout={onComposerLayout}
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+            style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, lowered.style]}
           >
             {composer}
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </View>

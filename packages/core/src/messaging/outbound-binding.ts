@@ -71,7 +71,13 @@ export function createOutboundBinding(context: {
 
   const methods: Pick<
     OutboundMessaging,
-    'defaults' | 'setDefaults' | 'identity' | 'setPostLimit' | 'reachable' | 'targets'
+    | 'defaults'
+    | 'setDefaults'
+    | 'identity'
+    | 'setPostLimit'
+    | 'setGroupInteractions'
+    | 'reachable'
+    | 'targets'
   > = {
     defaults<Platform extends string = 'feishu'>(platform?: Platform) {
       return database.read((db) => messagingDefaults(db, platform));
@@ -334,6 +340,22 @@ export function createOutboundBinding(context: {
           db.prepare(
             'UPDATE messaging_bindings SET post_limit = ?, post_limit_revision = post_limit_revision + 1 WHERE id = ?',
           ).run(limit, bindingId);
+        },
+        ['bindings'],
+      );
+      return binding(bindingId);
+    },
+    async setGroupInteractions({ botSlug, bindingId, expectedRevision, enabled }) {
+      transaction(
+        (db) => {
+          active(botSlug);
+          const identity = enabledBinding(bindingId);
+          if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
+          if (identity.groupInteractionsRevision !== expectedRevision)
+            throw new MessagingError('identity-changed');
+          db.prepare(
+            'UPDATE messaging_bindings SET group_interactions = ?, group_interactions_revision = group_interactions_revision + 1 WHERE id = ?',
+          ).run(enabled === null ? null : enabled ? 1 : 0, bindingId);
         },
         ['bindings'],
       );

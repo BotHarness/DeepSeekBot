@@ -3,6 +3,8 @@ import {
   deleteGroupChannel,
   readChannelAssignments,
 } from '@botharness/host-client/channel-management';
+import { savedHostIdentity, type SavedHost } from '@botharness/host-client/hosts';
+import { MethodRefused } from '@botharness/host-client/client-errors';
 import { workRows, type ProfileAssignment } from './bot-profile';
 import type {
   HostClient,
@@ -13,6 +15,20 @@ import type {
 } from '@botharness/host-client/client';
 
 export const GROUP_NAME_MAX = 120;
+
+export function canDisbandGroup(host: SavedHost | null | undefined): boolean {
+  return host != null && savedHostIdentity(host).kind === 'owner';
+}
+
+export function refusedGroupDetails(error: unknown): boolean {
+  if (!(error instanceof MethodRefused) || error.code !== 'permission-required') return false;
+  const details: unknown = error.details;
+  return (
+    typeof details === 'object' &&
+    details !== null &&
+    (details as Record<string, unknown>)['permission'] === 'editDetails'
+  );
+}
 
 export interface GroupMember {
   slug: string;

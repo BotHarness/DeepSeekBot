@@ -1,4 +1,4 @@
-import { TURN_TARGET_TOPIC } from '../runtime/turn-targets.js';
+import { TURN_TARGET_TOPIC } from '../sessions/turn-target-topic.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { BotHarnessCore } from '../plugin.js';

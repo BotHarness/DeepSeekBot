@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { KeyboardProvider, KeyboardStickyView } from 'react-native-keyboard-controller';
 
+import { useChatBottom } from './chat-keyboard';
+import { useComposerDrop } from './composer-drop';
 import type { KeyboardChatFrameProps } from './keyboard-frame';
 
 export function useListBottomSafeArea(): number {
@@ -24,15 +27,18 @@ export function KeyboardChatFrame({
   onMount,
   onComposerLayout,
 }: KeyboardChatFrameProps) {
+  const { island } = useChatBottom();
+  const lowered = useComposerDrop(island);
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
       <View style={{ flex: 1 }}>{children}</View>
       <KeyboardStickyView
+        offset={{ closed: lowered.settled - island, opened: 0 }}
         onLayout={onComposerLayout}
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
       >
-        {composer}
+        <Animated.View style={lowered.style}>{composer}</Animated.View>
       </KeyboardStickyView>
     </View>
   );

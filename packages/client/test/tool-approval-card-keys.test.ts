@@ -93,6 +93,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+async function infoTip(card: HTMLElement): Promise<string> {
+  const info = card.querySelector<HTMLButtonElement>('button[aria-label="详细信息"]')!;
+  await act(async () => info.click());
+  const text = document.querySelector('[role="tooltip"]')?.textContent ?? '';
+  await act(async () => info.click());
+  return text;
+}
+
 describe('Tool approval card layout', () => {
   it.each([
     'allowed-once',
@@ -105,7 +113,7 @@ describe('Tool approval card layout', () => {
     async (decision) => {
       const card = await render(message(), {}, decision);
       await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
-      expect(card.textContent).toContain('/qa');
+      expect(await infoTip(card)).toContain('/qa');
       expect(card.textContent).toContain('echo QA');
       const choices = [
         ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
@@ -136,9 +144,11 @@ describe('Tool approval card layout', () => {
       const value = message();
       value.toolApprovalRequest!.approvalReview = review;
       const card = await render(value);
-      expect(card.textContent).not.toContain(review.reason);
-      expect(card.textContent).toContain('审批');
-      expect(card.textContent).not.toContain('settings-invalid');
+      const tip = await infoTip(card);
+      expect(card.textContent).not.toContain('审批');
+      expect(tip).not.toContain(review.reason);
+      expect(tip).toContain('审批');
+      expect(tip).not.toContain('settings-invalid');
     },
   );
 
@@ -194,7 +204,7 @@ describe('Tool approval card layout', () => {
     const card = await render(message(), {
       toolApprovalStatus: async () => 'stopped',
       toolApprovalState: async () => ({ status: 'stopped' }),
-    } as Partial<BridgeActions>);
+    } satisfies Partial<BridgeActions>);
     const done = card.querySelector('.bh-request-done');
     expect(done?.getAttribute('data-state')).toBe('stopped');
     expect(done?.textContent).toBe('终端 · 会话已停止');
@@ -219,6 +229,9 @@ describe('Tool approval card layout', () => {
     const card = await render(value);
     expect(card.querySelector('.bh-request-category')?.textContent).toBe('新 Bot');
     expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe('创建 Bot「Tim」');
+    expect(card.querySelector('.bh-bot-create-preview dl')).toBeNull();
+    expect(card.querySelector('.bh-bot-create-name')?.textContent).toBe('Tim');
+    await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
     const preview = card.querySelector('.bh-bot-create-preview')!;
     expect(preview.querySelector('.bh-bot-create-name')?.textContent).toBe('Tim');
     expect(preview.querySelector('.bh-bot-create-bio')?.textContent).toBe('翻译发布说明');
@@ -241,7 +254,7 @@ describe('Tool approval card layout', () => {
   it('opens and closes the details from anywhere on the card except its buttons', async () => {
     const card = await render();
     await act(async () => card.querySelector<HTMLElement>('.bh-request-head')!.click());
-    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
+    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('echo QA');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     await act(async () =>
       card.querySelector<HTMLElement>('.bh-tool-approval-details-body > div')!.click(),
@@ -267,7 +280,6 @@ describe('Tool approval card layout', () => {
     await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
     await press(card, key);
     expect(card.querySelector('.bh-tool-approval-sentence')).not.toBeNull();
-    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
     expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('echo QA');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     const choices = [
@@ -452,7 +464,8 @@ describe('Tool approval card keyboard', () => {
     expect(buttons[1]?.disabled).toBe(true);
     await press(card, 'a');
     expect(decisions).toEqual([]);
-    expect(card.textContent).toContain('需要单独确认');
+    expect(card.textContent).not.toContain('需要单独确认');
+    expect(await infoTip(card)).toContain('需要单独确认');
   });
 
   it('ignores keys with modifiers and keys typed into fields', async () => {
@@ -568,6 +581,156 @@ describe('Tool approval file diff', () => {
     ).toEqual({ command: 'curl -sI https://example.com', description: 'Needs network' });
     expect(approvalShellCommand('edit', '{"command":"ls"}')).toBeUndefined();
     expect(approvalFileChange('edit', 'not json')).toBeUndefined();
+  });
+
+  it('reads a reviewed Tob Memory diff with its base revision', () => {
+    const base = 'a'.repeat(40);
+    const save = approvalFileChange(
+      'deepseekbot memory-save',
+      JSON.stringify({
+        command: 'memory-save',
+        target: 'research',
+        previousValue: { path: 'SOUL.md', revision: base },
+        patch: {
+          path: 'SOUL.md',
+          expectedHead: base,
+          diff: '--- a/SOUL.md\n+++ b/SOUL.md\n@@ -1,2 +1,2 @@\n # Soul\n-old\n+new\n',
+        },
+      }),
+    );
+    expect(save).toEqual({
+      path: 'research · SOUL.md @ aaaaaaa',
+      added: 1,
+      removed: 1,
+      lines: [
+        { kind: 'context', text: '@@ -1,2 +1,2 @@' },
+        { kind: 'context', text: '# Soul' },
+        { kind: 'remove', text: 'old' },
+        { kind: 'add', text: 'new' },
+      ],
+    });
+    expect(
+      approvalFileChange(
+        'deepseekbot memory-restore-commit',
+        JSON.stringify({
+          target: 'research',
+          patch: {
+            sha: 'b'.repeat(40),
+            expectedHead: base,
+            diff: 'diff --git a/n.md b/n.md\nindex 1..2 100644\n--- a/n.md\n+++ b/n.md\n@@ -1 +1 @@\n-second\n+first\n',
+          },
+        }),
+      ),
+    ).toMatchObject({
+      path: 'research · aaaaaaa → bbbbbbb',
+      added: 1,
+      removed: 1,
+      lines: [
+        { kind: 'context', text: 'diff --git a/n.md b/n.md' },
+        { kind: 'context', text: '@@ -1 +1 @@' },
+        { kind: 'remove', text: 'second' },
+        { kind: 'add', text: 'first' },
+      ],
+    });
+  });
+
+  it('keeps a tool card to its summary and the choices, with the scope and details behind the info icon', async () => {
+    const value = message();
+    value.toolApprovalRequest!.effects = {
+      changes: 'reversible',
+      reach: 'workspace',
+      personalData: false,
+    };
+    const card = await render(value);
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe('运行命令');
+    expect(card.textContent).not.toContain('/qa');
+    expect(card.textContent).not.toContain('可撤销更改');
+    expect(card.textContent).not.toContain('换参数也一样');
+    expect(card.textContent).not.toContain('不再询问');
+    const tip = await infoTip(card);
+    expect(tip).toContain('bash');
+    expect(tip).toContain('工作目录：/qa');
+    expect(tip).toContain('可撤销更改 · 工作区');
+    expect(tip).toContain('换参数也一样');
+    value.toolApprovalRequest!.effects = {
+      changes: 'irreversible',
+      reach: 'external',
+      personalData: false,
+    };
+    const risky = await render(value);
+    expect(risky.querySelector('.bh-tool-approval-effects')?.textContent).toBe(
+      '不可撤销 · 外部影响',
+    );
+  });
+
+  it('keeps the Host access warning and the scope behind the info icon, between the command and the choices', async () => {
+    const value = message();
+    value.approval = {
+      masked: false,
+      kind: 'tool-approval',
+      botSlug: 'ada',
+      state: 'pending',
+      requestedAt: '2026-11-16T01:00:00Z',
+      opaque: true,
+    };
+    const rows = (card: HTMLElement) =>
+      [...card.children].map((row) =>
+        ['bh-request-head', 'bh-request-summary', 'bh-tool-approval-actions'].find((hook) =>
+          row.classList.contains(hook),
+        ),
+      );
+    const card = await render(value);
+    expect(rows(card)).toEqual([
+      'bh-request-head',
+      'bh-request-summary',
+      'bh-tool-approval-actions',
+    ]);
+    expect(card.textContent).not.toContain(zhTranslate('approval.opaqueWarning'));
+    const tip = await infoTip(card);
+    expect(tip).toContain(zhTranslate('approval.opaqueWarning'));
+    expect(tip).toContain('换参数也一样');
+    const decided = await render(value, {}, 'allowed-once');
+    expect(decided.textContent).not.toContain(zhTranslate('approval.opaqueWarning'));
+  });
+
+  it('keeps a Memory edit card to its summary and diff, with details behind the info icon', async () => {
+    const value = message(
+      'deepseekbot memory-save',
+      JSON.stringify({
+        command: 'memory-save',
+        target: 'research',
+        patch: {
+          path: 'SOUL.md',
+          expectedHead: 'a'.repeat(40),
+          diff: '--- a/SOUL.md\n+++ b/SOUL.md\n@@ -1 +1 @@\n-old\n+new\n',
+        },
+      }),
+    );
+    value.toolApprovalRequest!.effects = {
+      changes: 'reversible',
+      reach: 'memory',
+      personalData: false,
+    };
+    const card = await render(value);
+    expect(card.querySelector('.bh-request-category')?.textContent).toBe('记忆');
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe(
+      '修改 research 的记忆',
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe('SOUL.md +1 −1');
+    expect(card.querySelectorAll('.bh-tool-approval-diff-line')).toHaveLength(3);
+    expect(card.querySelector('figcaption')).toBeNull();
+    expect(card.textContent).not.toContain('/qa');
+    expect(card.textContent).not.toContain('可撤销更改');
+    expect(card.textContent).not.toContain('不再询问');
+    const info = card.querySelector<HTMLButtonElement>('button[aria-label="详细信息"]')!;
+    await act(async () => info.click());
+    const tip = document.querySelector('[role="tooltip"]')?.textContent ?? '';
+    expect(tip).toContain('research · SOUL.md @ aaaaaaa');
+    expect(tip).not.toContain('/qa');
+    expect(tip).toContain('可撤销更改 · 记忆');
+    expect(tip).toContain('deepseekbot memory-save');
+    expect(tip).toContain('始终允许后，此 Bot 修改你的 Bot 的记忆时不再询问。');
+    expect(card.querySelectorAll('.bh-tool-approval-actions button')).toHaveLength(3);
   });
 
   it('renders the diff and folds long input', async () => {

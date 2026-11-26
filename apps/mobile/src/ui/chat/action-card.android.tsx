@@ -7,6 +7,7 @@ import {
   FlowRow,
   Host,
   Icon,
+  RNHostView,
   Row,
   Text,
   TextButton,
@@ -80,6 +81,7 @@ function StatusPill({ label }: { label: string }) {
 
 function Details({ children }: { children: ReactNode }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
   return (
     <Column verticalArrangement={{ spacedBy: space.x2 }} modifiers={[fillMaxWidth()]}>
@@ -88,7 +90,7 @@ function Details({ children }: { children: ReactNode }) {
           <Text>{t.details}</Text>
           <Icon
             source={ROW_ICON_SOURCES[open ? 'collapse' : 'expand']}
-            size={space.x5 + space.x1}
+            size={(space.x5 + space.x1) * theme.fontScale}
           />
         </Row>
       </TextButton>
@@ -146,6 +148,14 @@ export function CardPreview({
     </Text>
   );
   return well ? <Well>{body}</Well> : body;
+}
+
+export function CardEmbed({ children }: { children: ReactNode }) {
+  return (
+    <RNHostView matchContents={{ vertical: true }} modifiers={[fillMaxWidth()]}>
+      <ComposeTreeContext.Provider value={undefined}>{children}</ComposeTreeContext.Provider>
+    </RNHostView>
+  );
 }
 
 export function CardGroup({ children }: { children: ReactNode }) {

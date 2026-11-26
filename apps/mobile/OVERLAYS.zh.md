@@ -14,7 +14,7 @@ Android Activity 筛选使用覆盖整个底部导航容器的模态 Material �
 └─ 可选操作区：确实需要提交时才出现
 ```
 
-同一个弹层使用连续背景。子页面在同一个导航栈里推进，保留同一个 handle；返回只退一级，关闭才退出整个弹层。不要重复标题、重复安全区，也不要把标题和唯一关闭入口放进长列表里滚走。
+同一个弹层使用连续背景：handle、header 和正文都用 `theme.overlay.fill`，分组行、卡片和 header 按钮用 `raised`（`SHEET_GROUP`），不用页面的 `base`、`surface` 或颜色字面量。header 左侧只放关闭或返回，右侧最多一个操作或留空。完整标准见 [Bottom sheets](./DESIGN.md#bottom-sheets)，`pnpm lint` 会检查。子页面在同一个导航栈里推进，保留同一个 handle；返回只退一级，关闭才退出整个弹层。不要重复标题、重复安全区，也不要把标题和唯一关闭入口放进长列表里滚走。
 
 ## 按用途选择
 

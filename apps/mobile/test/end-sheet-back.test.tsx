@@ -16,6 +16,9 @@ vi.mock('expo', async () => {
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ overlay: { fill: '#ffffff' } }),
 }));
+vi.mock('../src/ui/design/material-tokens', () => ({
+  useMaterialRoles: () => ({ surfaceContainerLow: '#f7f2fa' }),
+}));
 vi.mock('../src/ui/shell/back-owner', () => ({
   holdBack: (handler: () => boolean) => {
     back.handler = handler;

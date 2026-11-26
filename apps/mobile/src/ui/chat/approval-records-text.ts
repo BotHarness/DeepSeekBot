@@ -4,6 +4,7 @@ import type {
   ApprovalRule,
 } from '../../host/approval-records';
 import { readableInput } from '@botharness/host-client/requests';
+import { shellPrefixHead } from '@botharness/host-client/shared/shell-approval-scope';
 import { t } from '../strings';
 
 const SUMMARY = 120;
@@ -75,9 +76,11 @@ export function ruleDetail(rule: ApprovalRule): string {
       ? t.approvals.allToolsDetail
       : rule.kind === 'tool'
         ? t.approvals.anyInput
-        : rule.kind === 'secret-cli'
-          ? secretCliSummary(rule.input)
-          : inputSummary(rule.input) || t.approvals.anyInput;
+        : rule.kind === 'prefix'
+          ? t.approvals.startsWith(shellPrefixHead(rule.input))
+          : rule.kind === 'secret-cli'
+            ? secretCliSummary(rule.input)
+            : inputSummary(rule.input) || t.approvals.anyInput;
   const scope = rule.role === 'assignment' ? t.approvals.inAssignments : t.approvals.inChat;
   return [
     target,

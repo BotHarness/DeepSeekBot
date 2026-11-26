@@ -19,7 +19,11 @@ internal data class RecoveryGroup(
   fun alert(): JSONObject {
     val replies = members.count { it.optString("kind") in setOf("channel-reply", "channel-mention") }
     val requests = members.size - replies
-    val text = if (language == "zh") "新回复 $replies · 待处理 $requests" else "New replies $replies · Needs you $requests"
+    val zh = language == "zh"
+    val text = listOfNotNull(
+      if (requests > 0) (if (zh) "待处理 $requests" else "Needs you $requests") else null,
+      if (replies > 0) (if (zh) "新回复 $replies" else "New replies $replies") else null
+    ).joinToString(" · ")
     return JSONObject().put("title", title).put("body", text)
       .put("members", JSONArray(members.map { it.getString("itemId") }))
       .put("data", JSONObject().put("v", 1).put("hostId", host).put("itemId", id)

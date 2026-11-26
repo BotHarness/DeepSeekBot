@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import { sessionTarget } from '../src/bridge/session-target.js';
+import { sessionTarget } from '../src/kernel/session-target.js';
 
 const codex = { kind: 'engine', engine: 'codex', model: 'gpt-6-astra' } satisfies TurnTarget;
 const native = {

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { interfacePreferences } from './interface-preferences';
-import { SettingsRow } from './primitives/settings-row';
+import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { PreferenceRow } from './primitives/preference-row';
 import { Button } from './primitives/button';
 import { SettingsFormItem } from './primitives/settings-form';
@@ -94,5 +94,73 @@ export function SessionsTabSetting({ on = 'sheet' }: { on?: LayerName }) {
         testID: 'sessions-tab-toggle',
       }}
     />
+  );
+}
+
+export function HideBarsSetting({ on = 'sheet' }: { on?: LayerName }) {
+  const t = useStrings().hideBars;
+  const state = usePreferences();
+  return (
+    <SettingsRow
+      on={on}
+      title={t.title}
+      icon="scrollBars"
+      detail={t.detail}
+      control={{
+        kind: 'switch',
+        value: state.hideBarsOnScroll,
+        onChange: interfacePreferences.setHideBarsOnScroll,
+        disabled: !state.loaded,
+        testID: 'hide-bars-toggle',
+      }}
+    />
+  );
+}
+
+export function SessionNavigationSettings({ on = 'sheet' }: { on?: LayerName }) {
+  const t = useStrings().hostSessions.navigation;
+  const state = usePreferences();
+  if (!state.sessionsTab) return null;
+  return (
+    <SettingsSection title={t.section} on={on} footer={t.footer}>
+      <PreferenceRow
+        on={on}
+        title={t.style}
+        icon="sessions"
+        testID="settings-session-navigation"
+        value={state.sessionNavigation}
+        options={[
+          { value: 'drawer', label: t.drawer, icon: 'drawer' },
+          { value: 'stacked', label: t.stacked, icon: 'stacked' },
+        ]}
+        onChange={interfacePreferences.setSessionNavigation}
+      />
+      <PreferenceRow
+        on={on}
+        title={t.launch}
+        icon="open"
+        testID="settings-session-launch"
+        value={state.sessionLaunch}
+        options={[
+          { value: 'new', label: t.newSession, icon: 'newSession' },
+          { value: 'list', label: t.list, icon: 'list' },
+          { value: 'last', label: t.last, icon: 'history' },
+        ]}
+        onChange={interfacePreferences.setSessionLaunch}
+      />
+      <PreferenceRow
+        on={on}
+        title={t.returning}
+        icon="history"
+        testID="settings-session-return"
+        value={state.sessionReturn}
+        options={[
+          { value: 'stay', label: t.stay, icon: 'stay' },
+          { value: 'new', label: t.newSession, icon: 'newSession' },
+          { value: 'list', label: t.list, icon: 'list' },
+        ]}
+        onChange={interfacePreferences.setSessionReturn}
+      />
+    </SettingsSection>
   );
 }

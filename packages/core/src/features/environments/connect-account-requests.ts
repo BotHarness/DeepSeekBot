@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   clientIdSchema,
+  hostListSchema,
   type AccountIssue,
   type ConnectClientId,
   type ConnectPool,
@@ -12,6 +13,7 @@ export const CONNECT_RELAY = 'https://connect.botharness.ai';
 export const DEVICE_ENDPOINT = 'https://api.workos.com/user_management/authorize/device';
 export const TOKEN_ENDPOINT = 'https://api.workos.com/user_management/authenticate';
 export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
+export const REQUEST_TIMEOUT_MS = 10_000;
 
 export class AccountError extends Error {
   constructor(
@@ -22,6 +24,18 @@ export class AccountError extends Error {
     super(issue);
   }
 }
+
+const MAX_TIMER_SECONDS = 2_147_483_647 / 1000;
+const authorizationSeconds = z
+  .union([z.number(), z.string().trim().min(1).transform(Number)])
+  .pipe(z.number().positive().max(MAX_TIMER_SECONDS));
+const authorizationTimingSchema = z.object({
+  interval: authorizationSeconds.default(5),
+  expires_in: authorizationSeconds,
+});
+
+const responseBodySchema = z.record(z.string(), z.unknown());
+const relayErrorSchema = z.object({ code: z.string() });
 
 const count = z.number().int().nonnegative();
 export const poolSchema = z.object({
@@ -127,8 +141,7 @@ export function createConnectAccountRequests(
     if (response.status >= 500 || response.status === 429 || response.status === 408)
       requestError('identity', operation, { reason: 'http', status: response.status });
     const parsed =
-      z.record(z.string(), z.unknown()).safeParse(await response.json().catch(() => undefined))
-        .data ?? {};
+      responseBodySchema.safeParse(await response.json().catch(() => undefined)).data ?? {};
     return { ok: response.ok, status: response.status, body: parsed };
   };
 
@@ -138,33 +151,31 @@ export function createConnectAccountRequests(
     path: string,
     accessToken?: string,
     body?: unknown,
-    timeoutMs?: number,
+    timeoutMs = REQUEST_TIMEOUT_MS,
     signal?: AbortSignal,
   ): Promise<{ status: number; body: Record<string, unknown> }> => {
+    const deadline = AbortSignal.timeout(timeoutMs);
+    const requestSignal = signal === undefined ? deadline : AbortSignal.any([signal, deadline]);
     let response: Response;
+    let bodyJson: unknown;
     try {
+      requestSignal.throwIfAborted();
       response = await fetcher(`${relay}${path}`, {
         method,
-        ...(timeoutMs === undefined
-          ? signal === undefined
-            ? {}
-            : { signal }
-          : {
-              signal: signal
-                ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-                : AbortSignal.timeout(timeoutMs),
-            }),
+        signal: requestSignal,
         headers: {
           ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }),
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
+      bodyJson = await response.json().catch(() => undefined);
+      requestSignal.throwIfAborted();
     } catch (error) {
       throw requestError('relay', operation, { reason: 'transport', error });
     }
-    const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const code = (parsed['error'] as { code?: unknown } | undefined)?.code;
+    const parsed = responseBodySchema.safeParse(bodyJson).data ?? {};
+    const code = relayErrorSchema.safeParse(parsed['error']).data?.code;
     if (response.status === 401)
       throw new AccountError(code === 'session-revoked' ? 'session-revoked' : 'session-expired');
     if (code === 'account-not-allowed') throw new AccountError('account-not-allowed');
@@ -188,8 +199,16 @@ export function createConnectAccountRequests(
     return { status: response.status, body: parsed };
   };
 
-  const clientId = async (): Promise<ConnectClientId> => {
-    const { status: code, body } = await relayCall('config', 'GET', '/v1/config');
+  const clientId = async (signal: AbortSignal): Promise<ConnectClientId> => {
+    const { status: code, body } = await relayCall(
+      'config',
+      'GET',
+      '/v1/config',
+      undefined,
+      undefined,
+      undefined,
+      signal,
+    );
     const parsed = clientIdSchema.safeParse(body['clientId']);
     if (
       code !== 200 ||
@@ -201,5 +220,55 @@ export function createConnectAccountRequests(
     return parsed.data;
   };
 
-  return { requestError, post, relayCall, clientId };
+  const authorizeDevice = async (id: ConnectClientId, signal: AbortSignal) => {
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+    requestSignal.throwIfAborted();
+    const reply = await post(
+      'device-authorization',
+      DEVICE_ENDPOINT,
+      { client_id: id },
+      requestSignal,
+    );
+    requestSignal.throwIfAborted();
+    const timing = authorizationTimingSchema.safeParse(reply.body);
+    const deviceCode = reply.body['device_code'];
+    const userCode = reply.body['user_code'];
+    const uri = reply.body['verification_uri_complete'] ?? reply.body['verification_uri'];
+    if (
+      !reply.ok ||
+      !timing.success ||
+      typeof deviceCode !== 'string' ||
+      typeof userCode !== 'string' ||
+      typeof uri !== 'string'
+    )
+      throw requestError('identity', 'device-authorization', {
+        reason: 'invalid-response',
+        status: reply.status,
+      });
+    const { interval, expires_in: lifetime } = timing.data;
+    return { deviceCode, userCode, uri, interval, lifetime };
+  };
+
+  const ownsHost = async (
+    hostId: string,
+    access: unknown,
+    signal: AbortSignal,
+  ): Promise<boolean> => {
+    if (typeof access !== 'string') throw new AccountError('session-expired');
+    const { status, body } = await relayCall(
+      'list-hosts',
+      'GET',
+      '/v1/hosts',
+      access,
+      undefined,
+      undefined,
+      signal,
+    );
+    const hosts = hostListSchema.safeParse(body);
+    if (status !== 200 || !hosts.success)
+      throw requestError('relay', 'list-hosts', { reason: 'invalid-response', status });
+    return hosts.data.hosts.some((host) => host.id === hostId);
+  };
+
+  return { requestError, post, relayCall, clientId, authorizeDevice, ownsHost };
 }

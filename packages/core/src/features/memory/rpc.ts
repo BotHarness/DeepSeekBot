@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { OverviewMemory } from '../../memory/overview.js';
 import type { MemoryFileTarget } from '../../memory/file-actions.js';
 import type {

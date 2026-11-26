@@ -35,6 +35,7 @@ describe('Host-started MCP server with Owner secrets', () => {
       { server_name: 'github', program: 'npx', args: ['--token', '{{token}}'], env },
       { server_name: 'github', program: 'npx', args: [], env: [{ name: 'PATH', value: '{{t}}' }] },
       { server_name: 'github', program: 'npx', args: [], env: [{ name: 'TOKEN', value: 'plain' }] },
+      { server_name: 'Composio', program: 'npx', args: [], env },
     ])
       expect(() => secretMcpPlan(input), JSON.stringify(input)).toThrow(SecretCommandRefusal);
   });

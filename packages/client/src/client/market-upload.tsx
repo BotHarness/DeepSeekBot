@@ -112,7 +112,7 @@ function tagList(value: string): string[] {
 }
 
 function publishable(bots: readonly BotSummary[]): BotSummary[] {
-  return bots.filter((bot) => !bot.deleted && bot.tob === undefined);
+  return bots.filter((bot) => !bot.deleted);
 }
 
 function BotAvatar({

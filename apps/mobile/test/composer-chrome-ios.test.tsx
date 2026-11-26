@@ -96,8 +96,6 @@ function Bar() {
   );
 }
 
-const surfaceTint = expect.stringMatching(/^#[0-9a-f]{6}$/iu);
-
 it('keeps the embedded attachment control on the field’s single Liquid Glass surface', async () => {
   await act(async () => root.render(<Bar />));
   const button = container.querySelector('button[aria-label="Attach"]')!;
@@ -105,7 +103,7 @@ it('keeps the embedded attachment control on the field’s single Liquid Glass s
   expect(container.querySelector('[data-material="rounded-22"]')).not.toBeNull();
   expect(native.effects).toEqual([
     {
-      glass: { variant: 'regular', tint: surfaceTint },
+      glass: { variant: 'regular' },
       shape: 'roundedRectangle',
       cornerRadius: 22,
     },

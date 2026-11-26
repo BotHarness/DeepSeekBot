@@ -4,11 +4,6 @@ import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
 import { DeviceAlertBanner } from '../src/ui/primitives/device-alert-banner';
 import { useDeviceAlert } from '../src/ui/primitives/use-device-alert';
-import {
-  channelRouteId,
-  channelStackRouter,
-  conversationRouteOptions,
-} from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View, type ViewInstance } from 'react-native';
@@ -26,7 +21,6 @@ import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
-import { topEntranceScreenOptions } from '../src/ui/shell/tob-mode-model';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
@@ -43,6 +37,7 @@ import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
 import { nativeBackgroundCatchUp } from '../src/host/native-background-support';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { WindowSafeAreaProvider } from '../src/ui/shell/window-insets';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
@@ -100,10 +95,14 @@ function RootNavigator() {
     ['model-preset', undefined],
     ['routing-group', undefined],
     ['prompts', t.prompts.title],
+    ['im-apps', t.imApps.title],
+    ['im-app', t.imApps.title],
     ['notifications', t.notifications],
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
     ['activity-count', t.activityCountSettings.title],
+    ['tab-bar', t.tabBarSettings.title],
+    ['pinned-conversation', t.tabBarSettings.pickerTitle],
     ['chat-background', t.chatBackground.global],
   ];
   const profileListeners = swipeEntryListeners(
@@ -130,9 +129,8 @@ function RootNavigator() {
               </SafeAreaView>
             ) : null}
             <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
-              <SafeAreaProvider>
+              <WindowSafeAreaProvider>
                 <Stack
-                  UNSTABLE_router={channelStackRouter}
                   screenOptions={{
                     orientation: 'portrait',
                     headerStyle: { backgroundColor: theme.background },
@@ -157,19 +155,6 @@ function RootNavigator() {
                     options={{ ...sheetScreenOptions(design), freezeOnBlur: true }}
                   />
                   <Stack.Screen name="create-channel" options={sheetScreenOptions(design)} />
-                  <Stack.Screen
-                    name="dm/[slug]"
-                    dangerouslySingular={channelRouteId}
-                    options={conversationRouteOptions}
-                    listeners={swipeEntryListeners('default')}
-                  />
-                  <Stack.Screen
-                    name="channel/[id]"
-                    dangerouslySingular={channelRouteId}
-                    options={conversationRouteOptions}
-                    listeners={swipeEntryListeners('default')}
-                  />
-                  <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
                   <Stack.Screen
                     name="bot/[slug]"
                     options={({ route }) => ({
@@ -233,7 +218,6 @@ function RootNavigator() {
                       title: t.privateInputOpen,
                     }}
                   />
-                  <Stack.Screen name="session/[id]" />
                   <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
                   <Stack.Screen
                     name="conversation-section"
@@ -344,7 +328,7 @@ function RootNavigator() {
                     }}
                   />
                 </Stack>
-              </SafeAreaProvider>
+              </WindowSafeAreaProvider>
             </View>
             <CallSessionHost />
             <BotCreationNotice />

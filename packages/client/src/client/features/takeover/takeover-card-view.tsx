@@ -1,4 +1,7 @@
 import type { ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { InfoTip } from '../../ds/info-tip.js';
+import { requestCardStyles } from '../../ds/request-card.js';
 import { ActionButton } from '../../ds/action-button.js';
 import { Tag } from '../../ds/tag.js';
 import type { BotHarnessTranslate } from '../../locale.js';
@@ -30,6 +33,10 @@ export function renderTakeoverCard({
   t: BotHarnessTranslate;
 }): ReactElement {
   const pending = status === 'pending';
+  const expiresAt = new Date(request.expiresAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
   return (
     <div
       className="bh-question-card bh-takeover-card"
@@ -37,27 +44,27 @@ export function renderTakeoverCard({
       data-takeover-target={request.target}
     >
       <div className="bh-private-input-heading">
-        <div className="bh-grant-request-title">{request.title}</div>
+        <span {...stylex.props(requestCardStyles.label)}>
+          <span className="bh-grant-request-title">{request.title}</span>
+          <InfoTip
+            label={t('takeover.details')}
+            text={[
+              t(`takeover.label.${request.target}`),
+              t('takeover.expiresAt', { time: expiresAt }),
+              t('takeover.note'),
+            ].join('\n')}
+          />
+        </span>
         <span role="status" className="bh-private-input-state">
           <Tag tone={pending ? 'warning' : 'neutral'}>
             {t(pending ? 'takeover.pending' : `takeover.outcome.${status}`)}
           </Tag>
         </span>
       </div>
-      <div className="bh-note">{t(`takeover.label.${request.target}`)}</div>
       <div className="bh-question-prompt">{message.body}</div>
       {pending ? (
         <>
-          <div className="bh-note">
-            {t('takeover.expiresAt', {
-              time: new Date(request.expiresAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            })}
-            {' · '}
-            {t('takeover.note')}
-          </div>
+          <div className="bh-note">{t('takeover.passwordNote')}</div>
           <div className="bh-message-card-actions">
             <ActionButton icon="external-link" tone="primary" size="md" onClick={open}>
               {t('takeover.open')}

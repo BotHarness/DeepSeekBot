@@ -20,6 +20,7 @@ import {
 } from '../../host/delivery-receipt';
 import { BotPortrait } from '../bot-avatar';
 import type { DesignTheme } from '../design/resolve-theme';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -232,7 +233,7 @@ export function ReadingBadge({
         paddingLeft: space.x2,
         paddingRight: space.x4,
         minHeight: BADGE_HEIGHT,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         borderWidth: edge.focus,
         borderColor: theme.color.base,
         backgroundColor: theme.layer.raised.fill,

@@ -59,6 +59,7 @@ vi.mock('../src/ui/design/theme', () => ({
     touch: 48,
     color: { accent: 'seed', fg: 'ink' },
     layer: { sheet: { fill: 'sheet-surface' } },
+    overlay: { fill: 'sheet-surface' },
   }),
 }));
 vi.mock('../src/ui/strings', () => ({ useStrings: () => ({ cancel: 'Cancel' }) }));
@@ -106,14 +107,39 @@ it('opens the shell in the Material 3 modal bottom sheet with the hosted content
   expect(view.querySelectorAll('[aria-label="Cancel"]')).toHaveLength(0);
 });
 
-it('uses the body sheet surface for the native handle and container too', async () => {
+it('leaves the Material container and content colours to ModalBottomSheet', async () => {
   const view = await mount(
     <Sheet visible label="Filters" onClose={() => {}}>
       <p>Filters</p>
     </Sheet>,
   );
-  expect(view.querySelector('dialog')?.getAttribute('data-fill')).toBe('sheet-surface');
-  expect(view.querySelector('dialog')?.getAttribute('data-ink')).toBe('ink');
+  expect(view.querySelector('dialog')?.hasAttribute('data-fill')).toBe(false);
+  expect(view.querySelector('dialog')?.hasAttribute('data-ink')).toBe(false);
+});
+
+it('opens a resizable sheet partially expanded and every other sheet fully expanded', async () => {
+  const fixed = await mount(
+    <Sheet visible label="Name" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  expect(fixed.querySelector('dialog')?.getAttribute('data-skip-partial')).toBe('true');
+  act(() => root?.unmount());
+  const resizable = await mount(
+    <Sheet visible resizable label="Model" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  expect(resizable.querySelector('dialog')?.getAttribute('data-skip-partial')).toBe('false');
+});
+
+it('gives a resizable sheet a fixed content height so loaded rows never move its detent', async () => {
+  const view = await mount(
+    <Sheet visible resizable label="Model" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  expect(contentStyle(view)).toEqual({ height: 844 - 24 - 16 - 48 * 2 });
 });
 
 it('calls the caller close for every native dismissal', async () => {

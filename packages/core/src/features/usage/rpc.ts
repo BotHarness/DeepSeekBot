@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { UsageOverviewPeriod } from '../../usage/overview.js';
 import type { OverviewUsage } from '../../bridge/methods.js';
 import type { UsageFilter, UsageQueryResult } from '../../usage/query.js';

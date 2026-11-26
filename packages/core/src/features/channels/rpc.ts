@@ -9,13 +9,13 @@ import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { BridgeLive } from '../../bridge/rpc.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { TeamService } from '../../team/service.js';
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import type {
   ChannelJournalPage,
   ChannelChanges,
   ChannelChangeCursor,
 } from '../../channels/timeline.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { GenuiMessageReply } from '../../channels/genui.js';
 import type { ChannelManagementResult } from '../../channels/management.js';
 import type { ChannelHistoryItem, GroupDisbandResult, PurgeSource } from '../../purge/contracts.js';
@@ -36,7 +36,7 @@ import type { ChannelSendStatus, HumanMessageSearchPage } from '../../channels/s
 import type { ChannelAttachmentRef } from '../../attachments/ref.js';
 import type { ChannelReadPosition } from '../../channels/store.js';
 import type { ChannelTimelinePage, TimelineDirection } from '../../channels/timeline.js';
-import type { ChannelsAdapterMethods } from './methods.js';
+import type { ChannelAccessState, ChannelsAdapterMethods } from './methods.js';
 import type { ChannelsManagementAdapterMethods } from './management-methods.js';
 import type { ChannelsSendAdapterMethods } from './send-methods.js';
 
@@ -69,6 +69,13 @@ export async function channelListChanges(
   epoch?: string,
 ): Promise<ChannelListChanges> {
   return unwrap(await methods.channelListChanges({ sinceSeq, epoch }));
+}
+
+export async function channelAccessState(
+  methods: ChannelsAdapterMethods,
+  channelId: string,
+): Promise<ChannelAccessState> {
+  return unwrap(await methods.channelAccessState({ channelId }));
 }
 
 export function channelDm(
@@ -571,6 +578,10 @@ export const channelManagementRpc = {
 
   async channelListChanges(sinceSeq: number, epoch?: string): Promise<ChannelListChanges> {
     return channelListChanges(this.methods, sinceSeq, epoch);
+  },
+
+  async channelAccessState(channelId: string): Promise<ChannelAccessState> {
+    return channelAccessState(this.methods, channelId);
   },
 
   channelDm(

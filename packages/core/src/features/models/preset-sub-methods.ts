@@ -5,7 +5,7 @@ import {
   unknownBot,
   asSlug,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';

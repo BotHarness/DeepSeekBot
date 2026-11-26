@@ -14,5 +14,6 @@ This note keeps the implementation constraints that were formerly explained besi
 
 ## Host integration and diagnostics
 
+- Feature handlers use [Kernel/Contracts](../decisions/core-architecture.md#kernelcontracts-for-host-results) for shared result types, validation, and RPC error conversion. The bridge composes the handlers and re-exports the helpers for existing callers.
 - The Host bridge registers a Typert remote binding in Cordis so the API Gateway discovers `botharness/<method>` endpoints. It must load even in a Profile without a Web connection. The current build pipeline cannot transform the decorator syntax, so registration uses the descriptor directly. See [ADR-0022](../decisions/desktop-ui.md#adr-0022), [ADR-0023](../decisions/desktop-ui.md#adr-0023), and the [bridge guide](../client-bridge.md).
 - `logs.db` is a separate, disposable developer-evidence store. Corruption or an unsupported generation rebuilds it empty without blocking Host boot; it is not an authority or backup source. Causation fields attribute a row independently from read scope. The operational-logs skill is visible only when Human-owned Developer mode is on. See [ADR-0063](../decisions/persistence.md#adr-0063) and [ADR-0064](../decisions/release.md#adr-0064).

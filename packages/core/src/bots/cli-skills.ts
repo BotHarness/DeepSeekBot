@@ -15,6 +15,10 @@ export interface SkillValues {
   query?: string;
   owner?: string;
   confirm?: boolean;
+  global?: boolean;
+  cursor?: string;
+  'on-conflict'?: string;
+  review?: string;
 }
 
 export const SKILL_COMMANDS = [
@@ -38,6 +42,21 @@ export const SKILL_COMMANDS = [
     description:
       "delete one Skill from a PersonaBot's Memory Repository and commit the deletion (restorable from git history): skills-remove <name> --bot <slug> --confirm",
   },
+  {
+    command: 'marketplace-skill-list',
+    description:
+      'browse or search Marketplace Skills / 浏览或搜索市场 Skill: [--query <text>] [--cursor <n>]',
+  },
+  {
+    command: 'marketplace-skill-detail',
+    description:
+      'read one Marketplace Skill with its SKILL.md, files, scripts and scan findings / 查看市场 Skill 详情: <id>',
+  },
+  {
+    command: 'skills-add',
+    description:
+      "add a Marketplace Skill to Bots' Memory Repositories or globally as a Host Skill / 把市场 Skill 添加到 Bot 或全局: skills-add <id> (--bot <slug>[,<slug>...] | --global) [--on-conflict replace|rename]; without --confirm it prints the review (scripts, scan findings, name conflicts) and changes nothing",
+  },
 ] as const;
 
 type Command = (typeof SKILL_COMMANDS)[number]['command'];
@@ -57,6 +76,18 @@ export async function runSkillCommand(
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
   const bot = values.bot?.trim();
+  if (command === 'marketplace-skill-list') {
+    if (rest.length !== 0) usage('marketplace-skill-list takes --query and --cursor only.');
+    return (await connect())('marketplaceSkillList', {
+      ...(values.query === undefined ? {} : { q: values.query }),
+      ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+    });
+  }
+  if (command === 'marketplace-skill-detail') {
+    if (rest.length !== 1) usage('marketplace-skill-detail takes <id>.');
+    return (await connect())('marketplaceSkillDetail', { id: rest[0] });
+  }
+  if (command === 'skills-add') return addSkill(rest, values, connect);
   if (command === 'skills-memory') {
     if (rest.length !== 0 || !bot)
       usage('skills-memory takes --bot <slug> and no positional arguments.');
@@ -116,6 +147,41 @@ export async function runSkillCommand(
           : (names.get(entry.owner.botSlug) ?? [entry.owner.botSlug]),
     ),
   };
+}
+
+async function addSkill(
+  rest: string[],
+  values: SkillValues,
+  connect: () => Promise<Rpc>,
+): Promise<unknown> {
+  const bots = (values.bot ?? '')
+    .split(',')
+    .map((slug) => slug.trim())
+    .filter((slug) => slug.length > 0);
+  const onConflict = values['on-conflict'];
+  if (rest.length !== 1 || (bots.length === 0 && values.global !== true))
+    usage('skills-add takes <id> and --bot <slug>[,<slug>...] or --global.');
+  if (onConflict !== undefined && onConflict !== 'replace' && onConflict !== 'rename')
+    usage('--on-conflict takes replace or rename.');
+  if (values.confirm === true && values.review === undefined)
+    usage('skills-add --confirm takes --review <review-id> from the preview the Human saw.');
+  const rpc = await connect();
+  if (values.confirm !== true) {
+    const review = await rpc('marketplaceSkillReview', { id: rest[0] });
+    const candidates = await rpc('marketplaceSkillAddCandidates', {});
+    return {
+      review,
+      candidates,
+      next: 'Show the scripts and findings to the Human, then repeat with --review <reviewId> --confirm to add exactly this review.',
+    };
+  }
+  return rpc('marketplaceSkillAdd', {
+    id: rest[0],
+    reviewId: values.review,
+    ...(bots.length === 0 ? {} : { bots }),
+    ...(values.global === true ? { global: true } : {}),
+    ...(onConflict === undefined ? {} : { onConflict }),
+  });
 }
 
 export function skillInvocationTokens(

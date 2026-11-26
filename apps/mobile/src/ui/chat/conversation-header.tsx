@@ -1,4 +1,5 @@
 import { useHeaderStatus } from './use-header-status';
+import { useGroupGoneReason } from '../../host/channel-access';
 import { HeaderTitleButton } from './header-title-button';
 import type { useProfilePaging } from './profile-paging';
 import { ConnectionProgress, useConnectionPresence } from '../primitives/connection-progress';
@@ -22,8 +23,9 @@ import {
   headerControlHeight,
 } from './native-header';
 import { swipeEntry } from '../shell/swipe-entry';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, type useDesignTheme } from '../design/theme';
-import { glassPress, radius, space } from '../design/tokens';
+import { glassPress, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import type { useStrings } from '../strings';
 import { useBotCall } from './call-button';
@@ -100,6 +102,7 @@ export function useConversationProfile({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const missingGroup = missing && !dm && !hostRefused && snapshot.status !== 'refused';
+  const groupGone = useGroupGoneReason(client, missingGroup ? channelId : undefined);
   useLayoutEffect(() => {
     if (missingGroup && focused) Keyboard.dismiss();
   }, [missingGroup, focused]);
@@ -157,7 +160,7 @@ export function useConversationProfile({
         alignItems: 'center',
         gap: space.x3,
         paddingHorizontal: theme.touch / 2,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         ...titleChipFill(theme, pressed),
         overflow: 'hidden',
       })}
@@ -250,6 +253,7 @@ export function useConversationProfile({
     connectionLabel,
     missing,
     missingGroup,
+    groupGone,
     backToChats,
     profileTravel,
     canGoBack,
@@ -273,6 +277,7 @@ export function conversationHeader({
   insets,
   windowWidth,
   leave,
+  tabRoot,
   ios,
   profile,
 }: {
@@ -281,6 +286,7 @@ export function conversationHeader({
   insets: ReturnType<typeof useSafeAreaInsets>;
   windowWidth: number;
   leave: () => void;
+  tabRoot: boolean;
   ios: boolean;
   profile: Pick<
     ReturnType<typeof useConversationProfile>,
@@ -325,7 +331,7 @@ export function conversationHeader({
     ios && glassHeader ? (
       <ChatHeaderRow
         title={title}
-        back={{ label: t.back, testID: 'chat-back-button', onPress: leave }}
+        back={tabRoot ? undefined : { label: t.back, testID: 'chat-back-button', onPress: leave }}
         controls={{
           kind: 'actions',
           actions: [

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { LayerName } from '../design/layers';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { useSelectionFeedback } from '../selection-feedback';
@@ -59,7 +60,7 @@ export function IconTabs<T extends string>({
               minHeight: theme.touch - space.x1 * 2,
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: radius.round,
+              borderRadius: capsuleRadius(theme.fontScale),
               backgroundColor: selected ? layer.fill : pressed ? layer.pressed : layer.inset,
             })}
           >

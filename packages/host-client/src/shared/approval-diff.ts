@@ -1,3 +1,4 @@
+import { parseMemoryDiff } from './memory-diff-model';
 export type ApprovalDiffLine = { kind: 'context' | 'add' | 'remove'; text: string };
 
 export interface ApprovalFileChange {
@@ -66,6 +67,23 @@ export function diffLines(before: string, after: string): ApprovalDiffLine[] {
   return [...head, ...middle, ...tail];
 }
 
+export function unifiedDiffLines(diff: string): ApprovalDiffLine[] {
+  return diff.split(/^(?=diff --git )/mu).flatMap((section) => {
+    const header = section.startsWith('diff --git ') ? section.slice(0, section.indexOf('\n')) : '';
+    const model = parseMemoryDiff(section);
+    return [
+      ...(header === '' ? [] : [{ kind: 'context' as const, text: header }]),
+      ...model.lines
+        .filter((line) => line.kind !== 'note')
+        .map((line) =>
+          line.kind === 'add' || line.kind === 'remove'
+            ? { kind: line.kind, text: line.text }
+            : { kind: 'context' as const, text: line.text },
+        ),
+    ];
+  });
+}
+
 function change(path: string, lines: ApprovalDiffLine[]): ApprovalFileChange {
   return {
     path,
@@ -101,12 +119,55 @@ export function approvalShellCommand(
   return description ? { command, description } : { command };
 }
 
+export interface ApprovalMemoryEdit {
+  target: string;
+  label: string;
+  base: string;
+  diff: string;
+}
+
+export function approvalMemoryEdit(
+  toolName: string,
+  input: string,
+): ApprovalMemoryEdit | undefined {
+  if (toolName !== 'deepseekbot memory-save' && toolName !== 'deepseekbot memory-restore-commit')
+    return undefined;
+  const args = parseArgs(input);
+  const target = text(args?.['target']);
+  const patch = args?.['patch'];
+  if (typeof patch !== 'object' || patch === null || target === undefined) return undefined;
+  const fields = patch as Record<string, unknown>;
+  const diff = text(fields['diff']);
+  const base = text(fields['expectedHead'])?.slice(0, 7);
+  const label =
+    toolName === 'deepseekbot memory-save'
+      ? text(fields['path'])
+      : text(fields['sha'])?.slice(0, 7);
+  if (diff === undefined || base === undefined || label === undefined) return undefined;
+  return {
+    target,
+    label: toolName === 'deepseekbot memory-save' ? label : `${base} → ${label}`,
+    base,
+    diff,
+  };
+}
+
 export function approvalFileChange(
   toolName: string,
   input: string,
 ): ApprovalFileChange | undefined {
   const args = parseArgs(input);
   if (args === undefined) return undefined;
+  const memory = approvalMemoryEdit(toolName, input);
+  if (memory !== undefined)
+    return change(
+      toolName === 'deepseekbot memory-save'
+        ? `${memory.target} · ${memory.label} @ ${memory.base}`
+        : `${memory.target} · ${memory.label}`,
+      unifiedDiffLines(memory.diff),
+    );
+  if (toolName === 'deepseekbot memory-save' || toolName === 'deepseekbot memory-restore-commit')
+    return undefined;
   if (toolName === 'write') {
     const path = text(args['file_path']);
     const content = text(args['content']);

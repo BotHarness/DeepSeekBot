@@ -146,16 +146,6 @@ export interface MemoryAcceptance {
     memoryDir?: string;
     available: boolean;
   }>;
-  continueFromCommit(input: { botSlug: string; sessionId: string; sha: string; branch: string }): {
-    from: string;
-    to: string;
-    head: string;
-  };
-  switchBranch(input: { botSlug: string; sessionId: string; branch: string }): {
-    from: string;
-    to: string;
-    head: string;
-  };
   prepareTurn(
     botSlug: string,
     sessionId: string,
@@ -226,6 +216,20 @@ export interface MemoryAcceptance {
       editId: string;
     },
   ): MemoryAcceptedCommit;
+  reviewHumanSave(input: { botSlug: string; path: string; body: string; editId: string }): {
+    head: string;
+    path: string;
+    before: string | null;
+    diff: string;
+    accepted?: MemoryAcceptedCommit;
+  };
+  reviewHumanRestore(input: { botSlug: string; sha: string; restoreId: string }): {
+    head: string;
+    dirty: boolean;
+    paths: string[];
+    diff: string;
+    accepted?: MemoryAcceptedCommit;
+  };
   restoreCommitHuman(
     human: HumanContext,
     input: {

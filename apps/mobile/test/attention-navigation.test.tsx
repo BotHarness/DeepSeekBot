@@ -3,7 +3,6 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
-import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { HostSnapshot } from '@botharness/host-client/client';
 
 const fixture = vi.hoisted(() => {
@@ -81,35 +80,21 @@ vi.mock('expo-router', () => ({
 }));
 
 import InboxItemScreen from '../app/inbox/[id]';
-import { channelRouteId } from '../src/ui/shell/channel-navigation';
+import {
+  appNavigationState,
+  chatsRoutes,
+  reduceAppNavigation,
+  visibleRoute,
+} from './channel-navigation-harness';
 import { t } from '../src/ui/strings';
 
-const stack = StackRouter({ initialRouteName: '(tabs)' });
-const options = {
-  routeNames: ['(tabs)', 'inbox/[id]', 'dm/[slug]', 'channel/[id]'],
-  routeParamList: {},
-  routeGetIdList: {
-    'channel/[id]': ({ params }: { params?: object }) =>
-      channelRouteId('channel/[id]', { ...params }),
-    'dm/[slug]': ({ params }: { params?: object }) => channelRouteId('dm/[slug]', { ...params }),
-  },
-};
-const initialState = (): Parameters<typeof stack.getStateForAction>[0] => ({
-  stale: false,
-  type: 'stack',
-  key: 'root',
-  routeKeySeq: 1,
-  index: 0,
-  routeNames: options.routeNames,
-  routes: [{ key: 'tabs', name: '(tabs)', params: {} }],
-});
+const initialState = () => appNavigationState();
 let state = initialState();
 const navigation = {
   isReady: () => true,
   getRootState: () => state,
-  dispatch(action: Parameters<typeof stack.getStateForAction>[1]) {
-    const result = stack.getStateForAction(state, action, options);
-    if (typeof result === 'object') state = result.state;
+  dispatch(action: Parameters<typeof reduceAppNavigation>[1]) {
+    state = reduceAppNavigation(state, action);
   },
 };
 let root: Root | undefined;
@@ -172,7 +157,7 @@ it('leaves an interruption in place when opened without clearOnOpen', async () =
   expect(container.querySelector('[data-testid="repair-clear"]')).not.toBeNull();
 });
 
-it('opens an interrupted peer DM from its detail and Back returns to that detail', async () => {
+it('opens an interrupted peer DM from its detail in Chats and Back returns to the Chats list', async () => {
   state = initialState();
   navigation.dispatch({
     type: 'PUSH',
@@ -185,15 +170,13 @@ it('opens an interrupted peer DM from its detail and Back returns to that detail
   const open = container.querySelector<HTMLButtonElement>('[data-testid="repair-open"]');
   expect(open).not.toBeNull();
   await act(async () => open!.click());
-  expect(state.routes[state.index]).toMatchObject({
+  expect(visibleRoute(state)).toMatchObject({
     name: 'channel/[id]',
     params: { id: 'peer-channel', hostId: 'host-a', focus: 'original-message' },
   });
+  expect(state.routes).toHaveLength(1);
   navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'inbox/[id]',
-    params: { id: fixture.item.id },
-  });
+  expect(visibleRoute(state)).toMatchObject({ name: 'index' });
 });
 
 it('shows unavailable feedback instead of silently ignoring an unknown Channel', async () => {
@@ -208,6 +191,7 @@ it('shows unavailable feedback instead of silently ignoring an unknown Channel',
   );
   expect(container.textContent).toContain(t.noChannel);
   expect(state.routes).toHaveLength(1);
+  expect(chatsRoutes(state)).toHaveLength(1);
 });
 
 it('can retry after the Roster finishes loading', async () => {
@@ -226,7 +210,7 @@ it('can retry after the Roster finishes loading', async () => {
   await act(async () =>
     container!.querySelector<HTMLButtonElement>('[data-testid="repair-open"]')!.click(),
   );
-  expect(state.routes[state.index]?.name).toBe('channel/[id]');
+  expect(visibleRoute(state)?.name).toBe('channel/[id]');
 });
 
 it('unwinds to the original Channel and updates focus instead of duplicating it', async () => {
@@ -238,7 +222,7 @@ it('unwinds to the original Channel and updates focus instead of duplicating it'
       params: { id: 'peer-channel', hostId: 'host-a', focus: 'old' },
     },
   });
-  const originalKey = state.routes[state.index]?.key;
+  const originalKey = visibleRoute(state)?.key;
   navigation.dispatch({
     type: 'PUSH',
     payload: { name: 'channel/[id]', params: { id: 'another', hostId: 'host-a' } },
@@ -254,12 +238,13 @@ it('unwinds to the original Channel and updates focus instead of duplicating it'
   await act(async () =>
     container!.querySelector<HTMLButtonElement>('[data-testid="repair-open"]')!.click(),
   );
-  expect(state.routes).toHaveLength(2);
-  expect(state.routes[state.index]).toMatchObject({
+  expect(chatsRoutes(state)).toHaveLength(2);
+  expect(state.routes).toHaveLength(1);
+  expect(visibleRoute(state)).toMatchObject({
     key: originalKey,
     params: { focus: 'original-message' },
   });
-  const params = state.routes[state.index]?.params;
+  const params = visibleRoute(state)?.params;
   const request = params && 'focusRequest' in params ? params.focusRequest : undefined;
   expect(request).toEqual(expect.any(String));
   navigation.dispatch({
@@ -269,12 +254,13 @@ it('unwinds to the original Channel and updates focus instead of duplicating it'
   await act(async () =>
     container!.querySelector<HTMLButtonElement>('[data-testid="repair-open"]')!.click(),
   );
-  expect(state.routes).toHaveLength(2);
-  expect(state.routes[state.index]).toMatchObject({
+  expect(chatsRoutes(state)).toHaveLength(2);
+  expect(state.routes).toHaveLength(1);
+  expect(visibleRoute(state)).toMatchObject({
     key: originalKey,
     params: { focus: 'original-message' },
   });
-  expect(state.routes[state.index]?.params).not.toHaveProperty('focusRequest', request);
+  expect(visibleRoute(state)?.params).not.toHaveProperty('focusRequest', request);
   navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.name).toBe('(tabs)');
+  expect(visibleRoute(state)?.name).toBe('index');
 });

@@ -1,5 +1,5 @@
 import { orchestratorHandle } from './dsh-bot-agent-adapter-orchestrator.js';
-import type { AssignmentModeChoices } from '../features/assignments/tools.js';
+import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import { ModelFreeTobCliInvocation } from '../tob/cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
@@ -64,6 +64,8 @@ export class DshBotAgentAdapterState {
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
   readonly assignmentModes: ((botSlug: string) => Promise<AssignmentModeChoices>) | undefined;
   readonly onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
+  readonly onAssignmentShellSetup: DshBotAgentAdapterOptions['onAssignmentShellSetup'];
+  readonly assignmentReportFooter: DshBotAgentAdapterOptions['assignmentReportFooter'];
   readonly onAgentSetup:
     | ((agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void)
     | undefined;
@@ -142,6 +144,8 @@ export class DshBotAgentAdapterState {
     this.admitSession = options.admitSession;
     this.onAgentSetup = options.onAgentSetup;
     this.onOrchestratorFileSetup = options.onOrchestratorFileSetup;
+    this.onAssignmentShellSetup = options.onAssignmentShellSetup;
+    this.assignmentReportFooter = options.assignmentReportFooter;
     this.#resolveAgentPresets = options.resolveAgentPresets;
     this.assignmentModes = options.assignmentModes;
     this.ensureWorkspace =

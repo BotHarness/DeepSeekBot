@@ -4,7 +4,7 @@ import {
   type VoiceRequestTemplate,
   type VoiceTemplateValidation,
 } from '../../voice/request-template.js';
-import type { BridgeResult } from '../../bridge/methods.js';
+import type { BridgeResult } from '../../kernel/method-utils.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
 import type { AsrPreset, TtsPreset } from '../../voice/presets.js';

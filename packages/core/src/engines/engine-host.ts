@@ -37,6 +37,7 @@ import {
   type EngineSessionDescription,
 } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
+import { engineSubagentLogs } from './engine-subagents.js';
 import {
   choiceKey,
   RELEASE_GRACE_MS,
@@ -277,22 +278,17 @@ export class EngineHost {
     return account;
   }
 
-  #rememberModel(botSlug: string, engine: EngineId, model: string | undefined): void {
-    if (model === undefined || this.store.model(botSlug, engine) === model) return;
-    this.store.rememberModel(botSlug, engine, model);
-    this.#options.changed?.();
-  }
-
-  #rememberAccount(botSlug: string, engine: EngineId, account: string): void {
-    if (this.store.account(botSlug, engine) === account) return;
-    this.store.rememberAccount(botSlug, engine, account);
+  #save(kind: 'model' | 'account', botSlug: string, engine: EngineId, value?: string): void {
+    if (value === undefined || this.store[kind](botSlug, engine) === value) return;
+    if (kind === 'model') this.store.rememberModel(botSlug, engine, value);
+    else this.store.rememberAccount(botSlug, engine, value);
     this.#options.changed?.();
   }
 
   fallsBack(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
     return (
       this.#options.local &&
-      this.store.selection(botSlug, role) != null &&
+      this.engineFor(botSlug, role) !== undefined &&
       this.store.fallback(botSlug, role)
     );
   }
@@ -442,7 +438,7 @@ export class EngineHost {
         }
         if (live.workspaceMode !== mode) return this.#runTurn(request, steering, updates);
         this.#options.requireAccountGrant?.(request.botSlug, live.accountId);
-        if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
+        if (role === 'orchestrator') this.#save('account', request.botSlug, engine, live.account);
         const priorReplies = continuation ? request.priorReplies?.() : undefined;
         const prepared = steering.prepareInput(request.input, updates, priorReplies);
         if (prepared === undefined) return outcome;
@@ -472,6 +468,7 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, input);
+        const subagents = engineSubagentLogs(this.#options, live, request.sessionId, engine);
         let previousTarget: Extract<TurnTarget, { kind: 'engine' }> | undefined;
         const observeTarget = () => {
           const model = live.engine.model ?? live.choice.model;
@@ -529,6 +526,7 @@ export class EngineHost {
             onEvent: (event) => {
               observeTarget();
               log.accept(event);
+              subagents.accept(event);
               if (event.kind === 'text') outcome.text = event.text;
               if (event.kind === 'tool-call') delete outcome.text;
               if (event.kind === 'approval')
@@ -550,8 +548,9 @@ export class EngineHost {
           if (steered.replacing) await Promise.allSettled(scope.pendingReplies);
           observeTarget();
           if (role === 'orchestrator')
-            this.#rememberModel(request.botSlug, engine, live.engine.model);
+            this.#save('model', request.botSlug, engine, live.engine.model);
           try {
+            await subagents.end(end);
             await log.end(end);
             const interruptedForSteer =
               role === 'orchestrator' &&
@@ -585,6 +584,7 @@ export class EngineHost {
               throw new EngineRefusal('engine-failed', end.message);
           }
         } finally {
+          await subagents.end({ status: 'interrupted' });
           if (!current()) steering.discard();
           if (live.turn === scope) live.turn = undefined;
           if (live.stop === stop) live.stop = undefined;
@@ -873,7 +873,8 @@ export class EngineHost {
         channelId: () => holder.live?.turn?.channelId,
         canUseChannel: (channelId) => holder.live?.turn?.canUseChannel?.(channelId) === true,
         channelless: request.role === 'assignment',
-        call: (name, args, signal) => executeEngineTurnTool(holder.live?.turn, name, args, signal),
+        call: (name, args, signal) =>
+          executeEngineTurnTool(holder.live?.turn, name, args, signal, holder.live?.engine),
       });
       const stored = this.store.nativeSession(sessionId);
       let resume =
@@ -946,7 +947,7 @@ export class EngineHost {
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const account = await readEngineAccount(opened);
       const label = requireSubscription(account, accountId);
-      this.#rememberAccount(botSlug, opened.engine, label);
+      this.#save('account', botSlug, opened.engine, label);
       let nativeId: string;
       try {
         nativeId = await opened.start(resume);
@@ -956,7 +957,7 @@ export class EngineHost {
         recovery = await restore();
         nativeId = await opened.start();
       }
-      this.#rememberModel(botSlug, opened.engine, opened.model);
+      this.#save('model', botSlug, opened.engine, opened.model);
       dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {

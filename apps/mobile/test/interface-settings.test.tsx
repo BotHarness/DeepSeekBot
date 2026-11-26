@@ -94,7 +94,13 @@ it('updates mounted settings and theme immediately and preserves unrelated state
       language: 'zh',
       appearance: 'dark',
       sessionsTab: false,
+      hideBarsOnScroll: false,
+      tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });

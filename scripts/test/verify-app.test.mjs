@@ -60,6 +60,8 @@ describe('verify-app arguments', () => {
       'Welcome',
       '--right-click',
       'DeepSeek Bot',
+      '--long-press',
+      'Always allow',
       '--wait-text',
       '42',
       '--size',
@@ -81,6 +83,7 @@ describe('verify-app arguments', () => {
         { kind: 'press', name: 'Enter' },
         { kind: 'click-text', name: 'Welcome' },
         { kind: 'right-click', name: 'DeepSeek Bot' },
+        { kind: 'long-press', name: 'Always allow' },
       ],
     });
   });

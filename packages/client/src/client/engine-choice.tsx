@@ -2,7 +2,7 @@ import {
   parseEngineDeviceLoginProgress,
   type EngineDeviceLoginProgress,
 } from '@botharness/host-protocol/engine-device-login';
-import type { SubscriptionModel } from '@botharness/host-client/model-plans';
+import { engineSelection, type SubscriptionModel } from '@botharness/host-client/model-plans';
 import {
   cancelAccountSignIn,
   loadEngineAccounts,
@@ -137,8 +137,7 @@ export function engineLoginActions(
 
 export function bridgeEngineApi(call: BridgeCall): EngineApi {
   const host = bridgeHost(call);
-  const request = (input: Record<string, unknown>) =>
-    host.call('engineSelection', { request: input });
+  const request = (input: Record<string, unknown>) => engineSelection(host, input);
   return {
     async read() {
       return parseEngineAccounts(await request({ action: 'status' }));

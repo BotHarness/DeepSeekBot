@@ -15,6 +15,7 @@ import {
 import type { BotAvatarChoice } from '@botharness/host-client/bot-creation';
 import { avatarFamilyOptions } from '../../host/avatar-customization';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
+import { avatarBackdrop } from '../avatar-backdrop';
 import { useDesignTheme } from '../design/theme';
 import { creationAvatar, edge, radius, space } from '../design/tokens';
 import { Button } from '../primitives/creation-button';
@@ -41,7 +42,7 @@ export function CreationAvatarPreview({
     () =>
       (imported && !avatar) || avatar?.kind === 'photo'
         ? undefined
-        : avatarSvg(creationAvatarRecipe(avatar)),
+        : avatarSvg(creationAvatarRecipe(avatar), { squareBackdrop: true }),
     [avatar, imported],
   );
   return (
@@ -56,7 +57,7 @@ export function CreationAvatarPreview({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: theme.layer.raised.fill,
+        backgroundColor: (svg && avatarBackdrop(svg)) ?? theme.layer.raised.fill,
       }}
     >
       {avatar?.kind === 'photo' ? (
@@ -70,7 +71,7 @@ export function CreationAvatarPreview({
         <CachedImage
           source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
           cachePolicy="memory"
-          contentFit="contain"
+          contentFit="cover"
           style={{ width: size, height: size }}
         />
       ) : (
@@ -85,18 +86,28 @@ export function CreationAvatarPreview({
 }
 
 type Gallery = 'tilties' | 'pixel';
-type Preset = { id: string; label: string; uri: string; avatar: BotAvatarChoice };
+type Preset = {
+  id: string;
+  label: string;
+  uri: string;
+  avatar: BotAvatarChoice;
+  backdrop: string | undefined;
+};
 
 const tiltiesPresets = TILTIES_PORTRAITS.map((portrait) => ({
   portrait,
   avatar: { kind: 'photo', image: portrait.image } as const,
 }));
-const pixelPresets = avatarFamilyOptions.illustrated.presets.map((recipe, index) => ({
-  id: String(index + 1),
-  number: index + 1,
-  recipe,
-  uri: 'data:image/svg+xml;base64,' + btoa(avatarSvg(recipe)),
-}));
+const pixelPresets = avatarFamilyOptions.illustrated.presets.map((recipe, index) => {
+  const svg = avatarSvg(recipe, { squareBackdrop: true });
+  return {
+    id: String(index + 1),
+    number: index + 1,
+    recipe,
+    uri: 'data:image/svg+xml;base64,' + btoa(svg),
+    backdrop: avatarBackdrop(svg),
+  };
+});
 
 function initialGallery(avatar: BotAvatarChoice | undefined): Gallery {
   if (avatar?.kind === 'recipe') return 'pixel';
@@ -148,7 +159,7 @@ const PresetTile = memo(function PresetTile({
           flex: 1,
           borderRadius: radius.round,
           overflow: 'hidden',
-          backgroundColor: theme.layer.raised.fill,
+          backgroundColor: preset.backdrop ?? theme.layer.raised.fill,
         }}
       >
         <CachedImage
@@ -227,12 +238,14 @@ export function CreationAvatar({
           id: 'create-bot-avatar-tilties-' + portrait.id,
           label: t.avatarEditor.tiltiesName(portrait.en, portrait.zh),
           uri: portrait.image,
+          backdrop: undefined,
           avatar: choice,
         }))
       : pixelPresets.map((preset) => ({
           id: 'create-bot-avatar-pixel-' + preset.id,
           label: t.avatarEditor.preset(preset.number),
           uri: preset.uri,
+          backdrop: preset.backdrop,
           avatar: { kind: 'recipe', recipe: preset.recipe },
         }));
   const isSelected = (preset: Preset) =>

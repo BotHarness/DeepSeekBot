@@ -71,6 +71,7 @@ export const TEAM_REFUSALS = [
   'device-not-found',
   'member-suspended',
   'permission-not-grantable',
+  'permission-conflict',
   'owner-transfer-target-unverified',
   'transfer-target-invalid',
   'transfer-required',

@@ -1,5 +1,5 @@
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
-import type { AssignmentModeChoices } from '../features/assignments/tools.js';
+import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import type { GenuiPreviewDiagnostic } from './genui-preview.js';
 import type { ModelFreeTobCliInvocation } from '../tob/cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -54,11 +54,11 @@ export { TURN_ONLY_BOT_TOOLS } from './dsh-bot-agent-adapter-shared.js';
 export { hostWorkContext } from './dsh-bot-agent-adapter-orchestrator.js';
 export { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
 
+export { onlyActiveGrant } from '../features/assignments/tools.js';
 export {
-  assignmentModeParameter,
-  onlyActiveGrant,
+  assignmentLoadoutParameter,
   type AssignmentModeChoices,
-} from '../features/assignments/tools.js';
+} from '../features/assignments/loadout-parameter.js';
 
 export { replyReminderText } from '../features/messaging/prompt.js';
 
@@ -130,6 +130,13 @@ export interface DshBotAgentAdapterOptions {
   admitSession?: (agent: Agent) => void;
 
   onOrchestratorFileSetup?: (agentCtx: Context, agent: Agent) => Promise<() => Promise<void>>;
+
+  assignmentReportFooter?: (sessionId: string) => string | undefined;
+
+  onAssignmentShellSetup?: (
+    agentCtx: Context,
+    agent: Agent,
+  ) => Promise<(() => Promise<void>) | undefined>;
 
   onAgentSetup?: (agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void;
 

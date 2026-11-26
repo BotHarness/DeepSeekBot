@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement, type ReactNode } from 'react';
+import { Fragment, createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -31,14 +31,20 @@ vi.mock('react-native', async () => ({
   },
   View: ({ children }: { children?: ReactNode }) => createElement('div', {}, children),
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
+vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 vi.mock('../src/ui/chat/header-bot-stack', () => ({ HeaderBotStack: () => null }));
 vi.mock('../src/ui/chat/chat-header-surface.android', () => ({ ChatHeaderSurface: () => null }));
-vi.mock('../src/ui/primitives/material-menu.android', () => ({ MaterialMenuGroup: () => null }));
+vi.mock('../src/ui/primitives/material-menu.android', () => ({
+  MaterialMenuGroup: ({ header }: { header?: string }) =>
+    createElement('div', { 'data-node': 'MaterialMenuGroup', 'data-header': header }),
+}));
 vi.mock('../src/ui/primitives/menu-icon', () => ({ MenuIcon: () => null }));
 vi.mock('../src/ui/design/island-compose.android', () => ({
   composeIsland: () => ({ surface: {}, modifiers: [] }),
@@ -64,14 +70,21 @@ vi.mock('@expo/ui/jetpack-compose', () => {
           'data-max-lines': maxLines,
           'data-font-size': style?.fontSize,
           'data-height': modifiers?.find((modifier) => modifier.name === 'height')?.args[0],
+          'data-test-id': modifiers?.find((modifier) => modifier.name === 'testID')?.args[0],
         },
         children,
       );
   const DropdownMenu = Object.assign(node('DropdownMenu'), {
     Trigger: node('Trigger'),
-    Items: () => null,
+    Items: node('Items'),
   });
+  const transition = { fadeIn: () => ({}), fadeOut: () => ({}) };
   return {
+    AnimatedVisibility: ({ visible, children }: { visible: boolean; children?: ReactNode }) =>
+      visible ? createElement(Fragment, null, children) : null,
+    Box: node('Box'),
+    EnterTransition: transition,
+    ExitTransition: transition,
     CircularProgressIndicator: () => null,
     Column: node('Column'),
     DropdownMenu,
@@ -148,5 +161,89 @@ describe('Android Conversation screen top app bar at large text', () => {
     expect(bar.maxLines).toBe(1);
     expect(bar.renderedSize).toBe(TITLE_SIZE);
     expect(bar.statusShown).toBe(true);
+  });
+});
+
+describe('Android Conversation screen top app bar leading action', () => {
+  it('drops Back for a tab-root conversation and keeps it elsewhere', () => {
+    const markup = (leading?: 'back' | 'none') =>
+      renderToStaticMarkup(
+        <ConversationTopBar
+          title={TITLE}
+          onBack={() => {}}
+          onProfile={() => {}}
+          {...(leading === undefined ? {} : { leading })}
+        />,
+      );
+    expect(markup()).toContain('chat-back');
+    expect(markup('none')).not.toContain('chat-back');
+  });
+});
+
+describe('Android Session header', () => {
+  it('opens the Session menu from the name capsule, with the full name on top and no ⋯ button', () => {
+    device.fontScale = 1;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        variant="session"
+        title={TITLE}
+        leading="drawer"
+        onBack={() => {}}
+        onCompose={() => {}}
+        titleMenu={{
+          label: 'Session options',
+          testID: 'session-options',
+          items: [
+            { label: 'Model choice', testID: 'session-model-choice', icon: 'model', run() {} },
+          ],
+        }}
+      />,
+    );
+    const menus = view.querySelectorAll('[data-node="DropdownMenu"]');
+    expect(menus).toHaveLength(1);
+    expect(
+      menus[0]!.querySelector('[data-node="Trigger"] [data-test-id="chat-identity"]'),
+    ).not.toBeNull();
+    expect(
+      menus[0]!
+        .querySelector('[data-node="Items"] [data-node="MaterialMenuGroup"]')
+        ?.getAttribute('data-header'),
+    ).toBe(TITLE);
+    expect(menus[0]!.querySelector('[data-node="Items"] [data-node="Text"]')).toBeNull();
+    expect(view.innerHTML).not.toContain('more-vert');
+    expect(view.querySelector('[data-test-id="session-new"]')).not.toBeNull();
+    expect(view.querySelector('[data-test-id="session-drawer-button"]')).not.toBeNull();
+  });
+
+  it('shows the Host and worktree folder under the title and the full path in the menu', () => {
+    device.fontScale = 1;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        variant="session"
+        title={TITLE}
+        place={{
+          hostIcon: { kind: 'symbol', id: 'laptop' },
+          hostName: 'Studio Mac',
+          folder: 'app-5187',
+          path: '/srv/worktrees/app-5187',
+        }}
+        leading="drawer"
+        onBack={() => {}}
+        titleMenu={{
+          label: 'Session options',
+          testID: 'session-options',
+          items: [
+            { label: 'Model choice', testID: 'session-model-choice', icon: 'model', run() {} },
+          ],
+        }}
+      />,
+    );
+    const place = view.querySelector('[data-test-id="session-header-place"]');
+    expect(place?.textContent).toBe('app-5187');
+    expect(view.querySelector('[data-node="MaterialMenuGroup"]')?.getAttribute('data-header')).toBe(
+      `${TITLE}\nStudio Mac\n/\u200bsrv/\u200bworktrees/\u200bapp-\u200b5187`,
+    );
   });
 });

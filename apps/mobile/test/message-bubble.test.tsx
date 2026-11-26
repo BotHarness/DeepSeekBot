@@ -12,13 +12,13 @@ const { native, mockGestureHandler, mockReactNative, mockEnrichedMarkdown, reset
 import {
   BubbleBody,
   DraftBubble,
-  MessageActions,
   MessageBubble,
   deliveryLabel,
   human,
-  messageMenuActions,
   t,
 } from './message-bubble-fixtures';
+
+const { MessageActions, messageMenuActions } = await import('../src/ui/chat/message-actions');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

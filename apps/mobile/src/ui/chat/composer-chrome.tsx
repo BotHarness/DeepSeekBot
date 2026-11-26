@@ -3,11 +3,11 @@ import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
-import { islandHighlight, islandRim, islandShadow } from '../design/island';
-import { radius, space } from '../design/tokens';
+import { useComposerOutline } from './composer-outline';
+import { edge, radius, space } from '../design/tokens';
 
-export function composerPillShadow(theme: DesignTheme): string | undefined {
-  return Platform.OS === 'android' ? islandShadow(theme.scheme) : undefined;
+export function composerPillShadow(_theme: DesignTheme): string | undefined {
+  return undefined;
 }
 
 export function composerPrimary(theme: DesignTheme): { fill: string; ink: string } {
@@ -67,6 +67,7 @@ export function ComposerCircleButton({
 
 export function ComposerFieldMaterial({ cornerRadius }: { cornerRadius: number }) {
   const theme = useDesignTheme();
+  const outline = useComposerOutline();
   return (
     <View
       pointerEvents="none"
@@ -75,12 +76,7 @@ export function ComposerFieldMaterial({ cornerRadius }: { cornerRadius: number }
       style={[
         StyleSheet.absoluteFill,
         { borderRadius: cornerRadius, backgroundColor: theme.layer.raised.fill },
-        Platform.OS === 'android'
-          ? {
-              ...islandRim(theme.scheme),
-              boxShadow: islandHighlight(theme.scheme),
-            }
-          : null,
+        outline === undefined ? null : { borderWidth: edge.hairline, borderColor: outline },
       ]}
     />
   );

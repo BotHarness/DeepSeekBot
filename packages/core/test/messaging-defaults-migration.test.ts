@@ -4,7 +4,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { messagingDefaults, commitMessagingDefaults } from '../src/messaging/defaults.js';
 import { readMessagingIdentity } from '../src/messaging/identity.js';
-import { groupReceptionPolicy } from '../src/messaging/group-policy.js';
+import { groupReceptionPolicy } from '../src/messaging/permissions/index.js';
 import { createTempRoot } from './helpers.js';
 it('upgrades legacy choices without reinterpreting identity, group policy, or Human Thread overrides', () => {
   const home = createTempRoot('bh-defaults-upgrade-');

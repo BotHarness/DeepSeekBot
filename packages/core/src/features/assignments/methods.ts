@@ -6,7 +6,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { type HumanContext } from '../../humans/context.js';
 import { type HumanAssignmentContext } from '../../runtime/assignment-human-context.js';
 import { summarizeSessionProgress, type SessionProgress } from '../../runtime/session-progress.js';

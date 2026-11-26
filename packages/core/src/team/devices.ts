@@ -28,6 +28,7 @@ export function createMemberDevices(options: {
   pairing: DevicePairing;
   encryption(): Promise<EncryptionIdentity>;
   routes(): Promise<string[]>;
+  addressRoutes?(): string[];
   now?: () => number;
 }) {
   const now = options.now ?? Date.now;
@@ -36,6 +37,8 @@ export function createMemberDevices(options: {
     fingerprint: (await options.encryption()).fingerprint,
   });
   const routes = async () => memberUrls(await options.routes());
+  const signInRoutes = async () =>
+    memberUrls([...(await options.routes()), ...(options.addressRoutes?.() ?? [])]);
   const issueOwner = (humanId: string, name: string, publicKey: string) => {
     const issued = options.pairing.issueOwnerPasswordDevice({ humanId, name, publicKey });
     if (!issued) throw new TeamError('credentials-invalid');
@@ -52,7 +55,7 @@ export function createMemberDevices(options: {
       const payload = {
         v: 1,
         host: await host(),
-        routes: await routes(),
+        routes: await signInRoutes(),
         username: member.username,
         expiresAt,
       };
@@ -61,7 +64,7 @@ export function createMemberDevices(options: {
     },
     async pairingOffer(humanId: string): Promise<MemberPairingOffer> {
       const encryption = await options.encryption();
-      const addresses = await routes();
+      const addresses = await signInRoutes();
       const member = options.team.member(humanId);
       if (!options.team.mode({ humanId }).enabled) throw new TeamError('team-mode-off');
       if (!member || member.status !== 'active') throw new TeamError('member-suspended');

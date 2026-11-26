@@ -20,11 +20,22 @@ The Bot Marketplace Worker ([ADR-0131](../../docs/decisions/marketplace.md#adr-0
 
 Most-starred browsing orders by `stars DESC, pushed_at DESC, created_at DESC, node_id DESC`. Migration `0011_star_tiebreaks.sql` replaces only the supporting index. Stars cursors include all four keys; pre-migration three-field cursors return `invalid-cursor` and clients restart at page one. Updated and created cursors are unchanged.
 
+## Marketplace Skills
+
+The daily discovery run also searches GitHub for the `tobs-skill` topic and lists each folder with a valid `SKILL.md` (at most 100 files and 1 MiB) as a Marketplace Skill at the commit it read. Indexing scans the text and script files: download-and-execute pipes reject the entry, while secret-like strings, prompt-injection phrases and exfiltration paths list it with `scan: "warning"` and `findings`. See [Marketplace Skills](../../docs/decisions/marketplace.md#marketplace-skills).
+
+- `GET /v1/skills?q=&cursor=&limit=` returns `{ skills, nextCursor }` in pages of 24, ordered by installs, stars and name. `q` (≤ 100 characters) matches name, description and `owner/repo`. `400 invalid-query`, `invalid-cursor`.
+- `GET /v1/skills/{id}` returns `{ skill, content, files }`: the entry, its `SKILL.md` text and every file path and size. `404 skill-not-found`.
+- `POST /v1/skills/{id}/installs` `{ "targetHash": "<64 hex>" }` is the Install Receipt a Host sends after adding the Skill to one Bot or globally. `202 { counted, installs }`; each target hash counts once. `400 invalid-receipt`, `404 skill-not-found`, `429 rate-limited`.
+- `POST /v1/admin/skills` with `Authorization: Bearer <ADMIN_TOKEN>` takes `{ "action": "index", "url" }` to index a public repository without the topic (it stays indexed on later runs), or `{ "action": "block" | "restore", "id" }`. `401 unauthorized`, `400 invalid-admin-request`, `404 skill-not-found`.
+
+Apply D1 migration `0026_marketplace_skills.sql` before deploying the Worker.
+
 ## Marketplace Avatars
 
 - `GET /v1/avatars?cursor=<nextCursor>` returns `{ avatars, nextCursor }` in pages of 24. `GET /v1/avatars/{id}` returns `{ avatar }` with the preview URL, author display name and Author ID, and Apply Count. `GET /v1/avatars/{id}/image` serves the stored image bytes.
 - `POST /v1/avatars` takes a Connect bearer token and a JSON body with `name`, `description`, `tags`, `image` (an image data URL), `confirm: true` and `requestKey`. An optional `expectedAuthorId` binds the request to the identity the user confirmed. The same account and request key return the existing Avatar. Each account can publish up to 20.
-- Clients process the image before upload. The Worker checks signatures, dimensions, animation markers, metadata chunks, and the 128 KiB limit. See [ADR-0359](../../docs/adr/0359-marketplace-avatar-images-are-processed-on-the-client.md).
+- Clients process the image before upload. The Worker checks signatures, dimensions, animation markers, metadata chunks, and the 128 KiB limit. See [ADR-0359](../../docs/decisions/marketplace.md#adr-0359).
 
 Avatar reports use `POST /v1/avatars/{id}/reports` with the shared challenge and optional reason. The report threshold hides public reads and Apply. To block or restore, platform admins send `{ "kind": "avatar", "id": "...", "action": "block" | "restore" }` to `POST /v1/admin/blocklist`. The response includes `{ avatar: { id, name, visibility } }`. Restoring clears reports and preserves Apply Count.
 

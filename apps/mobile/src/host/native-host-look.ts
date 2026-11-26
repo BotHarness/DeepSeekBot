@@ -31,3 +31,15 @@ export function useHostLook(hostId: string | undefined): HostLook {
     useCallback(() => hostLooks.look(hostId ?? ''), [hostId]),
   );
 }
+
+export function useHostLocalNames(hostIds: readonly string[]): readonly string[] {
+  const key = JSON.stringify(hostIds);
+  const names = useSyncExternalStore(
+    hostLooks.subscribe,
+    useCallback(
+      () => JSON.stringify(hostIds.map((hostId) => hostLooks.look(hostId).name ?? '')),
+      [key],
+    ),
+  );
+  return JSON.parse(names) as string[];
+}

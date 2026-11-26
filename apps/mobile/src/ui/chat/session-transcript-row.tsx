@@ -18,15 +18,17 @@ export const SessionTranscriptRow = memo(function SessionTranscriptRow({
   item,
   id,
   catalog,
+  native,
 }: {
   item: SessionTranscriptItem;
   id: string;
   catalog?: TurnTargetCatalog | undefined;
+  native?: boolean | undefined;
 }) {
   const t = useStrings();
   switch (item.kind) {
     case 'model-switch':
-      return <TurnModelSwitchMarker change={item} catalog={catalog} />;
+      return <TurnModelSwitchMarker change={item} catalog={catalog} showRouteKinds={!native} />;
     case 'input':
       return <TranscriptInput item={item} id={id} />;
     case 'reply':

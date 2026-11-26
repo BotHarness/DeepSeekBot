@@ -15,7 +15,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 
@@ -213,12 +213,12 @@ function createFailure(
 function summarize(
   record: PersonaBotRecord,
   snapshot: BotStateSnapshot,
-  protectedTob = false,
+  builtInTob = false,
 ): PersonaBotSummary {
   return {
     slug: record.slug,
     displayName: record.displayName,
-    ...(protectedTob
+    ...(builtInTob
       ? {
           tob: {
             defaultName: record.displayNameCustomized !== true && record.displayName === 'Tob',
@@ -267,10 +267,10 @@ function summarize(
 export function detail(
   record: PersonaBotRecord,
   snapshot: BotStateSnapshot,
-  protectedTob = false,
+  builtInTob = false,
 ): PersonaBotDetail {
   return {
-    ...summarize(record, snapshot, protectedTob),
+    ...summarize(record, snapshot, builtInTob),
     sessions: { ...snapshot.sessions },
     ...(record.model === undefined ? {} : { model: record.model }),
     ...(record.modelPlan === undefined ? {} : { modelPlan: record.modelPlan }),
@@ -331,11 +331,6 @@ export function createPersonaBotsBridgeMethods(
   ): BridgeResult<{ bot: PersonaBotDetail }> => {
     const slug = asSlug(payload);
     if (slug === undefined) return invalidInput('slug is required');
-    if (paused && deps.tob?.isTob(slug))
-      return {
-        ok: false,
-        error: { code: 'protected-bot', message: 'Tob cannot be archived' },
-      };
     const result = deps.registry.setPaused(slug, paused);
     if (!result.ok) return unknownBot(slug);
     if (paused) deps.channels.cancelInvitationsForBot(slug);
@@ -352,11 +347,6 @@ export function createPersonaBotsBridgeMethods(
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
         return { ok: true, value: { preview: deps.deletions.preview(slug) } };
       } catch (error) {
         return invalidInput(
@@ -375,11 +365,6 @@ export function createPersonaBotsBridgeMethods(
         return invalidInput('Explicit deletion scope is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
         const result = deps.deletions.confirm(slug, source['token'], source['eraseMemory']);
         deps.computerAccess?.changed(slug);
         deps.browserAccess?.changed(slug);

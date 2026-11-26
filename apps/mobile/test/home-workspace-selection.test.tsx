@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { headerLabelScaleCeiling } from '../src/ui/design/capped-text';
 import { act, useLayoutEffect, type ReactNode } from 'react';
 import { createHostClient } from '@botharness/host-client/client';
 import { CONNECTION_OFFLINE_MS, CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
@@ -20,8 +21,6 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/des
 import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { refreshMemberPermissions } from '../src/host/member-permissions';
-import { ChatsCreate } from '../src/ui/shell/chats-create';
-import type { CreationPanelControls } from '../src/ui/shell/creation-panel';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -87,6 +86,8 @@ vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 
 vi.mock('react-native', mockReactNative);
 
+vi.mock('../src/ui/shell/message-person-sheet', () => ({ MessagePersonSheet: () => null }));
+
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
@@ -103,6 +104,8 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+vi.mock('../src/ui/shell/list-edge-fades', () => ({ ListEdgeFades: () => null }));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;
@@ -133,17 +136,6 @@ vi.mock('../src/host/host-session', mockHostSession);
 
 vi.mock('../src/host/native-section-collapse', mockSectionCollapse);
 
-vi.mock('../src/ui/shell/creation-panel', () => ({
-  CreationPanel: ({ children }: { children: (controls: CreationPanelControls) => ReactNode }) =>
-    children({
-      level: 'actions',
-      showSources: vi.fn(),
-      back: vi.fn(),
-      dismiss: vi.fn(),
-      firstAction: { current: null },
-    }),
-}));
-
 vi.mock('../src/ui/shell/navigation-material', () => ({ NavigationMaterial: () => null }));
 
 vi.mock('expo-symbols', () => ({
@@ -169,6 +161,11 @@ vi.mock('../src/host/native-notification-avatars', () => ({ avatarImageUri: () =
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+Object.assign(HTMLElement.prototype, {
+  measureInWindow(done: (x: number, y: number, width: number, height: number) => void) {
+    done(330, 50, 44, 44);
+  },
+});
 
 let root: Root | undefined;
 
@@ -187,24 +184,17 @@ afterEach(() => {
   resetHomeState();
 });
 
-async function home(creationScope?: string): Promise<HTMLElement> {
+async function home(): Promise<HTMLElement> {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  await act(async () =>
-    root!.render(
-      <>
-        <HomeScreen />
-        {creationScope && <ChatsCreate scope={creationScope} bottom={80} />}
-      </>,
-    ),
-  );
+  await act(async () => root!.render(<HomeScreen />));
   return host;
 }
 
 async function expectNewGroup(view: HTMLElement, visible: boolean) {
-  const fab = view.querySelector<HTMLButtonElement>('[data-testid="chats-create-fab"]');
-  if (fab && !fab.disabled) await act(async () => fab.click());
+  const create = view.querySelector<HTMLButtonElement>('[data-testid="chats-create-button"]');
+  if (create && !create.disabled) await act(async () => create.click());
   expect(Boolean(view.querySelector('[data-testid="chats-create-group"]'))).toBe(visible);
 }
 
@@ -539,7 +529,7 @@ describe('Search in the Chats header', () => {
       if (hostState.member && permissions) await refreshMemberPermissions(client);
       const scope = computerEnvironmentKey('h1');
       conversationFilter.set(scope);
-      const view = await home(scope);
+      const view = await home();
       expect(view.textContent).toContain(canCreate ? t.cloudChannels.empty : t.emptyTeamChannels);
       expect(view.textContent?.includes(t.emptyTeamChannels)).toBe(!canCreate);
       await expectNewGroup(view, canCreate);
@@ -571,7 +561,7 @@ describe('Search in the Chats header', () => {
       ];
       const environment = cloudEnvironmentKey(scope, 'org_a');
       conversationFilter.set(environment);
-      const view = await home(environment);
+      const view = await home();
       expect(view.textContent).toContain(
         role === 'owner' ? t.cloudChannels.empty : t.cloudChannels.emptyMember,
       );
@@ -868,7 +858,6 @@ describe('Search in the Chats header', () => {
       const view = await home();
       await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
       expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
-      expect(view.querySelector('[data-testid="tob-mode-button"]')).toBeNull();
     } finally {
       roster.bots.pop();
     }
@@ -877,7 +866,7 @@ describe('Search in the Chats header', () => {
 
 describe('Selected view header accessibility', () => {
   it.each(['all', 'computer', 'cloud'] as const)(
-    'announces the full %s view and scales its icon with live system text size',
+    'announces the full %s view and scales its icon with live system text size up to the header ceiling',
     async (kind) => {
       const title = kind === 'all' ? t.allEnvironments : 'Studio team with a long complete name';
       const accessibilityLabel =
@@ -906,10 +895,13 @@ describe('Selected view header accessibility', () => {
           ),
         );
         const button = host.querySelector('[data-testid="chats-environment-name"]')!;
-        expect(button.tagName).not.toBe('BUTTON');
-        expect(button.getAttribute('role')).toBe('header');
         expect(button.getAttribute('aria-label')).toBe(accessibilityLabel ?? title);
-        const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
+        push.mockClear();
+        await act(async () => (button as HTMLElement).click());
+        expect(push).toHaveBeenCalledWith('/environment');
+        const size =
+          resolveTheme('light', {}, 'ios').type.title.line *
+          Math.min(fontScale, headerLabelScaleCeiling);
         if (kind === 'computer') {
           expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
             String(size),

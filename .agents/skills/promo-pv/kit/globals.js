@@ -6,6 +6,8 @@ const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const lerp = (a, b, k) => a + (b - a) * k;
 const prog = (t, a, b) => clamp((t - a) / (b - a));
 const mix = (c1, c2, k) => { const p = (c) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)); const a = p(c1), b = p(c2); return '#' + a.map((v, i) => Math.round(lerp(v, b[i], clamp(k))).toString(16).padStart(2, '0')).join(''); };
+// Tobs core colours (kit/tobs-core.css, copied by setup.mjs): TOBS('brand'), TOBS('accent-forest-green'), TOBS('success')
+const TOBS = (name) => getComputedStyle(document.documentElement).getPropertyValue(`--tobs-core-${name}`).trim();
 const stage = document.getElementById('stage');
 // images are decoded before each frame is captured, so nothing pops in half-loaded
 const pending = new Set();

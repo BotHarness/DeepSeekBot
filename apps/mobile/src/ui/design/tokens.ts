@@ -12,8 +12,7 @@ export const space = {
 } as const;
 
 export const statusChip = { height: 36, dot: 8 } as const;
-export const sessionModelChip = { hideEffortAt: 300, hideNameAt: 220 } as const;
-
+export const presetChip = { height: 32 } as const;
 export const groupUnavailable = { icon: 48 } as const;
 
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
@@ -85,6 +84,7 @@ export const accountActionIcon = {
 } as const;
 
 export const sheetHandle = { width: 32, height: 4 } as const;
+export const headerBarItem = { top: 0, margin: 16, size: 44, glyph: 20 } as const;
 export const navigationBar = {
   height: 64,
   itemWidth: 80,
@@ -94,8 +94,6 @@ export const navigationBar = {
   indicatorRadius: radius.md,
   itemPadding: 6,
   symbolBox: 32,
-  labelInset: 4,
-  labelLeading: 1.18,
   hitFill: '#00000001',
   shadow: {
     light: '0 2px 8px rgba(15, 17, 21, 0.06)',
@@ -108,10 +106,18 @@ export const materialNavigationBar = {
   margin: 0,
   indicatorWidth: 56,
   indicatorHeight: 32,
-  iconLabelGap: 4,
-  labelSize: 12,
-  labelInset: 8,
 } as const;
+export const floatingToolbar = {
+  item: 56,
+  gap: 8,
+  height: 48,
+  icon: 24,
+  avatar: 32,
+  offset: 16,
+  inset: 12,
+  padding: 8,
+} as const;
+export const pinnedTabIcon = { captureDelays: [300, 1500] } as const;
 export const materialIconButton = {
   target: 48,
   container: 40,
@@ -140,6 +146,10 @@ export const materialDrawer = {
   width: 360,
   scrimGutter: 56,
   addressMinScale: 0.6,
+} as const;
+export const overlaySidebar = {
+  dim: { light: 'rgba(0, 0, 0, 0.2)', dark: 'rgba(0, 0, 0, 0.4)' },
+  shadow: { radius: 16, opacity: { light: 0.12, dark: 0.4 } },
 } as const;
 export const loadingIndicator = {
   size: 48,
@@ -338,8 +348,9 @@ export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
+export const tabMenu = { recent: 4 } as const;
 
-export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
+export const workspaceStack = { max: 3, tile: 28, tileMaxScale: 2, overlap: 10, ring: 2 } as const;
 export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
 export const environmentBadge = { size: 20, glyphRatio: 0.62 } as const;
 
@@ -396,24 +407,10 @@ export const fileTile = {
 
 export const voiceRow = { play: 36, wave: 24, bar: 3, unplayed: 0.3 } as const;
 
-export const topEntrance = {
-  edge: 20,
-  start: 12,
-  verticalFail: 16,
-  commit: 96,
-  flick: 500,
-} as const;
-
-export const tobPull = {
-  commit: 80,
-  start: 12,
-  topTolerance: 1,
-  horizontalFail: 12,
-  resistance: 0.5,
-  maxTravel: 120,
-  indicator: 32,
-  glyph: 18,
-  stroke: 2,
+export const tabChrome = {
+  hideDuration: 200,
+  pillHold: 700,
+  pillFade: 160,
 } as const;
 
 export const markdownTable = {

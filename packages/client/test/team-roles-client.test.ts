@@ -62,6 +62,7 @@ describe('Team roles bridge', () => {
         name: 'Admin',
         builtin: 'admin',
         permissions: ['roles.manage'],
+        denied: [],
         models: { kind: 'all' },
         memberCount: 2,
         policy: [],

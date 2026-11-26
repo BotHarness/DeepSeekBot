@@ -12,12 +12,14 @@ import {
   matchesGlob,
   mobileVerification,
   parseChanges,
+  memberConfinement,
   timelinePerf,
   uiVisual,
   parseGitChanges,
   plan,
   REQUIRED_CHECK,
   ROOT,
+  SHARDS,
   rulesTable,
   syncGuide,
   localCommands,
@@ -217,6 +219,18 @@ describe('CI test plan', () => {
     expect(uiVisual('full', [])).toBe(true);
   });
 
+  it('runs the member Shell confinement job for execution source, its tests and full runs', () => {
+    expect(
+      memberConfinement('affected', [{ path: 'packages/core/src/execution/shell-reach.ts' }]),
+    ).toBe(true);
+    expect(
+      memberConfinement('affected', [{ path: 'packages/core/test/member-confinement.test.ts' }]),
+    ).toBe(true);
+    expect(memberConfinement('affected', [{ path: '.github/workflows/verify.yml' }])).toBe(true);
+    expect(memberConfinement('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
+    expect(memberConfinement('full', [])).toBe(true);
+  });
+
   it('runs the timeline performance budget for Client source, perf tooling and full runs', () => {
     expect(timelinePerf('affected', [{ path: 'packages/client/src/client/bot-main.tsx' }])).toBe(
       true,
@@ -316,13 +330,19 @@ describe('CI test plan', () => {
     expect(result.reason).toContain('matches no rule');
   });
 
-  it('runs everything when a code file is removed or renamed', () => {
-    const removed = {
-      ...pr(),
-      changes: [{ status: 'removed', path: 'packages/client/src/client/old.tsx' }],
-    };
-    expect(plan(removed).tests).toBe('full');
-    const renamed = {
+  it('selects related tests when a removed or renamed code file has no remaining references', () => {
+    const removed = plan({
+      ...pr('packages/client/test/chip.test.ts'),
+      changes: [
+        { status: 'removed', path: 'packages/client/src/client/old.tsx' },
+        { status: 'modified', path: 'packages/client/test/chip.test.ts' },
+      ],
+    });
+    expect(removed).toMatchObject({
+      tests: 'affected',
+      related: ['packages/client/test/chip.test.ts'],
+    });
+    const renamed = plan({
       ...pr(),
       changes: [
         {
@@ -331,10 +351,154 @@ describe('CI test plan', () => {
           previous: 'packages/client/src/client/old.tsx',
         },
       ],
-    };
-    expect(plan(renamed).tests).toBe('full');
+    });
+    expect(renamed).toMatchObject({
+      tests: 'affected',
+      related: ['packages/client/src/client/chip.tsx'],
+    });
     const prose = { ...pr(), changes: [{ status: 'removed', path: 'docs/adr/0002-gone.md' }] };
     expect(plan(prose).tests).not.toBe('full');
+  });
+
+  it('selects files that still import or name a removed code file', () => {
+    const files = {
+      ...repo,
+      'packages/client/src/client/uses-old.ts': "export * from './old.js';",
+      'packages/client/test/old-path.test.ts': "vi.mock('../src/client/old.tsx');",
+      'packages/client/test/old-root.test.ts':
+        'const file = resolve(ROOT, "packages/client/src/client/old.tsx");',
+      'packages/host-client/package.json': JSON.stringify({
+        name: '@botharness/host-client',
+        exports: { './*': './src/*.ts' },
+      }),
+      'packages/host-client/src/kept.ts': '',
+      'packages/core/src/uses-host.ts': "import { gone } from '@botharness/host-client/gone';",
+      'apps/docs/test/uses-alias.test.ts': "import page from '@/pages/gone.ts';",
+      'packages/client/test/unrelated.test.ts': "import { old } from 'old';",
+    };
+    const staleIndex = createIndex(Object.keys(files), (file) => files[file]);
+    const result = plan({
+      event: 'pull_request',
+      index: staleIndex,
+      changes: [
+        { status: 'removed', path: 'packages/client/src/client/old.tsx' },
+        { status: 'removed', path: 'packages/host-client/src/gone.ts' },
+        {
+          status: 'renamed',
+          path: 'apps/docs/src/pages/kept.ts',
+          previous: 'apps/docs/src/pages/gone.ts',
+        },
+      ],
+    });
+    expect(result.tests).toBe('affected');
+    expect(result.related).toEqual(
+      expect.arrayContaining([
+        'apps/docs/test/uses-alias.test.ts',
+        'packages/client/src/client/uses-old.ts',
+        'packages/client/test/old-path.test.ts',
+        'packages/client/test/old-root.test.ts',
+        'packages/core/src/uses-host.ts',
+      ]),
+    );
+    expect(result.related).not.toContain('packages/client/test/unrelated.test.ts');
+  });
+
+  it('keeps directory, index-import, listing and docs-site references to removed files', () => {
+    const files = {
+      ...repo,
+      'packages/client/test/retired.test.ts':
+        'const dir = resolve(ROOT, "packages/client/src/retired");',
+      'packages/client/test/widget.test.ts': "import '../src/widget';",
+      'packages/client/src/client/plugin.js': '',
+      'packages/client/assets/plugins.json': JSON.stringify({ plugin: '../src/client/plugin.js' }),
+      [DOCS_SITE_TEST]: 'const script = resolve(ROOT, "scripts/old.mjs");',
+    };
+    const headIndex = (removed) =>
+      createIndex(
+        Object.keys(files).filter((file) => !removed.includes(file)),
+        (file) => files[file],
+      );
+    const removal = (path) => ({
+      event: 'pull_request',
+      index: headIndex([path]),
+      changes: [{ status: 'removed', path }],
+    });
+    expect(plan(removal('packages/client/src/retired/only.ts')).related).toContain(
+      'packages/client/test/retired.test.ts',
+    );
+    expect(plan(removal('packages/client/src/widget/index.ts')).related).toContain(
+      'packages/client/test/widget.test.ts',
+    );
+    const listing = plan(removal('packages/client/src/client/plugin.js'));
+    expect(listing.tests).toBe('full');
+    expect(listing.reason).toContain('packages/client/assets/plugins.json still names');
+    expect(plan(removal('scripts/old.mjs'))).toMatchObject({ docsSite: true });
+    const prefixed = {
+      ...files,
+      'packages/kit/package.json': JSON.stringify({
+        name: '@botharness/kit',
+        exports: { './*': './src/prefix-*.ts' },
+      }),
+      'packages/kit/src/prefix-kept.ts': '',
+      'packages/kit/plugins.json': JSON.stringify({ plugin: '@botharness/kit/gone' }),
+    };
+    const prefixedIndex = createIndex(Object.keys(prefixed), (file) => prefixed[file]);
+    expect(
+      plan({
+        event: 'pull_request',
+        index: prefixedIndex,
+        changes: [{ status: 'removed', path: 'packages/kit/src/prefix-gone.ts' }],
+      }).tests,
+    ).toBe('full');
+    const own = {
+      ...files,
+      'packages/client/src/gadget/config.json': JSON.stringify({ entry: './index.ts' }),
+    };
+    const ownIndex = createIndex(
+      Object.keys(own).filter((file) => file !== 'packages/client/src/gadget/index.ts'),
+      (file) => own[file],
+    );
+    expect(
+      plan({
+        event: 'pull_request',
+        index: ownIndex,
+        changes: [{ status: 'removed', path: 'packages/client/src/gadget/index.ts' }],
+      }).tests,
+    ).toBe('full');
+  });
+
+  it('runs everything when a config listing still names a removed code file', () => {
+    const files = {
+      ...repo,
+      'apps/mobile/app.json': JSON.stringify({ plugins: ['packages/core/src/plugin.ts'] }),
+    };
+    const listingIndex = createIndex(
+      Object.keys(files).filter((file) => file !== 'packages/core/src/plugin.ts'),
+      (file) => files[file],
+    );
+    const result = plan({
+      event: 'pull_request',
+      index: listingIndex,
+      changes: [{ status: 'removed', path: 'packages/core/src/plugin.ts' }],
+    });
+    expect(result.tests).toBe('full');
+    expect(result.reason).toContain('apps/mobile/app.json still names');
+  });
+
+  it('selects the Core source-scanning helper when a Core source file is removed', () => {
+    const helper = 'packages/core/test/source-files.ts';
+    const files = {
+      'packages/core/src/features/activity/kept.ts': '',
+      [helper]: readFileSync(join(ROOT, helper), 'utf8'),
+    };
+    const sourceIndex = createIndex(Object.keys(files), (file) => files[file]);
+    expect(
+      plan({
+        event: 'pull_request',
+        index: sourceIndex,
+        changes: [{ status: 'removed', path: 'packages/core/src/features/activity/events.ts' }],
+      }).related,
+    ).toContain(helper);
   });
 
   it('selects a helper that reads a changed data file, so its importing tests run', () => {
@@ -465,8 +629,18 @@ describe('CI test plan drift checks', () => {
     jobs: {
       plan: {},
       static: {},
-      'test-full': { strategy: { matrix: { shard: [1, 2, 3] } } },
-      verify: { name: REQUIRED_CHECK, if: 'always()', needs: ['plan', 'static', 'test-full'] },
+      'test-full': { strategy: { matrix: '${{ fromJSON(needs.plan.outputs.matrix) }}' } },
+      'test-affected': { if: `needs.plan.outputs.shards == '${SHARDS}'` },
+      verify: {
+        name: REQUIRED_CHECK,
+        if: 'always()',
+        needs: ['plan', 'static', 'test-full', 'test-affected'],
+        steps: [
+          {
+            run: `if (plan.shards !== '${SHARDS}') fail(); if (shards === '${SHARDS}') affected();`,
+          },
+        ],
+      },
     },
   });
 
@@ -479,12 +653,16 @@ describe('CI test plan drift checks', () => {
     broken.jobs.lint = {};
     broken.jobs.verify.name = 'verify';
     broken.on.pull_request.paths = ['packages/**'];
-    broken.jobs['test-full'].strategy.matrix.shard = [1, 2];
+    broken.jobs['test-full'].strategy.matrix = { shard: [1, 2, 3] };
+    broken.jobs['test-affected'].if = "needs.plan.outputs.shards == '3'";
+    broken.jobs.verify.steps = [{ run: "if (shards === '3') affected();" }];
     expect(checkWorkflow(broken)).toEqual([
       `The aggregate job must keep the required check name "${REQUIRED_CHECK}"`,
       'The aggregate job does not need lint',
       'The pull_request trigger filters paths; path selection belongs to scripts/ci-plan.mjs',
-      'test-full must run a matrix of 3 shards to match SHARDS',
+      'test-full must take its duration-balanced matrix from the plan job',
+      `test-affected must run when the plan selects ${SHARDS} shards`,
+      `The aggregate job must expect ${SHARDS} full and affected shards`,
     ]);
   });
 
@@ -527,8 +705,8 @@ describe('local test plan commands', () => {
         'related',
         '--run',
         '--passWithNoTests',
-        '--exclude',
-        DOCS_SITE_TEST,
+        '--project',
+        '!docs-site',
         'scripts/a.mjs',
       ],
     ]);
@@ -536,7 +714,7 @@ describe('local test plan commands', () => {
 
   it('runs the full suite and the docs site test when the plan asks for them', () => {
     expect(localCommands({ tests: 'full', related: [], docsSite: true })).toEqual([
-      ['vitest', 'run', '--exclude', DOCS_SITE_TEST],
+      ['vitest', 'run', '--project', '!docs-site'],
       ['slides:build'],
       ['vitest', 'run', DOCS_SITE_TEST],
     ]);

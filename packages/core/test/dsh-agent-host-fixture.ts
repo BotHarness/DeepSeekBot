@@ -143,6 +143,7 @@ export class FakeAgentHost implements DshAgentHost {
     };
     const messages: Message[] = [];
     const events = [...history];
+    const enabled = new Map<ToolDefinition, () => boolean>();
     const effects = new Set<() => void>();
     const session: FakeSession = {
       id: sessionId,
@@ -191,7 +192,10 @@ export class FakeAgentHost implements DshAgentHost {
             ? Promise.resolve()
             : this.hooks.onTurn === undefined
               ? this.#drive(scope, messages)
-              : this.hooks.onTurn(session, scope.tools)
+              : this.hooks.onTurn(
+                  session,
+                  scope.tools.filter((tool) => enabled.get(tool)?.() !== false),
+                )
         ).then(() => {
           this.#emit(session, events, {
             type: 'turn/end',
@@ -259,7 +263,8 @@ export class FakeAgentHost implements DshAgentHost {
           scope.restrictions.push(filter);
           return () => void scope.restrictions.splice(scope.restrictions.indexOf(filter), 1);
         },
-        register: (tool: ToolDefinition) => {
+        register: (tool: ToolDefinition, options?: { when?: () => boolean }) => {
+          if (options?.when) enabled.set(tool, options.when);
           scope.tools.push(tool);
           return () => void scope.tools.splice(scope.tools.indexOf(tool), 1);
         },

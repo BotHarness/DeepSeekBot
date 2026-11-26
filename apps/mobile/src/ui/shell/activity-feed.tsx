@@ -1,4 +1,3 @@
-import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
 import { ActivitySheetRegistration } from './activity-sheet-root';
@@ -50,6 +49,7 @@ import { AvatarSlot, CONVERSATION_AVATAR, CONVERSATION_RING } from '../chat/avat
 import { shortTime } from '../chat/conversations';
 import { SourceName } from '../chat/source-name';
 import { ApprovalCard } from '../chat/approval-card';
+import { approvalPresetPort } from '../chat/approval-preset-port';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
 import { spring, springy } from '../design/motion';
@@ -72,19 +72,30 @@ import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar'
 import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { FixedToolbar } from './fixed-toolbar';
+import { useHideChromeOnScroll } from './tab-chrome';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
+  activityQuerySource,
   ActivityFilters,
   ActivityFilterContent,
   type ActivityFilter,
   type ActivitySort,
 } from './activity-filters';
 import { feedRows, type HiddenItems } from './activity-feed-rows';
+import {
+  NativeSessionMark,
+  nativeSessionName,
+  nativeSessionOf,
+  nativeSessionPreview,
+} from './activity-native';
 import { activityItemActions } from './activity-item-actions';
+import { NativeApproval, NativeQuestion } from '../../features/sessions/native-session-input-cards';
+import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
 export { type HiddenItems, feedRows } from './activity-feed-rows';
 
 const AVATAR = 32;
+const NO_TRANSCRIPT: readonly SessionTranscriptItem[] = [];
 const LOADING: InboxSnapshot = { status: 'loading' };
 const EMPTY_SOURCE = { getSnapshot: () => LOADING, subscribe: () => () => {} };
 const SUMMARY_PREVIEW_LIMIT = 512;
@@ -142,6 +153,9 @@ function ActivityAvatar({
   size: number;
 }) {
   const corner = size >= CONVERSATION_AVATAR ? radius.md : radius.sm;
+  const native = nativeSessionOf(item);
+  if (native !== undefined)
+    return <NativeSessionMark native={native} size={size} corner={corner} />;
   const avatar = activityAvatar(item, bot);
   if (avatar.kind === 'bot')
     return <BotAvatar bot={avatar.bot} size={size} corner={corner} ring={false} />;
@@ -177,13 +191,21 @@ const Row = memo(function Row({
   const t = useStrings();
   const theme = useDesignTheme();
   const kind = t.kind[item.kind] ?? t.otherKind;
+  const native = nativeSessionOf(item);
   const localName =
-    item.kind === 'channel-unread'
-      ? (item.channelName ?? t.otherKind)
-      : (bot?.displayName ?? item.botSlug);
+    native !== undefined
+      ? nativeSessionName(native, t)
+      : item.kind === 'channel-unread'
+        ? (item.channelName ?? t.otherKind)
+        : (bot?.displayName ?? item.botSlug);
   const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const summary = summaryPreview(itemSummary(item));
-  const preview = summary.length > 0 ? `${kind} · ${summary}` : kind;
+  const preview =
+    native !== undefined
+      ? nativeSessionPreview(native, summary, t)
+      : summary.length > 0
+        ? `${kind} · ${summary}`
+        : kind;
   const time = shortTime(item.createdAt, new Date(now));
   return (
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
@@ -192,7 +214,10 @@ const Row = memo(function Row({
         accessibilityLabel={t.openPost(
           kind,
           name,
-          [(item.unreadCount ?? 0) > 0 ? t.unreadCount(item.unreadCount!) : '', summary]
+          [
+            (item.unreadCount ?? 0) > 0 ? t.unreadCount(item.unreadCount!) : '',
+            native !== undefined ? preview : summary,
+          ]
             .filter((part) => part !== '')
             .join(', '),
         )}
@@ -264,10 +289,12 @@ function Post({
   onOpen,
   onSettled,
   actions,
+  decided = false,
 }: {
   client: HostClient;
   item: HumanAttentionItem;
-  requestRef: RequestRef;
+  requestRef: RequestRef | undefined;
+  decided?: boolean;
   bot: RosterBot | undefined;
   now: number;
   onOpen(item: HumanAttentionItem): void;
@@ -276,13 +303,15 @@ function Post({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const localName = bot?.displayName ?? item.botSlug;
+  const native = nativeSessionOf(item);
+  const localName =
+    native !== undefined ? nativeSessionName(native, t) : (bot?.displayName ?? item.botSlug);
   const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const where =
     item.channelName !== undefined && !item.channelId?.startsWith('dm-')
       ? ` · ${t.inChannel(item.channelName)}`
       : '';
-  const { channelId, messageId, botSlug } = ref;
+  const { channelId, messageId, botSlug } = ref ?? { channelId: '', messageId: '', botSlug: '' };
   const ports = useMemo(() => {
     const stableRef = { channelId, messageId, botSlug };
     const connected = () => {
@@ -292,11 +321,15 @@ function Post({
     return {
       approval: {
         load: () => loadApproval(client, stableRef),
-        decide: (outcome: Parameters<typeof decideApproval>[2]) => {
+        decide: (
+          outcome: Parameters<typeof decideApproval>[2],
+          rule?: Parameters<typeof decideApproval>[4],
+        ) => {
           connected();
-          return decideApproval(client, stableRef, outcome);
+          return decideApproval(client, stableRef, outcome, 'app', rule);
         },
       },
+      preset: approvalPresetPort(client, botSlug, false),
       question: {
         load: () => loadQuestion(client, stableRef),
         answer: (answer: Parameters<typeof answerQuestion>[2]) => {
@@ -309,6 +342,10 @@ function Post({
   const settled = (result: DecisionResult) => {
     onSettled(item, result);
   };
+  const nativeSettled = useCallback(
+    (_requestId: string, result: DecisionResult) => onSettled(item, result),
+    [item, onSettled],
+  );
   return (
     <SwipeRow actions={actions} contextMenu={false} testID={`inbox-swipe-${activityKey(item)}`}>
       <View
@@ -358,8 +395,29 @@ function Post({
             </Text>
           </View>
         </Pressable>
-        {item.kind === 'tool-approval' ? (
-          <ApprovalCard port={ports.approval} wide onSettled={settled} />
+        {native?.request !== undefined ? (
+          native.request.kind === 'approval' ? (
+            <NativeApproval
+              client={client}
+              sessionId={native.sessionId}
+              input={native.request}
+              cwd={native.cwd}
+              items={NO_TRANSCRIPT}
+              onSettled={nativeSettled}
+              decided={decided}
+            />
+          ) : (
+            <NativeQuestion
+              client={client}
+              sessionId={native.sessionId}
+              input={native.request}
+              asker={name}
+              onSettled={nativeSettled}
+              decided={decided}
+            />
+          )
+        ) : item.kind === 'tool-approval' ? (
+          <ApprovalCard port={ports.approval} preset={ports.preset} wide onSettled={settled} />
         ) : (
           <QuestionCard port={ports.question} botName={name} wide onSettled={settled} />
         )}
@@ -468,6 +526,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
               filterBot={filter.bot}
               filterChannel={filter.channel}
               filterUnread={filter.unreadOnly}
+              filterSource={filter.source}
               search={search}
               sort={sort}
               active={focused}
@@ -488,7 +547,8 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             filter.section !== 'all' ||
             filter.bot !== undefined ||
             filter.channel !== undefined ||
-            filter.unreadOnly === true
+            filter.unreadOnly === true ||
+            filter.source !== undefined
           }
           options={filterOptions}
           onSearch={setSearch}
@@ -509,9 +569,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      {Platform.OS === 'web' ? (
+      {Platform.OS !== 'android' ? (
         <ActivityFilters
-          visible={filtering}
+          visible={filtering && focused}
           {...filterOptions}
           onClose={() => setFiltering(false)}
         />
@@ -540,13 +600,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
       {content}
     </>
   ) : (
-    <ActivityInspector
-      visible={filtering && focused}
-      {...filterOptions}
-      onClose={() => setFiltering(false)}
-    >
-      {content}
-    </ActivityInspector>
+    content
   );
 });
 
@@ -564,6 +618,7 @@ const ActivityPage = memo(function ActivityPage({
   filterBot,
   filterChannel,
   filterUnread,
+  filterSource,
   search,
   sort,
   active,
@@ -579,6 +634,7 @@ const ActivityPage = memo(function ActivityPage({
   filterBot: ActivityFilter['bot'];
   filterChannel: ActivityFilter['channel'];
   filterUnread: ActivityFilter['unreadOnly'];
+  filterSource: ActivityFilter['source'];
   search: string;
   sort: ActivitySort;
   active: boolean;
@@ -588,14 +644,16 @@ const ActivityPage = memo(function ActivityPage({
   const t = useStrings();
   const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
+  const hideChrome = useHideChromeOnScroll(!searchFocused && search === '');
   const filter = useMemo<ActivityFilter>(
     () => ({
       section,
       bot: filterBot,
       channel: filterChannel,
       ...(filterUnread === undefined ? {} : { unreadOnly: filterUnread }),
+      ...(filterSource === undefined ? {} : { source: filterSource }),
     }),
-    [section, filterBot, filterChannel, filterUnread],
+    [section, filterBot, filterChannel, filterUnread, filterSource],
   );
   const [refreshing, setRefreshing] = useState(false);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
@@ -616,6 +674,7 @@ const ActivityPage = memo(function ActivityPage({
             unreadOnly: filter.unreadOnly,
             search,
             sort,
+            source: activityQuerySource(filter),
           })
         : client === undefined
           ? undefined
@@ -627,8 +686,9 @@ const ActivityPage = memo(function ActivityPage({
               unreadOnly: filter.unreadOnly,
               search,
               sort,
+              source: activityQuerySource(filter),
             }),
-    [sources, client, filter.section, filter.bot, filter.channel, filter.unreadOnly, search, sort],
+    [sources, client, filter, search, sort],
   );
   const settlementScope = useMemo(() => ({}), [hostId, scoped, filter, search, sort, active]);
   const activeSettlementScope = useRef<object | undefined>(undefined);
@@ -678,6 +738,7 @@ const ActivityPage = memo(function ActivityPage({
     ...new Set(
       rows.flatMap((row) =>
         (row.kind === 'row' || row.kind === 'post') &&
+        nativeSessionOf(row.item) === undefined &&
         clearSections.some((section) => section === row.section)
           ? [row.item.kind]
           : [],
@@ -813,6 +874,7 @@ const ActivityPage = memo(function ActivityPage({
             )}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            onScroll={hideChrome}
             scrollEventThrottle={1}
             style={{
               backgroundColor: theme.color.base,
@@ -911,6 +973,7 @@ const ActivityPage = memo(function ActivityPage({
                       onOpen={onOpen}
                       onSettled={settled}
                       actions={actionsFor(row.item, row.section)}
+                      decided={held.some((kept) => activityKey(kept) === row.key)}
                     />
                   )}
                 </Animated.View>

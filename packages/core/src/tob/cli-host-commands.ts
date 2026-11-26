@@ -21,6 +21,7 @@ const REFUSED_COMMANDS = new Set([
   'audit',
   'private',
   'tob-cli',
+  'bot-grant',
   'browser-profile-pair',
   'browser-borrow-pair',
   'browser-daily-grant',
@@ -29,17 +30,17 @@ const TOB_SCHEDULE_GUARDS: Readonly<Record<string, { option: string; message: st
   'schedule-create': {
     option: '--operation-key',
     message:
-      'Tob must pass --operation-key to schedule-create; after an uncertain outcome, retry with the same key to reconcile instead of creating a second schedule.',
+      'You must pass --operation-key to schedule-create; after an uncertain outcome, retry with the same key to reconcile instead of creating a second schedule.',
   },
   'schedule-update': {
     option: '--expected-revision',
     message:
-      'Tob must pass --expected-revision to schedule-update; read the revision from schedules first.',
+      'You must pass --expected-revision to schedule-update; read the revision from schedules first.',
   },
   'schedule-delete': {
     option: '--expected-revision',
     message:
-      'Tob must pass --expected-revision to schedule-delete; read the revision from schedules first.',
+      'You must pass --expected-revision to schedule-delete; read the revision from schedules first.',
   },
 };
 
@@ -51,7 +52,7 @@ const MAX_MESSAGE_CHARS = 4000;
 export const TOB_HOST_CLI_CAPABILITY: TobCliCapability = {
   command: 'cli',
   description:
-    'Every other deepseekbot command runs on this Host as the Human would run it. Reads run at once; every other command shows the Human an approval card with the exact command first.',
+    "Run a supported deepseekbot command on this Host. Changing App management grants and Browser pairing are reserved for the Human. Reads run at once; writes follow your Approval Template, and deletion, other Bots' Memory, Profile Backup restore, credentials and pairing always ask the Human first. Read the target before any write and pass its observed revision; never run a write to explore or guess. Approving or dismissing another Bot's pending request is a write like any other: it goes to the Human as an approval card, and you never approve or decide on the Human's behalf.",
   write: true,
 };
 
@@ -140,7 +141,7 @@ export function authorizeTobHostCli(
     registry: Pick<PersonaBotRegistry, 'getHistorical'>;
     channels: Pick<ChannelStore, 'get'>;
     human: HumanContext;
-    isTob?: (slug: string) => boolean;
+    holdsManagementGrant?: (slug: string) => boolean;
   },
 ): void {
   if (argv[0] === 'members') {
@@ -155,17 +156,17 @@ export function authorizeTobHostCli(
   const values = argv
     .slice(1)
     .map((token) => (token.includes('=') ? token.slice(token.indexOf('=') + 1) : token).trim());
-  const isTob = deps.isTob;
-  const namesTob = (value: string): boolean => {
-    if (isTob === undefined) return false;
-    if (isTob(value)) return true;
+  const isManager = deps.holdsManagementGrant;
+  const namesManager = (value: string): boolean => {
+    if (isManager === undefined) return false;
+    if (isManager(value)) return true;
     const channel = deps.channels.get(value);
-    return channel?.type === 'dm' && channel.members.length === 1 && isTob(channel.members[0]!);
+    return channel?.type === 'dm' && channel.members.length === 1 && isManager(channel.members[0]!);
   };
-  if (values.some(namesTob) && widensAuthority(argv))
+  if (values.some(namesManager) && widensAuthority(argv))
     throw new TobCliCommandError(
       'self-escalation-refused',
-      'Tob cannot change its own grants, access, approval policy or pending approvals. Ask the Human to make this change in Bot settings or run the command themselves.',
+      'A Bot that can manage the App cannot change the grants, access, approval policy or pending approvals of itself or of any other Bot that can manage the App. Ask the Human to make this change in Bot settings or run the command themselves.',
     );
   for (const value of values) authorizeTobBotTargets({ slug: value }, deps);
 }

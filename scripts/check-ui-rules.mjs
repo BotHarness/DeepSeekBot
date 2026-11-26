@@ -11,7 +11,10 @@ import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
 import { mobileFixedButtonHeight } from './ui-rule-mobile-button-height.mjs';
 import { mobileWrappingCapsule } from './ui-rule-mobile-capsule.mjs';
 import { mobileActionScale, mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
+import { mobileLabelIcon } from './ui-rule-mobile-label-icon.mjs';
+import { mobileSheetSurface } from './ui-rule-mobile-sheet.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
+import { desktopXstyleShorthand } from './ui-rule-xstyle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -77,6 +80,10 @@ export const RULES = {
     help: 'apply a distinct disabled style with :disabled, data-disabled, or aria-disabled',
     section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
   },
+  xstyleShorthand: {
+    help: 'reset spacing in an xstyle block with longhands (paddingBlock/paddingInline, marginBlock/marginInline); StyleX property specificity lets the primitive’s longhand beat a padding or margin shorthand',
+    section: 'docs/agents/ui-design.md § Request cards',
+  },
   catalogue: {
     help: 'record what each export replaces in ds/catalogue.json, remove retired entries and regenerate ds/README.md with pnpm lint:fix',
     section: 'G1 rule 7, docs/agents/ui-design.md § Design rule 7',
@@ -117,8 +124,20 @@ export const RULES = {
     help: 'give a Compose text button a minimum height (defaultMinSize) instead of height/size, so a label that wraps at large text grows the button instead of being clipped',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
+  unscaledLabelIcon: {
+    help: 'size a glyph that sits beside a text label from the label role times theme.fontScale (or a SwiftUI textStyle font), so icon and label grow together; keep the icon and reflow the row instead of hiding it',
+    section: 'docs/agents/ui-design.md § Large text, apps/mobile/DESIGN.md § Code rules 2',
+  },
+  sheetSurface: {
+    help: 'leave the sheet background to the system (no presentationBackground; iOS shows Liquid Glass), put grouped rows and cards on SHEET_GROUP or in a system List, and give controls on the sheet itself on="sheet"; page tokens (color.base, color.surface, layer.canvas) and colour literals invert the sheet',
+    section: 'apps/mobile/DESIGN.md § Bottom sheets',
+  },
+  sheetHeader: {
+    help: 'use SheetHeader for a sheet title row: close or back on the left, one action or nothing on the right',
+    section: 'apps/mobile/DESIGN.md § Bottom sheets',
+  },
   wrappingCapsule: {
-    help: 'shape a SwiftUI capsule button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes',
+    help: 'shape a capsule that grows with its text through capsuleRadius(theme.fontScale) or a SwiftUI button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes; give a fixed circle or pill a fixed height',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
 };
@@ -272,7 +291,13 @@ export function scan(fix = false) {
           ...(/fontScale|getFontScale/u.test(source) && /IconButton/u.test(source)
             ? mobileActionScale(file, ast)
             : []),
-          ...(/buttonBorderShape/u.test(source) ? mobileWrappingCapsule(file, ast) : []),
+          ...(/buttonBorderShape|radius\.round/u.test(source)
+            ? mobileWrappingCapsule(file, ast)
+            : []),
+          ...(MOBILE_UI.test(file) ? mobileLabelIcon(file, ast) : []),
+          ...(MOBILE_UI.test(file) && /Sheet|pageSheet|formSheet/u.test(source)
+            ? mobileSheetSurface(file, ast)
+            : []),
           ...(/jetpack-compose/u.test(source) ? mobileFixedButtonHeight(file, ast) : []),
         ];
       let styles = desktopStyles(source, file, ast, walk);
@@ -294,6 +319,9 @@ export function scan(fix = false) {
         ...copy,
         ...styles,
         ...desktopControls(source, file, ast, walk),
+        ...(source.includes('xstyle=')
+          ? desktopXstyleShorthand(file, ast, walk, { root, parse: parseSource })
+          : []),
         ...desktopComposition(file, ast, walk, catalogueNames),
       ];
     });
@@ -379,7 +407,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const fix = process.argv.includes('--fix');
   const found = scan(fix);
   const fixedIconProblems = found.filter(({ rule }) =>
-    ['fixedIconScale', 'scaledActionBox', 'fixedButtonHeight'].includes(rule),
+    ['fixedIconScale', 'scaledActionBox', 'fixedButtonHeight', 'unscaledLabelIcon'].includes(rule),
   );
   if (fixedIconProblems.length) {
     for (const line of fixedIconProblems.map(describeFinding)) console.error(`ui rules: ${line}`);

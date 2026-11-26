@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TobCliCommand, TobCliStatus } from '../../tob/cli-request.js';
 import type { DirectBotToolSpec } from '../../runtime/bot-runtime.js';
 import type { TobAdapterMethods } from './methods.js';
@@ -49,6 +49,19 @@ export function botToolRun(
 }
 
 export const tobRpcMethods = {
+  managementGrants(slug?: string) {
+    return unwrap(this.methods.managementGrants(slug === undefined ? {} : { slug }));
+  },
+
+  managementGrantSet(
+    slug: string,
+    capability: 'manage-app' | 'manage-bots',
+    enabled: boolean,
+    confirm: boolean,
+  ) {
+    return unwrap(this.methods.managementGrantSet({ slug, capability, enabled, confirm }));
+  },
+
   tobHome() {
     return tobHome(this.methods);
   },

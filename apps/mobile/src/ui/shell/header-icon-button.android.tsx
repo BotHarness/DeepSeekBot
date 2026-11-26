@@ -20,7 +20,6 @@ const icons: Record<HeaderIcon, number> = {
   browser: require('../../../assets/header/language.xml'),
   computer: require('../../../assets/header/computer.xml'),
   'hand-back': require('../../../assets/header/do-not-touch.xml'),
-  tob: require('../../../assets/header/tob-mode.xml'),
   call: require('../../../assets/header/call.xml'),
 };
 

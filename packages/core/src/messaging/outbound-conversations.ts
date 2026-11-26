@@ -3,16 +3,17 @@ import { createPairingCards } from './pairing-cards.js';
 import { createMessagingDirectory } from './directory.js';
 import type { BotPairing } from './pairing.js';
 import {
+  botSourceBlocks,
   changeSenderAccess,
   bumpSenderPolicy,
   readSourceSenderPermissions,
-} from './sender-access.js';
+  initializeGroupReceptionPolicy,
+} from './permissions/index.js';
 import {
   assertMessagingIdentity,
   readMessagingIdentity,
   type MessagingIdentity,
 } from './identity.js';
-import { initializeGroupReceptionPolicy } from './group-policy.js';
 import {
   admissionBound,
   readBlock,
@@ -63,6 +64,7 @@ export function createOutboundConversations({
   | 'senderAccess'
   | 'toolRuleCreatorAuthorized'
   | 'senderPermissions'
+  | 'sourceBlocks'
   | 'directory'
   | 'reviewPairing'
   | 'conversation'
@@ -99,6 +101,29 @@ export function createOutboundConversations({
         if (!(error instanceof MessagingError)) throw error;
         return false;
       }
+    },
+    sourceBlocks(botSlug, input) {
+      active(botSlug);
+      let source: Parameters<typeof botSourceBlocks>[3];
+      if (input.action === 'block' || input.action === 'preview') {
+        if (
+          typeof input.sourceEventId !== 'string' ||
+          !input.sourceEventId ||
+          input.sourceEventId.length > 200
+        )
+          throw new MessagingError('source-unavailable');
+        const shared = inbound.readShared(botSlug, input.sourceEventId);
+        source = { ...shared.event, conversationName: shared.conversationName };
+      }
+      const result = transaction(
+        (db) => botSourceBlocks(db, botSlug, input, source),
+        ['pairing', 'bot-inbox'],
+      );
+      if (input.action === 'block' || input.action === 'unblock') {
+        options.onAuthorizationChanged?.(botSlug);
+        pairingCards.refresh(botSlug);
+      }
+      return result;
     },
     senderPermissions(botSlug, sourceEventId) {
       active(botSlug);

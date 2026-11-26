@@ -444,6 +444,17 @@ export class WorkspaceSpaces {
   assertGrantForHuman(human: HumanContext, path: string): void {
     this.pathCheck('', true, human.humanId)(path);
   }
+  assertFolderCreationParent(human: HumanContext, path: string): void {
+    if (
+      !this.rows().some(
+        (row) =>
+          !isBotMemorySpace(row.space_id) && within(join(this.path(row.space_id), 'files'), path),
+      )
+    ) {
+      this.refuse('grant-protected-path', path);
+    }
+    this.assertGrantForHuman(human, path);
+  }
   private pathCheck(botSlug: string, grant: boolean, humanId?: string): (input: string) => void {
     const bots = this.memories();
     const bot = bots.find((entry) => entry.slug === botSlug && !entry.backup);

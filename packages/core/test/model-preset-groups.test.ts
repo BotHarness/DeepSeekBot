@@ -320,7 +320,7 @@ describe('Model Presets with subscription models', () => {
   const orchestratorEngine = { engine: 'codex', model: 'gpt-6', effort: 'high' };
   const assignmentEngine = { engine: 'claude', model: 'opus', effort: 'medium' };
 
-  it('round-trips each engine choice and applies it through the subscription owner', async () => {
+  it('round-trips each engine choice and lets an applied Bot follow it without copying it', async () => {
     const validateChoice = vi.fn(async () => {});
     const use = vi.fn();
     const { methods, registry, root, database } = setup([], undefined, {
@@ -347,10 +347,8 @@ describe('Model Presets with subscription models', () => {
     const result = await methods.modelPresetApply({ slug: 'ada', presetId: id });
     expect(result.ok).toBe(true);
     expect(registry.get('ada')?.modelPlan?.orchestrator).toEqual(ROUTE);
-    expect(use.mock.calls).toEqual([
-      ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'high', fallback: false }],
-      ['ada', 'assignment', 'claude', { model: 'opus', effort: 'medium' }],
-    ]);
+    expect(use).not.toHaveBeenCalled();
+    expect(registry.get('ada')?.modelLink).toEqual({ presetId: id, linkedAt: expect.any(String) });
     expect(validateChoice).toHaveBeenCalledTimes(4);
     const updated = await methods.modelPresetUpdate({
       id,
@@ -365,7 +363,7 @@ describe('Model Presets with subscription models', () => {
     expect(updated.value.preset.assignmentEngine).toBeUndefined();
   });
 
-  it('clears both engine selections and the Main model quota hold when applying a DSH preset', async () => {
+  it('drops copied engine selections, keeps the fallback preference and clears the quota hold on apply', async () => {
     const root = mkdtempSync(join(tmpdir(), 'bh-preset-engines-'));
     roots.push(root);
     const store = createEngineStore(join(root, 'engines.json'));
@@ -393,13 +391,14 @@ describe('Model Presets with subscription models', () => {
 
     expect(await methods.modelPresetApply(payload)).toMatchObject({ ok: true });
     expect(store.selections()).toEqual([]);
-    expect(store.fallback('ada', 'orchestrator')).toBe(false);
+    expect(store.selection('ada', 'assignment')).toBeUndefined();
+    expect(store.fallback('ada', 'orchestrator')).toBe(true);
     expect(releaseEngineQuotaHold).toHaveBeenCalledExactlyOnceWith('ada');
 
     expect(await methods.modelPresetApply(payload)).toMatchObject({ ok: true });
     expect(use.mock.calls).toEqual([
-      ['ada', 'orchestrator', undefined, { fallback: false }],
-      ['ada', 'assignment', undefined, {}],
+      ['ada', 'orchestrator', undefined],
+      ['ada', 'assignment', undefined],
     ]);
     expect(validateChoice).not.toHaveBeenCalled();
   });

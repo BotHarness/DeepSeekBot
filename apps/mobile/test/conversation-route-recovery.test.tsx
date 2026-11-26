@@ -30,6 +30,14 @@ let profileHistory = channelNavigationHarness();
 
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 
+vi.mock('../src/ui/primitives/chat-scroll', async (importOriginal) => {
+  const { useState } = await import('react');
+  return {
+    ...(await importOriginal<typeof import('../src/ui/primitives/chat-scroll')>()),
+    useTimelineIslandFloor: () => useState(0)[0],
+  };
+});
+
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
@@ -476,6 +484,44 @@ describe('disbanded group presentation', () => {
     expect(view.querySelector('[data-testid="composer-input"]')).toBeNull();
     expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
     expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe(t.groupInfo);
+  });
+  it('says access was removed when the Host reports a revoke, and drops the member count', async () => {
+    const calls: unknown[] = [];
+    state.client = {
+      call: async (method, args) => {
+        calls.push([method, args]);
+        if (method !== 'channelAccessState') throw new Error(method);
+        return { channelId: 'gone', state: 'removed' };
+      },
+    };
+    const view = await render({ kind: 'channel', channelId: 'gone' });
+    await act(async () => {});
+    expect(calls).toContainEqual(['channelAccessState', { channelId: 'gone' }]);
+    expect(view.textContent).toContain(t.groupAccessRemovedTitle);
+    expect(view.textContent).toContain(t.groupAccessRemovedBody);
+    expect(view.textContent).not.toContain(t.groupUnavailableTitle);
+    expect(view.textContent).not.toContain(t.members(0));
+  });
+  it('keeps the deleted copy when the Host does not report a revoke', async () => {
+    state.client = {
+      call: async (method) => {
+        if (method !== 'channelAccessState') throw new Error(method);
+        return { channelId: 'gone', state: 'unavailable' };
+      },
+    };
+    const view = await render({ kind: 'channel', channelId: 'gone' });
+    await act(async () => {});
+    expect(view.textContent).toContain(t.groupUnavailableTitle);
+    expect(view.textContent).not.toContain(t.groupAccessRemovedTitle);
+  });
+  it('replaces an open group with the unavailable page when it disappears', async () => {
+    state.host.roster.channels = [{ id: 'open', name: 'Open group', members: [], memberCount: 0 }];
+    const place: ChatPlace = { kind: 'channel', channelId: 'open' };
+    const view = await render(place);
+    expect(view.querySelector('[data-testid="group-unavailable"]')).toBeNull();
+    state.host.roster.channels = [];
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(view.querySelector('[data-testid="group-unavailable"]')).not.toBeNull();
   });
   it('dismisses the keyboard only when the missing group becomes focused', async () => {
     const dismiss = vi.spyOn(Keyboard, 'dismiss');

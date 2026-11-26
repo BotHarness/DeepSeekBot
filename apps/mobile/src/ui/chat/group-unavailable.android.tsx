@@ -4,12 +4,15 @@ import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { groupUnavailable, space } from '../design/tokens';
 import { useStrings } from '../strings';
-import type { GroupUnavailableProps } from './group-unavailable';
+import { View } from 'react-native';
+import { groupUnavailableCopy, type GroupUnavailableProps } from './group-unavailable-copy';
 
-export function GroupUnavailable({ onBack }: GroupUnavailableProps) {
+export function GroupUnavailable({ onBack, reason }: GroupUnavailableProps) {
   const theme = useDesignTheme();
   const roles = useMaterialRoles();
   const t = useStrings();
+  if (reason === undefined) return <View testID="group-unavailable" style={{ flex: 1 }} />;
+  const copy = groupUnavailableCopy(t, reason);
   return (
     <Host style={{ flex: 1 }} colorScheme={theme.scheme} seedColor={theme.color.accent}>
       <Box
@@ -22,21 +25,25 @@ export function GroupUnavailable({ onBack }: GroupUnavailableProps) {
       >
         <Column horizontalAlignment="center" verticalArrangement={{ spacedBy: space.x5 }}>
           <Icon
-            source={require('../../../assets/button/message-square.xml')}
-            size={groupUnavailable.icon}
+            source={
+              reason === 'removed'
+                ? require('../../../assets/button/lock.xml')
+                : require('../../../assets/button/message-square.xml')
+            }
+            size={groupUnavailable.icon * theme.fontScale}
             tint={roles.onSurfaceVariant}
           />
           <Text
             color={roles.onSurface}
             style={{ typography: 'headlineSmall', textAlign: 'center' }}
           >
-            {t.groupUnavailableTitle}
+            {copy.title}
           </Text>
           <Text
             color={roles.onSurfaceVariant}
             style={{ typography: 'bodyMedium', textAlign: 'center' }}
           >
-            {t.groupUnavailableBody}
+            {copy.body}
           </Text>
           <Button onClick={onBack} modifiers={[testID('group-unavailable-back')]}>
             <Text>{t.backToChats}</Text>

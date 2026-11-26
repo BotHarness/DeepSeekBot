@@ -1,3 +1,4 @@
+import { isPublicSkillRead } from './skill-routes.js';
 import { AVATAR_RANKING_ROUTE, AVATAR_ROUTE, AVATAR_TAGS_PATH } from './avatars.js';
 
 export const PUBLIC_ORIGINS: readonly string[] = [
@@ -26,7 +27,8 @@ export function isPublicRead(pathname: string): boolean {
     /^\/v1\/digests\/[^/]+$/u.test(pathname) ||
     /^\/v1\/bots\/[^/]+$/u.test(pathname) ||
     /^\/v1\/bots\/[^/]+\/(files|view)\/.+$/u.test(pathname) ||
-    /^\/v1\/authors\/[^/]+\/avatar\/[^/]+$/u.test(pathname)
+    /^\/v1\/authors\/[^/]+\/avatar\/[^/]+$/u.test(pathname) ||
+    isPublicSkillRead(pathname)
   );
 }
 

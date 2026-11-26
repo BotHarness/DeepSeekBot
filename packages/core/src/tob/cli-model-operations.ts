@@ -57,7 +57,9 @@ const runtimeFields = [
   'developerMode',
   'showBotSessions',
   'showApprovalReviewSessions',
+  'nativeSessionAttention',
 ];
+const defaultOnFields = new Set(['showBotSessions', 'nativeSessionAttention']);
 const routeFields = ['provider', 'model', 'reasoningEffort'];
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -122,7 +124,7 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       fields.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]),
     );
     value.assignmentConcurrencyLimit ??= 8;
-    for (const key of runtimeFields.slice(1)) value[key] ??= key === 'showBotSessions';
+    for (const key of runtimeFields.slice(1)) value[key] ??= defaultOnFields.has(key);
     return { scope: 'global' as const, ns, revision: row.revision, value };
   };
   const bot = (slug: string) => {

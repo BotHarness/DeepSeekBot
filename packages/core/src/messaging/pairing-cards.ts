@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
+import {
+  platformPeople,
+  effectivePairingPermissions,
+  externalUserRoles,
+  type ExternalUserRole,
+} from './permissions/index.js';
 import { assertMessagingIdentity } from './identity.js';
+import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import { readBlock } from './conversations.js';
-import { effectivePairingPermissions } from './permission-groups.js';
-import { externalUserRoles, type ExternalUserRole } from './sender-access.js';
 import {
   MessagingError,
   type MessagingProvider,
@@ -14,6 +19,11 @@ import {
   type MessagingReceipt,
   type MessagingApprovalAck,
 } from './provider.js';
+
+export const reviewCards = (platform: string) =>
+  !!platformPeople(platform)?.roles &&
+  isMessagingPlatform(platform) &&
+  !!messagingPlatform(platform).features.cards;
 
 interface Delivery {
   id: string;
@@ -72,7 +82,7 @@ export function createPairingCards(options: {
       const binding = assertMessagingIdentity(db, value.bindingId);
       if (
         binding.botSlug !== value.botSlug ||
-        binding.platform !== 'feishu' ||
+        !reviewCards(binding.platform) ||
         readBlock(db, value.botSlug, binding.fingerprint, {
           kind: value.recipientId ? 'dm' : 'group',
           id: value.route.conversationId,
@@ -268,7 +278,8 @@ export function createPairingCards(options: {
       closed ||
       applicant.status !== 'pending' ||
       applicant.purpose !== 'conversation' ||
-      !applicant.reply
+      !applicant.reply ||
+      !database.read((db) => reviewCards(assertMessagingIdentity(db, applicant.bindingId).platform))
     )
       return;
     const reviewers = pairing

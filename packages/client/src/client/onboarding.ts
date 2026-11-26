@@ -520,7 +520,15 @@ function introKey(profileId: string): string {
 }
 
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
-export const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'start'] as const;
+export const INTRO_STEPS = [
+  'welcome',
+  'theme',
+  'model',
+  'phone',
+  'community',
+  'import',
+  'start',
+] as const;
 type IntroProfile = {
   personas?: readonly OnboardingPersona[];
   details?: readonly PersonaDetail[];
@@ -529,6 +537,7 @@ export type IntroStartOutcome = IntroProfile &
   (
     | { starter: 'persona'; persona: OnboardingPersona; feature: OnboardingFeature }
     | { starter: 'interview' }
+    | { starter: 'import'; product?: 'claude-code' | 'codex' | 'deepseek' }
     | { starter: 'own' }
   );
 export type IntroOutcome = { via: 'skip' | 'close' } | IntroStartOutcome;

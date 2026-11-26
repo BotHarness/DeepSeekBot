@@ -110,8 +110,7 @@ export function RequestActivityScreen() {
         ?.getSnapshot()
         .roster?.bots.find((bot) => bot.slug === target.botSlug)?.dmChannelId;
       const destination = activityDestination(target, selected.saved?.hostId, dm);
-      if (!destination || !navigateChannel(navigation, destination, 'dismiss-activity'))
-        throw new Error('missing');
+      if (!destination || !navigateChannel(navigation, destination)) throw new Error('missing');
     })().catch(() => {
       if (!disposed) setFailed(true);
     });

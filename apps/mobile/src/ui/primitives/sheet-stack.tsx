@@ -24,6 +24,7 @@ export function SheetStack({
   const screen = useNavigation();
   const insets = useSafeAreaInsets();
   const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
+  const system = Platform.OS === 'ios';
   const header = useMemo(() => sheetStackHeader(() => navigation.goBack()), [navigation]);
   if (fullScreen)
     return (
@@ -74,12 +75,12 @@ export function SheetStack({
         <Stack
           screenOptions={{
             header,
-            headerStyle: { backgroundColor: theme.overlay.fill },
+            headerStyle: { backgroundColor: system ? 'transparent' : theme.overlay.fill },
             headerTintColor: theme.color.fg,
             headerShadowVisible: false,
             headerBackButtonDisplayMode: 'minimal',
             headerBackTitle: t.back,
-            contentStyle: { backgroundColor: theme.overlay.fill },
+            contentStyle: { backgroundColor: system ? 'transparent' : theme.overlay.fill },
           }}
         >
           {children}

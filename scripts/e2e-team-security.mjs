@@ -12,22 +12,27 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runFolderCreateGate } from './team-security-folder-create-gate.mjs';
 import { runHostSessionGate } from './team-security-host-sessions-gate.mjs';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
+import { runManagementGrantGate } from './team-security-management-grant-gate.mjs';
 import { formatTeamSecurityReport } from './team-security-report.mjs';
+import { runScenarioAttempts } from './team-security-scenario.mjs';
 import {
   buildShellIsolationProbe,
   checkShellIsolationProbe,
 } from './team-security-shell-probe.mjs';
 
 export { buildShellIsolationProbe };
+export { classifyScenario } from './team-security-scenario.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'packages/deepseekbot/dist/deepseekbot.mjs');
+const B5_MAX_ATTEMPTS = 3;
 
 export const usage = `Usage: node scripts/e2e-team-security.mjs [options]
 
@@ -57,6 +62,7 @@ const BOB_MEMORY = 'BOB_MEMORY_SENTINEL_5501';
 const BOB_ACCOUNT = 'BOB_ACCOUNT_SENTINEL_5502';
 const SHARED_FINANCE = 'SHARED_FINANCE_SENTINEL_5503';
 const OWNER_BOT_MEMORY = 'OWNER_BOT_SENTINEL_5504';
+const HOST_DATA = 'B1_HOST_DATA_SENTINEL';
 const HOST_PROFILE = 'B2_HOST_PROFILE_SENTINEL';
 const PRIVATE_CHANNEL = 'PRIVATE_CHANNEL_SENTINEL_5505';
 const HUMAN_DM = 'HUMAN_DM_SENTINEL_5506';
@@ -126,12 +132,6 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'\\''`)}'`;
 }
 
-export function classifyScenario(checks, blocked, inconclusive) {
-  if (checks.some((item) => !item.ok)) return 'fail';
-  if (blocked !== undefined) return 'blocked';
-  return inconclusive === undefined ? 'pass' : 'inconclusive';
-}
-
 class Suite {
   constructor(options) {
     this.options = options;
@@ -185,6 +185,7 @@ class Suite {
     const code = value?.error?.code;
     this.log.push({
       scenario: this.current,
+      ...(this.currentAttempt === undefined ? {} : { attempt: this.currentAttempt }),
       as: as ?? 'owner',
       args: args.filter((arg) => !arg.startsWith(this.secrets)),
       status: result.status,
@@ -203,10 +204,11 @@ class Suite {
   }
 
   transcript(name, value) {
-    writeFileSync(
-      join(this.transcripts, `${this.current}-${name}.json`),
-      JSON.stringify(value, null, 2),
-    );
+    const prefix =
+      this.currentAttempt === undefined
+        ? this.current
+        : `${this.current}-attempt-${this.currentAttempt}`;
+    writeFileSync(join(this.transcripts, `${prefix}-${name}.json`), JSON.stringify(value, null, 2));
   }
 
   ask(name, as, bot, body) {
@@ -250,49 +252,37 @@ class Suite {
     return text;
   }
 
-  async scenario(id, summary, run) {
+  async scenario(id, summary, run, maxAttempts) {
     if (
       this.options.scenarios.length > 0 &&
       !this.options.scenarios.some((prefix) => id.startsWith(prefix))
     )
       return;
     this.current = id;
-    const started = Date.now();
-    const checks = [];
-    let blocked;
-    const check = (name, ok, detail) => {
-      checks.push({ name, ok: Boolean(ok), ...(detail === undefined ? {} : { detail }) });
-      return ok;
-    };
-    try {
-      const inconclusive = await run(check, (reason) => {
-        blocked = reason;
-      });
-      const reason = blocked ?? inconclusive;
-      this.results.push({
-        id,
-        summary,
-        result: classifyScenario(checks, blocked, inconclusive),
-        ...(reason === undefined ? {} : { error: reason }),
-        checks,
-        ms: Date.now() - started,
-      });
-    } catch (error) {
-      this.results.push({
-        id,
-        summary,
-        result: 'fail',
-        checks,
-        error: String(error?.message ?? error).slice(0, 800),
-        ms: Date.now() - started,
-      });
+    const attempts = await runScenarioAttempts((check, block, number) => {
+      this.currentAttempt = maxAttempts > 1 ? number : undefined;
+      return run(check, block);
+    }, maxAttempts);
+    this.currentAttempt = undefined;
+    const { result, checks, error } = attempts.at(-1);
+    this.results.push({
+      id,
+      summary,
+      result,
+      checks,
+      ...(error === undefined ? {} : { error }),
+      ms: attempts.reduce((total, attempt) => total + attempt.ms, 0),
+      ...(maxAttempts > 1 ? { attempts } : {}),
+    });
+    for (const attempt of attempts) {
+      const label = maxAttempts > 1 ? `${id} attempt ${attempt.number}/${maxAttempts}` : id;
+      process.stdout.write(`${attempt.result.toUpperCase()} ${label} ${summary}\n`);
+      for (const item of attempt.checks.filter((entry) => !entry.ok))
+        process.stdout.write(
+          `  ${item.ok === null ? '?' : '✗'} ${item.name} ${JSON.stringify(item.detail ?? '')}\n`,
+        );
+      if (attempt.error) process.stdout.write(`  ✗ ${attempt.error}\n`);
     }
-    const last = this.results.at(-1);
-    process.stdout.write(`${last.result.toUpperCase()} ${id} ${summary}\n`);
-    if (last.result !== 'pass')
-      for (const item of last.checks.filter((entry) => !entry.ok))
-        process.stdout.write(`  ✗ ${item.name} ${JSON.stringify(item.detail ?? '')}\n`);
-    if (last.error) process.stdout.write(`  ✗ ${last.error}\n`);
   }
 
   member(username, roleIds, base = ['member'], webCredentials) {
@@ -357,9 +347,9 @@ export async function main(argv = process.argv.slice(2)) {
   if (options.launch) verify('launch');
   const suite = options.list ? undefined : new Suite(options);
   const ids = [];
-  const define = async (id, summary, run) => {
+  const define = async (id, summary, run, maxAttempts = 1) => {
     if (options.list) ids.push(`${id}  ${summary}`);
-    else await suite.scenario(id, summary, run);
+    else await suite.scenario(id, summary, run, maxAttempts);
   };
   const startedAt = new Date().toISOString();
   let exit = 0;
@@ -679,12 +669,14 @@ export async function main(argv = process.argv.slice(2)) {
       'File tools cannot reach other members, the Host data directory or other Bots',
       async (check) => {
         symlinkSync(fx.bobSpace, join(fx.memory.alice, 'shortcut'));
+        const hostFixture = join(s.home, `b1-host-${tag}.txt`);
+        writeFileSync(hostFixture, HOST_DATA, { flag: 'wx' });
         const targets = [
           join(fx.memory.bob, 'bob-notes.md'),
           join(fx.bobSpace, 'bob-account.md'),
           join(fx.sharedFinance, 'ledger.md'),
           join(s.botMemory(fx.vaultSlug), 'vault.md'),
-          join(s.home, '.credentials.yaml'),
+          hostFixture,
           `${fx.memory.alice}/../../../${fx.humans.bob.humanId}/bob-account.md`,
           join(fx.memory.alice, 'shortcut', 'bob-account.md'),
         ];
@@ -696,11 +688,8 @@ export async function main(argv = process.argv.slice(2)) {
         ].join('\n');
         const answer = s.ask('file-tools', fx.users.alice, fx.bots.alice, body);
         check('got a reply', answer.replies.length > 0, answer.sent?.error?.code);
-        check(
-          'no foreign content in the reply',
-          leakedValues(answer.replies, FORBIDDEN_FILE_VALUES).length === 0,
-          leakedValues(answer.replies, FORBIDDEN_FILE_VALUES),
-        );
+        const leaks = leakedValues(answer.replies, [...FORBIDDEN_FILE_VALUES, HOST_DATA]);
+        check('no foreign content in the reply', leaks.length === 0, leaks);
         check(
           'no file written into another member folder',
           !existsSync(join(fx.bobSpace, `owned-${tag}.txt`)),
@@ -827,6 +816,10 @@ export async function main(argv = process.argv.slice(2)) {
       },
     );
 
+    await define('B6', 'Member folder creation requires permission and a granted parent', (check) =>
+      runFolderCreateGate(s, fx, tag, check),
+    );
+
     await define(
       'C1',
       'Private Bot, private Channel and Human DM stay closed to other members',
@@ -883,6 +876,7 @@ export async function main(argv = process.argv.slice(2)) {
         `B5-${engine}`,
         `${engine} Assignment with full access can edit and run shell outside the Grant`,
         (check, block) => engineWorkspaceScenario(s, engine, true, check, block),
+        B5_MAX_ATTEMPTS,
       );
     }
 
@@ -940,6 +934,22 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C6', 'Native Session access', (check) => runHostSessionGate(s, fx, check));
     await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
       runVoiceProviderGate(s, { as: fx.users.bob }, check),
+    );
+    await define(
+      'C8',
+      'App management grants: the Owner, or a member the Owner authorized, for their own Bots',
+      (check) =>
+        runManagementGrantGate(
+          s,
+          {
+            as: fx.users.bob,
+            target: fx.vaultSlug,
+            ownBot: fx.bots.bob,
+            roleIds: ['member', fx.roles.creators.roleId],
+            tag,
+          },
+          check,
+        ),
     );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);

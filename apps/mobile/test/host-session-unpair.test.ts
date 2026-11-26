@@ -269,7 +269,9 @@ it('stops background catch-up from calling a Computer after its session ends', a
   await hostSession.unpair('new');
   for (const call of catchUpCalls)
     await expect(call('channelChanges', { channelId: 'g1' })).rejects.toThrow();
-  expect(clientCalls).not.toHaveBeenCalled();
+  expect(clientCalls.mock.calls.filter((args) => (args as unknown[])[0] !== 'teamMode')).toEqual(
+    [],
+  );
   vi.doUnmock('../src/host/native-conversations');
 });
 

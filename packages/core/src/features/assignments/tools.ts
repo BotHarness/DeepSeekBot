@@ -13,6 +13,7 @@ import {
 } from '../../models/presets.js';
 import type { RoutingTarget } from '../../models/routing-groups.js';
 import { TeamError } from '../../team/error.js';
+import { assignmentLoadoutParameter, type AssignmentModeChoices } from './loadout-parameter.js';
 import type {
   AssignmentActivity,
   AssignmentAgentRun,
@@ -50,35 +51,6 @@ interface CreateAssignmentToolOptions extends AssignmentToolOptions {
     | undefined;
   modeChoices: AssignmentModeChoices | undefined;
   loadAssignmentModes: () => Promise<AssignmentModeChoices> | undefined;
-}
-
-export interface AssignmentModeChoices {
-  default: string;
-  allowed: Array<{ id: string; name?: string; description?: string }>;
-  restricted: boolean;
-}
-
-const ASSIGNMENT_MODE_GUIDANCE =
-  'A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.';
-
-export function assignmentModeParameter(choices: AssignmentModeChoices | undefined): {
-  type: 'string';
-  description: string;
-  enum?: string[];
-} {
-  if (choices === undefined || choices.allowed.length < 2)
-    return {
-      type: 'string',
-      description: `Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode (${choices?.default ?? 'unknown'}). ${ASSIGNMENT_MODE_GUIDANCE}`,
-    };
-  const modes = choices.allowed
-    .map((mode) => `- ${mode.id}: ${mode.description ?? mode.name ?? 'no description'}`)
-    .join('\n');
-  return {
-    type: 'string',
-    enum: choices.allowed.map((mode) => mode.id),
-    description: `Optional DSH mode for this Assignment; omitted uses this Bot’s mode (${choices.default}). ${ASSIGNMENT_MODE_GUIDANCE} Allowed modes:\n${modes}`,
-  };
 }
 
 interface AssignmentRequestArgs {
@@ -189,64 +161,57 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+      'Start one Assignment Session and return its id at once. Work for the same goal belongs in the Assignment already doing it (search list_assignments). Model fields come from list_assignment_models; omit them for the default. An Assignment has no deepseekbot management CLI: if you have it, run its commands, such as doctor for a problem the Human reports, in your own Shell instead.',
     parameters: {
       title: {
         type: 'string',
         required: true,
         description:
-          'Assignment Title: a short name of about 40 characters that lets the Human recognize this line of work in a list, in the Human’s language, e.g. "Fix Safari export button".',
+          'About 40 characters, in the Human’s language, e.g. "Fix Safari export button".',
       },
       description: {
         type: 'string',
         required: true,
-        description:
-          'Assignment Description: one or two sentences saying what the Assignment sets out to do and what it delivers. It is not a report.',
+        description: 'One or two sentences: what it does and delivers.',
       },
       instructions: {
         type: 'string',
         description:
-          'Optional detailed first request for the Assignment Session (steps, constraints, files). Not stored; omitted sends the Description.',
+          'Detailed first request (steps, constraints, files); defaults to the description.',
       },
       grant_id: {
         type: 'string',
-        description:
-          'Active Workspace Grant id from [Host context] or list_workspace_grants; raw paths are not accepted. Omit it when exactly one Grant is active.',
+        description: 'Active Workspace Grant id, not a path; omit when exactly one is active.',
       },
       key: {
         type: 'string',
-        description:
-          'Optional continuity key naming this direction of work; reuse it to continue the same Assignment.',
+        description: 'Names this direction of work; reuse it to continue the same Assignment.',
       },
       provider: {
         type: 'string',
-        description:
-          'Optional exact provider id from the current Assignment model set; specify with model.',
+        description: 'Provider id, with model.',
       },
       model: {
         type: 'string',
-        description:
-          'Exact model id from the listed choice, paired with provider for an API model or engine for a Subscription Engine model.',
+        description: 'Model id, with provider or engine.',
       },
       engine: {
         type: 'string',
-        description: 'Subscription Engine id from a kind: engine choice in list_assignment_models.',
+        description: 'Subscription Engine id.',
       },
       account_id: {
         type: 'string',
-        description: 'Exact accountId of the selected Subscription Engine choice, when present.',
+        description: 'accountId of the Subscription Engine choice.',
       },
       reasoning_effort: {
         type: 'string',
-        description:
-          'Optional allowed effort for the selected model, or for the selected Routing Group when list_assignment_models gives it efforts; omitted uses the Human-selected default. Pass an empty string to select the provider default when allowed.',
+        description: 'Allowed effort; omitted uses the default, empty string the provider default.',
       },
       group: {
         type: 'string',
-        description:
-          'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
+        description: 'Routing Group id, instead of provider and model.',
       },
-      mode: assignmentModeParameter(modeChoices),
+      loadout: assignmentLoadoutParameter(modeChoices),
     },
     output: {
       schema: { type: 'string' },
@@ -257,6 +222,8 @@ export function createAssignmentTool({
       if (active === undefined) {
         throw new Error('create_assignment: Orchestrator run is unavailable');
       }
+      const legacyMode: unknown = Reflect.get(args, 'mode');
+      const loadout = args.loadout ?? (typeof legacyMode === 'string' ? legacyMode : undefined);
       if (
         (args.group !== undefined &&
           (args.provider !== undefined || args.model !== undefined || args.engine !== undefined)) ||
@@ -386,13 +353,13 @@ export function createAssignmentTool({
           return refusal(error);
         }
       }
-      if (args.mode !== undefined) {
-        const modes = await loadAssignmentModes();
-        if (modes === undefined)
-          throw new Error('create_assignment: DSH modes are unavailable on this Host');
-        if (!modes.allowed.some((mode) => mode.id === args.mode))
+      if (loadout !== undefined) {
+        const loadouts = await loadAssignmentModes();
+        if (loadouts === undefined)
+          throw new Error('create_assignment: Loadouts are unavailable on this Host');
+        if (!loadouts.allowed.some((allowed) => allowed.id === loadout))
           throw new Error(
-            `create_assignment: mode ${args.mode} is not allowed; choose one of ${modes.allowed.map((mode) => mode.id).join(', ')}`,
+            `create_assignment: Loadout ${loadout} is not allowed; choose one of ${loadouts.allowed.map((allowed) => allowed.id).join(', ')}`,
           );
       }
       const grantId = args.grant_id ?? onlyActiveGrant(active.run.assignments);
@@ -404,7 +371,7 @@ export function createAssignmentTool({
           ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
           grantId,
           ...(args.key === undefined ? {} : { key: args.key }),
-          ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(loadout === undefined ? {} : { mode: loadout }),
           ...(picked !== undefined && groupId !== undefined
             ? {
                 ...(picked.kind === 'route' ? { model: picked.route } : { routingTarget: picked }),
@@ -450,7 +417,7 @@ export function createAssignmentTool({
             : { modelRoute: outcome.assignment.modelRoute }),
           ...(outcome.assignment.agentPreset === undefined
             ? {}
-            : { mode: outcome.assignment.agentPreset }),
+            : { loadout: outcome.assignment.agentPreset }),
         });
       }
       if (outcome.outcome === 'capacity') return JSON.stringify(outcome);
@@ -471,12 +438,11 @@ export function registerAssignmentTools(
     defineTool({
       name: 'list_assignments',
       description:
-        'List this PersonaBot Assignments with current activity, latest report, continuity key, and any open question waiting for your answer. Archived Assignments are hidden unless include_archived is true. Before creating an Assignment, search with query for one already serving the same goal or deliverable. Results are newest first; follow nextCursor with unchanged filters.',
+        'List your Assignments, newest first, with activity, latest report, continuity key and any question waiting for you.',
       parameters: {
         query: {
           type: 'string',
-          description:
-            'Case-insensitive text to find in the Title, Description, continuity key, or latest report summary.',
+          description: 'Text in the title, description, key or latest report.',
         },
         activity: {
           type: 'array',
@@ -493,7 +459,7 @@ export function registerAssignmentTools(
         limit: { type: 'integer', description: 'Page size 1–50, default 20.' },
         cursor: {
           type: 'string',
-          description: 'Opaque nextCursor from the previous page with the same filters.',
+          description: 'nextCursor with the same filters.',
         },
       },
       output: {
@@ -528,7 +494,7 @@ export function registerAssignmentTools(
     defineTool({
       name: 'archive_assignment',
       description:
-        'Archive one finished or no-longer-needed Assignment Session so it leaves your default list_assignments view and native Session lists. Refused while the Assignment is working or stopping: wait for it to settle or call stop_assignment first. Archiving clears its continuity key; history is kept and unarchive_assignment restores it. Nothing is ever archived automatically.',
+        'Archive a finished Assignment; refused while it is working or stopping. Clears its continuity key; unarchive_assignment restores it.',
       parameters: {
         session_id: {
           type: 'string',
@@ -568,7 +534,7 @@ export function registerAssignmentTools(
     defineTool({
       name: 'unarchive_assignment',
       description:
-        'Restore one archived Assignment Session to your default list_assignments view so you can send it requests again. Its continuity key is not restored. It also resumes a stopped Assignment Session. Pass message to revive it and send it that request in one call; the request goes through send_assignment_request delivery with the same mode and refusals. Only a delivery of steer or followup means the request was delivered; code request-not-delivered means it was unarchived but received nothing.',
+        'Restore an archived or stopped Assignment, without its continuity key. message also sends it a request; request-not-delivered means it was restored but got nothing.',
       parameters: {
         session_id: {
           type: 'string',
@@ -578,8 +544,7 @@ export function registerAssignmentTools(
         },
         message: {
           type: 'string',
-          description:
-            'Optional Assignment Request to deliver once it is unarchived, such as an instruction to continue its work.',
+          description: 'Request to send once it is restored.',
         },
         mode: {
           type: 'string',
@@ -645,7 +610,7 @@ export function registerAssignmentTools(
     defineTool({
       name: 'inspect_assignment',
       description:
-        'Inspect one owned Assignment by Session id, including its current model route beside the default for new Assignments. Set report_offset=0 to page through its accepted report via DSH Session Query; use report_source_event_id=reportPage.reportSourceEventId and report_offset=reportPage.nextOffset for subsequent pages, even after a newer report arrives. Set include_recent_events for a separate bounded Session tail.',
+        'Inspect one of your Assignments and its model route. report_offset 0 pages its report; continue with reportPage.reportSourceEventId and nextOffset.',
       parameters: {
         session_id: {
           type: 'string',
@@ -654,18 +619,15 @@ export function registerAssignmentTools(
         },
         include_recent_events: {
           type: 'boolean',
-          description:
-            'Include up to four recent Assignment Session events, bounded to 12,000 characters.',
+          description: 'Add up to four recent Session events.',
         },
         report_offset: {
           type: 'integer',
-          description:
-            'Read 2,000 characters of the accepted report starting at this character offset; start with 0.',
+          description: 'Read 2,000 report characters from here; start at 0.',
         },
         report_source_event_id: {
           type: 'string',
-          description:
-            'Report identity returned as reportPage.reportSourceEventId. Required for nonzero offsets; keeps reading the same report even when a newer one arrives.',
+          description: 'reportPage.reportSourceEventId; needed for nonzero offsets.',
         },
       },
       output: {
@@ -718,7 +680,7 @@ export function registerAssignmentTools(
     defineTool({
       name: 'send_assignment_request',
       description:
-        'Send an addressed request to one Assignment Session. It works on any unarchived Assignment, including one whose last Turn failed, was cancelled or was interrupted, and one that was stopped (by you or the Human), which it resumes; sending to an archived one unarchives it first (the result carries unarchived: true) and retries once; that retry can still return capacity or refused, which deliver nothing. Use answer_to to answer a waiting question. To change this existing Session’s model for its next model request, first call list_assignment_models, then pass an allowed provider/model/effort with this request. Omitted model fields keep the Session’s current route, even after the Human changes the Bot preset.',
+        'Send a request or an answer to one Assignment; a stopped or archived one resumes. capacity or refused means nothing was delivered. Model fields from list_assignment_models switch its model; omitted keeps its route.',
       parameters: {
         session_id: {
           type: 'string',
@@ -737,21 +699,19 @@ export function registerAssignmentTools(
         },
         answer_to: {
           type: 'string',
-          description: 'The answer_to value from a Bot Inbox item that waits for your answer.',
+          description: 'answer_to of the Inbox item waiting for your answer.',
         },
         provider: {
           type: 'string',
-          description:
-            'Optional provider id from the Bot’s current Assignment model set; specify with model.',
+          description: 'Provider id, with model.',
         },
         model: {
           type: 'string',
-          description:
-            'Optional model id from the Bot’s current Assignment model set; specify with provider.',
+          description: 'Model id, with provider.',
         },
         reasoning_effort: {
           type: 'string',
-          description: 'Optional allowed effort; omitted uses this model’s default effort.',
+          description: 'Allowed effort.',
         },
       },
       output: {
@@ -793,12 +753,12 @@ export function registerAssignmentTools(
     defineTool({
       name: 'link_message_sessions',
       description:
-        'Link one of your own sent Human DM messages to the Assignment Sessions it reports on; each shows as a link on that message, marked new or sent. Pass the messageId bot_send_message returned and the Session ids from create_assignment or send_assignment_request. Calling again adds Sessions to the same message, so one message can link Sessions created in later steps or turns.',
+        'Link your sent Human DM message to the Assignments it reports on; calling again adds more.',
       parameters: {
         message_id: {
           type: 'string',
           required: true,
-          description: 'messageId of your own sent message in your Human DM.',
+          description: 'messageId from bot_send_message.',
         },
         session_ids: {
           type: 'array',
@@ -848,8 +808,7 @@ export function registerAssignmentTools(
   registerTool(
     defineTool({
       name: 'wait_for_assignment',
-      description:
-        'Wait for one owned Assignment to commit a new report or settle. Returns after at most 120 seconds; cancellation stops only this wait, not the Assignment. Use instead of repeated inspect polling when its result is needed now.',
+      description: 'Wait up to 120 s for one Assignment to report or settle, instead of polling.',
       parameters: {
         session_id: {
           type: 'string',
@@ -879,12 +838,12 @@ export function registerAssignmentTools(
     defineTool({
       name: 'stop_assignment',
       description:
-        'Stop one Assignment Session for this PersonaBot. Cancels active DSH work, clears queued input and its continuity key, and pauses it with its history kept; the next send_assignment_request to it resumes it. Confirm the returned activity before telling the Human.',
+        'Stop one Assignment: cancels its work and clears its queue and continuity key; a later send_assignment_request resumes it. Check the returned activity before telling the Human.',
       parameters: {
         session_id: {
           type: 'string',
           required: true,
-          description: 'Assignment Session id returned by create_assignment or list_assignments.',
+          description: 'Assignment Session id.',
         },
       },
       output: {
@@ -944,6 +903,7 @@ export function isReportState(value: string): value is AssignmentReportState {
 export function createAssignmentReportTool(
   currentRun: () => { run: Pick<AssignmentAgentRun, 'report'>; hasOutcome: boolean } | undefined,
   agent: Pick<Agent, 'session'>,
+  withProvenance?: (summary: string) => string,
 ): ToolDefinition {
   return defineTool({
     name: 'report_to_orchestrator',
@@ -985,7 +945,7 @@ export function createAssignmentReportTool(
       await active.run.report(
         {
           state: args.state,
-          summary: args.summary,
+          summary: withProvenance?.(args.summary) ?? args.summary,
           ...(args.expects_reply === undefined
             ? {}
             : { expectsReply: args.expects_reply === true }),

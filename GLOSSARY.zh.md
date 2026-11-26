@@ -7,7 +7,7 @@
 ### 产品命名
 
 **Tobs / 托布**：
-原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置总管 Bot「Tob」区分。
+原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置 Bot「Tob」区分。
 _避免使用_：拖布、Tob（指代产品时）
 
 **BotHarness**：
@@ -38,23 +38,35 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 **Speech Catalog**：
 供应商可供选择的语音模型和音色。部分公开音色需要先添加到账户才能使用。
 
+**Meeting**：
+外部会议平台上的一场会，例如一场 Zoom 或 Google Meet 会议，以会议链接区分。
+_避免使用_：通话（通话是 Human 和 Bot 之间的）、会话
+
+**Meeting Attendance**：
+一个 Bot 参加一场 Meeting，作为一通远端是会议的通话来运行。状态有等候中、在会、已离开和失败，结束后在 Bot 记忆里留下转写和纪要，不进任何对话。
+_避免使用_：会议机器人、会议 Session、录音
+
 ### PersonaBot（持久机器人身份）
 
-**Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。Team mode 下，只有当前 Host Owner 拥有 Tob。
-_避免使用_：全局 Orchestrator、Home 面板、Dashboard
-
 **Tob**：
-为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。
+每个 Profile 首先创建的内置本地 PersonaBot；名称是 Bot 的倒写，也寓意 Thousands of Bot。它是普通 Bot：Human 可以改名、归档、删除或分享它，其 Soul 与 Memory 可以编辑和迁移。它默认打开 **App 管理授权** 的两个开关，因此由它帮助 Human 配置 App 的其余部分；能管理什么由授权决定，与名字无关（[Tob 决策](docs/decisions/tob.md#app-management-grant)）。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
-Tob 模式。手机端从 Chats 上的 Tob 入口栏打开的 Tob DM 普通 Conversation screen。与点击 Tob 行相比只是入口和过渡动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。入口的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
+已停用（Tob 决策 §2，#5198）。从 Tob 入口栏打开 Tob DM 的手机入口已由 **Pinned tab** 取代；Tob DM 与其他对话一样，从 Chats 行或 Pinned tab 打开。
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
 **Tob Delegation**：
 Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
 _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
+
+**Steward**：
+已停用（Tob 决策 §11）。ADR-0365 的单例主管角色已由 **App 管理授权** 取代。
+_避免使用_：主管角色、主管转移、Steward Bot、总管
+
+**App management grant**：
+App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[Tob decisions §11](docs/decisions/tob.md#app-management-grant)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
+_避免使用_：主管、Steward、Admin、管理员
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
@@ -191,7 +203,7 @@ Human 本机上未修改的官方 agent CLI（Claude Code 或 Codex），使用 
 _避免使用_：driver、provider（DSH Provider 调用模型 API）、ACP agent（ACP 只是引擎可能使用的一种协议）
 
 **Subagent**：
-由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。
+由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。Subscription Engine 自带的 sub-agent 也这样显示：一个只读的 child Session，不能以 Bot 身份行动。
 _避免使用_：sub-bot、worker、helper
 
 **Session**：
@@ -285,6 +297,10 @@ _避免使用_：reviewer Session、auto-approval Session、Orchestrator Session
 **Assignment Access Preset**：
 Human 为单个 PersonaBot 选择、在新建 Assignment 时应用的权限预设。默认是 DSH workspace-write 与 ask；危险完全访问需要明确开启 DSH danger-full-access 与 never。所选模式固化在每个 Assignment 的权限快照中，仍须选择有效 Workspace Grant。
 _避免使用_：Workspace Grant、就地切换 Session 模式、Orchestrator 权限
+
+**Loadout**：
+Session 运行时使用的一套具名 system prompt 加有限工具集（中文称「配装」），Session 开始后即固定。Tobs 和 Tobs 场景 Loadout（调研、编程、脚本）是内置的；精简 Loadout 让简单任务只带短 prompt 和少量工具，每一步发送的内容少得多，Orchestrator 还可以给它搭配更便宜的 Model Choice。PersonaBot 自己的 Loadout、Orchestrator 为每个 Assignment 的选择以及模式模板见 [Session 决策 §15](docs/decisions/sessions.md#bot-modes)。界面、`create_assignment` 和 CLI 都叫配装 / Loadout；DSH 里仍叫模式。
+_避免使用_：Session 模式、单独的 mode / 模式（与 Team mode、Developer Mode、Tob Mode 混淆）、DSH 接缝以外的 agent preset、指令集
 
 **Delegation**：
 从 Chat 或 Roster 把责任交给 PersonaBot。其 Orchestrator 可以直接回答，也可以创建或复用一个或多个 Assignment Session。
@@ -454,6 +470,10 @@ _避免使用_：Memory tool、filesystem watcher、Git event source、generic r
 Memory Repository 中的普通 Git commit。Git 作者和拓扑保持原样；BotHarness 可以另记一次可信操作结束时的 HEAD、actor 与 cause，作为审计/恢复检查点，而不是文件成为记忆的许可。
 _避免使用_：accepted commit、file save、filesystem event、auto-save
 
+**Memory Lease**：
+让一个 Tob 所有的 Assignment 为 Tob 私聊中的一次 Human 请求只读选定 Bot 已接受 Memory 的授权。它绑定该请求的 Source Event、这个 Assignment 和每个 Bot 的身份代次，记录每次读取及其 revision；被撤销、Assignment 归档或请求被清除时结束。它从不允许写入。
+_避免使用_：Memory share、cross-Bot access、Memory permission、borrowed Memory
+
 **Memory Observation**：
 Host 看到的仓库状态的可信记录，可关联受信任的 Orchestrator Session 与 Source Event。它说明状态何时被看到，不推断 Git 内容的作者；观察不会暂存、提交、拒绝或隐藏当前工作树文件。
 _避免使用_：commit acceptance、filesystem watch、background distillation
@@ -507,6 +527,14 @@ _避免使用_：install、download、subscribe
 **Indexed Repository**：
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
 _避免使用_：submission、Listing、SoulSnapshot、mirror
+
+**Indexed Skill Repository**：
+带有 `tobs-skill` topic 的公开 GitHub 仓库，或由管理员手动收录的仓库；Marketplace 把其中每个 `SKILL.md` 文件夹列为 Marketplace Skill，并定期刷新。
+_避免使用_：skill pack、skill source、plugin repository
+
+**Marketplace Skill**：
+Indexed Skill Repository 中的一个 `SKILL.md` 文件夹，以 Marketplace 最近读取的 commit 上架，附带其脚本和安全扫描结果。添加时把该文件夹复制到所选 PersonaBot 的 Memory Repository 作为 Project Skill，或复制到 Host 作为 Host Skill；上游之后的改动不会影响这份副本。
+_避免使用_：plugin、connector、应用连接、extension、Skill install
 
 **Uploaded Bot**：
 已登录的作者上传 Memory 文件（不含 Git 历史）而形成的 Bot Marketplace 条目。作者可以整体替换它的文件，或彻底删除它；没有版本。安装时创建新的 PersonaBot，并做一次初始提交；之后的替换不会影响已安装的副本。
@@ -615,7 +643,7 @@ Host Member 向 Host 证明身份的一种方式，与身份本身分离；首�
 _避免使用_：session、账号、设备授权
 
 **Host Role**：
-分配给 Host Member 的一组具名 Host Permission，同一成员的多个角色取并集；内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
+分配给 Host Member 的一组具名 Host Permission，每项可设为允许、拒绝或未设；成员持有其各角色允许项的并集，再减去任一角色拒绝的权限。内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
 _避免使用_：group、Channel 角色、pairing Role
 
 **Host Permission**：
@@ -718,6 +746,10 @@ _避免使用_：sync、mirror、用 Bridge 指代这条记录
 **App**：
 UI 上叫「应用」：一个已认证 Provider account 的名称，例如 Lark 应用、Slack 应用、Discord bot 或已配对的微信 Bot。一个应用最多绑定到一个 PersonaBot；一个 PersonaBot 可以绑定多个应用，包括同一平台的多个应用。「设置 → IM 应用」列出每个应用及使用它的 Bot。
 _避免使用_：UI 文案里的「IM账号」、connector、integration
+
+**App connection**：
+UI 上叫「应用连接」：外部数据应用中的一个账号，例如 Gmail、Google 日历、Drive、Notion 或 GitHub。Host Owner 通过自己的 Composio 项目在 Host 上连接一次。Owner 为每个 PersonaBot 在每个应用连接上设置「不可用」「只读」或「读写」；Bot 只能通过 Host 守护的 `mcp__composio__` 工具使用它，看不到 Composio key。它与 IM 应用和 External connectors 无关。
+_避免使用_：UI 文案里单独的 connector、integration、用 App 指代这条记录、plugin
 
 **Default traffic**：
 启用的外部身份 Binding 无需逐会话同意即可接收的消息：发给应用的私聊，以及合格 Provider 报告为 @ 该应用的群消息。谁能触达应用由平台决定；群里的普通文字、跟进的话题和 Channel 同步仍需显式开启。
@@ -1258,7 +1290,7 @@ _避免使用_：首页、会话列表、Chat list
 _避免使用_：通知 tab、收件箱
 
 **Sessions tab**：
-手机上可选开启的 Host Session tab。点进来落在 New Session screen；已有的 Session 列在 Session drawer 里。
+手机上可选开启的 Host Session tab。根页面取决于 Session navigation style：Drawer 样式是 New Session screen，已有 Session 列在 Session drawer 里；Stacked 样式是 Session 列表。每台手机的落点设置决定启动时和从其他 tab 回来时打开哪里。
 _避免使用_：Session 列表 tab、Sessions 页
 
 **New Session screen**：
@@ -1266,7 +1298,7 @@ Sessions tab 的空白状态：Human 在这里选电脑环境和工作目录，�
 _避免使用_：创建 Session 表单、空白 Session
 
 **Session drawer**：
-Session 抽屉。Sessions tab 的左侧导航抽屉，从左边缘右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
+Session 抽屉。Sessions tab 的左侧模态导航抽屉（Android `ModalNavigationDrawer` ↔ iOS 原生复刻），在抽屉式 Session 根页面任意位置右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
 _避免使用_：Session 侧边栏、Session 列表页、Host drawer
 
 **Session navigation style**：
@@ -1274,15 +1306,19 @@ Session 导航方式。手机本地偏好，决定 Sessions tab 怎样在 Sessio
 _避免使用_：Session 模式、布局模式
 
 **Tob entry bar**：
-Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域，点击打开 Tob Mode。它只是入口，不能在原地输入。
+已停用（Tob 决策 §2，#5198）。Chats 上长得像 Composer 的点击区域已由 **Pinned tab** 取代；Chats 不再有 Composer 形状的栏。
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
+
+**Pinned tab**：
+固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定内置 Tob 的 DM（没有时用最近的对话），跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。在 设置 → 标签栏 中可拖动调整 tab 顺序，并为当前 Environment 选择绑定的对话（#5196）。
+_避免使用_：Tob tab、收藏、快捷 tab
 
 **Settings**：
 手机本地偏好，以及 Human 的账号、模型、用量和存储所在的 tab。
 _避免使用_：偏好页、齿轮菜单
 
 **Environment sheet**：
-环境选择 sheet。从 Settings 第一行打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
+环境选择 sheet。从 Settings 的「环境设定」分组或 Chats header 的环境名打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
 _避免使用_：Workspace panel、Workspace drawer、Host drawer、Host chip、侧边栏
 
 **Conversation screen**：

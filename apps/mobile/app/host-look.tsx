@@ -6,7 +6,6 @@ import { useHostSession } from '../src/host/host-session';
 import { accountHostLookTarget } from '../src/host/account-host-look';
 import { connectAccount } from '../src/host/native-connect-account';
 import { hostLooks, useHostLook } from '../src/host/native-host-look';
-import { useDesignTheme } from '../src/ui/design/theme';
 import { space } from '../src/ui/design/tokens';
 import { Notice } from '../src/ui/request-parts';
 import { HostLookEditor } from '../src/ui/shell/host-look-editor';
@@ -18,7 +17,6 @@ export default function HostLookScreen() {
   const t = useStrings();
   const router = useRouter();
   const params = useLocalSearchParams<{ hostId?: string; account?: string }>();
-  const theme = useDesignTheme();
   const { saved, hosts } = useHostSession();
   const [resolvedAccount, setResolvedAccount] = useState<string>();
   const [accountHost, setAccountHost] = useState<{
@@ -66,9 +64,11 @@ export default function HostLookScreen() {
     );
   if (host === undefined)
     return (
-      <View style={{ flex: 1, padding: space.x5, backgroundColor: theme.color.base }}>
-        <Notice tone="danger">{t.hostLookMissing}</Notice>
-      </View>
+      <SheetScreen>
+        <View style={{ flex: 1, padding: space.x5 }}>
+          <Notice tone="danger">{t.hostLookMissing}</Notice>
+        </View>
+      </SheetScreen>
     );
   return (
     <SheetScreen>

@@ -58,6 +58,9 @@ async function fixture(
     createdAt: '2026-10-13T00:00:00Z',
     availability: 'available' as const,
     grantCount: 0,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: [],
   };
   const render = () =>

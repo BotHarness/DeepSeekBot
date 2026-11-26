@@ -20,6 +20,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
 import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
+import { SessionModelSwitch } from '../src/client/session-model-switch.js';
 import {
   cachedSessionDetail,
   clearSessionDetailCache,
@@ -107,6 +108,33 @@ it('shows one localized model switch and keeps model names out of replies and th
   expect(host.querySelector('[data-session-meta-chip="engine"]')).toBeNull();
 });
 
+it('renders the native Session model switch as one localized marker', async () => {
+  const from = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
+  const to = { kind: 'dsh', provider: 'deepseek', model: 'deepseek-v4-pro' } as const;
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  mounted.push(() => act(() => root.unmount()));
+  await act(async () => {
+    root.render(
+      createElement(SessionModelSwitch, {
+        native: true,
+        item: { from, to },
+        t: zhTranslate,
+        catalog: {
+          models: [
+            { ...from, providerName: 'OpenCode Go', modelName: 'DeepSeek V4.1 Flash' },
+            { ...to, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Pro' },
+          ],
+        },
+      }),
+    );
+  });
+  const markers = host.querySelectorAll('[data-session-model-switch]');
+  expect(markers).toHaveLength(1);
+  expect(markers[0]?.textContent).toBe('从 V4.1 Flash 切换到 V4 Pro');
+  expect(markers[0]?.getAttribute('aria-label')).toBe('从 V4.1 Flash 切换到 V4 Pro');
+});
+
 it('applies a picker change through the Host and shows the next Turn while a Turn is active', async () => {
   const model = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
   const current = { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } as const;
@@ -148,7 +176,12 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
   const trigger = host.querySelector<HTMLButtonElement>(
     '[data-session-composer] .bh-composer-footer [data-session-model-control] button',
   );
-  expect(trigger?.textContent).toContain('GPT-6.2-Sol');
+  expect(trigger?.closest('.bh-composer')?.classList.contains('bh-composer-compact')).toBe(true);
+  expect(trigger?.closest('.bh-composer')?.classList.contains('bh-composer-with-footer')).toBe(
+    false,
+  );
+  expect(trigger?.textContent).toBe('');
+  expect(trigger?.getAttribute('aria-label')).toContain('GPT-6.2-Sol');
   expect(trigger?.closest('.bh-composer-footer')?.querySelector('.bh-send-btn')).not.toBeNull();
   await act(async () => trigger?.click());
   const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((item) =>
@@ -156,8 +189,8 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
   );
   await act(async () => option?.click());
   expect(sessionModel).toHaveBeenCalledWith('tobs', 'asg-1', { ...model, effort: 'medium' });
-  expect(trigger?.textContent).toContain('下一轮使用 Opus 5.5');
-  expect(trigger?.textContent).toContain('中');
+  expect(trigger?.getAttribute('aria-label')).toContain('下一轮使用 Opus 5.5');
+  expect(trigger?.getAttribute('aria-label')).toContain('中');
 });
 
 function label(node: HTMLElement): string {
@@ -245,6 +278,14 @@ it('shows the full conversation with summary chips that expand in place', async 
   );
   expect(host.querySelector('[data-session-composer]')).not.toBeNull();
   expect(host.querySelector('[data-session-composer]')?.textContent).not.toContain('Inbox');
+});
+
+it('shows a Subagent transcript read-only, without a composer', async () => {
+  const sub = { ...transcript('orchestrator'), parentSessionId: 'orc' };
+  const send = vi.fn(async () => {});
+  const host = await render({ sessionTranscript: async () => sub, sendOrchestratorMessage: send });
+  expect(host.querySelector('[data-transcript="input"]')).not.toBeNull();
+  expect(host.querySelector('[data-session-composer]')).toBeNull();
 });
 
 it('sends a message straight into the Orchestrator Session, not as an Assignment request', async () => {
@@ -543,6 +584,48 @@ it('opens a tool step into its command and output', async () => {
   expect(card?.textContent).toContain('$ pnpm test');
   expect(card?.textContent).toContain('3 passed');
   expect(card?.textContent).toContain('退出码 1');
+});
+
+it('keeps tool output unwrapped until the wrap toggle is pressed', async () => {
+  const host = await render(
+    {
+      sessionTranscript: vi.fn(async () => ({
+        ...editTurn(),
+        items: [
+          {
+            kind: 'tool' as const,
+            id: 'c10',
+            tool: 'agent',
+            toolKind: 'other' as const,
+            status: 'done' as const,
+            at: '2026-11-17T00:00:02.000Z',
+          },
+        ],
+      })),
+      sessionToolDetail: vi.fn(async () => ({
+        card: 'text' as const,
+        input: '{"prompt": "a long line"}',
+        output: 'done',
+      })),
+    },
+    { level: 'detailed', collapse: 'nextInput', replies: 'all' },
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="process"] button')!.click(),
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="tool"] button')!.click(),
+  );
+  const card = host.querySelector('[data-tool-detail="text"]')!;
+  const blocks = () => [...card.querySelectorAll('pre')].map((pre) => pre.dataset.wrap);
+  const toggles = card.querySelectorAll<HTMLButtonElement>('[data-tool-detail-wrap]');
+  expect(blocks()).toEqual(['false', 'false']);
+  expect(toggles).toHaveLength(2);
+  expect(toggles[0]!.getAttribute('aria-pressed')).toBe('false');
+  expect(toggles[0]!.getAttribute('aria-label')).toBe('自动换行');
+  await act(async () => toggles[0]!.click());
+  expect(blocks()).toEqual(['true', 'true']);
+  expect(toggles[1]!.getAttribute('aria-pressed')).toBe('true');
 });
 
 it('streams the live reasoning and reply over the durable history', async () => {

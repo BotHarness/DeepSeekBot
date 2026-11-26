@@ -16,6 +16,8 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 import { createTempRoot } from './helpers.js';
 import { mountPrivateInputs } from '../src/credentials/mount.js';
 import { createScope } from '@deepseek-ai/dsh-scope';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 const declaration = {
@@ -704,6 +706,31 @@ it('consumes local DM credentials when its queued turn collects a pending IM bat
     await expect(
       f.privateInputs.consume(agent, declaration.account, result.references, async () => 'batched'),
     ).resolves.toBe('batched');
+  } finally {
+    await f.close();
+  }
+});
+
+it('a turn started by a bridged IM message asks for tool approval in the Bot DM', async () => {
+  const f = await fixture(true);
+  try {
+    await f.im();
+    const run = await f.started();
+    expect(
+      f.core.runtime.toolApprovalOrigin?.({
+        sessionId: SessionId(run.sessionId),
+        callId: ToolCallId('call'),
+      }),
+    ).toEqual({
+      kind: 'turn',
+      channelId: 'dm-ada',
+    });
+    expect(
+      f.core.runtime.toolApprovalOrigin?.({
+        sessionId: SessionId('other-session'),
+        callId: ToolCallId('call'),
+      }),
+    ).toBeUndefined();
   } finally {
     await f.close();
   }

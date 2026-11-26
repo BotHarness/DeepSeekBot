@@ -4,7 +4,7 @@
 | ---- | --------------------------------------------------------------------------------------------------------------------------- |
 | 问题 | 用户反馈 OpenMausBot 能用已有的 Claude / ChatGPT 订阅额度跑 Bot。它是怎么做的？是 ACP 吗？我们能不能让整个 Bot 跑在订阅上？ |
 | 版本 | OpenMausBot `31109fa`（2026-11-18）、t3code `03822a83`（2026-11-18）、Cloudflare Forge `main`                               |
-| 结论 | 见 [ADR-0353](../adr/0353-persona-bot-sessions-can-run-on-a-subscription-engine.md)                                         |
+| 结论 | 见 [ADR-0353](../decisions/sessions.md#adr-0353)                                                                            |
 | 方法 | `git clone --depth 1` 只读阅读，未安装、未运行                                                                              |
 
 ## 1. 结论

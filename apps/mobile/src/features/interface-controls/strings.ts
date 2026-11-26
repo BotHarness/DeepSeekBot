@@ -1,6 +1,7 @@
 import { productName } from '../../ui/product-name';
 
 export const en = {
+  tabMenuAction: 'Recent items',
   interfacePreferences: {
     language: 'Language',
     appearance: 'Appearance',
@@ -17,6 +18,10 @@ export const en = {
   hapticFeedback: {
     title: 'Haptic feedback',
     storageError: 'Could not save this choice. Toggle again to retry.',
+  },
+  hideBars: {
+    title: 'Hide bars while scrolling',
+    detail: 'Scrolling down a list hides the tab bar; scrolling up brings it back.',
   },
   sendJump: {
     title: 'Jump to latest when sending',
@@ -40,6 +45,7 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  tabMenuAction: '最近项目',
   interfacePreferences: {
     language: '语言',
     appearance: '外观',
@@ -55,6 +61,10 @@ export const zh: typeof en = {
   hapticFeedback: {
     title: '触感反馈',
     storageError: '未能保存此选择，再切换一次。',
+  },
+  hideBars: {
+    title: '滚动时隐藏栏',
+    detail: '在列表中向下滚动时隐藏标签栏，向上滚动即恢复。',
   },
   sendJump: {
     title: '发送后跳到最新',

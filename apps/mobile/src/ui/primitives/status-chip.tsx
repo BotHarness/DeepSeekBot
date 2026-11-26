@@ -1,6 +1,7 @@
 import { Pressable, View } from 'react-native';
 
 import type { ColorRole } from '../design/resolve-theme';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { radius, space, statusChip } from '../design/tokens';
 import { DrawerMaterial } from './drawer-material';
@@ -29,7 +30,7 @@ export function StatusChip({
         alignSelf: 'center',
         maxWidth: '100%',
         minHeight: statusChip.height,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         paddingLeft: space.x4,
         paddingRight: action === undefined ? space.x4 : space.x2,
         flexDirection: 'row',

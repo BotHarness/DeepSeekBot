@@ -560,7 +560,6 @@
       "height: 12px",
       "height: 16px",
       "height: 16px",
-      "height: 16px",
       "height: 18px",
       "height: 18px",
       "height: 20px",
@@ -584,7 +583,6 @@
       "top: -8px",
       "top: 4px",
       "top: 8px",
-      "width: 16px",
       "width: 16px",
       "width: 18px",
       "width: 20px",
@@ -810,11 +808,6 @@
       "width: 560px",
       "width: 680px",
       "width: 6px"
-    ],
-    "packages/client/src/client/features/schedules/schedules-entry.tsx": [
-      "maxHeight: 200px",
-      "minWidth: 40px",
-      "outlineOffset: 1px"
     ],
     "packages/client/src/client/features/usage/profile-usage-styles.ts": [
       "bottom: 6px",
@@ -1424,6 +1417,7 @@
     "packages/client/src/client/ds/tooltip.tsx": ["BaseTooltip.Trigger"],
     "packages/client/src/client/ds/work-row.tsx": ["button"]
   },
+  "xstyleShorthand": {},
   "catalogue": {},
   "duplicateComponent": {
     "packages/client/src/client/activity-list-controls.tsx": ["ActivityListSourceButton"],
@@ -1465,7 +1459,7 @@
       "multiple description lines"
     ],
     "packages/client/src/client/shortcut-help.tsx": ["multiple controls"],
-    "packages/client/src/client/voice-settings.tsx": ["multiple controls", "multiple controls"],
+    "packages/client/src/client/voice-bot-settings.tsx": ["multiple controls", "multiple controls"],
     "packages/client/src/client/window-zoom-settings.tsx": ["multiple controls"],
     "packages/client/src/client/workspace-grants-entry.tsx": ["multiple controls"]
   },
@@ -1507,5 +1501,10 @@
     "apps/mobile/src/ui/question-view.tsx": ["Pressable"],
     "apps/mobile/src/ui/request-parts.tsx": ["Pressable"],
     "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"]
-  }
+  },
+  "fixedIconScale": {},
+  "scaledActionBox": {},
+  "fixedButtonHeight": {},
+  "unscaledLabelIcon": {},
+  "wrappingCapsule": {}
 }
