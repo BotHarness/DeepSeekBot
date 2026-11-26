@@ -1404,12 +1404,14 @@
     },
     {
       "id": "app-connectors",
-      "description": "App connections through the Owner's Composio key and per-Bot read or write access.",
+      "description": "App connections through the Owner's Composio key or remote MCP sign-in, with per-Bot read or write access.",
       "scope": "Local Host",
       "surfaces": [
         "setting:packages/client/src/client/app-connections-catalog.tsx:{picked.name}",
         "setting:packages/client/src/client/connectors-settings.tsx:{grant.botName ?? grant.botSlug}",
-        "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}"
+        "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}",
+        "route:packages/core/src/connectors/mount.ts:CONNECTOR_CALLBACK_PATH",
+        "setting:packages/client/src/client/app-connections-catalog.tsx:{t('connectors.composio.savedTitle')}"
       ],
       "commands": [
         "connectors",
@@ -1419,6 +1421,9 @@
         "connector-reconnect",
         "connector-refresh",
         "connector-search",
+        "connector-mcp-search",
+        "connector-mcp-add",
+        "connector-mcp-finish",
         "connector-remove",
         "connector-grant",
         "bot-connectors"
