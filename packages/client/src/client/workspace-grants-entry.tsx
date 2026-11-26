@@ -26,6 +26,7 @@ import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
 
 export { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
 import { approvalRulePath, secretCliRuleLabel } from './workspace-approval-rule-labels.js';
+import { shellPrefixHead } from '@botharness/host-client/shared/shell-approval-scope';
 import { renderWorkspaceGrantFolders } from './workspace-grant-folders.js';
 import {
   folderBrowseError,
@@ -713,9 +714,14 @@ export function WorkspaceGrantsEntry({
                       ? t('approval.toolRule', { tool: rule.toolName })
                       : rule.kind === 'exact'
                         ? t('approval.exactRule', { tool: rule.toolName })
-                        : rule.kind === 'secret-cli'
-                          ? t('approval.secretCliRule', secretCliRuleLabel(rule.input))
-                          : t('approval.allRule')}
+                        : rule.kind === 'prefix'
+                          ? t('approval.prefixRule', {
+                              tool: rule.toolName,
+                              prefix: shellPrefixHead(rule.input),
+                            })
+                          : rule.kind === 'secret-cli'
+                            ? t('approval.secretCliRule', secretCliRuleLabel(rule.input))
+                            : t('approval.allRule')}
                     {' · '}
                     {rule.role === 'assignment'
                       ? t('approval.assignment')

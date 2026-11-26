@@ -63,8 +63,11 @@ export const RequestCard = memo(function RequestCard({
   const approval = useMemo(
     () => ({
       load: () => loadApproval(client, ref),
-      decide: async (outcome: Parameters<typeof decideApproval>[2]) => {
-        const result = await decideApproval(client, ref, outcome);
+      decide: async (
+        outcome: Parameters<typeof decideApproval>[2],
+        rule?: Parameters<typeof decideApproval>[4],
+      ) => {
+        const result = await decideApproval(client, ref, outcome, 'app', rule);
         void inbox?.refresh();
         return result;
       },
