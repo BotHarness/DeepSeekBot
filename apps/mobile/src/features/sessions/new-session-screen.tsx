@@ -23,7 +23,7 @@ import {
   type PickedFolder,
 } from '../../ui/chat/folder-picker-sheet';
 import {
-  SessionModelChip,
+  SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
 } from '../../ui/chat/session-model-composer';
@@ -258,9 +258,7 @@ function NewSessionForm({
             blocksSend: model.visible || folder === undefined,
             stopping: busy || !online,
             onStop: undefined,
-            render: (width) => (
-              <SessionModelChip control={model} width={width} disabled={!online || busy} />
-            ),
+            model: <SessionModelLogo control={model} disabled={!online || busy} />,
           }}
         />
       }

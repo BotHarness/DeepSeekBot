@@ -8,7 +8,6 @@ import { engineCatalogModel, type ModelCatalogGroup } from '@botharness/host-cli
 import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import type { en } from '../../features/sessions/strings';
-import { sessionModelChip } from '../design/tokens';
 
 export type SessionModelCatalog = TurnTargetCatalog & {
   groups?: readonly ModelCatalogGroup[] | undefined;
@@ -37,13 +36,11 @@ export function sessionModelLabel({
   state,
   target,
   catalog,
-  width,
   strings,
 }: {
   state?: SessionModelState | undefined;
   target?: TurnTarget | undefined;
   catalog?: SessionModelCatalog | undefined;
-  width: number;
   strings: typeof en.sessionModel;
 }): {
   brand: ModelBrand | undefined;
@@ -101,12 +98,8 @@ export function sessionModelLabel({
     catalog === undefined ? undefined : name === undefined || !pending ? name : strings.next(name);
   return {
     brand: label?.brand,
-    ...(shown !== undefined && state !== undefined && width > sessionModelChip.hideNameAt
-      ? { name: shown }
-      : {}),
-    ...(shown !== undefined && effort !== undefined && width > sessionModelChip.hideEffortAt
-      ? { effort }
-      : {}),
+    ...(shown !== undefined && state !== undefined ? { name: shown } : {}),
+    ...(shown !== undefined && effort !== undefined ? { effort } : {}),
     accessible: strings.accessible(
       [strings.choice, shown, effort].filter((part) => part !== undefined),
     ),

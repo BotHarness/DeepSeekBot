@@ -18,6 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 
 import { zhTranslate } from '../src/client/locale.js';
 import {
+  ChannelRenameModal,
   channelMoveMenuItems,
   CreateChannelModal,
   CreateSectionModal,
@@ -371,4 +372,18 @@ describe('section mutation failures', () => {
       expect(dialog().querySelector('[role="alert"]')).toBeNull();
     },
   );
+});
+
+it('keeps the rename dialog open and shows why a rename was refused', async () => {
+  const onCancel = vi.fn();
+  const onRename = vi.fn(async () => t('group.detailsRefused'));
+  await render(
+    createElement(ChannelRenameModal, { t, name: 'Lobby', bot: false, onCancel, onRename }),
+  );
+  await typeInto(fieldNamed(t('channel.name.label')), 'Alice Lobby');
+  await act(async () => buttonNamed(t('common.rename')).click());
+
+  expect(onRename).toHaveBeenCalledWith('Alice Lobby');
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('group.detailsRefused'));
+  expect(onCancel).not.toHaveBeenCalled();
 });

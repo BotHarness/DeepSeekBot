@@ -2087,9 +2087,9 @@
       "path": "scripts/e2e-team-auto-join.mjs",
       "category": "mapped",
       "behaviors": ["team.channel-auto-join"],
-      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. #4393 re-audit: dismisses first-run profile setup and reopens the member page past the per-member stream cap before the live grant; journey classification unchanged; this hash is not runtime qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. #4394 re-audit: the revoke step matches the Channel row by exact text and waits for the no-access notice; journey classification unchanged; this hash is not runtime qualification. #4393 re-audit: dismisses first-run profile setup and reopens the member page past the per-member stream cap before the live grant; journey classification unchanged; this hash is not runtime qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 4222,
-      "sha256": "e5f9da501d9a79b922becbca6687b3e741ac65f65e63a3991cb0ae5774fb515a"
+      "sha256": "9063d766e132ef8883c28e066bac090577b81ff9c46eb7d33ce359a3e569dbba"
     },
     {
       "path": "scripts/e2e-team-human-dm.mjs",
@@ -2154,6 +2154,14 @@
       "reason": "Own task Host and Expo Web export; prepared Group info and controls in browser, no native acceptance. #3666 re-audit: composer discovery uses its stable testID instead of recipient placeholder text; preparation, side effects and assertions remain unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "aaf7004949991ddf95d28438a48f4285220fadcac732f9e292b1e43d210db3d9"
+    },
+    {
+      "path": "scripts/e2e-mobile-im-pairing-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["im.apps.bot-eligibility", "phone.pairing"],
+      "reason": "Own task Host and Expo Web export with a synthetic Lark provider (no real IM network); Settings IM apps bind, External contacts approve with Role, Role change and reject in browser. Confirm dialogs (unbind, revoke, move) and the native Bot profile row need native acceptance.",
+      "task": 1967,
+      "sha256": "539c9eaadef8f7ac5c51fbc3d5af03774d2b715d29e3662e188e5554210f0bfe"
     },
     {
       "path": "scripts/e2e-mobile-pairing-web.mjs",

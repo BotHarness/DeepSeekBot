@@ -41,8 +41,6 @@ export const en = {
   alwaysAllow: 'Always allow',
   alwaysToolScope: (tool: string) =>
     `Always allow lets this Bot use ${tool} in the current authorization scope without asking again, even with different inputs. Shell commands may access files outside the current folder.`,
-  alwaysToolScopeShort: (tool: string) =>
-    `Always allow lets this Bot use ${tool} here without asking again.`,
   alwaysServiceScope:
     'Allow and remember this service, keeping its independent access restrictions.',
   alwaysKindScope:
@@ -149,6 +147,13 @@ export const en = {
     'Allows reading and planning. Asks you before anything leaves the computer.',
   autoApprovalGetWorkDone: 'Get the work done',
   autoApprovalGetWorkDoneHint: 'Keeps working. Stops only for destructive or irreversible steps.',
+  autoApprovalPresetTrigger: (name: string) => `Auto approval · ${name}`,
+  autoApprovalPresetTitle: 'Auto approval preset for this Bot',
+  autoApprovalFollowGlobal: 'Follow global',
+  autoApprovalManage: 'Manage presets…',
+  autoApprovalPresetNote: 'Applies from the next request. You still decide this one.',
+  autoApprovalNext: 'Next request',
+  autoApprovalSwitched: (name: string) => `Auto approval: ${name}. Applies from the next request.`,
   settingFailed: 'Could not change the setting:',
 };
 
@@ -184,7 +189,6 @@ export const zh: typeof en = {
   alwaysAllow: '始终允许',
   alwaysToolScope: (tool: string) =>
     `选择“始终允许”后，此 Bot 在当前授权范围使用 ${tool} 不再询问，换参数也一样。终端命令可能访问当前目录之外。`,
-  alwaysToolScopeShort: (tool: string) => `始终允许后，此 Bot 在这里使用 ${tool} 不再询问。`,
   alwaysServiceScope: '允许并记住这个服务，仍保留其独立访问限制。',
   alwaysKindScope:
     '选择“始终允许”后，这个程序用同一账号、同一组环境变量名运行时不再询问，参数不限。',
@@ -280,5 +284,12 @@ export const zh: typeof en = {
   autoApprovalCautiousHint: '允许读取和规划，离开这台电脑的操作都问你。',
   autoApprovalGetWorkDone: '把活干完',
   autoApprovalGetWorkDoneHint: '持续工作，只拦下破坏性或不可撤回的操作。',
+  autoApprovalPresetTrigger: (name: string) => `自动审批 · ${name}`,
+  autoApprovalPresetTitle: '这个 Bot 的自动审批预设',
+  autoApprovalFollowGlobal: '跟随全局',
+  autoApprovalManage: '管理预设…',
+  autoApprovalPresetNote: '切换后从下一次请求开始生效，这次仍需你确认。',
+  autoApprovalNext: '下次生效',
+  autoApprovalSwitched: (name: string) => `自动审批已改为「${name}」，下次请求生效`,
   settingFailed: '更改设置失败：',
 };

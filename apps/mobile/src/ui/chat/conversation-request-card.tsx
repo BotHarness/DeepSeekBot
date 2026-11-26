@@ -17,6 +17,7 @@ import {
 } from '@botharness/host-client/requests';
 import { useCreateFolder } from '../../host/member-permissions';
 import { ApprovalCard } from './approval-card';
+import { approvalPresetPort } from './approval-preset-port';
 import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
@@ -83,6 +84,7 @@ export const RequestCard = memo(function RequestCard({
     [client, inbox, ref],
   );
   const createFolder = useCreateFolder(client);
+  const preset = useMemo(() => approvalPresetPort(client, botSlug, true), [client, botSlug]);
   const grant = useMemo(
     () => ({ ...grantRequestPort(client, ref, () => void inbox?.refresh()), createFolder }),
     [client, inbox, ref, createFolder],
@@ -135,6 +137,7 @@ export const RequestCard = memo(function RequestCard({
         decidedHere={handledHere(ref)}
         focused={focused}
         group={group}
+        preset={preset}
       />
     );
   return (

@@ -284,6 +284,7 @@ export function effectivePairingPermissions(
       revision: p.revision,
       allow: p.capabilities,
       deny: [],
+      delegateAllow: p.delegableCapabilities ?? [],
     }));
   const person = platformPeople(binding.platform)?.roles
     ? pairings.find((p) => p.purpose === 'conversation')

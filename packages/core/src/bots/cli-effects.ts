@@ -236,6 +236,9 @@ export const CLI_EFFECTS = {
   'connector-reconnect': { effects: externalManagement, brokerRead: false },
   'connector-refresh': { effects: externalWrite, brokerRead: false },
   'connector-search': { effects: externalRead, brokerRead: false },
+  'connector-mcp-search': { effects: externalRead, brokerRead: false },
+  'connector-mcp-add': { effects: externalManagement, brokerRead: false },
+  'connector-mcp-finish': { effects: externalSecretManagement, brokerRead: false },
   'connector-remove': { effects: externalIrreversibleManagement, brokerRead: false },
   connectors: { effects: read, brokerRead: true },
   create: { effects: external, brokerRead: false },
@@ -667,7 +670,7 @@ function familyEffects(
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':
-      if (action === undefined || ['get', 'roles', 'member-candidates'].includes(action))
+      if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
       if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))

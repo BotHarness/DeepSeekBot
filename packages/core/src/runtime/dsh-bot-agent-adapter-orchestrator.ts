@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resetSendStreak } from './send-streak.js';
 import { TeamError } from '../team/error.js';
 import {
   executeNativeTool,
@@ -690,6 +691,13 @@ export async function orchestratorHandle(
       return undefined;
     });
     if (borrowed) borrowedDisposers.push(disposePurgeFence);
+    const disposeSendStreak = agentCtx.tools.guard(({ name }) => {
+      const current = adapter.runs.get(run.sessionId);
+      if (name !== 'bot_send_message' && current?.role === 'orchestrator')
+        resetSendStreak(current.run);
+      return undefined;
+    });
+    if (borrowed) borrowedDisposers.push(disposeSendStreak);
     const disposeRolePrompt = agentCtx.systemPrompt.section({
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,

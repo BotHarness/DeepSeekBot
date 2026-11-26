@@ -382,6 +382,13 @@ export function PairingSettings({
                   <RoleDetails
                     key={`${selectedRole.id}:${selectedRole.revision}`}
                     role={selectedRole}
+                    holders={
+                      requests.filter(
+                        (request) =>
+                          (request.status === 'approved' || request.status === 'pending') &&
+                          request.roleId === selectedRole.id,
+                      ).length
+                    }
                     policy={policy}
                     busy={busy}
                     change={senderAccess}
@@ -455,6 +462,7 @@ function PairingRow({
   t: BotHarnessTranslate;
 }): ReactElement {
   const [selected, setSelected] = useState<PairingCapability[]>([]);
+  const [delegable, setDelegable] = useState(false);
   const [roleId, setRoleId] = useState(
     request.roleId ?? (request.status === 'pending' ? (defaultRoleId ?? '') : ''),
   );
@@ -558,6 +566,12 @@ function PairingRow({
                   }
                 />
               ))}
+              <Checkbox
+                label={t('pairing.delegateApproved')}
+                checked={delegable}
+                disabled={busy}
+                onChange={setDelegable}
+              />
             </fieldset>
           )}
           <div className="bh-im-actions">
@@ -576,7 +590,12 @@ function PairingRow({
                         roleId: selectedRole.id,
                         expectedRoleRevision: selectedRole.revision,
                       }
-                    : { ...input, kind: 'approve', capabilities: selected },
+                    : {
+                        ...input,
+                        kind: 'approve',
+                        capabilities: selected,
+                        ...(delegable ? { delegable: true } : {}),
+                      },
                 )
               }
             >
@@ -601,6 +620,14 @@ function PairingRow({
               <Tag key={capability}>{t(labels[capability])}</Tag>
             ))}
           </div>
+          {request.delegableCapabilities?.length ? (
+            <div className="bh-im-pairing-capabilities">
+              <span>{t('pairing.delegable')}</span>
+              {request.delegableCapabilities.map((capability) => (
+                <Tag key={capability}>{t(labels[capability])}</Tag>
+              ))}
+            </div>
+          ) : null}
           <Button
             size="sm"
             variant="toolbar"
@@ -659,18 +686,22 @@ function PairingRow({
 
 function RoleDetails({
   role,
+  holders,
   policy,
   busy,
   change,
   t,
 }: {
   role: ExternalUserRole;
+  holders: number;
   policy?: SenderPolicy | undefined;
   busy: boolean;
   change?: ((input: SenderAccessInput) => Promise<void>) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
   const isDefault = policy?.defaultRoleId === role.id;
   return (
     <article className="bh-im-pairing-request">
@@ -720,7 +751,39 @@ function RoleDetails({
               {t(isDefault ? 'pairing.clearDefaultRole' : 'pairing.setDefaultRole')}
             </Button>
           ) : null}
+          <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setDeleting(true)}>
+            {t('pairing.deleteRole')}
+          </Button>
         </div>
+      ) : null}
+      {deleting && change ? (
+        <FormDialog
+          size="small"
+          danger
+          title={t('pairing.deleteRole')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('pairing.deleteRole')}
+          onCancel={() => setDeleting(false)}
+          onClose={() => {
+            if (!busy) setDeleting(false);
+          }}
+          onSubmit={() => {
+            setDeleteFailed(false);
+            void change({ kind: 'delete-role', id: role.id, expectedRevision: role.revision })
+              .then(() => setDeleting(false))
+              .catch(() => setDeleteFailed(true));
+          }}
+          submitDisabled={holders > 0}
+          busy={busy}
+          error={deleteFailed ? t('pairing.error') : undefined}
+        >
+          <strong>{role.name}</strong>
+          <p>
+            {holders > 0
+              ? t('pairing.deleteRoleInUse', { count: holders })
+              : t(isDefault ? 'pairing.deleteDefaultRoleWarning' : 'pairing.deleteRoleWarning')}
+          </p>
+        </FormDialog>
       ) : null}
       {editing && change ? (
         <RoleDialog

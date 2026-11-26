@@ -3,10 +3,27 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export type ConnectorAccess = 'read' | 'write';
 export type ConnectorAccountStatus = 'pending' | 'active' | 'expired' | 'failed';
+export type ConnectorProvider = 'composio' | 'mcp';
+
+export interface ConnectorMcpServerRecord {
+  service: string;
+  name: string;
+  url: string;
+  icon?: string;
+  createdAt: string;
+}
+
+interface McpServerRow {
+  service: string;
+  name: string;
+  url: string;
+  icon: string | null;
+  created_at: string;
+}
 
 export interface ConnectorAccountRecord {
   accountId: string;
-  provider: 'composio';
+  provider: ConnectorProvider;
   service: string;
   label: string;
   identity?: string;
@@ -27,7 +44,7 @@ export interface ConnectorGrantRecord {
 
 interface AccountRow {
   account_id: string;
-  provider: 'composio';
+  provider: ConnectorProvider;
   service: string;
   label: string;
   identity: string | null;
@@ -50,6 +67,7 @@ export interface ConnectorStore {
   accounts(): ConnectorAccountRecord[];
   account(accountId: string): ConnectorAccountRecord | undefined;
   createAccount(input: {
+    provider?: ConnectorProvider;
     service: string;
     label: string;
     holderSlug?: string;
@@ -67,6 +85,25 @@ export interface ConnectorStore {
   grants(botSlug?: string): ConnectorGrantRecord[];
   setGrant(botSlug: string, accountId: string, access: ConnectorAccess | undefined): boolean;
   eraseBot(botSlug: string): string[];
+  mcpServers(): ConnectorMcpServerRecord[];
+  mcpServer(service: string): ConnectorMcpServerRecord | undefined;
+  saveMcpServer(input: {
+    service: string;
+    name: string;
+    url: string;
+    icon?: string;
+  }): ConnectorMcpServerRecord;
+  removeMcpServer(service: string): boolean;
+}
+
+function mcpServer(row: McpServerRow): ConnectorMcpServerRecord {
+  return {
+    service: row.service,
+    name: row.name,
+    url: row.url,
+    ...(row.icon === null ? {} : { icon: row.icon }),
+    createdAt: row.created_at,
+  };
 }
 
 function account(row: AccountRow): ConnectorAccountRecord {
@@ -126,10 +163,11 @@ export function createConnectorStore(database: OperationalDatabaseModulePort): C
               `INSERT INTO connector_accounts
                (account_id, provider, service, label, identity, holder_slug, external_id, status,
                 revision, created_at, updated_at)
-               VALUES (?, 'composio', ?, ?, NULL, ?, ?, 'pending', 1, ?, ?)`,
+               VALUES (?, ?, ?, ?, NULL, ?, ?, 'pending', 1, ?, ?)`,
             )
             .run(
               accountId,
+              input.provider ?? 'composio',
               input.service,
               input.label,
               input.holderSlug ?? null,
@@ -228,6 +266,52 @@ export function createConnectorStore(database: OperationalDatabaseModulePort): C
         }
         return held;
       }, MODULE);
+    },
+    mcpServers() {
+      return (
+        database.read((connection) =>
+          connection.prepare('SELECT * FROM connector_mcp_servers ORDER BY name').all(),
+        ) as unknown as McpServerRow[]
+      ).map(mcpServer);
+    },
+    mcpServer(service) {
+      const row = database.read(
+        (connection) =>
+          connection
+            .prepare('SELECT * FROM connector_mcp_servers WHERE service = ?')
+            .get(service) as unknown as McpServerRow | undefined,
+      );
+      return row === undefined ? undefined : mcpServer(row);
+    },
+    saveMcpServer(input) {
+      database.transaction(
+        (connection) =>
+          connection
+            .prepare(
+              `INSERT INTO connector_mcp_servers (service, name, url, icon, created_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (service) DO UPDATE SET name = excluded.name, icon = excluded.icon`,
+            )
+            .run(
+              input.service,
+              input.name,
+              input.url,
+              input.icon ?? null,
+              new Date().toISOString(),
+            ),
+        MODULE,
+      );
+      return this.mcpServer(input.service)!;
+    },
+    removeMcpServer(service) {
+      return database.transaction(
+        (connection) =>
+          Number(
+            connection.prepare('DELETE FROM connector_mcp_servers WHERE service = ?').run(service)
+              .changes,
+          ) > 0,
+        MODULE,
+      );
     },
   };
 }
