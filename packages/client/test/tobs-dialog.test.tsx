@@ -141,6 +141,41 @@ it('opens the PanelDialog without the pointer fade after keyboard input', () => 
   }
 });
 
+it('shares opening modality with a separately loaded dialog module', async () => {
+  vi.resetModules();
+  const other = await import('../src/client/ds/dialog-input.js');
+  expect(other.trackDialogInput).not.toBe(trackDialogInput);
+  const untrack = trackDialogInput(document);
+  try {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(other.dialogOpenedFromKeyboard()).toBe(true);
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(other.dialogOpenedFromKeyboard()).toBe(false);
+  } finally {
+    untrack();
+  }
+});
+
+it('exposes the confirmation description to assistive technology', () => {
+  act(() =>
+    root.render(
+      <ConfirmDialog
+        title="Share the desktop"
+        description="Bots and phones can see the whole screen."
+        labels={{ close: 'Close', cancel: 'Cancel' }}
+        confirmLabel="Share"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    ),
+  );
+  const id = document.querySelector('[role="dialog"]')?.getAttribute('aria-describedby');
+  expect(id).toBeTruthy();
+  expect(document.getElementById(id ?? '')?.textContent).toBe(
+    'Bots and phones can see the whole screen.',
+  );
+});
+
 it('renders exactly one primary action in the standard form dialog', () => {
   act(() =>
     root.render(

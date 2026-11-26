@@ -13,7 +13,9 @@ import {
   findWorkspaceFavicon,
   normalizeWorkspaceLook,
   workspaceKey,
+  type WorkspaceFavicon,
 } from '../src/workspaces/workspace-looks.js';
+import { deferred } from './deferred.js';
 import { createTempRoot } from './helpers.js';
 import { registryDatabase } from './registry-fixture.js';
 import { alice, fixture } from './team-bot-visibility-fixtures.js';
@@ -224,4 +226,95 @@ it('puts each folder look on Session rows for everyone and lets only the Owner c
     ok: true,
     value: { path: '/work/alpha', look: null },
   });
+});
+
+it('reads a cached look without disk I/O and announces look and favicon changes', async () => {
+  let version: string | undefined = 'one';
+  const find = vi.fn(async (cwd: string) =>
+    cwd === '/web' && version !== undefined
+      ? { path: '/web/favicon.png', mediaType: 'image/png', version }
+      : undefined,
+  );
+  const { looks, advance } = store(find);
+  const changed = vi.fn();
+  const stop = looks.subscribe(changed);
+  expect(looks.cached('/web')).toBeUndefined();
+  await looks.folderLooks(['/plain']);
+  expect(changed).not.toHaveBeenCalled();
+  find.mockClear();
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(1);
+  expect(looks.cached('/web')).toEqual({
+    favicon: `${WORKSPACE_FAVICON_PATH}?w=${workspaceKey('/web')}&v=one`,
+  });
+  expect(find).toHaveBeenCalledTimes(1);
+  looks.set('/web', { color: 'teal' });
+  expect(changed).toHaveBeenCalledTimes(2);
+  expect(looks.cached('/web')).toMatchObject({ color: 'teal' });
+  advance(11 * 60_000);
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(2);
+
+  await looks.folderLooks(Array.from({ length: 512 }, (_, index) => `/other-${index}`));
+  expect(looks.cached('/web')).toMatchObject({ favicon: expect.stringContaining('&v=one') });
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(2);
+
+  version = 'two';
+  advance(11 * 60_000);
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(3);
+  version = undefined;
+  advance(11 * 60_000);
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(4);
+  expect(looks.cached('/web')).toEqual({ color: 'teal' });
+  expect(looks.clear('/web')).toBe(true);
+  expect(changed).toHaveBeenCalledTimes(5);
+  looks.clear('/web');
+  expect(changed).toHaveBeenCalledTimes(5);
+  stop();
+  looks.set('/web', { color: 'red' });
+  expect(changed).toHaveBeenCalledTimes(5);
+});
+
+const concurrentFavicon: WorkspaceFavicon = {
+  path: '/web/favicon.png',
+  mediaType: 'image/png',
+  version: 'current',
+};
+
+it.each([
+  { outcome: 'discovery', olderFavicon: undefined, latestFavicon: concurrentFavicon },
+  { outcome: 'removal', olderFavicon: concurrentFavicon, latestFavicon: undefined },
+])('keeps the later-started favicon $outcome when an older lookup finishes last', async (entry) => {
+  const stale = deferred<WorkspaceFavicon | undefined>();
+  const current = deferred<WorkspaceFavicon | undefined>();
+  const find = vi
+    .fn<typeof findWorkspaceFavicon>()
+    .mockResolvedValue(undefined)
+    .mockReturnValueOnce(stale.promise)
+    .mockReturnValueOnce(current.promise);
+  const { looks } = store(find);
+  const changed = vi.fn();
+  const stop = looks.subscribe(changed);
+  const path = '/web';
+  const key = workspaceKey(path);
+  const expected =
+    entry.latestFavicon === undefined
+      ? undefined
+      : { favicon: `${WORKSPACE_FAVICON_PATH}?w=${key}&v=${entry.latestFavicon.version}` };
+
+  const olderRead = looks.folderLooks([path]);
+  const newerRead = looks.folderLooks([path]);
+  current.resolve(entry.latestFavicon);
+  expect((await newerRead).get(path)).toEqual(expected);
+  stale.resolve(entry.olderFavicon);
+  expect((await olderRead).get(path)).toEqual(expected);
+  expect(looks.cached(path)).toEqual(expected);
+  expect(looks.favicon(key)).toEqual(entry.latestFavicon);
+  expect((await looks.folderLooks([path])).get(path)).toEqual(expected);
+  expect(find).toHaveBeenCalledTimes(2);
+  expect(changed).toHaveBeenCalledTimes(entry.latestFavicon === undefined ? 0 : 1);
+  stop();
 });

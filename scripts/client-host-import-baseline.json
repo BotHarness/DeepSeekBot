@@ -38,7 +38,6 @@
     "../../../core/src/purge/contracts.js": 1,
     "../../../core/src/runtime/bot-runtime.js": 1,
     "../../../core/src/runtime/context-window.js": 1,
-    "../../../core/src/runtime/prompt-inspection.js": 2,
     "../../../core/src/skills/entries.js": 1,
     "../../../core/src/telemetry/events.js": 1,
     "../../../core/src/tob/service.js": 1,

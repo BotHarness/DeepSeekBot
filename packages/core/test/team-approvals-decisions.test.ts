@@ -414,11 +414,15 @@ describe('M5 approval projections and decisions', () => {
     await vi.waitFor(() => expect(f.userQuestions.requests('alice-bot')).toHaveLength(1));
     const request = f.userQuestions.requests('alice-bot')[0]!;
     f.team.channelAccess.policySet(bob, f.group.id, {
-      addMembers: 'everyone',
-      post: 'admins',
-      mentionAll: 'admins',
-      addBots: 'admins',
-      editDetails: 'admins',
+      version: 1 as const,
+      everyone: {
+        addMembers: 'allow',
+        post: 'deny',
+        mentionAll: 'deny',
+        addBots: 'deny',
+        editDetails: 'deny',
+      },
+      overrides: [],
     });
     await expect(
       f.invoke(alice, 'channelSend', { channelId: f.group.id, body: 'ordinary post' }),

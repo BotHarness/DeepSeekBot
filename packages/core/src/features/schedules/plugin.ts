@@ -1,4 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
+import type { InboxWakeSource } from '../../kernel/runtime-host.js';
+import { hasPendingScheduleFiring } from './events.js';
 
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../../database/owner.js';
@@ -11,23 +13,41 @@ import {
 export function apply({
   operationalDatabase,
   registry,
-  onAdmitted,
   warn,
 }: {
   operationalDatabase: OperationalDatabaseOwner;
   registry: Pick<PersonaBotRegistry, 'get'>;
-  onAdmitted: BotScheduleStoreOptions['onAdmitted'];
   warn: BotScheduleStoreOptions['warn'];
-}): BotScheduleStore {
-  return createBotScheduleStore({
-    database: attachOperationalModule(operationalDatabase, 'bot-schedules'),
+}): { schedules: BotScheduleStore; wakeSource: InboxWakeSource } {
+  const database = attachOperationalModule(operationalDatabase, 'bot-schedules');
+  const listeners = new Set<(botSlug: string) => void>();
+  const schedules = createBotScheduleStore({
+    database,
     isBotActive: (slug) => {
       const bot = registry.get(slug);
       return operationalDatabase.mode === 'ready' && bot !== undefined && bot.paused !== true;
     },
-    onAdmitted,
+    onAdmitted: (slug) => {
+      for (const wake of listeners) wake(slug);
+    },
     ...(warn === undefined ? {} : { warn }),
   });
+  return {
+    schedules,
+    wakeSource: createWakeSource(database, (wake) => {
+      listeners.add(wake);
+      return () => {
+        listeners.delete(wake);
+      };
+    }),
+  };
+}
+
+export function createWakeSource(
+  database: Parameters<typeof hasPendingScheduleFiring>[0],
+  subscribe: InboxWakeSource['subscribe'] = () => () => {},
+): InboxWakeSource {
+  return { hasPending: (slug) => hasPendingScheduleFiring(database, slug), subscribe };
 }
 
 export function start(

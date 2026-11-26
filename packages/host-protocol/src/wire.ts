@@ -1,9 +1,42 @@
-import type { HostSessionPendingInput } from './host-sessions';
+import type { HostSessionFolderLook, HostSessionPendingInput } from './host-sessions';
 import type { TurnTarget, SessionTurnModelSwitch } from './turn-target';
 import type { ToolEffects } from '../../core/src/workspaces/tool-effects';
 import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
 import type { ChannelReplyPreviewMedia } from '../../core/src/channels/reply-preview';
 import type { SkillOwner } from '../../core/src/skills/entries';
+
+export interface PromptSectionView {
+  name: string;
+  text: string;
+}
+
+export interface BotSystemPromptView {
+  sessionId: string | null;
+  loaded: boolean;
+  effectiveText: string | null;
+  effectiveSource: 'session' | 'log' | 'none';
+  next: { text: string; sections: PromptSectionView[]; contexts: PromptSectionView[] } | null;
+  pending: boolean;
+}
+
+export interface TurnInputMessage {
+  step: number;
+  source: string;
+  at: string;
+  text: string;
+}
+
+export interface TurnInputView {
+  turn: number;
+  startedAt?: string;
+  messages: TurnInputMessage[];
+}
+
+export interface BotTurnInputView {
+  slug: string;
+  sessionId: string;
+  turns: TurnInputView[];
+}
 
 export type AggregatedState = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked';
 
@@ -558,6 +591,7 @@ export interface NativeSessionAttention {
   sessionId: string;
   sessionTitle?: string;
   folderName?: string;
+  folderLook?: HostSessionFolderLook;
   cwd?: string;
   input: 'approval' | 'question';
   request?: HostSessionPendingInput;

@@ -8,6 +8,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
+import { browserComputerDesktop } from './computer-desktop.js';
+import { LocalVideoError } from '../../computer/src/local-video-contract.js';
 import { createBrowserConfig, type BrowserConfig } from './browser-config.js';
 import { createBrowserInteractionHandlers } from './browser-interaction-http.js';
 import { registerBrowserViewer, type BrowserViewerHost } from './viewer.js';
@@ -127,25 +129,7 @@ export function apply(
       : config.containerDriver) ?? 'current';
   const driver = (): 'current' | 'agent-browser' =>
     target() === 'container' ? containerDriver() : localDriver();
-  const localDesktop = (): { held: boolean; epoch: number } | undefined => {
-    if (target() !== 'local') return undefined;
-    const computer = ctx.get('botharnessComputerTools') as unknown as
-      | { desktopControl?: () => { desktop: boolean; held: boolean; epoch: number } }
-      | undefined;
-    const control = computer?.desktopControl?.();
-    return control?.desktop === true ? { held: control.held, epoch: control.epoch } : undefined;
-  };
-  const launchHeadless = (): boolean => {
-    const desktop = localDesktop() !== undefined;
-    const headless = config.headless && !desktop;
-    diagnostics.record(
-      'lifecycle',
-      `phase=launch-mode mode=${headless ? 'headless' : 'headed'} reason=${
-        desktop ? 'local-computer-desktop' : config.headless ? 'config-headless' : 'config-headed'
-      }`,
-    );
-    return headless;
-  };
+  const computerDesktop = browserComputerDesktop(() => ctx.get('botharnessComputerTools'), target);
   let revision = 0;
   const registrationScopes = new WeakMap<AbortSignal, number>();
   let registrationRevision = 0;
@@ -251,8 +235,8 @@ export function apply(
     tailnetAddress: () => detectTailnetAddress(),
     installDir: pinnedBrowserDirectory(),
     ...(config.browserPath.trim() === '' ? {} : { browserPath: config.browserPath.trim() }),
-    headless: launchHeadless,
-    foregroundTabs: () => localDesktop() !== undefined,
+    headless: () => computerDesktop.headless(config.headless),
+    foregroundTabs: () => computerDesktop.control() !== undefined,
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     onObservationChanged: observationChanged.schedule,
     profileOf: (slug) => {
@@ -349,7 +333,8 @@ export function apply(
     borrowed: () => (target() === 'extension' ? borrow : undefined),
     takeover: () => takeovers,
     takeoverUrlFor: takeoverViewerBase,
-    desktopControl: localDesktop,
+    desktopControl: computerDesktop.control,
+    runDesktopOperation: computerDesktop.run,
     audit: (event) => diagnostics.record('browser-action', formatAudit(event)),
     note: (detail) => diagnostics.record('lifecycle', detail),
     onObservationChanged: observationChanged.schedule,
@@ -394,7 +379,7 @@ export function apply(
     },
     ownsTool: (name: string) => ownsBrowserTool(name),
     isTakeover: (slug: string) => provider.isTakeover(slug),
-    sharesLocalDesktop: () => localDesktop() !== undefined,
+    sharesLocalDesktop: () => computerDesktop.control() !== undefined,
     executionSignal: (sessionId: string) => provider.executionSignal(sessionId),
     needsAuthorization: (sessionId: string) => provider.needsAuthorization(sessionId),
     authorizationScope,
@@ -940,7 +925,11 @@ export function apply(
           return json({ ok: true, content: result.content });
         } catch (error) {
           return json(
-            { ok: false, error: error instanceof Error ? error.message : String(error) },
+            {
+              ok: false,
+              ...(LocalVideoError.is(error) ? { code: error.code } : {}),
+              error: error instanceof Error ? error.message : String(error),
+            },
             409,
           );
         }

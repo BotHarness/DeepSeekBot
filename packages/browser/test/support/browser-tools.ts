@@ -138,6 +138,7 @@ export function harness(options: {
   borrowed?: Parameters<typeof createBrowserToolProvider>[0]['borrowed'];
   takeover?: Parameters<typeof createBrowserToolProvider>[0]['takeover'];
   desktopControl?: Parameters<typeof createBrowserToolProvider>[0]['desktopControl'];
+  runDesktopOperation?: Parameters<typeof createBrowserToolProvider>[0]['runDesktopOperation'];
   note?: (detail: string) => void;
 }): Harness {
   const { scope, state } = fakeScope();
@@ -176,6 +177,9 @@ export function harness(options: {
     takeover: options.takeover ?? (() => takeovers),
     takeoverUrlFor: () => '/botharness-browser/viewer/local/?slug=bot-a',
     ...(options.desktopControl === undefined ? {} : { desktopControl: options.desktopControl }),
+    ...(options.runDesktopOperation === undefined
+      ? {}
+      : { runDesktopOperation: options.runDesktopOperation }),
     ...(options.note === undefined ? {} : { note: options.note }),
     audit: (event) => audits.push(event),
     core: () => ({

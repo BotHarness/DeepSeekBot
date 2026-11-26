@@ -7,7 +7,7 @@ import type {
   MarketplaceSkillReview,
 } from '@botharness/host-protocol/marketplace-skill';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 
 export const marketplaceSkillRpc = {
   async marketplaceSkillList(q?: string, cursor?: string): Promise<MarketplaceSkillPage> {

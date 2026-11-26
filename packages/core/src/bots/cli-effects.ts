@@ -208,6 +208,7 @@ export const CLI_EFFECTS = {
   'computer-open-dir': { effects: write, brokerRead: false },
   'computer-open-permission-settings': { effects: write, brokerRead: false },
   'computer-start': { effects: write, brokerRead: false },
+  'computer-target': { effects: opaque, brokerRead: false },
   'computer-status': { effects: read, brokerRead: true },
   'computer-unlock-status': { effects: read, brokerRead: true },
   'computer-stop': { effects: write, brokerRead: false },
@@ -680,8 +681,14 @@ function familyEffects(
       if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
-      if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))
-        return management;
+      if (action === 'policy')
+        return values['policy-stdin'] ||
+          ['post', 'add-members', 'mention-all', 'add-bots', 'edit-details'].some(
+            (flag) => flag in values,
+          )
+          ? management
+          : read;
+      if (['visibility', 'admins', 'add-member', 'set-public'].includes(action)) return management;
       if (['description'].includes(action)) return write;
       return undefined;
     case 'devices':

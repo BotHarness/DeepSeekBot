@@ -155,7 +155,14 @@ function ActivityAvatar({
   const corner = size >= CONVERSATION_AVATAR ? radius.md : radius.sm;
   const native = nativeSessionOf(item);
   if (native !== undefined)
-    return <NativeSessionMark native={native} size={size} corner={corner} />;
+    return (
+      <NativeSessionMark
+        native={native}
+        client={item.activitySource?.client}
+        size={size}
+        corner={corner}
+      />
+    );
   const avatar = activityAvatar(item, bot);
   if (avatar.kind === 'bot')
     return <BotAvatar bot={avatar.bot} size={size} corner={corner} ring={false} />;

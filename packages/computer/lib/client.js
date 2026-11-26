@@ -289,7 +289,7 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
-		const styles$4 = {
+		const styles$8 = {
 			base: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -393,7 +393,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
-			const styled = props(styles$4.base, styles$4[size], styles$4[variant], xstyle);
+			const styled = props(styles$8.base, styles$8[size], styles$8[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
@@ -410,7 +410,7 @@ window.__ModuleLoader__.load({
 		});
 		//#endregion
 		//#region packages/client/src/client/ds/tag.tsx
-		const styles$3 = {
+		const styles$7 = {
 			wrap: {
 				khDVqt: "bhxeaf4i8",
 				kHjlTd: "bhxj0a0fe",
@@ -475,7 +475,7 @@ window.__ModuleLoader__.load({
 				...props$1,
 				ref,
 				"data-tone": tone,
-				className: joinClass(props(styles$3.tag, styles$3[tone], wrap && styles$3.wrap).className, className)
+				className: joinClass(props(styles$7.tag, styles$7[tone], wrap && styles$7.wrap).className, className)
 			});
 		});
 		//#endregion
@@ -2422,6 +2422,26 @@ window.__ModuleLoader__.load({
 			"rows.target.description": "本 Profile 的所有 Bot 共用一个目标；切换后需要重新授权操作。",
 			"rows.target.local": "本机 Computer",
 			"rows.target.container": "Docker Computer",
+			"rows.target.current-desktop": "使用此电脑的桌面",
+			"rows.target.desktopNotice": "开通后，Bot 和已配对的手机都能看到整块桌面，包括其他应用和通知。在 GNOME Wayland 上，输入文字会替换此电脑的剪贴板内容。",
+			"rows.target.enable": "启用桌面",
+			"rows.target.cancel": "取消",
+			"rows.target.failed": "无法保存操作目标。检查后重试。",
+			"rows.target.startFailed": "已保存操作目标。点「检查桌面」重新尝试启动。",
+			"local.desktop.ready": "当前桌面已就绪",
+			"local.desktop.check": "检查桌面",
+			"local.desktop.description": "使用当前登录的 Linux 桌面。",
+			"local.error.x11": "请登录 X11 桌面，并从该桌面启动 DSH。",
+			"local.error.desktop": "无法访问当前桌面。请在已登录的桌面上从终端启动 DSH，再检查一次。",
+			"local.wayland.consentPending": "请在这台电脑的 GNOME 系统对话框中选择屏幕，允许远程交互，勾选记住此次选择，再点共享。",
+			"local.wayland.consentRequired": "请重新检查桌面，在 GNOME 系统对话框中允许远程交互，并勾选记住此次选择。",
+			"local.wayland.locked": "桌面已锁定。请在这台电脑上解锁。",
+			"local.wayland.inactive": "GNOME 已关闭画面或锁屏。请在这台电脑上唤醒或解锁。",
+			"local.wayland.restoring": "正在重新连接。如果 GNOME 再次请求共享，请在这台电脑上确认。",
+			"local.wayland.ended": "GNOME 已停止共享此桌面。请在这台电脑上重新检查桌面。",
+			"local.wayland.dependencies": "请安装 GNOME 桌面门户和用于 PipeWire 共享的 Python GObject 与 GStreamer 组件，再检查桌面。",
+			"local.wayland.token": "无法保存 GNOME 桌面授权。请检查 Host 配置目录权限，再检查桌面。",
+			"local.error.linux": "此选项需要 Linux。请选择其他操作目标。",
 			"local.title": "本机 Computer",
 			"local.granted": "桌面权限已授予",
 			"local.description": "直接操作运行 DSH 的这台电脑（macOS、Windows 或 Linux）。首次检查会安装桌面操作组件；没有显示器的 Linux 服务器会启动一个虚拟桌面。登录请在这台电脑上完成。",
@@ -2548,6 +2568,26 @@ window.__ModuleLoader__.load({
 			"rows.target.description": "All Bots in this Profile share one target. Switching requires new action authorization.",
 			"rows.target.local": "Local Computer",
 			"rows.target.container": "Docker Computer",
+			"rows.target.current-desktop": "Use this computer’s desktop",
+			"rows.target.desktopNotice": "Bots and paired phones can see the whole desktop, including other apps and notifications. On GNOME Wayland, entering text replaces this computer’s clipboard contents.",
+			"rows.target.enable": "Enable desktop",
+			"rows.target.cancel": "Cancel",
+			"rows.target.failed": "Could not save the Computer Target. Check your selection and retry.",
+			"rows.target.startFailed": "Computer Target saved. Choose Check desktop to try starting again.",
+			"local.desktop.ready": "Current desktop is ready",
+			"local.desktop.check": "Check desktop",
+			"local.desktop.description": "Uses the Linux desktop you are signed in to.",
+			"local.error.x11": "Sign in to an X11 desktop and start DSH from that session.",
+			"local.error.desktop": "Could not reach the current desktop. Start DSH from a terminal in your signed-in desktop and check again.",
+			"local.wayland.consentPending": "On this computer, select the screen in the GNOME sharing dialog, enable Allow Remote Interaction and Remember This Selection, then choose Share.",
+			"local.wayland.consentRequired": "Check the desktop again. In the GNOME sharing dialog, enable Allow Remote Interaction and Remember This Selection.",
+			"local.wayland.locked": "The desktop is locked. Unlock it on this computer.",
+			"local.wayland.inactive": "GNOME has blanked or locked the screen. Wake or unlock it on this computer.",
+			"local.wayland.restoring": "Reconnecting. If GNOME asks to share again, confirm on this computer.",
+			"local.wayland.ended": "GNOME stopped sharing this desktop. Check the desktop again on this computer.",
+			"local.wayland.dependencies": "Install the GNOME desktop portal and the Python GObject and GStreamer components for PipeWire sharing, then check the desktop again.",
+			"local.wayland.token": "Could not save GNOME desktop permission. Check the Host profile folder permissions, then check the desktop again.",
+			"local.error.linux": "This option requires Linux. Select another Computer Target.",
 			"local.title": "Local Computer",
 			"local.granted": "Desktop permissions granted",
 			"local.description": "Uses the computer running DSH (macOS, Windows or Linux). The first check installs the required desktop helper; a Linux server without a display gets a virtual one. Complete logins on this computer.",
@@ -3106,15 +3146,15 @@ window.__ModuleLoader__.load({
 		/**
 		* Present when the component begins animating in.
 		*/
-		const startingStyle = "data-starting-style";
+		const startingStyle$2 = "data-starting-style";
 		/**
 		* Present when the component is animating out.
 		*/
-		const endingStyle = "data-ending-style";
+		const endingStyle$2 = "data-ending-style";
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/stateAttributesMapping.mjs
-		const STARTING_HOOK = { [startingStyle]: "" };
-		const ENDING_HOOK = { [endingStyle]: "" };
+		const STARTING_HOOK = { [startingStyle$2]: "" };
+		const ENDING_HOOK = { [endingStyle$2]: "" };
 		const transitionStatusMapping = { transitionStatus(value) {
 			if (value === "starting") return STARTING_HOOK;
 			if (value === "ending") return ENDING_HOOK;
@@ -3125,11 +3165,11 @@ window.__ModuleLoader__.load({
 		/**
 		* Present when the popup is open.
 		*/
-		const open = "data-open";
+		const open$1 = "data-open";
 		/**
 		* Present when the popup is closed.
 		*/
-		const closed = "data-closed";
+		const closed$1 = "data-closed";
 		/**
 		* Present when the anchor is hidden.
 		*/
@@ -3137,8 +3177,8 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/popupStateMapping.mjs
 		const TRIGGER_HOOK = { ["data-popup-open"]: "" };
-		const POPUP_OPEN_HOOK = { [open]: "" };
-		const POPUP_CLOSED_HOOK = { [closed]: "" };
+		const POPUP_OPEN_HOOK = { [open$1]: "" };
+		const POPUP_CLOSED_HOOK = { [closed$1]: "" };
 		const ANCHOR_HIDDEN_HOOK = { [anchorHidden]: "" };
 		const triggerOpenStateMapping = { open(value) {
 			if (value) return TRIGGER_HOOK;
@@ -4206,7 +4246,7 @@ window.__ModuleLoader__.load({
 		* @param {string | undefined} prefix prefixes the generated id when provided
 		* @returns {string | undefined}
 		*/
-		function useId$4(idOverride, prefix) {
+		function useId$5(idOverride, prefix) {
 			if (maybeReactUseId !== void 0) {
 				const reactId = maybeReactUseId();
 				return idOverride ?? (prefix ? `${prefix}-${reactId}` : reactId);
@@ -4533,7 +4573,7 @@ window.__ModuleLoader__.load({
 		const attr = createAttribute("portal");
 		function useFloatingPortalNode(props = {}) {
 			const { ref, container: containerProp, componentProps = EMPTY_OBJECT, elementProps } = props;
-			const uniqueId = useId$4();
+			const uniqueId = useId$5();
 			const parentPortalNode = usePortalContext()?.portalNode;
 			const [containerElement, setContainerElement] = react.useState(null);
 			const [portalNode, setPortalNode] = react.useState(null);
@@ -4717,7 +4757,7 @@ window.__ModuleLoader__.load({
 		* @see https://floating-ui.com/docs/FloatingTree
 		*/
 		function useFloatingNodeId(externalTree) {
-			const id = useId$4();
+			const id = useId$5();
 			const tree = useFloatingTree(externalTree);
 			const parentId = useFloatingParentNodeId();
 			useIsoLayoutEffect(() => {
@@ -6001,7 +6041,7 @@ window.__ModuleLoader__.load({
 					});
 				}
 				if (waitForStartingStyleRemoved) {
-					const startingStyleAttribute = startingStyle;
+					const startingStyleAttribute = startingStyle$2;
 					if (!resolvedElement.hasAttribute(startingStyleAttribute)) {
 						frame.request(exec);
 						return;
@@ -6110,6 +6150,14 @@ window.__ModuleLoader__.load({
 			[FOCUSABLE_ATTRIBUTE]: ""
 		};
 		/**
+		* Returns the default `initialFocus` resolver for a popup. When opened by touch it focuses the
+		* popup element itself to prevent the virtual keyboard from opening (required for Android
+		* specifically; iOS handles this automatically). Otherwise it falls back to the default behavior.
+		*/
+		function createDefaultInitialFocus(popupRef) {
+			return (interactionType) => interactionType === "touch" ? popupRef.current : true;
+		}
+		/**
 		* The subset of a popup handle that a Root needs to bind its store to. Both the real handle classes
 		* and any test double satisfy it.
 		*/
@@ -6124,7 +6172,7 @@ window.__ModuleLoader__.load({
 		* floating element instead of the default positioner.
 		*/
 		function usePopupRootStore(createStore, treatPopupAsFloatingElement = false) {
-			const floatingId = useId$4();
+			const floatingId = useId$5();
 			const nested = useFloatingParentNodeId() != null;
 			const store = useRefWithInit(() => createStore(floatingId, nested)).current;
 			useSyncedFloatingRootContext({
@@ -6463,6 +6511,14 @@ window.__ModuleLoader__.load({
 					inactiveTriggerProps: EMPTY_OBJECT,
 					popupProps: EMPTY_OBJECT
 				});
+			}, [store]);
+		}
+		function usePopupRootSync(store, open) {
+			useIsoLayoutEffect(() => {
+				if (!open && store.state.openMethod !== null) store.set("openMethod", null);
+			}, [open, store]);
+			useIsoLayoutEffect(() => () => {
+				if (store.state.openMethod !== null) store.set("openMethod", null);
 			}, [store]);
 		}
 		//#endregion
@@ -7024,7 +7080,7 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingRootStore.mjs
-		const selectors$2 = {
+		const selectors$3 = {
 			open: (state) => state.open,
 			transitionStatus: (state) => state.transitionStatus,
 			domReferenceElement: (state) => state.domReferenceElement,
@@ -7045,7 +7101,7 @@ window.__ModuleLoader__.load({
 					events: createEventEmitter(),
 					nested,
 					triggerElements
-				}, selectors$2);
+				}, selectors$3);
 				this.syncOnly = syncOnly;
 			}
 			/**
@@ -9677,7 +9733,7 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/store/TooltipStore.mjs
-		const selectors$1 = {
+		const selectors$2 = {
 			...popupStoreSelectors,
 			disabled: (state) => state.disabled,
 			instantType: (state) => state.instantType,
@@ -9701,7 +9757,7 @@ window.__ModuleLoader__.load({
 		var TooltipStore = class extends ReactStore {
 			constructor(initialState, floatingId, nested) {
 				const triggerElements = new PopupTriggerMap();
-				super(createInitialState$1(initialState, triggerElements, floatingId, nested), createInitialContext$1(triggerElements), selectors$1);
+				super(createInitialState$2(initialState, triggerElements, floatingId, nested), createInitialContext$2(triggerElements), selectors$2);
 			}
 			setOpen = (nextOpen, eventDetails) => {
 				applyPopupOpenChange(this, nextOpen, eventDetails, { extraState: { openChangeReason: eventDetails.reason } });
@@ -9710,7 +9766,7 @@ window.__ModuleLoader__.load({
 				this.state.floatingRootContext.dispatchOpenChange(false, createChangeEventDetails(triggerPress, event));
 			}
 		};
-		function createInitialState$1(initialState, triggerElements, floatingId, nested = false) {
+		function createInitialState$2(initialState, triggerElements, floatingId, nested = false) {
 			return {
 				...createInitialPopupStoreState(triggerElements, floatingId, nested),
 				disabled: false,
@@ -9725,7 +9781,7 @@ window.__ModuleLoader__.load({
 				...initialState
 			};
 		}
-		function createInitialContext$1(triggerElements) {
+		function createInitialContext$2(triggerElements) {
 			return {
 				popupRef: /*#__PURE__*/ react.createRef(),
 				onOpenChange: void 0,
@@ -9847,7 +9903,7 @@ window.__ModuleLoader__.load({
 		* @returns {string | undefined}
 		*/
 		function useBaseUiId(idOverride) {
-			return useId$4(idOverride, "base-ui");
+			return useId$5(idOverride, "base-ui");
 		}
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/provider/TooltipProviderContext.mjs
@@ -10742,6 +10798,225 @@ window.__ModuleLoader__.load({
 			return value ? "true" : void 0;
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/tobs-tokens.generated.ts
+		const TOBS_STYLES = {
+			a: {
+				"--tobs-style-text-ui-size": "13px",
+				"--tobs-style-text-ui-line": "20px",
+				"--tobs-style-text-message-size": "13px",
+				"--tobs-style-text-message-line": "20px",
+				"--tobs-style-text-section-title": "var(--tobs-ink-tertiary)",
+				"--tobs-style-control-height": "28px",
+				"--tobs-style-control-height-small": "24px",
+				"--tobs-style-control-height-large": "32px",
+				"--tobs-style-row-nav": "28px",
+				"--tobs-style-row-list": "40px",
+				"--tobs-style-icon-size": "16px",
+				"--tobs-style-icon-slot": "20px",
+				"--tobs-style-list-gap": "0px",
+				"--tobs-style-list-group-radius": "10px",
+				"--tobs-style-list-group-fill": "var(--tobs-layer-raised)",
+				"--tobs-style-list-item-radius": "0px",
+				"--tobs-style-list-item-fill": "var(--tobs-layer-clear)",
+				"--tobs-style-list-item-padding": "0px",
+				"--tobs-style-list-separator": "var(--tobs-line-divider)",
+				"--tobs-style-list-item-padding-block": "6px",
+				"--tobs-style-list-group-padding-inline": "12px",
+				"--tobs-style-list-group-padding-block": "4px",
+				"--tobs-style-list-group-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-radius-control": "6px",
+				"--tobs-style-radius-field": "6px",
+				"--tobs-style-radius-container": "10px",
+				"--tobs-style-radius-menu": "10px",
+				"--tobs-style-radius-dialog": "14px",
+				"--tobs-style-radius-nav-selected": "6px",
+				"--tobs-style-radius-chip": "6px",
+				"--tobs-style-radius-segmented": "6px",
+				"--tobs-style-radius-composer": "14px",
+				"--tobs-style-radius-bubble": "14px",
+				"--tobs-style-radius-card": "10px",
+				"--tobs-style-radius-sheet": "14px",
+				"--tobs-style-radius-small": "6px",
+				"--tobs-style-chip-height": "24px",
+				"--tobs-style-nav-selected-fill": "var(--tobs-state-selected)",
+				"--tobs-style-nav-selected-ink": "var(--tobs-state-selected-ink)",
+				"--tobs-style-nav-selected-icon": "var(--tobs-state-selected-ink)",
+				"--tobs-style-surface-list-backdrop": "var(--tobs-layer-sheet)",
+				"--tobs-style-surface-nav": "var(--tobs-layer-nav)",
+				"--tobs-style-surface-nav-edge": "var(--tobs-line-divider)",
+				"--tobs-style-on-page-field": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-field-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-page-track": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-secondary": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-secondary-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-card-field": "var(--tobs-layer-field)",
+				"--tobs-style-on-card-field-edge": "var(--tobs-line-edge)",
+				"--tobs-style-on-card-track": "var(--tobs-layer-well)",
+				"--tobs-style-on-card-secondary": "var(--tobs-layer-well)",
+				"--tobs-style-on-card-secondary-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-switch-width": "30px",
+				"--tobs-style-switch-height": "18px",
+				"--tobs-style-switch-thumb-on": "14px",
+				"--tobs-style-switch-thumb-off": "14px",
+				"--tobs-style-switch-thumb-off-fill": "var(--tobs-accent-on-selection)",
+				"--tobs-style-switch-thumb-off-shadow": "var(--tobs-line-strong)",
+				"--tobs-style-segmented-selected-fill": "var(--tobs-layer-field)",
+				"--tobs-style-segmented-selected-ink": "var(--tobs-ink-primary)",
+				"--tobs-style-segmented-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-button-secondary-ink": "var(--tobs-ink-primary)",
+				"--tobs-style-choice-fill": "var(--tobs-layer-raised)",
+				"--tobs-style-choice-selected-fill": "var(--tobs-accent-tint)",
+				"--tobs-style-choice-selected-ring": "var(--tobs-layer-clear)",
+				"--tobs-style-choice-selected-ink": "var(--tobs-ink-primary)",
+				"--tobs-style-choice-padding": "4px"
+			},
+			b: {
+				"--tobs-style-text-ui-size": "13px",
+				"--tobs-style-text-ui-line": "18px",
+				"--tobs-style-text-message-size": "13px",
+				"--tobs-style-text-message-line": "20px",
+				"--tobs-style-text-section-title": "var(--tobs-ink-tertiary)",
+				"--tobs-style-control-height": "24px",
+				"--tobs-style-control-height-small": "24px",
+				"--tobs-style-control-height-large": "32px",
+				"--tobs-style-row-nav": "28px",
+				"--tobs-style-row-list": "44px",
+				"--tobs-style-icon-size": "16px",
+				"--tobs-style-icon-slot": "20px",
+				"--tobs-style-list-gap": "0px",
+				"--tobs-style-list-group-radius": "10px",
+				"--tobs-style-list-group-fill": "var(--tobs-layer-elevated)",
+				"--tobs-style-list-item-radius": "0px",
+				"--tobs-style-list-item-fill": "var(--tobs-layer-clear)",
+				"--tobs-style-list-item-padding": "0px",
+				"--tobs-style-list-separator": "var(--tobs-line-divider)",
+				"--tobs-style-list-item-padding-block": "8px",
+				"--tobs-style-list-group-padding-inline": "16px",
+				"--tobs-style-list-group-padding-block": "0px",
+				"--tobs-style-list-group-edge": "var(--tobs-line-edge)",
+				"--tobs-style-radius-control": "6px",
+				"--tobs-style-radius-field": "6px",
+				"--tobs-style-radius-container": "10px",
+				"--tobs-style-radius-menu": "10px",
+				"--tobs-style-radius-dialog": "12px",
+				"--tobs-style-radius-nav-selected": "6px",
+				"--tobs-style-radius-chip": "6px",
+				"--tobs-style-radius-segmented": "6px",
+				"--tobs-style-radius-composer": "14px",
+				"--tobs-style-radius-bubble": "14px",
+				"--tobs-style-radius-card": "10px",
+				"--tobs-style-radius-sheet": "12px",
+				"--tobs-style-radius-small": "6px",
+				"--tobs-style-chip-height": "24px",
+				"--tobs-style-nav-selected-fill": "var(--tobs-accent-selection)",
+				"--tobs-style-nav-selected-ink": "var(--tobs-accent-on-selection)",
+				"--tobs-style-nav-selected-icon": "var(--tobs-accent-on-selection)",
+				"--tobs-style-surface-list-backdrop": "var(--tobs-layer-raised)",
+				"--tobs-style-surface-nav": "var(--tobs-layer-well)",
+				"--tobs-style-surface-nav-edge": "var(--tobs-line-divider)",
+				"--tobs-style-on-page-field": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-field-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-page-track": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-secondary": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-secondary-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-card-field": "var(--tobs-layer-field)",
+				"--tobs-style-on-card-field-edge": "var(--tobs-line-edge)",
+				"--tobs-style-on-card-track": "var(--tobs-layer-well)",
+				"--tobs-style-on-card-secondary": "var(--tobs-layer-well)",
+				"--tobs-style-on-card-secondary-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-switch-width": "30px",
+				"--tobs-style-switch-height": "18px",
+				"--tobs-style-switch-thumb-on": "14px",
+				"--tobs-style-switch-thumb-off": "14px",
+				"--tobs-style-switch-thumb-off-fill": "var(--tobs-accent-on-selection)",
+				"--tobs-style-switch-thumb-off-shadow": "var(--tobs-line-strong)",
+				"--tobs-style-segmented-selected-fill": "var(--tobs-layer-field)",
+				"--tobs-style-segmented-selected-ink": "var(--tobs-ink-primary)",
+				"--tobs-style-segmented-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-button-secondary-ink": "var(--tobs-ink-primary)",
+				"--tobs-style-choice-fill": "var(--tobs-layer-clear)",
+				"--tobs-style-choice-selected-fill": "var(--tobs-layer-clear)",
+				"--tobs-style-choice-selected-ring": "var(--tobs-accent-solid)",
+				"--tobs-style-choice-selected-ink": "var(--tobs-ink-primary)",
+				"--tobs-style-choice-padding": "2px"
+			},
+			c: {
+				"--tobs-style-text-ui-size": "14px",
+				"--tobs-style-text-ui-line": "20px",
+				"--tobs-style-text-message-size": "14px",
+				"--tobs-style-text-message-line": "20px",
+				"--tobs-style-text-section-title": "var(--tobs-accent-ink)",
+				"--tobs-style-control-height": "32px",
+				"--tobs-style-control-height-small": "28px",
+				"--tobs-style-control-height-large": "40px",
+				"--tobs-style-row-nav": "36px",
+				"--tobs-style-row-list": "52px",
+				"--tobs-style-icon-size": "16px",
+				"--tobs-style-icon-slot": "20px",
+				"--tobs-style-list-gap": "2px",
+				"--tobs-style-list-group-radius": "20px",
+				"--tobs-style-list-group-fill": "var(--tobs-layer-clear)",
+				"--tobs-style-list-item-radius": "4px",
+				"--tobs-style-list-item-fill": "var(--tobs-layer-raised)",
+				"--tobs-style-list-item-padding": "16px",
+				"--tobs-style-list-separator": "var(--tobs-layer-clear)",
+				"--tobs-style-list-item-padding-block": "8px",
+				"--tobs-style-list-group-padding-inline": "0px",
+				"--tobs-style-list-group-padding-block": "0px",
+				"--tobs-style-list-group-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-radius-control": "9999px",
+				"--tobs-style-radius-field": "9999px",
+				"--tobs-style-radius-container": "16px",
+				"--tobs-style-radius-menu": "16px",
+				"--tobs-style-radius-dialog": "28px",
+				"--tobs-style-radius-nav-selected": "9999px",
+				"--tobs-style-radius-chip": "9999px",
+				"--tobs-style-radius-segmented": "9999px",
+				"--tobs-style-radius-composer": "28px",
+				"--tobs-style-radius-bubble": "20px",
+				"--tobs-style-radius-card": "20px",
+				"--tobs-style-radius-sheet": "28px",
+				"--tobs-style-radius-small": "10px",
+				"--tobs-style-chip-height": "32px",
+				"--tobs-style-nav-selected-fill": "var(--tobs-accent-container)",
+				"--tobs-style-nav-selected-ink": "var(--tobs-accent-on-container)",
+				"--tobs-style-nav-selected-icon": "var(--tobs-accent-on-container)",
+				"--tobs-style-surface-list-backdrop": "var(--tobs-layer-canvas)",
+				"--tobs-style-surface-nav": "var(--tobs-layer-canvas)",
+				"--tobs-style-surface-nav-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-page-field": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-field-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-page-track": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-secondary": "var(--tobs-layer-well)",
+				"--tobs-style-on-page-secondary-edge": "var(--tobs-layer-clear)",
+				"--tobs-style-on-card-field": "var(--tobs-layer-clear)",
+				"--tobs-style-on-card-field-edge": "var(--tobs-line-edge)",
+				"--tobs-style-on-card-track": "var(--tobs-layer-well)",
+				"--tobs-style-on-card-secondary": "var(--tobs-layer-clear)",
+				"--tobs-style-on-card-secondary-edge": "var(--tobs-line-edge)",
+				"--tobs-style-switch-width": "40px",
+				"--tobs-style-switch-height": "24px",
+				"--tobs-style-switch-thumb-on": "16px",
+				"--tobs-style-switch-thumb-off": "12px",
+				"--tobs-style-switch-thumb-off-fill": "var(--tobs-ink-tertiary)",
+				"--tobs-style-switch-thumb-off-shadow": "var(--tobs-layer-clear)",
+				"--tobs-style-segmented-selected-fill": "var(--tobs-accent-container)",
+				"--tobs-style-segmented-selected-ink": "var(--tobs-accent-on-container)",
+				"--tobs-style-segmented-edge": "var(--tobs-line-edge)",
+				"--tobs-style-button-secondary-ink": "var(--tobs-accent-ink)",
+				"--tobs-style-choice-fill": "var(--tobs-layer-raised)",
+				"--tobs-style-choice-selected-fill": "var(--tobs-accent-container)",
+				"--tobs-style-choice-selected-ring": "var(--tobs-layer-clear)",
+				"--tobs-style-choice-selected-ink": "var(--tobs-accent-on-container)",
+				"--tobs-style-choice-padding": "8px"
+			}
+		};
+		const TOBS_BREAKPOINTS = {
+			medium: "600px",
+			expanded: "840px"
+		};
+		Object.keys(TOBS_STYLES);
+		//#endregion
 		//#region packages/client/src/client/appearance-scope.ts
 		const APPEARANCE_CLASS = "bh-appearance-scope";
 		//#endregion
@@ -10946,7 +11221,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
 		const SettingsGroupContext = (0, react.createContext)(false);
-		const styles$2 = {
+		const styles$6 = {
 			rows: {
 				k1xSpc: "bhx78zum5",
 				kXwgrk: "bhxdt5ytf",
@@ -11046,10 +11321,10 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		styles$2.row;
+		styles$6.row;
 		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
-		const styles$1 = {
+		const styles$5 = {
 			line: {
 				kVAEAm: "bhx1n2onr6",
 				$$css: true
@@ -11158,7 +11433,7 @@ window.__ModuleLoader__.load({
 				"data-anchor": anchor,
 				"data-flip-key": flipKey,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: withStyle("bh-card-line", stretched && styles$1.line),
+					className: withStyle("bh-card-line", stretched && styles$5.line),
 					children: [selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
 						className,
 						title: hint,
@@ -11175,7 +11450,7 @@ window.__ModuleLoader__.load({
 						children: body
 					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
-						className: withStyle(className, stretched && styles$1.stretch),
+						className: withStyle(className, stretched && styles$5.stretch),
 						"aria-labelledby": stretched ? titleId : void 0,
 						title: hint,
 						disabled,
@@ -11190,10 +11465,10 @@ window.__ModuleLoader__.load({
 						onFocus: onIntent,
 						children: stretched ? null : body
 					}), stretched ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: withStyle(className, styles$1.stretched),
+						className: withStyle(className, styles$5.stretched),
 						children: body
 					}) : null] }), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: withStyle("bh-card-trailing", stretched && styles$1.above),
+						className: withStyle("bh-card-trailing", stretched && styles$5.above),
 						"data-card-trailing": trailingAlign,
 						children: trailing
 					})]
@@ -12721,7 +12996,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/store/MenuStore.mjs
-		const selectors = {
+		const selectors$1 = {
 			...popupStoreSelectors,
 			disabled: (state) => state.parent.type === "menubar" ? state.parent.context.disabled || state.disabled : state.disabled,
 			modal: (state) => (state.parent.type === void 0 || state.parent.type === "context-menu") && (state.modal ?? true),
@@ -12773,8 +13048,8 @@ window.__ModuleLoader__.load({
 		var MenuStore = class extends ReactStore {
 			constructor(initialState, floatingId, nested = false) {
 				const triggerElements = new PopupTriggerMap();
-				const state = createInitialState(triggerElements, floatingId, nested, initialState);
-				super(state, createInitialContext(triggerElements), selectors);
+				const state = createInitialState$1(triggerElements, floatingId, nested, initialState);
+				super(state, createInitialContext$1(triggerElements), selectors$1);
 				this.observe("parent", (parent) => {
 					if (parent.type === "menu") this.context.allowMouseUpTriggerRef = parent.store.context.allowMouseUpTriggerRef;
 					else if (parent.type !== void 0) this.context.allowMouseUpTriggerRef = parent.context.allowMouseUpTriggerRef;
@@ -12822,7 +13097,7 @@ window.__ModuleLoader__.load({
 				if (index > -1) this.setActiveIndex(index, reason, event);
 			}
 		};
-		function createInitialContext(triggerElements) {
+		function createInitialContext$1(triggerElements) {
 			return {
 				positionerRef: /*#__PURE__*/ react.createRef(),
 				popupRef: /*#__PURE__*/ react.createRef(),
@@ -12841,7 +13116,7 @@ window.__ModuleLoader__.load({
 				triggerElements
 			};
 		}
-		function createInitialState(triggerElements, floatingId, nested = false, initialState) {
+		function createInitialState$1(triggerElements, floatingId, nested = false, initialState) {
 			return {
 				...createInitialPopupStoreState(triggerElements, floatingId, nested),
 				disabled: false,
@@ -13729,7 +14004,7 @@ window.__ModuleLoader__.load({
 		});
 		//#endregion
 		//#region packages/client/src/client/ds/note.tsx
-		const styles = {
+		const styles$4 = {
 			note: {
 				kogj98: "bhx1ghz6dp",
 				kGuDYH: "bhxgowt09",
@@ -13766,7 +14041,829 @@ window.__ModuleLoader__.load({
 		function Note({ tone = "muted", inset = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 				role: tone === "danger" ? "alert" : "status",
-				...props(styles.note, inset && styles.inset, styles[tone]),
+				...props(styles$4.note, inset && styles$4.inset, styles$4[tone]),
+				children
+			});
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/root/DialogRootContext.mjs
+		const DialogRootContext = /*#__PURE__*/ react.createContext(void 0);
+		function useDialogRootContext(optional) {
+			const store = react.useContext(DialogRootContext);
+			if (!optional && store === void 0) throw new Error(formatErrorMessage(27));
+			return store;
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/description/DialogDescription.mjs
+		/**
+		* A paragraph with additional information about the dialog.
+		* Renders a `<p>` element.
+		*
+		* Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+		*/
+		const DialogDescription$1 = /*#__PURE__*/ react.forwardRef(function DialogDescription(componentProps, forwardedRef) {
+			const { render, className, style, id: idProp, ...elementProps } = componentProps;
+			const store = useDialogRootContext();
+			const id = useBaseUiId(idProp);
+			store.useSyncedValueWithCleanup("descriptionElementId", id);
+			return useRenderElement("p", componentProps, {
+				ref: forwardedRef,
+				props: [{ id }, elementProps]
+			});
+		});
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/portal/DialogPortalContext.mjs
+		const DialogPortalContext = /*#__PURE__*/ react.createContext(void 0);
+		function useDialogPortalContext() {
+			const value = react.useContext(DialogPortalContext);
+			if (value === void 0) throw new Error(formatErrorMessage(26));
+			return value;
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/popup/DialogPopupCssVars.mjs
+		/**
+		* Indicates how many dialogs are nested within.
+		* @type {number}
+		*/
+		const nestedDialogs = "--nested-dialogs";
+		/**
+		* Present when the dialog has other open dialogs nested within it.
+		*/
+		const nestedDialogOpen = "data-nested-dialog-open";
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/utils/stateAttributesMapping.mjs
+		/**
+		* Shared by `Dialog.Popup` and `Dialog.Viewport`, whose states have the same shape.
+		* `nested` is not mapped: unmapped `true` booleans already render as `data-nested`.
+		*/
+		const dialogStateAttributesMapping = {
+			...popupStateMapping,
+			...transitionStatusMapping,
+			nestedDialogOpen(value) {
+				return value ? { [nestedDialogOpen]: "" } : null;
+			}
+		};
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/popup/DialogPopup.mjs
+		/**
+		* A container for the dialog contents.
+		* Renders a `<div>` element.
+		*
+		* Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+		*/
+		const DialogPopup = /*#__PURE__*/ react.forwardRef(function DialogPopup(componentProps, forwardedRef) {
+			const { render, className, style, finalFocus, initialFocus, ...elementProps } = componentProps;
+			const store = useDialogRootContext();
+			const descriptionElementId = store.useState("descriptionElementId");
+			const disablePointerDismissal = store.useState("disablePointerDismissal");
+			const floatingRootContext = store.useState("floatingRootContext");
+			const rootPopupProps = store.useState("popupProps");
+			const modal = store.useState("modal");
+			const mounted = store.useState("mounted");
+			const nested = store.useState("nested");
+			const nestedOpenDialogCount = store.useState("nestedOpenDialogCount");
+			const open = store.useState("open");
+			const openMethod = store.useState("openMethod");
+			const titleElementId = store.useState("titleElementId");
+			const transitionStatus = store.useState("transitionStatus");
+			const role = store.useState("role");
+			const floatingId = floatingRootContext.useState("floatingId");
+			useDialogPortalContext();
+			useOpenChangeComplete({
+				open,
+				ref: store.context.popupRef,
+				onComplete() {
+					if (open) store.context.onOpenChangeComplete?.(true);
+				}
+			});
+			const resolvedInitialFocus = initialFocus === void 0 ? createDefaultInitialFocus(store.context.popupRef) : initialFocus;
+			const nestedDialogOpen = nestedOpenDialogCount > 0;
+			const setPopupElement = store.useStateSetter("popupElement");
+			const element = useRenderElement("div", componentProps, {
+				state: {
+					open,
+					nested,
+					transitionStatus,
+					nestedDialogOpen
+				},
+				props: [
+					rootPopupProps,
+					{
+						id: floatingId,
+						"aria-labelledby": titleElementId,
+						"aria-describedby": descriptionElementId,
+						role,
+						...FOCUSABLE_POPUP_PROPS,
+						hidden: !mounted,
+						onKeyDown(event) {
+							if (COMPOSITE_KEYS.has(event.key)) event.stopPropagation();
+						},
+						style: { [nestedDialogs]: nestedOpenDialogCount }
+					},
+					elementProps
+				],
+				ref: [
+					forwardedRef,
+					store.context.popupRef,
+					setPopupElement
+				],
+				stateAttributesMapping: dialogStateAttributesMapping
+			});
+			return /*#__PURE__*/ (0, react_jsx_runtime.jsx)(FloatingFocusManager, {
+				context: floatingRootContext,
+				openInteractionType: openMethod,
+				disabled: !mounted,
+				closeOnFocusOut: !disablePointerDismissal,
+				initialFocus: resolvedInitialFocus,
+				returnFocus: finalFocus,
+				modal: modal !== false,
+				restoreFocus: "popup",
+				children: element
+			});
+		});
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/portal/DialogPortal.mjs
+		/**
+		* A portal element that moves the popup to a different part of the DOM.
+		* By default, the portal element is appended to `<body>`.
+		* Renders a `<div>` element.
+		*
+		* Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+		*/
+		const DialogPortal = /*#__PURE__*/ react.forwardRef(function DialogPortal(props, forwardedRef) {
+			const { keepMounted = false, ...portalProps } = props;
+			const store = useDialogRootContext();
+			const mounted = store.useState("mounted");
+			const modal = store.useState("modal");
+			const open = store.useState("open");
+			if (!(mounted || keepMounted)) return null;
+			return /*#__PURE__*/ (0, react_jsx_runtime.jsx)(DialogPortalContext.Provider, {
+				value: keepMounted,
+				children: /*#__PURE__*/ (0, react_jsx_runtime.jsxs)(FloatingPortal, {
+					ref: forwardedRef,
+					...portalProps,
+					children: [mounted && modal === true && /*#__PURE__*/ (0, react_jsx_runtime.jsx)(InternalBackdrop, {
+						ref: store.context.internalBackdropRef,
+						inert: inertValue(!open)
+					}), props.children]
+				})
+			});
+		});
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/root/useDialogRoot.mjs
+		function DialogInteractions({ store, parentContext, isDrawer }) {
+			const open = store.useState("open");
+			const mounted = store.useState("mounted");
+			const disablePointerDismissal = store.useState("disablePointerDismissal");
+			const modal = store.useState("modal");
+			const popupElement = store.useState("popupElement");
+			const floatingRootContext = store.useState("floatingRootContext");
+			const [ownNestedOpenDialogs, setOwnNestedOpenDialogs] = react.useState(0);
+			const [ownNestedOpenDrawers, setOwnNestedOpenDrawers] = react.useState(0);
+			const isTopmost = ownNestedOpenDialogs === 0;
+			const dismiss = useDismiss(floatingRootContext, {
+				outsidePressEvent() {
+					if (store.context.internalBackdropRef.current || store.context.backdropRef.current) return "intentional";
+					return {
+						mouse: modal === "trap-focus" ? "sloppy" : "intentional",
+						touch: "sloppy"
+					};
+				},
+				outsidePress(event) {
+					if (!store.context.outsidePressEnabledRef.current) return false;
+					if ("button" in event && event.button !== 0) return false;
+					if ("touches" in event) {
+						if (event.type === "touchend") {
+							if (event.changedTouches.length !== 1 || event.touches.length !== 0) return false;
+						} else if (event.touches.length !== 1) return false;
+					}
+					const target = getTarget(event);
+					if (isTopmost && !disablePointerDismissal) {
+						if (modal) {
+							const internalBackdrop = store.context.internalBackdropRef.current;
+							const backdrop = store.context.backdropRef.current;
+							return internalBackdrop || backdrop ? internalBackdrop === target || backdrop === target || contains(target, popupElement) && !target?.hasAttribute("data-base-ui-portal") : true;
+						}
+						return true;
+					}
+					return false;
+				},
+				escapeKey: isTopmost
+			});
+			useScrollLock(open && modal === true, popupElement);
+			store.useContextCallback("onNestedDialogOpen", (dialogCount, drawerCount) => {
+				if (!store.select("open") && !store.select("mounted")) return;
+				setOwnNestedOpenDialogs(dialogCount);
+				setOwnNestedOpenDrawers(drawerCount);
+			});
+			useIsoLayoutEffect(() => {
+				if (!open && !mounted) {
+					setOwnNestedOpenDialogs(0);
+					setOwnNestedOpenDrawers(0);
+				}
+			}, [open, mounted]);
+			useIsoLayoutEffect(() => {
+				if (parentContext?.onNestedDialogOpen) {
+					if (open) parentContext.onNestedDialogOpen(ownNestedOpenDialogs + 1, ownNestedOpenDrawers + (isDrawer ? 1 : 0));
+				}
+				return () => {
+					if (parentContext?.onNestedDialogOpen && open) parentContext.onNestedDialogOpen(0, 0);
+				};
+			}, [
+				isDrawer,
+				open,
+				ownNestedOpenDialogs,
+				ownNestedOpenDrawers,
+				parentContext
+			]);
+			usePopupInteractionProps(store, {
+				activeTriggerProps: dismiss.reference,
+				inactiveTriggerProps: dismiss.trigger,
+				popupProps: dismiss.floating,
+				nestedOpenDialogCount: ownNestedOpenDialogs,
+				nestedOpenDrawerCount: ownNestedOpenDrawers
+			});
+			return null;
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/store/DialogStore.mjs
+		const selectors = {
+			...popupStoreSelectors,
+			modal: (state) => state.modal,
+			nested: (state) => state.nested,
+			nestedOpenDialogCount: (state) => state.nestedOpenDialogCount,
+			nestedOpenDrawerCount: (state) => state.nestedOpenDrawerCount,
+			disablePointerDismissal: (state) => state.disablePointerDismissal,
+			openMethod: (state) => state.openMethod,
+			descriptionElementId: (state) => state.descriptionElementId,
+			titleElementId: (state) => state.titleElementId,
+			viewportElement: (state) => state.viewportElement,
+			role: (state) => state.role
+		};
+		/**
+		* The subset of `DialogStore` that detached handle-backed triggers rely on. Both the real
+		* `DialogStore` and the inert fallback store satisfy it, so a trigger can read from whichever
+		* store the handle currently exposes.
+		*/
+		var DialogStore = class extends ReactStore {
+			constructor(initialState, floatingId, nested) {
+				const triggerElements = new PopupTriggerMap();
+				const state = createInitialState(initialState, triggerElements, floatingId, nested);
+				super(state, createInitialContext(triggerElements), selectors);
+			}
+			setOpen = (nextOpen, eventDetails) => {
+				eventDetails.preventUnmountOnClose = () => {
+					this.set("preventUnmountingOnClose", true);
+				};
+				if (!nextOpen && eventDetails.trigger == null && this.state.activeTriggerId != null) eventDetails.trigger = this.state.activeTriggerElement ?? void 0;
+				this.context.onOpenChange?.(nextOpen, eventDetails);
+				if (eventDetails.isCanceled) return;
+				this.state.floatingRootContext.dispatchOpenChange(nextOpen, eventDetails);
+				this.update(createPopupOpenState(this.state, nextOpen, eventDetails.trigger));
+			};
+		};
+		function createInitialState(initialState, triggerElements, floatingId, nested = false) {
+			return {
+				...createInitialPopupStoreState(triggerElements, floatingId, nested),
+				modal: true,
+				disablePointerDismissal: false,
+				viewportElement: null,
+				descriptionElementId: void 0,
+				titleElementId: void 0,
+				openMethod: null,
+				nested: false,
+				nestedOpenDialogCount: 0,
+				nestedOpenDrawerCount: 0,
+				role: "dialog",
+				...initialState
+			};
+		}
+		function createInitialContext(triggerElements) {
+			return {
+				popupRef: /*#__PURE__*/ react.createRef(),
+				backdropRef: /*#__PURE__*/ react.createRef(),
+				internalBackdropRef: /*#__PURE__*/ react.createRef(),
+				outsidePressEnabledRef: { current: true },
+				triggerElements,
+				onOpenChange: void 0,
+				onOpenChangeComplete: void 0
+			};
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/root/useRenderDialogRoot.mjs
+		function useRenderDialogRoot(mode, props) {
+			const { children, open: openProp, defaultOpen = false, onOpenChange, onOpenChangeComplete, disablePointerDismissal: disablePointerDismissalProp = false, modal: modalProp = true, actionsRef, handle, triggerId: triggerIdProp, defaultTriggerId: defaultTriggerIdProp = null } = props;
+			const isDrawer = mode === "drawer";
+			const isAlertDialog = mode === "alert-dialog";
+			const modal = isAlertDialog ? true : modalProp;
+			const disablePointerDismissal = isAlertDialog || disablePointerDismissalProp;
+			const role = isAlertDialog ? "alertdialog" : "dialog";
+			const parentStore = useDialogRootContext(true);
+			const rootState = {
+				modal,
+				disablePointerDismissal,
+				nested: parentStore != null,
+				role
+			};
+			const store = usePopupRootStore((floatingId, floatingNested) => new DialogStore({
+				open: defaultOpen,
+				openProp,
+				activeTriggerId: defaultTriggerIdProp,
+				triggerIdProp,
+				...rootState
+			}, floatingId, floatingNested), true);
+			store.useControlledProp("openProp", openProp);
+			store.useControlledProp("triggerIdProp", triggerIdProp);
+			store.useSyncedValues(rootState);
+			store.useContextCallback("onOpenChange", onOpenChange);
+			store.useContextCallback("onOpenChangeComplete", onOpenChangeComplete);
+			const open = store.useState("open");
+			const mounted = store.useState("mounted");
+			const payload = store.useState("payload");
+			usePopupRootSync(store, open);
+			useImplicitActiveTrigger(store);
+			const { forceUnmount } = useOpenStateTransitions(open, store);
+			react.useImperativeHandle(actionsRef, () => ({
+				unmount: forceUnmount,
+				close: () => store.setOpen(false, createChangeEventDetails(imperativeAction))
+			}), [forceUnmount, store]);
+			const shouldRenderInteractions = open || mounted || handle != null;
+			return /*#__PURE__*/ (0, react_jsx_runtime.jsxs)(DialogRootContext.Provider, {
+				value: store,
+				children: [
+					handle && /*#__PURE__*/ (0, react_jsx_runtime.jsx)(PopupHandleAttachment, {
+						handle,
+						store
+					}),
+					shouldRenderInteractions && /*#__PURE__*/ (0, react_jsx_runtime.jsx)(DialogInteractions, {
+						store,
+						parentContext: parentStore?.context,
+						isDrawer
+					}),
+					typeof children === "function" ? children({ payload }) : children
+				]
+			});
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/root/DialogRoot.mjs
+		/**
+		* Groups all parts of the dialog.
+		* Doesn't render its own HTML element.
+		*
+		* Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+		*/
+		const DialogRoot = fastComponent(function DialogRoot(props) {
+			return useRenderDialogRoot("dialog", props);
+		});
+		//#endregion
+		//#region packages/client/src/client/ds/dialog-input.ts
+		const keyboardInput = Symbol.for("@botharness/dialog-keyboard-input");
+		function dialogOpenedFromKeyboard() {
+			if (typeof document === "undefined") return false;
+			return document[keyboardInput] === true;
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/window-class.ts
+		const medium = `(min-width: ${TOBS_BREAKPOINTS.medium})`;
+		const expanded = `(min-width: ${TOBS_BREAKPOINTS.expanded})`;
+		const mediumWidth = Number.parseFloat(TOBS_BREAKPOINTS.medium);
+		const expandedWidth = Number.parseFloat(TOBS_BREAKPOINTS.expanded);
+		function viewportMedia(query) {
+			return typeof matchMedia === "function" ? matchMedia(query) : void 0;
+		}
+		function layoutViewportWidth() {
+			return typeof document === "undefined" ? 0 : document.body?.clientWidth ?? 0;
+		}
+		function getWindowClass() {
+			const width = layoutViewportWidth();
+			if (width > 0) return width >= expandedWidth ? "expanded" : width >= mediumWidth ? "medium" : "compact";
+			if (viewportMedia(expanded)?.matches) return "expanded";
+			if (viewportMedia(medium)?.matches === false) return "compact";
+			return typeof matchMedia === "function" ? "medium" : "expanded";
+		}
+		function subscribeLayoutViewport(mediaQueries, onChange) {
+			const queries = mediaQueries.map(viewportMedia);
+			for (const query of queries) query?.addEventListener("change", onChange);
+			const resize = typeof ResizeObserver === "function" ? new ResizeObserver(onChange) : void 0;
+			if (typeof document !== "undefined" && document.body) resize?.observe(document.body);
+			return () => {
+				for (const query of queries) query?.removeEventListener("change", onChange);
+				resize?.disconnect();
+			};
+		}
+		const subscribeWindowClass = (onChange) => subscribeLayoutViewport([medium, expanded], onChange);
+		const serverWindowClass = () => "expanded";
+		function useWindowClass() {
+			return (0, react.useSyncExternalStore)(subscribeWindowClass, getWindowClass, serverWindowClass);
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/dialog.tsx
+		const DialogDescription = DialogDescription$1;
+		const styles$3 = {
+			viewport: {
+				kfzvcC: "bhx67bb7w",
+				kVAEAm: "bhxixxii4",
+				kpwlN0: "bhx10a8y8t",
+				kY2c9j: "bhxfo81ep",
+				k1xSpc: "bhx78zum5",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhxl56j7k",
+				kB7OPa: "bhx9f619",
+				k8WAf4: "bhx125rcpx",
+				kg3NbH: "bhx1vj67dz",
+				$$css: true
+			},
+			sheetViewport: {
+				kGNEyG: "bhxuk3077",
+				kg3NbH: "bhxnjsko4",
+				kGO01o: "bhx18d9i69",
+				$$css: true
+			},
+			drawerViewport: {
+				kGNEyG: "bhx1qjc9v5",
+				kjj79g: "bhx1nhvcw1",
+				kg3NbH: "bhxnjsko4",
+				kLKAdn: "bhx1ssy2sg",
+				kGO01o: "bhx18d9i69",
+				$$css: true
+			},
+			hidden: {
+				k1xSpc: "bhx1s85apg",
+				$$css: true
+			},
+			popup: {
+				kB7OPa: "bhx9f619",
+				kVAEAm: "bhx1n2onr6",
+				kY2c9j: "bhx1vjfegm",
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				ks0D6T: "bhx193iq5w",
+				kskxy: "bhxmz0i5r",
+				kVQacm: "bhxb3r6kr",
+				kaIpWk: "bhx1lxhhxn",
+				kWkggS: "bhxug4mc8",
+				kGVxlE: "bhxx0t02a",
+				kI3sdo: "bhx1a2a7pz",
+				$$css: true
+			},
+			enter: {
+				kKVMdj: "bhxpv5g7k",
+				k44tkh: "bhx1nwrwtj bhx1u6grsq",
+				$$css: true
+			},
+			sized: {
+				kzqmXN: "bhxizo9zl",
+				$$css: true
+			},
+			sheet: {
+				kzqmXN: "bhxh8yej3",
+				k7Eaqz: "bhxgqtt45",
+				kVL7Gh: "bhxbiv7yw",
+				kT0f0o: "bhx16uus16",
+				kGO01o: "bhx11i7ki7",
+				$$css: true
+			},
+			drawer: {
+				kzqmXN: "bhx1gxgjaw",
+				krdFHd: "bhx15mokao",
+				kVL7Gh: "bhxbiv7yw",
+				kZCmMZ: "bhx8lqnxy",
+				kGO01o: "bhx11i7ki7",
+				kWkggS: "bhx12pq7gy",
+				$$css: true
+			}
+		};
+		function Dialog({ open, animate, onClose, title, className, xstyle, viewportXstyle, unsized = false, presentation = "responsive", children }) {
+			const popup = (0, react.useRef)(null);
+			const compact = useWindowClass() === "compact";
+			const sheet = presentation === "responsive" && compact;
+			const drawer = presentation === "drawer";
+			const [mounted, setMounted] = (0, react.useState)(false);
+			const [opening, setOpening] = (0, react.useState)(() => ({
+				open,
+				keyboard: dialogOpenedFromKeyboard()
+			}));
+			if (opening.open !== open) setOpening({
+				open,
+				keyboard: dialogOpenedFromKeyboard()
+			});
+			const fade = open && (animate ?? !opening.keyboard);
+			const attach = (0, react.useCallback)((node) => {
+				popup.current = node;
+				setMounted(node !== null);
+			}, []);
+			useShellLayer(popup, open && mounted, onClose);
+			const popupClass = [
+				APPEARANCE_CLASS,
+				props(styles$3.popup, fade && styles$3.enter, !unsized && styles$3.sized, xstyle, sheet && styles$3.sheet, drawer && styles$3.drawer).className,
+				className
+			].filter(Boolean).join(" ");
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DialogRoot, {
+				open,
+				modal: false,
+				disablePointerDismissal: true,
+				onOpenChange: (_next, details) => {
+					details.cancel();
+					details.allowPropagation();
+				},
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DialogPortal, {
+					keepMounted: drawer,
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						role: "presentation",
+						"data-tobs-dialog-viewport": "",
+						"data-presentation": drawer ? "drawer" : sheet ? "sheet" : "center",
+						hidden: !open,
+						className: [APPEARANCE_CLASS, props(styles$3.viewport, viewportXstyle, sheet && styles$3.sheetViewport, drawer && styles$3.drawerViewport, !open && styles$3.hidden).className].join(" "),
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							"aria-hidden": "true",
+							"data-tobs-dialog-scrim": "",
+							onClick: onClose,
+							...{
+								0: { className: "bhx10l6tqk bhx1ok8w5a bhx3m8u43 bhx1ey2m1c bhxu96u03 bhx16fjkl3" },
+								1: { className: "bhx10l6tqk bhx1ok8w5a bhx3m8u43 bhx1ey2m1c bhxu96u03 bhx16fjkl3 bhxpv5g7k bhx1nwrwtj bhx1u6grsq" }
+							}[!!fade << 0]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DialogPopup, {
+							ref: attach,
+							role: open ? "dialog" : "presentation",
+							"aria-label": open ? title : void 0,
+							"aria-modal": open ? "true" : void 0,
+							initialFocus: false,
+							finalFocus: false,
+							className: popupClass,
+							children
+						})]
+					})
+				})
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/icon-button.tsx
+		const styles$2 = {
+			base: {
+				kVAEAm: "bhx1n2onr6",
+				k1xSpc: "bhx3nfvp2",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhxl56j7k",
+				kmuXW: "bhx2lah0s",
+				kmVPX3: "bhx1717udv",
+				kMzoRj: "bhxc342km",
+				ksu8eU: "bhxng3xce",
+				kaIpWk: "bhxamr80a",
+				kWkggS: "bhxjbqb8w bhx1lc0nsx bhx1py4wtd bhx1oqui1x",
+				kMwMTN: "bhxr3raxm bhxcevxym bhxus5t84",
+				kMv6JI: "bhxjb2p0i",
+				kkrTdU: "bhx1ypdohk bhxtgyt42",
+				kSiTet: "bhx1hc1fzr bhxijokvz",
+				kI3sdo: "bhx1a2a7pz bhx1m95a6t",
+				kInvED: "bhx2ssjo2",
+				$$css: true
+			},
+			subtle: {
+				kMwMTN: "bhxwq55zj bhxcevxym bhxus5t84",
+				$$css: true
+			},
+			inline: {
+				kzqmXN: "bhxnidc1p",
+				kZKoxP: "bhxz6kl0n",
+				kaIpWk: "bhxamr80a",
+				$$css: true
+			},
+			icon: {
+				kzqmXN: "bhxo0479u",
+				kZKoxP: "bhxxevliy",
+				$$css: true
+			},
+			row: {
+				kzqmXN: "bhxa2bln3",
+				kZKoxP: "bhxeml4d6",
+				$$css: true
+			}
+		};
+		const IconButton = (0, react.forwardRef)(function IconButton({ size = "icon", tone = "muted", className, xstyle, type = "button", children, ...rest }, ref) {
+			const appearance = props(styles$2.base, tone === "subtle" && styles$2.subtle, styles$2[size], xstyle);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				ref,
+				type,
+				...rest,
+				...appearance,
+				className: joinClass(appearance.className, className),
+				children
+			});
+		});
+		//#endregion
+		//#region packages/client/src/client/ds/modal.tsx
+		const styles$1 = { scrollDialog: {
+			kORKVm: "bhx1odjw0f",
+			kZeWKH: "bhxish69e",
+			$$css: true
+		} };
+		function focusFirst(node) {
+			window.requestAnimationFrame(() => {
+				const active = node.ownerDocument.activeElement;
+				if (active instanceof HTMLElement && active !== node && node.contains(active)) return;
+				(node.querySelector("[data-modal-autofocus]") ?? node.querySelector("input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])"))?.focus();
+			});
+		}
+		function Modal(props) {
+			const { open, onClose, title, description, children, footer, className, contentClassName } = props;
+			const autofocus = useMountedResource$1((node) => focusFirst(node), []);
+			if (!open) return null;
+			const content = [{
+				0: { className: "bhx78zum5 bhxdt5ytf bhx12lumcd bhx2lwn1j bhxysyzu8 bhx1q9kt5m" },
+				2: { className: "bhx78zum5 bhxdt5ytf bhx12lumcd bhx2lwn1j" },
+				1: { className: "bhx78zum5 bhxdt5ytf bhx2lwn1j bhx1q9kt5m bhx3psx0u bhx1rea2x4" },
+				3: { className: "bhx78zum5 bhxdt5ytf bhx2lwn1j bhx3psx0u bhx1rea2x4" }
+			}[!!props.headless << 1 | !!props.scrollDialog << 0].className, contentClassName].filter(Boolean).join(" ");
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Dialog, {
+				open: true,
+				animate: props.animate,
+				onClose,
+				title,
+				className,
+				xstyle: props.scrollDialog ? styles$1.scrollDialog : void 0,
+				unsized: className !== void 0 && className !== "",
+				children: props.headless ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					ref: autofocus,
+					className: content,
+					children
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "bhx78zum5 bhx1cy8zhl bhxvdlyrv bhx8hsu8p bhx18e2di0",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "bhx78zum5 bhxdt5ytf bhx1c459s5 bhx12lumcd bhxeuugli",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
+								className: "bhx1ghz6dp bhx103lb5k bhxqpvupg bhx1ywp6bw bhxxbg3y6 bhxj0a0fe",
+								children: title
+							}), description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DialogDescription, {
+								className: "bhx1ghz6dp bhx14lg19 bhx131gmco bhx14brhrh bhxj0a0fe",
+								children: description
+							})]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconButton, {
+							"aria-label": props.closeLabel,
+							onClick: onClose,
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, { name: "x" })
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						ref: autofocus,
+						className: content,
+						children
+					}),
+					footer === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bhx78zum5 bhx13a6bvl bhx1e5nl48 bhxagcfdd bhx18e2di0",
+						children: footer
+					})
+				] })
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/form-dialog.tsx
+		const styles = {
+			small: {
+				kzqmXN: "bhxc9osxv",
+				ks0D6T: "bhx193iq5w",
+				$$css: true
+			},
+			medium: {
+				kzqmXN: "bhxhny9xb",
+				ks0D6T: "bhx193iq5w",
+				$$css: true
+			},
+			wide: {
+				kzqmXN: "bhx1dpputp",
+				ks0D6T: "bhx193iq5w",
+				$$css: true
+			},
+			form: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				kOIVth: "bhx1mckxr8",
+				k7Eaqz: "bhxeuugli",
+				kogj98: "bhx1ghz6dp",
+				kMwMTN: "bhx24dycr",
+				kGuDYH: "bhx5g6txa",
+				kLWn49: "bhx3350y7",
+				$$css: true
+			},
+			error: {
+				kogj98: "bhx1ghz6dp",
+				kMwMTN: "bhx8ay0r6",
+				kGuDYH: "bhxgowt09",
+				kLWn49: "bhx12cu2lo",
+				kHjlTd: "bhxj0a0fe",
+				$$css: true
+			},
+			footer: {
+				k1xSpc: "bhx78zum5",
+				kwnvtZ: "bhx1a02dak",
+				kGNEyG: "bhx6s0dn4",
+				kjj79g: "bhx13a6bvl",
+				kOIVth: "bhx2zm2ee",
+				kzqmXN: "bhxh8yej3",
+				$$css: true
+			},
+			spacer: {
+				kzQI83: "bhx1iyjqo2",
+				$$css: true
+			},
+			scroll: {
+				kskxy: "bhx1johpg4",
+				kORKVm: "bhx1odjw0f",
+				kZeWKH: "bhxish69e",
+				$$css: true
+			},
+			danger: {
+				kWkggS: "bhx4876gh bhx19t2lfm",
+				kVAM5u: "bhx9r1u3d",
+				kMwMTN: "bhx1d93j4h bhx1dp6ds5",
+				kSiTet: "bhx1hc1fzr bhxo2mluc bhxijokvz",
+				$$css: true
+			},
+			dangerQuiet: {
+				kMwMTN: "bhx8ay0r6 bhx15bag5x",
+				$$css: true
+			}
+		};
+		function FormDialog({ title, description, size = "small", labels, submitLabel, onCancel, onSubmit, submitDisabled = false, busy = false, danger = false, error, secondary, onClose, showCancel = true, scroll = false, scrollDialog = false, submitData, inline = false, footerContainer, children }) {
+			const formId = (0, react.useId)();
+			const blocked = submitDisabled || busy;
+			const submit = (event) => {
+				if (event.target !== event.currentTarget) return;
+				event.preventDefault();
+				if (!blocked) onSubmit?.();
+			};
+			const footer = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx2zm2ee bhxh8yej3",
+				children: [
+					secondary === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [secondary, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: "bhx1iyjqo2" })] }),
+					showCancel ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+						type: "button",
+						variant: "outline",
+						disabled: busy,
+						onClick: onCancel,
+						children: labels.cancel
+					}) : null,
+					onSubmit === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+						...submitData,
+						type: "submit",
+						form: formId,
+						variant: "primary",
+						disabled: blocked,
+						"aria-busy": busy || void 0,
+						xstyle: danger ? styles.danger : void 0,
+						children: submitLabel
+					})
+				]
+			});
+			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("form", {
+				id: formId,
+				noValidate: true,
+				onSubmit: submit,
+				...{
+					0: { className: "bhx78zum5 bhxdt5ytf bhx1mckxr8 bhxeuugli bhx1ghz6dp bhx24dycr bhx5g6txa bhx3350y7" },
+					1: { className: "bhx78zum5 bhxdt5ytf bhx1mckxr8 bhxeuugli bhx1ghz6dp bhx24dycr bhx5g6txa bhx3350y7 bhx1johpg4 bhx1odjw0f bhxish69e" }
+				}[!!scroll << 0],
+				children: [children, error === void 0 || error === null || error === false ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					role: "alert",
+					className: "bhx1ghz6dp bhx8ay0r6 bhxgowt09 bhx12cu2lo bhxj0a0fe",
+					children: error
+				})]
+			});
+			if (inline) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+				"aria-label": title,
+				className: "bhx78zum5 bhxdt5ytf bhx1mckxr8 bhxeuugli bhx1ghz6dp bhx24dycr bhx5g6txa bhx3350y7",
+				children: [
+					description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: description }),
+					body,
+					footerContainer === void 0 ? footer : footerContainer ? (0, react_dom.createPortal)(footer, footerContainer) : null
+				]
+			});
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Modal, {
+				open: true,
+				onClose: onClose ?? onCancel,
+				closeLabel: labels.close,
+				title,
+				scrollDialog,
+				...description === void 0 ? {} : { description },
+				className: props(styles[size]).className ?? "",
+				footer,
+				children: body
+			});
+		}
+		function ConfirmDialog({ title, description, labels, confirmLabel, onCancel, onConfirm, busy = false, confirmDisabled = false, scroll = false, scrollDialog = false, danger = true, error, children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FormDialog, {
+				title,
+				description,
+				labels,
+				submitLabel: confirmLabel,
+				onCancel,
+				onSubmit: onConfirm,
+				busy,
+				submitDisabled: confirmDisabled,
+				scroll,
+				scrollDialog,
+				danger,
+				error,
 				children
 			});
 		}
@@ -13882,6 +14979,17 @@ window.__ModuleLoader__.load({
 		//#region packages/computer/src/client/local-setup-copy.ts
 		function localSetupFailure(code, t) {
 			switch (code) {
+				case "desktop-consent-pending": return t("local.wayland.consentPending");
+				case "desktop-consent-required": return t("local.wayland.consentRequired");
+				case "desktop-locked": return t("local.wayland.locked");
+				case "desktop-screen-inactive": return t("local.wayland.inactive");
+				case "desktop-restoring": return t("local.wayland.restoring");
+				case "desktop-portal-ended": return t("local.wayland.ended");
+				case "desktop-portal-dependencies": return t("local.wayland.dependencies");
+				case "desktop-portal-token-write": return t("local.wayland.token");
+				case "x11-session-required": return t("local.error.x11");
+				case "desktop-unreachable": return t("local.error.desktop");
+				case "linux-desktop-required": return t("local.error.linux");
 				case "permissions-required": return t("local.error.permissions");
 				case "disk-full": return t("local.error.disk");
 				case "runtime-write-refused": return t("local.error.write");
@@ -13954,8 +15062,10 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/computer/src/client/local-computer.tsx
-		function LocalComputerStatus({ t, observeResource }) {
-			const [payload, setPayload] = (0, react.useState)();
+		function LocalComputerStatus({ t, observeResource, target = "local", startPending = false }) {
+			const current = target === "current-desktop";
+			const [received, setPayload] = (0, react.useState)();
+			const payload = received?.target === void 0 || received.target === target ? received : void 0;
 			const [busy, setBusy] = (0, react.useState)(false);
 			const [error, setError] = (0, react.useState)();
 			const refresh = (0, react.useCallback)(async (signal) => {
@@ -13978,9 +15088,10 @@ window.__ModuleLoader__.load({
 				}
 			}), [observeResource, refresh]);
 			const installing = payload?.install?.state === "installing";
-			const preparing = busy || installing || payload?.status?.phase === "starting";
+			const preparing = startPending || busy || installing || payload?.status?.phase === "starting";
 			const missing = payload?.status?.missing;
 			const failure = (error ?? (payload?.install?.state === "failed" ? payload.install.text : void 0) ?? (missing === void 0 ? payload?.status?.detail : void 0) ?? payload?.probe?.detail) === void 0 ? void 0 : localSetupFailure(error ?? payload?.status?.refusal, t);
+			const waitingForGnome = preparing && current && failure !== void 0;
 			const permissions = payload?.status?.refusal === "permissions-required" ? payload.status.permissions : void 0;
 			const post = (path, body) => {
 				setBusy(true);
@@ -14001,7 +15112,7 @@ window.__ModuleLoader__.load({
 			};
 			const check = () => post("./api/computer/start", {
 				authorize: true,
-				target: "local"
+				target
 			});
 			const install = () => post("./api/computer/install-packages", { authorize: true });
 			const granted = payload?.status?.state === "running";
@@ -14016,9 +15127,9 @@ window.__ModuleLoader__.load({
 			const checkButton = /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 				size: "sm",
 				variant: "outline",
-				disabled: preparing || payload?.probe?.available === false,
+				disabled: preparing || payload?.probe?.available === false || payload?.status?.refusal === "desktop-locked",
 				onClick: check,
-				children: t(preparing ? "local.checking" : "local.check")
+				children: t(preparing ? "local.checking" : current ? "local.desktop.check" : "local.check")
 			});
 			const packages = installing ? payload?.install?.packages ?? [] : missing?.packages ?? [];
 			const body = packages.length > 0 && (missing !== void 0 || installing) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MissingPackages, {
@@ -14075,10 +15186,10 @@ window.__ModuleLoader__.load({
 					className: "bh-computer-cards",
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardRow, {
 						icon: "monitor",
-						title: t("local.title"),
+						title: t(current ? "rows.target.current-desktop" : "local.title"),
 						chips: granted ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "success",
-							children: t("local.chip.granted")
+							children: t(current ? "entry.chip.running" : "local.chip.granted")
 						}) : preparing ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "info",
 							children: t("local.chip.checking")
@@ -14092,10 +15203,10 @@ window.__ModuleLoader__.load({
 							tone: "danger",
 							children: t("local.chip.failed")
 						}),
-						meta: t(granted ? "local.granted" : "local.description"),
+						meta: t(current ? granted ? "local.desktop.ready" : "local.desktop.description" : granted ? "local.granted" : "local.description"),
 						detail: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: "bhxrvj5dj bhx2zm2ee bhx619ttb",
-							children: [failure === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+							children: [failure === void 0 ? null : waitingForGnome ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: failure }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
 								tone: "danger",
 								children: failure
 							}), body]
@@ -14221,6 +15332,10 @@ window.__ModuleLoader__.load({
 			if (!response.ok) throw new Error(`${String(response.status)} ${await response.text()}`);
 			return await response.json();
 		}
+		function parseHostPlatformStatus(payload) {
+			if (typeof payload !== "object" || payload === null || !("platform" in payload) || typeof payload.platform !== "string" || payload.platform.trim() === "") throw new Error("The Computer status did not identify the Host platform");
+			return { platform: payload.platform };
+		}
 		async function postAuthorized(url, body = {}) {
 			await requestJson$1(url, {
 				method: "POST",
@@ -14320,6 +15435,8 @@ window.__ModuleLoader__.load({
 			const snapshot = (0, react.useSyncExternalStore)(prefs.subscribe, prefs.getSnapshot);
 			const [targetError, setTargetError] = (0, react.useState)();
 			const [targetSaving, setTargetSaving] = (0, react.useState)(false);
+			const [hostPlatform, setHostPlatform] = (0, react.useState)();
+			const [desktopConfirming, setDesktopConfirming] = (0, react.useState)(false);
 			const [importOpen, setImportOpen] = (0, react.useState)(false);
 			const [archives, setArchives] = (0, react.useState)(void 0);
 			const [busy, setBusy] = (0, react.useState)(void 0);
@@ -14338,8 +15455,17 @@ window.__ModuleLoader__.load({
 			const [hostDir, setHostDir] = (0, react.useState)(void 0);
 			const [livePhase, setLivePhase] = (0, react.useState)(void 0);
 			const [liveElapsed, setLiveElapsed] = (0, react.useState)(0);
+			const platformResource = useMountedResource(() => {
+				if (hostPlatform !== void 0) return;
+				return watchComputerStatus(observeResource, async (signal) => {
+					try {
+						const payload = parseHostPlatformStatus(await requestJson$1(STATUS_ENDPOINT$1, { signal }));
+						if (!signal.aborted) setHostPlatform(payload.platform);
+					} catch {}
+				});
+			}, [hostPlatform, observeResource]);
 			const hostDirResource = useMountedResource(() => {
-				if (snapshot.target === "local") return;
+				if (snapshot.target !== "container") return;
 				if (snapshot.status !== "unavailable" && snapshot.exportDir !== "") return;
 				let active = true;
 				hostExportDir().then((dir) => {
@@ -14513,12 +15639,33 @@ window.__ModuleLoader__.load({
 				openDirectory(exportDir).catch((error) => setDirNote(String(error)));
 			}, [exportDir, openDirectory]);
 			const selectedFile = uploadName ?? (confirming === "import" ? archives?.[0] : void 0);
+			const targets = hostPlatform === "linux" || snapshot.target === "current-desktop" ? [
+				"current-desktop",
+				"local",
+				"container"
+			] : ["local", "container"];
+			const saveTarget = (id) => {
+				setTargetSaving(true);
+				setTargetError(void 0);
+				prefs.setTarget(id).then(async () => {
+					if (id !== "current-desktop") return;
+					try {
+						await postAuthorized("./api/computer/start", { target: id });
+					} catch {
+						setTargetError(t("rows.target.startFailed"));
+					}
+				}, () => setTargetError(t("rows.target.failed"))).finally(() => setTargetSaving(false));
+			};
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsGroupPart, {
 				rootRef: settingsPart,
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						hidden: true,
 						ref: hostDirResource
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						hidden: true,
+						ref: platformResource
 					}),
 					busy === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						hidden: true,
@@ -14530,18 +15677,33 @@ window.__ModuleLoader__.load({
 						control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Select, {
 							label: t("rows.target.title"),
 							value: snapshot.target,
-							options: ["local", "container"].map((id) => ({
+							options: targets.map((id) => ({
 								value: id,
 								label: t(`rows.target.${id}`)
 							})),
 							disabled: !writable || targetSaving,
 							onChange: (id) => {
-								setTargetSaving(true);
-								setTargetError(void 0);
-								prefs.setTarget(id).catch((error) => setTargetError(String(error))).finally(() => setTargetSaving(false));
+								if (id === "current-desktop") setDesktopConfirming(true);
+								else saveTarget(id);
 							}
 						})
 					}),
+					desktopConfirming ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfirmDialog, {
+						title: t("rows.target.current-desktop"),
+						description: t("rows.target.desktopNotice"),
+						labels: {
+							cancel: t("rows.target.cancel"),
+							close: t("rows.target.cancel")
+						},
+						confirmLabel: t("rows.target.enable"),
+						danger: false,
+						scrollDialog: true,
+						onCancel: () => setDesktopConfirming(false),
+						onConfirm: () => {
+							setDesktopConfirming(false);
+							saveTarget("current-desktop");
+						}
+					}) : null,
 					targetError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
 						tone: "danger",
 						children: targetError
@@ -14558,10 +15720,12 @@ window.__ModuleLoader__.load({
 							label: t("rows.autoAllow.title")
 						})
 					}),
-					snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
+					snapshot.target !== "container" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
 						t,
-						observeResource
-					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+						observeResource,
+						target: snapshot.target,
+						startPending: targetSaving && snapshot.target === "current-desktop"
+					}, snapshot.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
 							title: t("rows.exportDir.title"),
 							description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
@@ -14750,7 +15914,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/stylex-css.ts
-		const STYLEX_CSS = "\n@property --x-backgroundColor { syntax: \"*\"; inherits: false;}\n.bhx-level-0{}\n@keyframes bhx18re5ia-B{from{opacity:0;}to{opacity:1;}}\n.bhxvn5hdi{--tobs-on-field:var(--tobs-style-on-card-field)}\n.bhxwe5oui{--tobs-on-field-edge:var(--tobs-style-on-card-field-edge)}\n.bhxweo6jt{--tobs-on-secondary:var(--tobs-style-on-card-secondary)}\n.bhx1f506l2{--tobs-on-secondary-edge:var(--tobs-style-on-card-secondary-edge)}\n.bhxgbxpun{--tobs-on-track:var(--tobs-style-on-card-track)}\n.bhx-level-1:not(#\\#){}\n.bhxln7xf2:not(#\\#){font:inherit}\n.bhx10a8y8t:not(#\\#){inset:0}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1717udv:not(#\\#){padding:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhx2u8bby:not(#\\#):not(#\\#){border-radius:0}\n.bhx1cx41gz:not(#\\#):not(#\\#){border-radius:4px}\n.bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}\n.bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}\n.bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}\n.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}\n.bhxov8xcf:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-card)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}\n.bhxamr80a:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-small)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhx1y0btm7:not(#\\#):not(#\\#){border-style:solid}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx3psx0u:not(#\\#):not(#\\#){flex:0 0 auto}\n.bhx12lumcd:not(#\\#):not(#\\#){flex:1 1 auto}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhxfe3e77:not(#\\#):not(#\\#){gap:12px}\n.bhx1c459s5:not(#\\#):not(#\\#){gap:2px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx1e5nl48:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhxvdlyrv:not(#\\#):not(#\\#){gap:8px}\n.bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}\n.bhxe8uvvx:not(#\\#):not(#\\#){list-style:none}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx14t6loe:not(#\\#):not(#\\#){margin-block:2px}\n.bhx14zrpzh:not(#\\#):not(#\\#){margin-inline:2px}\n.bhxw7g2o2:not(#\\#):not(#\\#){margin-inline:4px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhx7giv3:not(#\\#):not(#\\#){overflow:clip}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxt970qd:not(#\\#):not(#\\#){padding-block:0}\n.bhxagcfdd:not(#\\#):not(#\\#){padding-block:12px}\n.bhxgxqyfi:not(#\\#):not(#\\#){padding-block:1px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}\n.bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}\n.bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}\n.bhxnjsko4:not(#\\#):not(#\\#){padding-inline:0}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx7em7do:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx14i569m:not(#\\#):not(#\\#){padding-inline:8px}\n.bhx1j7gxbw:not(#\\#):not(#\\#){padding-inline:8px}\n.bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}\n.bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}\n.bhx1ku5rj1:not(#\\#):not(#\\#){place-items:center}\n.bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}\n.bhxdlu19q:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card])):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}\n.bhx1ybuqwd:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card])):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhx1uxs1jp:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){border-radius:0}\n.bhx38levs:has(:focus-visible):not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx13lanjt:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){padding-block:0}\n.bhx15ye9kl:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){padding-inline:0}\n@media (max-width: 648px){.bhx32nsh3.bhx32nsh3:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1bsqh3l.bhx1bsqh3l:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1cy8zhl:not(#\\#):not(#\\#):not(#\\#){align-items:flex-start}\n.bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}\n.bhx1cbrp87:not(#\\#):not(#\\#):not(#\\#){animation-duration:120ms}\n.bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}\n.bhx2ebxmi:not(#\\#):not(#\\#):not(#\\#){aspect-ratio:16 / 10}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxn8qxt5:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-on-solid)}\n.bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}\n.bhx1m3nrc0:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhx1nycijx:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhxdoljrk:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-ink-primary)}\n.bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxibs1lc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}\n.bhx1tfgve3:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-line-divider)}\n.bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}\n.bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}\n.bhx17wyupo:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-track, var(--tobs-style-on-page-track))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxxt5fwl:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-selected)}\n.bhxw91tbh:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-tint)}\n.bhx1q91288:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-success-tint)}\n.bhxl8vzxm:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-warning-tint)}\n.bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}\n.bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}\n.bhx1x7efqg:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-switch-thumb-off-fill)}\n.bhxl8spv7:not(#\\#):not(#\\#):not(#\\#){background-color:var(--x-backgroundColor)}\n.bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}\n.bhx1yc4nx5:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 0 0 .5px var(--tobs-style-list-group-edge)}\n.bhx1dm6lkz:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 1px 2px var(--tobs-style-switch-thumb-off-shadow)}\n.bhx1hle45t:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhxnyootd:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhx19f2fol:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-strong)}\n.bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}\n.bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}\n.bhx1gnnqk1:not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxjtbsy0:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-1)}\n.bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx1hyvwdk:not(#\\#):not(#\\#):not(#\\#){clip-path:inset(50%)}\n.bhx1heor9g:not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhxigofnc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-ink)}\n.bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhxyja9ir:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-solid)}\n.bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx14lg19:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwm96u7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-layer-canvas)}\n.bhx1btfezm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-state-selected-ink)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1cq2c6i:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-ink)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxcz3oas:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-ink)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx65eiyc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-ink)}\n.bhxv008iy:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-button-secondary-ink)}\n.bhx19wxcwi:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-text-section-title)}\n.bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx1lliihq:not(#\\#):not(#\\#):not(#\\#){display:block}\n.bhxjp7ctv:not(#\\#):not(#\\#):not(#\\#){display:contents}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}\n.bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx134zi0a:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx17beyxc:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxc9sfzf:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}\n.bhxlqzeqv:not(#\\#):not(#\\#):not(#\\#){justify-content:start}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhxo5v014:not(#\\#):not(#\\#):not(#\\#){line-height:1}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}\n.bhxg01cxk:not(#\\#):not(#\\#):not(#\\#){opacity:0}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhx18n8c13:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhx1xqv9of:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}\n.bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}\n.bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}\n.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhx1yc453h:not(#\\#):not(#\\#):not(#\\#){text-align:start}\n.bhxkrqix3:not(#\\#):not(#\\#):not(#\\#){text-decoration-line:none}\n.bhxi2nhp4:not(#\\#):not(#\\#):not(#\\#){text-decoration-style:dotted}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxs12ov2:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc((var(--tobs-style-switch-height) - var(--tobs-style-switch-thumb-off)) / 2),-50%)}\n.bhxyl194i:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc(var(--tobs-style-switch-width) - (var(--tobs-style-switch-height) + var(--tobs-style-switch-thumb-on)) / 2),-50%)}\n.bhxtrec30:not(#\\#):not(#\\#):not(#\\#){transition-duration:120ms}\n.bhxjk0iim:not(#\\#):not(#\\#):not(#\\#){transition-property:transform,width,height,background-color}\n.bhxtp3wbg:not(#\\#):not(#\\#):not(#\\#){transition-timing-function:cubic-bezier(0.2, 0, 0, 1)}\n.bhx87ps6o:not(#\\#):not(#\\#):not(#\\#){user-select:none}\n.bhxxymvpz:not(#\\#):not(#\\#):not(#\\#){vertical-align:middle}\n.bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx1fj9vlw:not(#\\#):not(#\\#):not(#\\#){white-space:pre-line}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhx1ja2u2z:not(#\\#):not(#\\#):not(#\\#){z-index:0}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}\n.bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxl8ll33:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-choice-selected-fill)}\n.bhxd7xfip:is([data-danger] *):not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhx3h2lrv:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-choice-selected-ink)}\n.bhx1m8qfh3:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxxh3kiz:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxm7pdw9:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxs2xcy4:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxozmhvb:has(input:disabled):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}\n.bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n.bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}\n.bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}\n.bhxrd11fi:hover:enabled:not(#\\#):not(#\\#):not(#\\#){text-decoration-line:underline}\n.bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx16stqrj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxxobqf9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1odvp7i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-color:var(--tobs-line-divider)}\n.bhx13fuv20:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-style:solid}\n.bhxgm6bnx:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-width:1px}\n.bhx5yr21d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:100%}\n.bhx121clqe:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxjm9jq1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhx17rw0jw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:22px}\n.bhxm58u58:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:24px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhxt7dq6l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:auto}\n.bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}\n.bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}\n.bhxe2ximv:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-slot)}\n.bhx5ej1o7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-height)}\n.bhx15ro3sd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-off)}\n.bhx1xd5puz:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-on)}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhxes3if4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){margin-top:2px}\n.bhx8l92br:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:var(--available-height,70vh)}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhx1jkqq1h:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:280px}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhx74h4c1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:min(320px,calc(100vw - 32px))}\n.bhx2lwn1j:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:0}\n.bhxov48po:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:24px}\n.bhxpjic2s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:28px}\n.bhx1ty6q3q:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:32px}\n.bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1i9suas:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:120px}\n.bhx1d77m7x:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:140px}\n.bhx1oslful:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:22px}\n.bhx1odjw0f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){overflow-y:auto}\n.bhx6qpzc:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}\n.bhx8hsu8p:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx1f2dah2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:2px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxwa60dl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:50%}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx1i1rx1s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx13k4gh1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:20px}\n.bhx1lify8o:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:24px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx1bev70i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:calc(100% - 2px * 2)}\n.bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}\n.bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}\n.bhxtbbyp4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-slot)}\n.bhx16m33ld:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-off)}\n.bhxxbn18l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-on)}\n.bhxhtpqs2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-width)}\n.bhx2jbcm5.bhx2jbcm5:where(.bhx-default-marker:has(~ :is([data-settings-row], [data-settings-part])) *):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx79v8zp:has(~ :is([data-settings-row], [data-settings-part])):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n.bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-6:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-7:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-8:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx1t6c47z:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#)::placeholder{color:var(--tobs-ink-tertiary)}\n";
+		const STYLEX_CSS = "\n@property --x-backgroundColor { syntax: \"*\"; inherits: false;}\n.bhx-level-0{}\n@keyframes bhx18re5ia-B{from{opacity:0;}to{opacity:1;}}\n.bhxvn5hdi{--tobs-on-field:var(--tobs-style-on-card-field)}\n.bhxwe5oui{--tobs-on-field-edge:var(--tobs-style-on-card-field-edge)}\n.bhxweo6jt{--tobs-on-secondary:var(--tobs-style-on-card-secondary)}\n.bhx1f506l2{--tobs-on-secondary-edge:var(--tobs-style-on-card-secondary-edge)}\n.bhxgbxpun{--tobs-on-track:var(--tobs-style-on-card-track)}\n.bhx-level-1:not(#\\#){}\n.bhxln7xf2:not(#\\#){font:inherit}\n.bhx10a8y8t:not(#\\#){inset:0}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1717udv:not(#\\#){padding:0}\n.bhx1q9kt5m:not(#\\#){padding:16px}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx9r1u3d:not(#\\#):not(#\\#){border-color:transparent}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhx2u8bby:not(#\\#):not(#\\#){border-radius:0}\n.bhx1cx41gz:not(#\\#):not(#\\#){border-radius:4px}\n.bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}\n.bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}\n.bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}\n.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}\n.bhxov8xcf:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-card)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}\n.bhxamr80a:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhx1lxhhxn:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-dialog)}\n.bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-small)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhxng3xce:not(#\\#):not(#\\#){border-style:none}\n.bhx1y0btm7:not(#\\#):not(#\\#){border-style:solid}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx3psx0u:not(#\\#):not(#\\#){flex:0 0 auto}\n.bhx12lumcd:not(#\\#):not(#\\#){flex:1 1 auto}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhxfe3e77:not(#\\#):not(#\\#){gap:12px}\n.bhx1c459s5:not(#\\#):not(#\\#){gap:2px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx1e5nl48:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhxvdlyrv:not(#\\#):not(#\\#){gap:8px}\n.bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}\n.bhxe8uvvx:not(#\\#):not(#\\#){list-style:none}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx14t6loe:not(#\\#):not(#\\#){margin-block:2px}\n.bhx14zrpzh:not(#\\#):not(#\\#){margin-inline:2px}\n.bhxw7g2o2:not(#\\#):not(#\\#){margin-inline:4px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxysyzu8:not(#\\#):not(#\\#){overflow:auto}\n.bhx7giv3:not(#\\#):not(#\\#){overflow:clip}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhx1rea2x4:not(#\\#):not(#\\#){overflow:visible}\n.bhxish69e:not(#\\#):not(#\\#){overscroll-behavior:contain}\n.bhxt970qd:not(#\\#):not(#\\#){padding-block:0}\n.bhxagcfdd:not(#\\#):not(#\\#){padding-block:12px}\n.bhxgxqyfi:not(#\\#):not(#\\#){padding-block:1px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}\n.bhx125rcpx:not(#\\#):not(#\\#){padding-block:max(24px,var(--dsh-frame-overlay-top,24px))}\n.bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}\n.bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}\n.bhxnjsko4:not(#\\#):not(#\\#){padding-inline:0}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}\n.bhx18e2di0:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1vj67dz:not(#\\#):not(#\\#){padding-inline:24px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx7em7do:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx14i569m:not(#\\#):not(#\\#){padding-inline:8px}\n.bhx1j7gxbw:not(#\\#):not(#\\#){padding-inline:8px}\n.bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}\n.bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}\n.bhx1ku5rj1:not(#\\#):not(#\\#){place-items:center}\n.bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}\n.bhxdlu19q:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card])):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}\n.bhx1ybuqwd:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card])):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhx1uxs1jp:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){border-radius:0}\n.bhx38levs:has(:focus-visible):not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx13lanjt:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){padding-block:0}\n.bhx15ye9kl:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){padding-inline:0}\n@media (max-width: 648px){.bhx32nsh3.bhx32nsh3:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1bsqh3l.bhx1bsqh3l:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxuk3077:not(#\\#):not(#\\#):not(#\\#){align-items:flex-end}\n.bhx1cy8zhl:not(#\\#):not(#\\#):not(#\\#){align-items:flex-start}\n.bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}\n.bhx1cbrp87:not(#\\#):not(#\\#):not(#\\#){animation-duration:120ms}\n.bhx1nwrwtj:not(#\\#):not(#\\#):not(#\\#){animation-duration:200ms}\n.bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}\n.bhx2ebxmi:not(#\\#):not(#\\#):not(#\\#){aspect-ratio:16 / 10}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxn8qxt5:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-on-solid)}\n.bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}\n.bhx1m3nrc0:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhx1nycijx:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhxdoljrk:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-ink-primary)}\n.bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxibs1lc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhx12pq7gy:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-nav)}\n.bhx16fjkl3:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-scrim)}\n.bhxug4mc8:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-sheet)}\n.bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}\n.bhx1tfgve3:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-line-divider)}\n.bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}\n.bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}\n.bhx17wyupo:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-track, var(--tobs-style-on-page-track))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxxt5fwl:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-selected)}\n.bhx4876gh:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-base)}\n.bhxw91tbh:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-tint)}\n.bhx1q91288:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-success-tint)}\n.bhxl8vzxm:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-warning-tint)}\n.bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}\n.bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}\n.bhx1x7efqg:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-switch-thumb-off-fill)}\n.bhxl8spv7:not(#\\#):not(#\\#):not(#\\#){background-color:var(--x-backgroundColor)}\n.bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}\n.bhx16uus16:not(#\\#):not(#\\#):not(#\\#){border-end-end-radius:0}\n.bhxbiv7yw:not(#\\#):not(#\\#):not(#\\#){border-end-start-radius:0}\n.bhx15mokao:not(#\\#):not(#\\#):not(#\\#){border-start-start-radius:0}\n.bhx1yc4nx5:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 0 0 .5px var(--tobs-style-list-group-edge)}\n.bhx1dm6lkz:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 1px 2px var(--tobs-style-switch-thumb-off-shadow)}\n.bhx1hle45t:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhxnyootd:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhx19f2fol:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-strong)}\n.bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}\n.bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}\n.bhx1gnnqk1:not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxjtbsy0:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-1)}\n.bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}\n.bhxx0t02a:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-3)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx1hyvwdk:not(#\\#):not(#\\#):not(#\\#){clip-path:inset(50%)}\n.bhx1heor9g:not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhxigofnc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-ink)}\n.bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhx1d93j4h:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhxyja9ir:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-solid)}\n.bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx14lg19:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwm96u7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-layer-canvas)}\n.bhx1btfezm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-state-selected-ink)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1cq2c6i:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-ink)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxcz3oas:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-ink)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx65eiyc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-ink)}\n.bhxv008iy:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-button-secondary-ink)}\n.bhx19wxcwi:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-text-section-title)}\n.bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx1lliihq:not(#\\#):not(#\\#):not(#\\#){display:block}\n.bhxjp7ctv:not(#\\#):not(#\\#):not(#\\#){display:contents}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1s85apg:not(#\\#):not(#\\#):not(#\\#){display:none}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx131gmco:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxqpvupg:not(#\\#):not(#\\#):not(#\\#){font-size:15px}\n.bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}\n.bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx134zi0a:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx17beyxc:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxc9sfzf:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxxbg3y6:not(#\\#):not(#\\#):not(#\\#){font-weight:600}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx1nhvcw1:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}\n.bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}\n.bhxlqzeqv:not(#\\#):not(#\\#):not(#\\#){justify-content:start}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhxo5v014:not(#\\#):not(#\\#):not(#\\#){line-height:1}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx14brhrh:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1ywp6bw:not(#\\#):not(#\\#):not(#\\#){line-height:24px}\n.bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}\n.bhxg01cxk:not(#\\#):not(#\\#):not(#\\#){opacity:0}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}\n.bhx2ssjo2:not(#\\#):not(#\\#):not(#\\#){outline-offset:-2px}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhx18n8c13:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhx1xqv9of:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}\n.bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}\n.bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}\n.bhx8lqnxy:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:env(safe-area-inset-left)}\n.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhx1yc453h:not(#\\#):not(#\\#):not(#\\#){text-align:start}\n.bhxkrqix3:not(#\\#):not(#\\#):not(#\\#){text-decoration-line:none}\n.bhxi2nhp4:not(#\\#):not(#\\#):not(#\\#){text-decoration-style:dotted}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxs12ov2:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc((var(--tobs-style-switch-height) - var(--tobs-style-switch-thumb-off)) / 2),-50%)}\n.bhxyl194i:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc(var(--tobs-style-switch-width) - (var(--tobs-style-switch-height) + var(--tobs-style-switch-thumb-on)) / 2),-50%)}\n.bhxtrec30:not(#\\#):not(#\\#):not(#\\#){transition-duration:120ms}\n.bhxjk0iim:not(#\\#):not(#\\#):not(#\\#){transition-property:transform,width,height,background-color}\n.bhxtp3wbg:not(#\\#):not(#\\#):not(#\\#){transition-timing-function:cubic-bezier(0.2, 0, 0, 1)}\n.bhx87ps6o:not(#\\#):not(#\\#):not(#\\#){user-select:none}\n.bhxxymvpz:not(#\\#):not(#\\#):not(#\\#){vertical-align:middle}\n.bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx1fj9vlw:not(#\\#):not(#\\#):not(#\\#){white-space:pre-line}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhx1ja2u2z:not(#\\#):not(#\\#):not(#\\#){z-index:0}\n.bhx1vjfegm:not(#\\#):not(#\\#):not(#\\#){z-index:1}\n.bhxfo81ep:not(#\\#):not(#\\#):not(#\\#){z-index:1000}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}\n.bhx1py4wtd:is([aria-expanded=true]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxl8ll33:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-choice-selected-fill)}\n.bhxd7xfip:is([data-danger] *):not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhxus5t84:is([aria-expanded=true]):not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx3h2lrv:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-choice-selected-ink)}\n.bhx1m8qfh3:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxxh3kiz:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxm7pdw9:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxs2xcy4:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxozmhvb:has(input:disabled):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1oqui1x:disabled:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhx15bag5x:disabled:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}\n.bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhx19t2lfm:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-base)}\n.bhx1dp6ds5:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhxcevxym:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxo2mluc:hover:not(#\\#):not(#\\#):not(#\\#){opacity:.88}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}\n.bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}\n.bhxrd11fi:hover:enabled:not(#\\#):not(#\\#):not(#\\#){text-decoration-line:underline}\n.bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx16stqrj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxxobqf9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1odvp7i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-color:var(--tobs-line-divider)}\n.bhx13fuv20:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-style:solid}\n.bhxgm6bnx:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-width:1px}\n.bhx1ey2m1c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){bottom:0}\n.bhx5yr21d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:100%}\n.bhx121clqe:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxjm9jq1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhx17rw0jw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:22px}\n.bhxm58u58:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:24px}\n.bhxz6kl0n:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:26px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhxt7dq6l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:auto}\n.bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}\n.bhxeml4d6:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}\n.bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}\n.bhxe2ximv:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-slot)}\n.bhx5ej1o7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-height)}\n.bhx15ro3sd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-off)}\n.bhx1xd5puz:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-on)}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhxes3if4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){margin-top:2px}\n.bhxmz0i5r:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:100%}\n.bhx1johpg4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:min(60vh, 520px)}\n.bhx8l92br:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:var(--available-height,70vh)}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhx1jkqq1h:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:280px}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhx74h4c1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:min(320px,calc(100vw - 32px))}\n.bhx2lwn1j:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:0}\n.bhxov48po:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:24px}\n.bhxpjic2s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:28px}\n.bhx1ty6q3q:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:32px}\n.bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhxgqtt45:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:100%}\n.bhx1i9suas:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:120px}\n.bhx1d77m7x:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:140px}\n.bhx1oslful:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:22px}\n.bhx1odjw0f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){overflow-y:auto}\n.bhx18d9i69:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:0}\n.bhx6qpzc:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}\n.bhx11i7ki7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:env(safe-area-inset-bottom)}\n.bhx8hsu8p:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx1f2dah2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:2px}\n.bhx1ssy2sg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:var(--dsh-frame-chrome-top, 0px)}\n.bhx3m8u43:not(#\\#):not(#\\#):not(#\\#):not(#\\#){right:0}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxwa60dl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:50%}\n.bhx1ok8w5a:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:var(--dsh-frame-chrome-top, 0px)}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx1i1rx1s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx13k4gh1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:20px}\n.bhx1lify8o:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:24px}\n.bhxnidc1p:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:26px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx1bev70i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:calc(100% - 2px * 2)}\n.bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}\n.bhx1dpputp:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:min(1060px, calc(100vw - 32px))}\n.bhx1gxgjaw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:min(340px,90%)}\n.bhxizo9zl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:min(380px,100%)}\n.bhxc9osxv:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:min(440px, calc(100vw - 32px))}\n.bhxhny9xb:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:min(760px, calc(100vw - 32px))}\n.bhxa2bln3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-control-height-large)}\n.bhxo0479u:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-control-height)}\n.bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}\n.bhxtbbyp4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-slot)}\n.bhx16m33ld:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-off)}\n.bhxxbn18l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-on)}\n.bhxhtpqs2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-width)}\n.bhx2jbcm5.bhx2jbcm5:where(.bhx-default-marker:has(~ :is([data-settings-row], [data-settings-part])) *):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx79v8zp:has(~ :is([data-settings-row], [data-settings-part])):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n.bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-6:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-7:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-8:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx1t6c47z:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#)::placeholder{color:var(--tobs-ink-tertiary)}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `
@@ -15294,10 +16458,11 @@ window.__ModuleLoader__.load({
 				children: [inProgress ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					hidden: true,
 					ref: progressResource
-				}) : null, payload?.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
+				}) : null, payload?.target === "local" || payload?.target === "current-desktop" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
 					t,
-					observeResource
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
+					observeResource,
+					target: payload.target
+				}, payload.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
 					t,
 					state: payload?.status.state ?? "absent",
 					...phase === void 0 ? {} : { phase },

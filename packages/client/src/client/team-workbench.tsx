@@ -1,7 +1,11 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { readChannels } from '@botharness/host-client/channel-management';
+import { ChannelAccessSettings } from './channel-access-settings.js';
+import { Select } from './ds/select.js';
+import { loadChannelAccess, type ChannelVisibility } from './team-channels-bridge.js';
+import { useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import type { BridgeCall } from './bridge.js';
+import { bridgeHost, type BridgeCall } from './bridge.js';
 import type { DockPanel } from './dock-panels.js';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
@@ -491,20 +495,50 @@ export function TeamWorkbench({
     setRetrying(false);
   };
 
+  const [requestedSection, setSection] = useState<'roles' | 'channels'>();
+  const mayManageRoles = view === undefined || canManage(view.viewer, MANAGE_ROLES);
+  const section = mayManageRoles ? (requestedSection ?? 'roles') : 'channels';
+
   const nav = (
     <nav {...stylex.props(styles.column)} aria-label={t('team.workbench.title')}>
       <h2 {...stylex.props(styles.title)}>{t('team.workbench.title')}</h2>
-      <NavGroupHeading first label={t('team.workbench.section.permissions')} />
-      <NavItem
-        icon={<Icon name="id-card" />}
-        label={t('team.workbench.internalRoles')}
-        current
-        trailing={String(roles.length)}
-        data={{ 'data-team-nav': 'roles' }}
-        onSelect={clearInspection}
-      />
+      {mayManageRoles ? (
+        <>
+          <NavGroupHeading first label={t('team.workbench.section.permissions')} />
+          <NavItem
+            icon={<Icon name="id-card" />}
+            label={t('team.workbench.internalRoles')}
+            current={section === 'roles'}
+            trailing={String(roles.length)}
+            data={{ 'data-team-nav': 'roles' }}
+            onSelect={() => {
+              setSection('roles');
+              clearInspection();
+            }}
+          />
+        </>
+      ) : null}
+      {view?.enabled ? (
+        <>
+          <NavGroupHeading first={!mayManageRoles} label={t('team.workbench.channels.resources')} />
+          <NavItem
+            label={t('team.workbench.channels.title')}
+            current={section === 'channels'}
+            data={{ 'data-team-nav': 'channels' }}
+            onSelect={() => setSection('channels')}
+          />
+        </>
+      ) : null}
     </nav>
   );
+
+  if (view?.enabled && section === 'channels')
+    return (
+      <div ref={mount} {...stylex.props(styles.root)} data-team-workbench="">
+        {nav}
+        <WorkbenchChannels call={call} t={t} />
+      </div>
+    );
 
   if (view === undefined || !canManage(view.viewer, MANAGE_ROLES))
     return (
@@ -636,6 +670,115 @@ export function TeamWorkbench({
         </div>
       )}
     </div>
+  );
+}
+
+function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTranslate }) {
+  type Entry = Awaited<ReturnType<typeof readChannels>>[number] & {
+    visibility?: ChannelVisibility['kind'];
+  };
+  const [channels, setChannels] = useState<Entry[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [selected, setSelected] = useState<string>();
+  const [filter, setFilter] = useState<ChannelVisibility['kind'] | 'all'>('all');
+  const [tab, setTab] = useState<'members' | 'permissions'>('members');
+  const tabId = useId();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    void readChannels(bridgeHost(call, signal))
+      .then((items) =>
+        Promise.all(
+          items
+            .filter((item) => item.type === 'group')
+            .map(async (item): Promise<Entry> => {
+              const access = await loadChannelAccess(call, item.id, signal).catch(() => undefined);
+              return access === undefined ? item : { ...item, visibility: access.visibility.kind };
+            }),
+        ),
+      )
+      .then((items) => {
+        if (signal.aborted) return;
+        setChannels(items);
+        setReady(true);
+      })
+      .catch(() => {
+        if (!signal.aborted) setFailed(true);
+      });
+    return () => controller.abort();
+  }, [call]);
+  const visible = channels.filter((item) => filter === 'all' || filter === item.visibility);
+  const active = visible.find((item) => item.id === selected) ?? visible[0];
+  return (
+    <>
+      <div ref={mount} {...stylex.props(styles.column)}>
+        <Select
+          label={t('channelAccess.visibility')}
+          value={filter}
+          options={[
+            { value: 'all', label: t('team.workbench.channels.all') },
+            { value: 'public', label: t('channelAccess.public') },
+            { value: 'roles', label: t('channelAccess.roles') },
+            { value: 'private', label: t('channelAccess.private') },
+          ]}
+          onChange={setFilter}
+        />
+        {failed ? <Note tone="danger">{t('team.error.load')}</Note> : null}
+        {ready && visible.length === 0 ? <Note>{t('team.workbench.channels.empty')}</Note> : null}
+        {visible.map((item) => (
+          <NavItem
+            key={item.id}
+            label={item.name}
+            current={item.id === active?.id}
+            onSelect={() => setSelected(item.id)}
+          />
+        ))}
+      </div>
+      {active === undefined ? null : (
+        <div {...stylex.props(styles.detail)}>
+          <header {...stylex.props(styles.head)}>
+            <h2 {...stylex.props(styles.heading)}>{active.name}</h2>
+            <SegmentedControl
+              id={tabId}
+              controlsPanel
+              label={active.name}
+              value={tab}
+              options={[
+                { value: 'members', label: t('team.workbench.channels.members') },
+                { value: 'permissions', label: t('team.workbench.channels.permissions') },
+              ]}
+              onChange={setTab}
+            />
+          </header>
+          <div role="tabpanel" id={`${tabId}-${tab}-panel`} aria-labelledby={`${tabId}-${tab}`}>
+            {tab === 'permissions' ? (
+              <ChannelAccessSettings
+                key={active.id}
+                channelId={active.id}
+                call={call}
+                t={t}
+                humans={active.humanMembers ?? []}
+                permissionsOnly
+              />
+            ) : (
+              <section {...stylex.props(styles.card)}>
+                {active.humanMembers?.map((human) => (
+                  <div key={human.humanId} {...stylex.props(styles.row)}>
+                    {human.displayName}
+                  </div>
+                ))}
+                {active.members.map((bot) => (
+                  <div key={bot} {...stylex.props(styles.row)}>
+                    {bot}
+                  </div>
+                ))}
+              </section>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

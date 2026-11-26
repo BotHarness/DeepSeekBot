@@ -4,6 +4,8 @@
 
 - `apps/mobile/src/features/sessions/{session-landing,session-drawer-navigation,drawer-root,last-session}.ts`
 - `apps/mobile/src/features/sessions/{session-list-screen,session-drawer-panel,new-session-screen}.tsx`
+- `apps/mobile/src/features/sessions/session-drawer.android.tsx`
+- `apps/mobile/modules/dismissible-drawer/android/src/main/java/expo/modules/dismissibledrawer/SessionDrawer{View,ContentGate}.kt`
 - `apps/mobile/app/(tabs)/(sessions)/{sessions,new-session}.tsx`
 - `apps/mobile/src/ui/interface-settings.tsx`
 
@@ -20,6 +22,7 @@
 - `settings`: Settings › This phone › Sessions (only while the Sessions tab is on) has Session navigation style (Drawer / Stacked), On launch (New Session / Session list / Last Session) and Returning to Sessions (Stay where you were / New Session / Session list). All are kept on the phone only.
 - `switch`: changing the style needs no restart and keeps the open Session. With Returning to Sessions on Stay where you were, going back to Sessions shows it with the other style's header; with New Session or Session list, that destination is shown instead.
 - `landing`: the first entry to Sessions after a cold launch follows On launch, later entries from another tab follow Returning to Sessions. In Drawer style, Session list is the New Session screen with the drawer open. Re-tapping the selected Sessions tab goes to the root.
+- `android drawer swipe`: a rightward horizontal drag from the leading edge of a wide code block or table opens the drawer. A drag that started with the block or table scrolled can return it to the leading edge. The drawer can take the next swipe after the finger lifts.
 
 ## How to get to it (user POV)
 
@@ -35,6 +38,7 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 4. For each Returning to Sessions choice, open a Session, go to Chats, then tap Sessions.
 5. Re-tap the selected Sessions tab from a Session in each style: it returns to the root.
 6. Capture Light/Dark and the maximum text size for the list and the Settings section.
+7. On Android in Drawer style, open a Session with a wide fenced code block, a wide Markdown table, and enough text to scroll vertically. On each block, drag and fling right from the leading edge, then close the drawer with Back. Swipe left to scroll the block, swipe right to return it to the leading edge, and swipe right again to open the drawer. Check vertical scroll starting on the block, Copy, the message long-press menu, and right swipes from ordinary message text and the empty New Session page.
 
 ## Gotchas
 

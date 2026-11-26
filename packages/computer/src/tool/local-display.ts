@@ -41,6 +41,47 @@ export class LocalDesktopMissingError extends Error {
   }
 }
 
+export class CurrentDesktopError extends Error {
+  constructor(
+    readonly setupCode: 'linux-desktop-required' | 'x11-session-required' | 'desktop-unreachable',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export function currentDesktopDisplay(
+  platform: string = process.platform,
+  source: NodeJS.ProcessEnv = process.env,
+): string {
+  if (platform !== 'linux')
+    throw new CurrentDesktopError(
+      'linux-desktop-required',
+      'The current desktop target requires Linux.',
+    );
+  if (source['XDG_SESSION_TYPE'] === 'wayland' || source['WAYLAND_DISPLAY'])
+    throw new CurrentDesktopError(
+      'x11-session-required',
+      'Sign in to an X11 desktop session and start the Host from that session.',
+    );
+  const display = source['DISPLAY'];
+  if (source['XDG_SESSION_TYPE'] !== 'x11' || !display || !/^:[0-9]+(?:\.[0-9]+)?$/u.test(display))
+    throw new CurrentDesktopError(
+      'desktop-unreachable',
+      'Start the Host from a terminal in your current Linux X11 desktop and check again.',
+    );
+  return display;
+}
+
+export async function openCurrentDesktop(): Promise<LocalDisplay> {
+  return {
+    display: currentDesktopDisplay(),
+    env: {},
+    managed: false,
+    alive: () => true,
+    stop: async () => undefined,
+  };
+}
 async function executable(path: string): Promise<boolean> {
   try {
     await access(path, constants.X_OK);

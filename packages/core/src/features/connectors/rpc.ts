@@ -1,8 +1,8 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { BotConnector, ConnectorAppSearch, ConnectorsView } from '../../connectors/service.js';
 import type { McpAppSearch } from '../../connectors/remote.js';
 import type { ConnectorAccess, ConnectorAccountRecord } from '../../connectors/store.js';
+import type { ConnectorsBridgeMethods } from './methods.js';
 
 export const connectorsRpc = {
   connectors(): Promise<ConnectorsView> {
@@ -77,4 +77,4 @@ export const connectorsRpc = {
   botConnectors(slug: string): { connectors: BotConnector[] } {
     return unwrap(this.methods.botConnectors({ slug }));
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: ConnectorsBridgeMethods }>;

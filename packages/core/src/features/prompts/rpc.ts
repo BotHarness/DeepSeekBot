@@ -1,5 +1,5 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
+import type { BotSystemPromptView, BotTurnInputView } from '@botharness/host-protocol/wire';
 import type { PromptPreset } from '../../prompts/prompt-presets.js';
 import type {
   BotPromptView,
@@ -12,7 +12,7 @@ import type { PromptsAdapterMethods } from './methods.js';
 export function botSystemPrompt(
   methods: PromptBridgeMethods,
   slug: string,
-): Promise<import('../../runtime/prompt-inspection.js').BotSystemPromptView> {
+): Promise<BotSystemPromptView> {
   return unwrapAsync(methods.botSystemPrompt({ slug }));
 }
 
@@ -104,11 +104,7 @@ export function botTurnInput(
   slug: string,
   sessionId?: string,
   turns?: number,
-): Promise<{
-  slug: string;
-  sessionId: string;
-  turns: import('../../runtime/prompt-inspection.js').TurnInputView[];
-}> {
+): Promise<BotTurnInputView> {
   return unwrapAsync(
     methods.botTurnInput({
       slug,
@@ -118,27 +114,15 @@ export function botTurnInput(
   );
 }
 
-export const promptInspectionRpc = {
-  botSystemPrompt(
-    slug: string,
-  ): Promise<import('../../runtime/prompt-inspection.js').BotSystemPromptView> {
+export const promptsRpc = {
+  botSystemPrompt(slug: string): Promise<BotSystemPromptView> {
     return botSystemPrompt(this.methods, slug);
   },
 
-  botTurnInput(
-    slug: string,
-    sessionId?: string,
-    turns?: number,
-  ): Promise<{
-    slug: string;
-    sessionId: string;
-    turns: import('../../runtime/prompt-inspection.js').TurnInputView[];
-  }> {
+  botTurnInput(slug: string, sessionId?: string, turns?: number): Promise<BotTurnInputView> {
     return botTurnInput(this.methods, slug, sessionId, turns);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
 
-export const promptPresetRpc = {
   promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
     return promptParts(this.methods);
   },
@@ -185,4 +169,4 @@ export const promptPresetRpc = {
   ): BotPromptView {
     return botPromptSet(this.methods, slug, presetId, parts, limits);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: PromptBridgeMethods & PromptsAdapterMethods }>;

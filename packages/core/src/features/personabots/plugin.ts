@@ -14,8 +14,7 @@ import type {
 import type { createEngineToolGate } from '../../engines/engine-tool-gate.js';
 import { readEnginePersona } from '../../engines/engine-plugin.js';
 import type { BotAgentSetupInfo } from '../../runtime/dsh-bot-agent-adapter.js';
-import type { DiagnosticEvents } from '../../diagnostics/diagnostic-log.js';
-import { recordGenuiPreviewDiagnostic } from '../../runtime/genui-preview.js';
+import type { AgentFeatureContribution } from '../../runtime/agent-feature-context.js';
 import { createPersonaBotRegistry } from '../../bots/registry.js';
 import {
   backfillBotBanners,
@@ -36,6 +35,7 @@ import {
   DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
   type BotAgentAdapter,
   type BotRuntime,
+  type BotRuntimeOptions,
 } from '../../runtime/bot-runtime.js';
 import {
   admitBotSession,
@@ -47,7 +47,7 @@ import {
   type DshAgentPresetHost,
 } from '../../runtime/dsh-bot-agent-adapter.js';
 import * as models from '../models/plugin.js';
-import * as promptPresets from '../prompts/plugin.js';
+import { promptTextForBot } from '../../prompts/prompt-settings.js';
 import { createRosterStore } from '../../roster/store.js';
 import { createBotCreation } from '../../bots/creation.js';
 import { createBotImports } from '../../bots/imports.js';
@@ -432,6 +432,7 @@ export function createRuntime(
     options: CoreOptions;
     dshHome: string;
     assignmentLimits: { read: () => number }[];
+    runtimeFeatures: NonNullable<BotRuntimeOptions['runtimeFeatures']>;
     botHopLimit: () => number;
     orchestratorCwd: (bot: { slug: string }) => string | undefined;
     readonly runtime: BotRuntime | undefined;
@@ -504,7 +505,7 @@ export function createRuntime(
       : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) =>
-      promptPresets.promptText(prompts, slug, deps.runtime?.currentOrchestratorSessionId?.(slug)),
+      promptTextForBot(prompts, slug, deps.runtime?.currentOrchestratorSessionId?.(slug)),
     promptLimits: (slug) => prompts.limits(slug),
     tob,
     triageContinuation: options.triageContinuation === true,
@@ -521,6 +522,7 @@ export function createRuntime(
     },
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
+    runtimeFeatures: deps.runtimeFeatures,
     assignmentConcurrencyLimit: () =>
       assignmentLimits.at(-1)?.read() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
     botHopLimit,
@@ -570,7 +572,7 @@ export function createHostAgentAdapter(
     > & {
       engineHost: ReturnType<typeof models.mountEngines>['engineHost'];
       engineToolGate: ReturnType<typeof createEngineToolGate>;
-      diagnosticEvents: DiagnosticEvents;
+      featureContributions: readonly AgentFeatureContribution[];
       turnRefusals: Map<string, string | TeamError>;
       botModes: ReturnType<typeof appearanceFeature.createBotModes>;
       publishDraft(event: ChannelDraftEvent): void;
@@ -580,7 +582,6 @@ export function createHostAgentAdapter(
     engineHost,
     engineToolGate,
     tobCliInvocation,
-    diagnosticEvents,
     defaultModel,
     providerCredentials,
     turnRefusals,
@@ -597,11 +598,7 @@ export function createHostAgentAdapter(
     enginePersona: (bot) =>
       readEnginePersona(deps.core.registry.memoryDirFor(bot.slug), bot.standingLimits),
     tobCliInvocation,
-    ...(config.genuiPreviewBrowserPath === undefined
-      ? {}
-      : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
-    onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
-    genuiAttachmentContext: ctx,
+    featureContributions: deps.featureContributions,
     agents: ctx.agents,
     releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => deps.core.prompts.textForSession(sessionId),

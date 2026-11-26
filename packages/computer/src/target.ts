@@ -1,16 +1,18 @@
 import type { ComputerProvider } from './provider.js';
 import type { CuaDriver } from './tool/driver.js';
+import type { DesktopAccessIssue } from './desktop-availability.js';
 
-export type ComputerTarget = 'local' | 'container';
+export type ComputerTarget = 'local' | 'container' | 'current-desktop';
 
 export function computerTarget(value: unknown): ComputerTarget {
-  return value === 'local' ? 'local' : 'container';
+  return value === 'local' || value === 'current-desktop' ? value : 'container';
 }
 
 export interface ComputerTargetRuntime {
   readonly provider: ComputerProvider;
   readonly driver: CuaDriver;
   isRunning(): boolean;
+  unavailable(): DesktopAccessIssue | undefined;
   sync(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -22,8 +24,10 @@ export function createComputerTargetRuntime(options: {
     onStatusChanged: () => void,
   ) => { provider: ComputerProvider; driver: CuaDriver };
   onChange: () => void;
+  onStop?: () => void;
   onStatusChanged?: () => void;
   onEvent?: ((detail: string) => void) | undefined;
+  selectionRevision?: () => number;
 }): ComputerTargetRuntime {
   let disposed = false;
   const create = (selected: ComputerTarget) =>
@@ -55,8 +59,10 @@ export function createComputerTargetRuntime(options: {
     });
     return changing.then(sync);
   };
-  const requireCurrent = (): void => {
-    if (disposed || changing !== undefined || target !== options.target())
+  const isCurrent = (observed: number): boolean =>
+    revision === observed && !disposed && changing === undefined && target === options.target();
+  const requireCurrent = (observed = revision): void => {
+    if (!isCurrent(observed))
       throw new Error(
         'Computer Target changed; ask the Human to check the selected Computer and authorize a new action.',
       );
@@ -71,20 +77,36 @@ export function createComputerTargetRuntime(options: {
     },
     status: async () => {
       await sync();
+      const observed = revision;
       const status = await active.provider.status();
+      if (!isCurrent(observed)) return provider.status();
       running = status.state === 'running';
       return status;
     },
     start: async () => {
+      const requested = options.target();
+      const selection = options.selectionRevision?.();
       await sync();
+      const observed = revision;
+      if (target !== requested || selection !== options.selectionRevision?.())
+        throw new Error(
+          'Computer Target changed; authorize Start again for the selected Computer.',
+        );
+      requireCurrent(observed);
       await active.provider.start();
-      requireCurrent();
-      running = (await active.provider.status()).state === 'running';
+      requireCurrent(observed);
+      const status = await active.provider.status();
+      requireCurrent(observed);
+      running = status.state === 'running';
     },
     stop: async () => {
       await sync();
       running = false;
-      await active.provider.stop();
+      try {
+        await active.provider.stop();
+      } finally {
+        options.onStop?.();
+      }
     },
     upstream: () =>
       target === options.target() && changing === undefined
@@ -145,7 +167,13 @@ export function createComputerTargetRuntime(options: {
       !disposed &&
       changing === undefined &&
       target === options.target() &&
-      (target === 'local' ? running : active.provider.upstream() !== undefined),
+      (target === 'container'
+        ? active.provider.upstream() !== undefined
+        : (active.provider.isRunning?.() ?? running)),
+    unavailable: () =>
+      !disposed && changing === undefined && target === options.target()
+        ? active.provider.unavailable?.()
+        : undefined,
     async dispose() {
       disposed = true;
       await changing?.catch(() => undefined);

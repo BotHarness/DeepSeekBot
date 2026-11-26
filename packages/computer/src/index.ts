@@ -28,7 +28,8 @@ import { createTransferTokens } from './transfer-tokens.js';
 import { createArchiveHandlers, defaultExportDir } from './archive-http.js';
 import { createProcessRunner } from './process-runner.js';
 import { createIdleWatcher } from './idle.js';
-import { createDesktopView } from './desktop-view.js';
+import { createDesktopFrameStream, createDesktopView } from './desktop-view.js';
+import { isWaylandDesktop } from './desktop-availability.js';
 import { createDesktopHandlers } from './desktop-http.js';
 import {
   createDesktopProvisioningHandlers,
@@ -50,9 +51,11 @@ import { createDockerComputerProvider } from './providers/docker.js';
 import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
 import { createLocalCuaDriver } from './tool/local-driver.js';
+import { openCurrentDesktop } from './tool/local-display.js';
 import { detectTailnetAddress } from '../../core/src/devices/routes.js';
 import { createSelkiesWebRtc } from '../../core/src/http/selkies-webrtc.js';
 import { createLocalComputerProvider } from './providers/local.js';
+import { createWaylandDesktop } from './providers/wayland.js';
 import { computerTarget, createComputerTargetRuntime, type ComputerTarget } from './target.js';
 import { COMPUTER_GUIDANCE, localComputerGuidance } from './tool/catalog.js';
 import type {} from '@deepseek-ai/cordis-plugin-loader';
@@ -142,18 +145,24 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     join(resolveDshHome(), 'botharness', 'computer-approval-target.json'),
     () =>
       JSON.stringify(
-        target() === 'local'
-          ? ['local']
+        target() !== 'container'
+          ? [target()]
           : ['container', config.containerName, config.volumeName, config.dataDir, config.image],
       ),
   );
+  const currentDesktop = (): boolean => target() === 'current-desktop';
+  const wayland = process.platform === 'linux' && isWaylandDesktop();
   const migratedLocal = (): boolean =>
-    (process.platform === 'win32' || process.platform === 'darwin') && target() === 'local';
+    currentDesktop() ||
+    ((process.platform === 'win32' || process.platform === 'darwin') && target() === 'local');
   const runtime = createComputerTargetRuntime({
     target,
+    selectionRevision: () => authorizationRevision,
+    onStop: () => currentDesktopFrames.clear(),
     onChange: () => {
       transferTokens = createTransferTokens();
       toolProvider.resetRuntime();
+      currentDesktopFrames.clear();
       void localVideo
         .resetRuntime()
         .catch(() => diagnostics.record('lifecycle', 'phase=local-video-runtime-cleanup-refused'));
@@ -161,14 +170,27 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     onStatusChanged: statusChanged.schedule,
     create: (selected, onStatusChanged) => {
-      if (selected === 'local') {
+      if (selected === 'current-desktop' && wayland)
+        return createWaylandDesktop({
+          profileDir: join(resolveDshHome(), 'botharness'),
+          onStatusChanged,
+          onUnavailable: () => {
+            currentDesktopFrames.clear();
+            void localVideo
+              .pauseUnavailable()
+              .catch(() => diagnostics.record('lifecycle', 'phase=desktop-loss-pause-failed'));
+          },
+        });
+      if (selected !== 'container') {
         const driver = createLocalCuaDriver({
           runner,
+          ...(selected === 'current-desktop' ? { display: openCurrentDesktop } : {}),
           onEvent: (detail) => diagnostics.record('lifecycle', detail),
         });
         const provider = createLocalComputerProvider({
           driver,
           runner,
+          currentDesktop: selected === 'current-desktop',
           onEvent: (detail) => diagnostics.record('lifecycle', `target=local ${detail}`),
           onStatusChanged,
         });
@@ -224,9 +246,15 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       );
   });
   ctx.effect(() => () => runtime.dispose(), 'botharness-computer: target runtime');
-  const activity = { touch: (): void => undefined };
   const driver = runtime.driver;
-  const unlockEnabled = () => macComputerUnlockConfigured && migratedLocal() && runtime.isRunning();
+  const currentDesktopFrames = createDesktopFrameStream({
+    driver,
+    isRunning: () => currentDesktop() && runtime.isRunning(),
+    scales: () => false,
+    waitMs: 1_000,
+  });
+  const unlockEnabled = () =>
+    macComputerUnlockConfigured && target() === 'local' && runtime.isRunning();
   const unlock: ReturnType<typeof createComputerUnlockOwner> = createComputerUnlockOwner({
     enabled: unlockEnabled,
     runUnlock: (operation, signal) => localVideo.runUnlock(operation, signal),
@@ -240,8 +268,11 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     media: createLocalVideoMedia({
       onEvent: (detail) => diagnostics.record('lifecycle', detail),
     }),
+    frames: { enabled: currentDesktop, next: currentDesktopFrames.next },
     isRunning: () => migratedLocal() && runtime.isRunning(),
+    unavailable: runtime.unavailable,
     supported: migratedLocal,
+    pauseRecovery: () => target() === 'local',
     ...(macComputerUnlockConfigured
       ? {
           sessionUnlocked: async () => !unlockEnabled() || (await unlock.status()).locked === false,
@@ -266,16 +297,19 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     },
     'botharness-computer: Local video owner',
   );
+  const activity = { touch: (): void => undefined };
   const desktopView = createDesktopView({
     driver,
     isRunning: () => runtime.isRunning(),
     scales: () => target() === 'local',
   });
+  const desktopPaused = (): boolean => target() !== 'container' && localVideo.isPaused();
   const toolProvider = createComputerToolProvider({
     ctx,
     driver,
     isComputerRunning: () => runtime.isRunning(),
-    isPaused: () => (migratedLocal() ? localVideo.isPaused() : desktopView.isPaused()),
+    unavailable: runtime.unavailable,
+    isPaused: () => desktopPaused() || (!migratedLocal() && desktopView.isPaused()),
     isBotPaused: (slug) => {
       if (!migratedLocal()) return false;
       const browser = ctx.get('botharnessBrowserTools') as unknown as
@@ -286,7 +320,12 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     runBotOperation: (operation, signal) =>
       migratedLocal() ? localVideo.runBotOperation(() => operation()) : operation(signal),
     authorizationScope,
-    guidance: () => (target() === 'local' ? localComputerGuidance() : COMPUTER_GUIDANCE),
+    guidance: () =>
+      currentDesktop() && wayland
+        ? 'Use computer_get_desktop_state to observe the shared Wayland screen before acting. Use foreground pixel coordinates and keyboard input. Observe again after any input, refusal, or Human action. Leave credentials to the Human and ask them to take over. Report actions only after verifying the result.'
+        : target() !== 'container'
+          ? localComputerGuidance()
+          : COMPUTER_GUIDANCE,
     isAutoAllowed: () => effective().autoAllowActions,
     audit: (event) => diagnostics.record('computer-action', formatAudit(event)),
     note: (detail) => diagnostics.record('lifecycle', detail),
@@ -302,11 +341,18 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     },
   });
   ctx.provide('botharnessComputerTools', {
-    desktopControl: (): LocalDesktopControl => ({
-      desktop: migratedLocal(),
-      held: migratedLocal() && runtime.isRunning() && localVideo.isPaused(),
-      epoch: localVideo.controlEpoch(),
-    }),
+    desktopControl: (): LocalDesktopControl => {
+      const unavailable = runtime.unavailable();
+      return {
+        desktop: migratedLocal() || desktopPaused(),
+        held: desktopPaused(),
+        epoch: localVideo.controlEpoch(),
+        ready: !currentDesktop() || runtime.isRunning(),
+        currentDesktop: currentDesktop(),
+        ...(unavailable === undefined ? {} : { unavailable }),
+      };
+    },
+    runDesktopOperation: <T>(operation: () => Promise<T>) => localVideo.runBotOperation(operation),
     reconcileBot: (slug: string) => toolProvider.reconcileBot(slug),
     ownsTool: (name: string) => ownsComputerTool(name),
     approvalScope: () => savedTargetScope.current(),
@@ -403,7 +449,6 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     const timer = setInterval(() => watcher.tick(), 60_000);
     return () => clearInterval(timer);
   }, 'botharness-computer: idle stop');
-
   const webrtc = createSelkiesWebRtc({
     label: 'computer',
     upstream: () => (target() === 'container' ? service.upstream() : undefined),
@@ -433,12 +478,12 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
         {
           ok: false,
           code: 'update-required',
-          error:
-            'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
+          error: currentDesktop()
+            ? 'Update the viewer to watch and take control of the current desktop.'
+            : 'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
         },
         409,
       );
-
     const webrtcRoute = {
       path: '/api/computer/webrtc',
       methods: ['GET'] as const,
@@ -459,6 +504,14 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       toolProvider,
       target,
       resolveExportDir,
+      onStart(language) {
+        requestedLanguage =
+          typeof language === 'string' && language !== '' ? desktopLocale(language) : '';
+        log(
+          `start requested (panel)${requestedLanguage === '' ? '' : ` locale=${requestedLanguage}`}`,
+        );
+        watcher.touch();
+      },
       config,
       statusChanged,
       runner,
@@ -479,46 +532,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/start',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        let authorize = false;
-        let body: { authorize?: unknown; language?: unknown; target?: unknown } = {};
-        try {
-          body = (await request.json()) as {
-            authorize?: unknown;
-            language?: unknown;
-            target?: unknown;
-          };
-          authorize = body.authorize === true;
-        } catch {}
-        if (!authorize) {
-          return json(
-            { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
-            400,
-          );
-        }
-        if (body.target !== undefined && body.target !== target())
-          return json(
-            {
-              ok: false,
-              code: 'target-changed',
-              error: 'Computer Target changed; check the selected Computer before retrying',
-            },
-            409,
-          );
-        requestedLanguage =
-          typeof body.language === 'string' && body.language !== ''
-            ? desktopLocale(body.language)
-            : '';
-        log(
-          `start requested (panel)${requestedLanguage === '' ? '' : ` locale=${requestedLanguage}`}`,
-        );
-        watcher.touch();
-        void service
-          .start()
-          .then(() => toolProvider.reconcileAll())
-          .catch(() => undefined);
-        return json({ ok: true, started: true });
-      },
+      fetch: provisioningHttp.start,
     };
     connectionCtx.effect(
       () => connection.fetch.register(startRoute),
@@ -540,26 +554,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/stop',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        let authorize = false;
-        try {
-          const body = (await request.json()) as { authorize?: unknown };
-          authorize = body.authorize === true;
-        } catch {}
-        if (!authorize) {
-          return json(
-            { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
-            400,
-          );
-        }
-        log('stop requested (panel)');
-        try {
-          await service.stop();
-          return json({ ok: true });
-        } catch (error) {
-          return json({ ok: false, error: String(error) }, 500);
-        }
-      },
+      fetch: provisioningHttp.stop,
     };
     connectionCtx.effect(
       () => connection.fetch.register(stopRoute),
@@ -630,7 +625,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
 
     const desktopHttp = createDesktopHandlers({
       json,
-      migratedLocal,
+      migratedLocal: () => migratedLocal() || desktopPaused(),
       legacyLocalRefusal,
       desktopView,
       activity,

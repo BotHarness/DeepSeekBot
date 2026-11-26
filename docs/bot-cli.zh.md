@@ -601,7 +601,26 @@ deepseekbot grants <bot-id>
 `accessibility-required` 表示需要在 Mac 的系统设置中允许助手使用辅助功能。解锁时，在已配对的
 iPhone 上打开 Computer。
 
-`computer-frame` 把 Computer 桌面（本机或容器）的当前画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
+对于使用旧版帧查看器的 Computer 目标，`computer-frame` 把当前桌面画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
+
+### 使用当前 Linux 桌面
+
+从当前登录的 GNOME Wayland 或 X11 桌面启动 Host。选中此目标后，Bot 和已配对的手机都能看到所共享的整块屏幕。
+
+```bash
+deepseekbot computer-target
+deepseekbot computer-target --target current-desktop --confirm
+deepseekbot computer-start --target current-desktop
+deepseekbot computer-status
+```
+
+在 GNOME Wayland 上，在系统共享对话框选择显示器，允许远程交互，勾选记住此次选择。如果需要输入文字，还要打开“允许访问剪贴板”，再点共享。Ubuntu 上的 Host 需要 `xdg-desktop-portal-gnome`、`python3-gi`、`gir1.2-gtk-4.0`、`gir1.2-gstreamer-1.0`、`gstreamer1.0-pipewire`、`gstreamer1.0-plugins-base` 和 `gstreamer1.0-plugins-good`。
+
+`computer-tools` 列出当前桌面可用的操作。用 `computer-tool <Bot ID> get_desktop_state --out <绝对路径>` 查看画面。再用 `--args-stdin` 向 `click`、`scroll`、`type_text`、`press_key` 或 `hotkey` 传参。Wayland 输入发往当前获得焦点的应用，坐标取自最新截图。`type_text` 通过 GNOME 剪贴板粘贴 UTF-8 文字，可以输入当前键盘布局之外的字符。这会替换电脑的剪贴板内容，需要在共享时允许剪贴板。请在电脑上输入凭据。Bot Browser 用独立的浏览器资料在同一个桌面打开可见窗口。
+
+查看 `status.state` 是否为 `running`。检查失败时，`status.refusal` 给出错误码，`status.detail` 给出下一步。通过局域网连接已配对的 Android，打开 **Computer**。用 CLI 驱动同一观看链路时，运行 `computer-video open --out <绝对路径>`。帧流返回 `binding` 和 `transport: "frames"`。将绑定 JSON 传给 `computer-video frame --args-stdin --out <绝对路径>`，并在 `takeover`、`input` 和 `release` 时复用绑定。如果等待新画面超时，CLI 返回 `no-frame`，可以用同一路径重试。只有 `resume` 会结束 Bot 暂停。每次保存 Computer 桌面画面时，使用 CLI 所在电脑上的新绝对路径。如果在暂停期间切换到 Linux 本机 Computer，用 `computer-video status` 读取新的 `runtimeId`，再通过标准输入传给 `computer-video resume --args-stdin`。
+
+锁屏时 GNOME 会停止共享。`computer-status` 和 `computer-video status` 会报告 `desktop-locked`。请在电脑上解锁。Host 会尝试恢复保存的授权，画面恢复前报告 `desktop-restoring`。如果 GNOME 再次显示共享对话框，请在电脑上确认。画面恢复后，Computer 和 Bot Browser 仍保持暂停，直到明确执行 `computer-video resume`。
 
 ### Activity、委派、会话与审批规则
 

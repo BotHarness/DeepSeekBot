@@ -1,5 +1,6 @@
 import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { createServer } from 'node:http';
+import { z } from 'zod';
 import { join } from 'node:path';
 import { afterEach, expect, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
@@ -30,6 +31,12 @@ export async function host(
   policyFailure?: { code: string; message: string },
   failure?: { code: string; details: Record<string, string> },
   memberSuccess?: unknown,
+  memberCall?: (input: {
+    username: string;
+    namespace: string;
+    method: string;
+    args: Record<string, unknown>;
+  }) => Promise<unknown>,
 ) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
   const server = createServer(
@@ -59,11 +66,15 @@ export async function host(
               },
               policyRevision: 'a'.repeat(64),
               policy: {
-                addMembers: 'everyone',
-                post: 'everyone',
-                mentionAll: 'everyone',
-                addBots: 'admins',
-                editDetails: 'admins',
+                version: 1 as const,
+                everyone: {
+                  addMembers: 'allow',
+                  post: 'allow',
+                  mentionAll: 'allow',
+                  addBots: 'deny',
+                  editDetails: 'deny',
+                },
+                overrides: [],
               },
             }
           : input.method === 'botharness/teamMode'
@@ -91,6 +102,16 @@ export async function host(
               : { type: 'server-response', rpcId: input.rpcId, result: { ok: false, error } },
           ),
         );
+      } else if (request.url === '/api/botharness/team-as' && memberCall) {
+        const args = z
+          .object({
+            username: z.string(),
+            namespace: z.string(),
+            method: z.string(),
+            args: z.record(z.string(), z.unknown()),
+          })
+          .parse(input);
+        response.end(JSON.stringify(await memberCall(args)));
       } else if (request.url === '/api/botharness/team-as')
         response.end(
           JSON.stringify({

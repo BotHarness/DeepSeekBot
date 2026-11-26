@@ -1,3 +1,4 @@
+import type { HostClient } from '@botharness/host-client/client';
 import {
   NATIVE_SESSION_ATTENTION_KIND,
   type HumanAttentionItem,
@@ -27,10 +28,12 @@ export function nativeSessionPreview(
 
 export function NativeSessionMark({
   native,
+  client,
   size,
   corner,
 }: {
   native: NativeSessionAttention;
+  client?: HostClient | undefined;
   size: number;
   corner: number;
 }) {
@@ -38,6 +41,8 @@ export function NativeSessionMark({
     <SessionFolderAvatar
       testID="activity-native-session-mark"
       folderName={native.folderName}
+      look={native.folderLook}
+      client={client}
       size={size}
       corner={corner}
     />

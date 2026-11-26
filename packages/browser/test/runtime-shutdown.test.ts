@@ -124,6 +124,43 @@ describe('local process shutdown ownership', () => {
     expect(spawnMock).toHaveBeenCalledTimes(2);
     await runtime.stop();
   });
+
+  it.each([false, true])(
+    'restarts for a mode change only without a concurrent stop (%s)',
+    async (interrupt) => {
+      const first = fakeChild();
+      const replacement = fakeChild();
+      first.proc.kill.mockReturnValue(true);
+      spawnMock.mockReturnValueOnce(first.proc as never).mockImplementation(() => {
+        queueMicrotask(() => replacement.ready());
+        return replacement.proc as never;
+      });
+      let headless = true;
+      const runtime = createBotBrowserRuntime({
+        userDataDir: '/tmp/browser-shutdown-test',
+        browserPath: '/test/chrome',
+        fileExists: () => true,
+        connect: async () => fakeClient(),
+        headless: () => headless,
+      });
+      const ready = runtime.ensure();
+      first.ready();
+      await ready;
+      headless = false;
+      const restarting = runtime.ensure();
+      const outcome = interrupt
+        ? expect(restarting).rejects.toThrow('Browser start was cancelled')
+        : expect(restarting).resolves.toBeUndefined();
+      await vi.waitFor(() => expect(first.proc.kill).toHaveBeenCalledWith('SIGTERM'));
+      const stopping = interrupt ? runtime.stop() : undefined;
+      first.proc.emit('close', 0);
+      await outcome;
+      await stopping;
+      expect(spawnMock).toHaveBeenCalledTimes(interrupt ? 1 : 2);
+      expect(runtime.isRunning()).toBe(!interrupt);
+      await runtime.stop();
+    },
+  );
 });
 
 describe('Container profile shutdown', () => {

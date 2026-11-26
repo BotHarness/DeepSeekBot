@@ -144,7 +144,7 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   {
     command: 'channels',
     description:
-      'list channels | access <id> | add-member <id> <username> | member-candidates <id> [--query <text>]',
+      'list channels | access <id> | add-member <id> <username> | member-candidates <id> [--query <text>] | policy <id> [--policy-stdin]',
   },
   { command: 'channel-messages', description: 'read channel messages' },
   { command: 'grants', description: 'list bot workspace grants' },

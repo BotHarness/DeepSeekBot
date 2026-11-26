@@ -1,4 +1,6 @@
+import type { HostSessionFolderLook } from '@botharness/host-protocol/host-sessions';
 import { describe, expect, it, vi } from 'vitest';
+import { createCore } from '../src/core.js';
 import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
 import {
   withNativeSessionAttention,
@@ -6,6 +8,7 @@ import {
 } from '../src/features/activity/native-session-attention.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { notificationAttentionPage } from '../src/runtime/notification-attention.js';
+import { createTempRoot } from './helpers.js';
 
 const botItem = (id: string, createdAt: string): HumanAttentionItem => ({
   id,
@@ -32,7 +35,13 @@ const entry = (over: Partial<NativeSessionAttentionEntry> = {}): NativeSessionAt
   ...over,
 });
 
-function setup(options: { enabled?: boolean; entries?: NativeSessionAttentionEntry[] } = {}) {
+function setup(
+  options: {
+    enabled?: boolean;
+    entries?: NativeSessionAttentionEntry[];
+    folderLook?: (cwd: string) => HostSessionFolderLook | undefined;
+  } = {},
+) {
   const list = vi.fn<HumanAttentionQuery['list']>((_human, input) => ({
     items:
       input.category === undefined || input.category === 'action'
@@ -52,11 +61,57 @@ function setup(options: { enabled?: boolean; entries?: NativeSessionAttentionEnt
     source: () => ({ list: () => options.entries ?? [entry()], subscribe: () => () => {} }),
     enabled: () => enabled,
     owner,
+    ...(options.folderLook === undefined ? {} : { folderLook: options.folderLook }),
   });
   return { query, list, status, setEnabled: (value: boolean) => (enabled = value) };
 }
 
 describe('native Session attention in Activity', () => {
+  it('invalidates live Activity when the look of a pending native Session changes', async () => {
+    const core = createCore({ dshHome: createTempRoot('native-attention-look-') });
+    const frames = core.live
+      .followRoster(OWNER_HUMAN_CONTEXT, AbortSignal.timeout(2_000))
+      [Symbol.asyncIterator]();
+    const current = () =>
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { source: 'native' }).items[0]?.nativeSession;
+    let stop: (() => void) | undefined;
+    try {
+      await frames.next();
+      stop = core.contributeNativeSessionAttention({
+        list: () => [entry()],
+        subscribe: () => () => {},
+      });
+      expect((await frames.next()).value).toEqual({ type: 'attention' });
+      expect(current()).not.toHaveProperty('folderLook');
+      core.workspaceLooks.set('/work/site', { color: 'purple' });
+      expect((await frames.next()).value).toEqual({ type: 'attention' });
+      expect(current()?.folderLook).toEqual({ color: 'purple' });
+
+      core.workspaceLooks.clear('/work/site');
+      expect((await frames.next()).value).toEqual({ type: 'attention' });
+      expect(current()).not.toHaveProperty('folderLook');
+    } finally {
+      stop?.();
+      await frames.return?.();
+      core.live.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
+  it('carries the folder look of the Session folder, and none for a folder without one', () => {
+    const look = { color: 'purple', icon: { kind: 'emoji', emoji: '🧪' } } as const;
+    const { query } = setup({
+      entries: [entry(), entry({ requestId: 'event-2', cwd: '/work/plain' })],
+      folderLook: (cwd) => (cwd === '/work/site' ? look : undefined),
+    });
+    const native = query
+      .list(OWNER_HUMAN_CONTEXT, { category: 'action', source: 'native' })
+      .items.map((item) => item.nativeSession);
+    expect(native[0]?.folderLook).toEqual(look);
+    expect(native[1]).not.toHaveProperty('folderLook');
+  });
+
   it('adds native requests to notification discovery only when the read asks and the switch is on', () => {
     const { query, setEnabled } = setup();
     const read = (source?: 'all') =>

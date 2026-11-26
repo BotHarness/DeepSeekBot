@@ -150,12 +150,15 @@ vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => nu
 vi.mock('../src/ui/shell/creation-avatar', () => ({
   CreationAvatar: ({
     onChange,
+    children,
   }: {
     onChange(avatar: { kind: 'generated'; seed: string } | { kind: 'photo'; image: string }): void;
+    children?: ReactNode;
   }) =>
     createElement(
       'div',
       null,
+      children,
       createElement(
         'button',
         {

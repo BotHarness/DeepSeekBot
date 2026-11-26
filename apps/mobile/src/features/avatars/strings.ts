@@ -1,16 +1,14 @@
 export const en = {
   avatarEditor: {
-    title: 'Customize',
     style: 'Avatar style',
     pixel: 'Pixel',
     photos: 'Choose from Photos',
     line: 'Line',
     preset: (n: number) => 'Preset ' + n,
     tilties: 'Tilties',
+    random: 'Random',
     tiltiesName: (en: string, _zh: string) => en,
-    preview: 'Avatar preview',
     saveFailed: 'Could not save the avatar. Try again.',
-    unavailable: 'Open Bot creation to customize its avatar.',
   },
   profileBanner: {
     change: 'Change banner',
@@ -29,17 +27,15 @@ export const en = {
 
 export const zh: typeof en = {
   avatarEditor: {
-    title: '捏人',
     style: '头像风格',
     pixel: '像素风',
     photos: '从相册选择',
     line: '线条风',
     preset: (n) => '预设 ' + n,
     tilties: '歪头团',
+    random: '随机',
     tiltiesName: (_en, zh) => zh,
-    preview: '头像预览',
     saveFailed: '头像未保存，请重试。',
-    unavailable: '请先打开创建 Bot。',
   },
   profileBanner: {
     change: '更换横幅',

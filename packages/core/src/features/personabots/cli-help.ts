@@ -180,9 +180,17 @@ Usage:
   tobs browser-takeover <id> (--enabled | --disabled)
   tobs browser-input <id> --args-stdin
   tobs browser-stop <id>
-  tobs computer-start [--target local|container]
+  tobs computer-target
+  tobs computer-target --target current-desktop --confirm
+  tobs computer-target --target local|container
+  tobs computer-start [--target current-desktop|local|container]
+    --target checks the saved selection. To switch, run computer-target first.
   tobs computer-status
   tobs computer-stop
+  tobs computer-video status
+  tobs computer-video open --out <absolute-file>
+  tobs computer-video frame --args-stdin --out <absolute-file>
+  tobs computer-video signal|heartbeat|takeover|input|release|resume|close --args-stdin
   tobs browser-tools
   tobs browser-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
   tobs memory-file-target|memory-graph|memory-commit-diff|memory-changes <id> [...]
