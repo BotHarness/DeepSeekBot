@@ -188,7 +188,7 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     name === 'bridge_source_block' &&
     operation &&
     'action' in operation &&
-    operation.action === 'list'
+    (operation.action === 'list' || operation.action === 'preview')
   ) {
     const { authority: _authority, ...listed } = effects;
     return { ...listed, changes: 'none' };

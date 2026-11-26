@@ -314,18 +314,34 @@ export function unblockConversationSource(
 
 export type BotSourceBlockInput =
   | { action: 'list' }
-  | { action: 'block'; scope: 'sender' | 'conversation' }
-  | { action: 'unblock'; blockId: string; expectedRevision?: number | undefined };
+  | { action: 'preview'; scope: 'sender' | 'conversation' }
+  | { action: 'block'; scope: 'sender' | 'conversation'; targetName: string; app: string }
+  | {
+      action: 'unblock';
+      blockId: string;
+      targetName: string;
+      expectedRevision?: number | undefined;
+    };
 
-export interface BotSourceBlockView {
-  blockId: string;
+export interface BotSourceBlockTarget {
   scope: 'sender' | 'conversation';
-  name?: string;
+  name: string;
   conversationKind?: 'dm' | 'group';
+  app: string;
+}
+
+export interface BotSourceBlockView extends BotSourceBlockTarget {
+  blockId: string;
   revision: number;
   blockedAt: string;
   blockedBy: SourceBlocker;
 }
+
+export type BotSourceBlockResult =
+  | { blocks: BotSourceBlockView[] }
+  | { target: BotSourceBlockTarget }
+  | { block: BotSourceBlockView }
+  | { unblocked: boolean };
 
 type BlockKey =
   | { scope: 'sender'; bindingId: string; actorId: string }
@@ -355,6 +371,54 @@ function readBlockId(value: string): BlockKey {
   throw new MessagingError('sender-block-unknown');
 }
 
+function appName(db: DatabaseSync, bindingId: string): string {
+  try {
+    return readMessagingIdentity(db, bindingId).name;
+  } catch {
+    return bindingId;
+  }
+}
+
+function senderView(db: DatabaseSync, block: SenderBlock): BotSourceBlockView {
+  return {
+    blockId: blockId({ scope: 'sender', bindingId: block.bindingId, actorId: block.actorId }),
+    scope: 'sender',
+    name: block.actorName ?? block.actorId,
+    app: appName(db, block.bindingId),
+    revision: block.revision,
+    blockedAt: block.blockedAt,
+    blockedBy: block.blockedBy,
+  };
+}
+
+function conversationView(db: DatabaseSync, block: ConversationSourceBlock): BotSourceBlockView {
+  return {
+    blockId: blockId({
+      scope: 'conversation',
+      bindingId: block.bindingId,
+      conversation: block.conversation,
+    }),
+    scope: 'conversation',
+    name: block.name ?? block.conversation.id,
+    conversationKind: block.conversation.kind,
+    app: appName(db, block.bindingId),
+    revision: block.revision,
+    blockedAt: block.blockedAt,
+    blockedBy: block.blockedBy,
+  };
+}
+
+function storedView(db: DatabaseSync, botSlug: string, key: BlockKey) {
+  const binding = readMessagingIdentity(db, key.bindingId);
+  if (binding.botSlug !== botSlug) throw new MessagingError('sender-block-scope');
+  if (key.scope === 'sender') {
+    const block = readSenderBlock(db, botSlug, binding.fingerprint, key.actorId);
+    return block && senderView(db, block);
+  }
+  const block = readConversationSourceBlock(db, botSlug, binding.fingerprint, key.conversation);
+  return block && conversationView(db, block);
+}
+
 export function botSourceBlocks(
   db: DatabaseSync,
   botSlug: string,
@@ -365,35 +429,19 @@ export function botSourceBlocks(
     conversation: ConversationRef;
     conversationName?: string;
   },
-): { blocks: BotSourceBlockView[] } | { block: BotSourceBlockView } | { unblocked: boolean } {
+): BotSourceBlockResult {
   if (input.action === 'list')
     return {
       blocks: [
-        ...listSenderBlocks(db, botSlug).map((block): BotSourceBlockView => ({
-          blockId: blockId({ scope: 'sender', bindingId: block.bindingId, actorId: block.actorId }),
-          scope: 'sender',
-          ...(block.actorName ? { name: block.actorName } : {}),
-          revision: block.revision,
-          blockedAt: block.blockedAt,
-          blockedBy: block.blockedBy,
-        })),
-        ...listConversationSourceBlocks(db, botSlug).map((block): BotSourceBlockView => ({
-          blockId: blockId({
-            scope: 'conversation',
-            bindingId: block.bindingId,
-            conversation: block.conversation,
-          }),
-          scope: 'conversation',
-          ...(block.name ? { name: block.name } : {}),
-          conversationKind: block.conversation.kind,
-          revision: block.revision,
-          blockedAt: block.blockedAt,
-          blockedBy: block.blockedBy,
-        })),
+        ...listSenderBlocks(db, botSlug).map((block) => senderView(db, block)),
+        ...listConversationSourceBlocks(db, botSlug).map((block) => conversationView(db, block)),
       ],
     };
   if (input.action === 'unblock') {
     const key = readBlockId(input.blockId);
+    const current = storedView(db, botSlug, key);
+    if (!current) return { unblocked: false };
+    if (current.name !== input.targetName) throw new MessagingError('source-block-mismatch');
     return {
       unblocked:
         key.scope === 'sender'
@@ -407,53 +455,49 @@ export function botSourceBlocks(
   if (!source) throw new MessagingError('source-unavailable');
   const bindingId = senderBlockBindingIds(db, botSlug, source.fingerprint)[0];
   if (!bindingId) throw new MessagingError('sender-block-scope');
+  const binding = usableBinding(db, botSlug, bindingId);
   const owner =
     source.actor.kind === 'user' && ownerActor(db, botSlug, source.fingerprint, source.actor.id);
-  if (input.scope === 'sender') {
-    if (source.actor.kind !== 'user') throw new MessagingError('sender-block-scope');
-    if (owner) throw new MessagingError('sender-block-owner');
-    const block = blockSender(
-      db,
-      botSlug,
-      { bindingId, actorId: source.actor.id, actorName: source.actor.name?.slice(0, 200) },
-      undefined,
-      'bot',
-    );
+  if (input.scope === 'sender' && source.actor.kind !== 'user')
+    throw new MessagingError('sender-block-scope');
+  if (owner && (input.scope === 'sender' || source.conversation.kind === 'dm'))
+    throw new MessagingError('sender-block-owner');
+  const actorName = source.actor.name?.slice(0, 200);
+  const conversationName = source.conversationName?.slice(0, 200);
+  const target: BotSourceBlockTarget =
+    input.scope === 'sender'
+      ? { scope: 'sender', name: actorName || source.actor.id, app: binding.name }
+      : {
+          scope: 'conversation',
+          name: conversationName || source.conversation.id,
+          conversationKind: source.conversation.kind,
+          app: binding.name,
+        };
+  if (input.action === 'preview') return { target };
+  if (input.targetName !== target.name || input.app !== target.app)
+    throw new MessagingError('source-block-mismatch');
+  if (input.scope === 'sender')
     return {
-      block: {
-        blockId: blockId({ scope: 'sender', bindingId: block.bindingId, actorId: block.actorId }),
-        scope: 'sender',
-        ...(block.actorName ? { name: block.actorName } : {}),
-        revision: block.revision,
-        blockedAt: block.blockedAt,
-        blockedBy: block.blockedBy,
-      },
+      block: senderView(
+        db,
+        blockSender(
+          db,
+          botSlug,
+          { bindingId: binding.id, actorId: source.actor.id, actorName },
+          undefined,
+          'bot',
+        ),
+      ),
     };
-  }
-  if (source.conversation.kind === 'dm' && owner) throw new MessagingError('sender-block-owner');
-  const block = blockConversationSource(
-    db,
-    botSlug,
-    {
-      bindingId,
-      conversation: source.conversation,
-      name: source.conversationName?.slice(0, 200),
-    },
-    'bot',
-  );
   return {
-    block: {
-      blockId: blockId({
-        scope: 'conversation',
-        bindingId: block.bindingId,
-        conversation: block.conversation,
-      }),
-      scope: 'conversation',
-      ...(block.name ? { name: block.name } : {}),
-      conversationKind: block.conversation.kind,
-      revision: block.revision,
-      blockedAt: block.blockedAt,
-      blockedBy: block.blockedBy,
-    },
+    block: conversationView(
+      db,
+      blockConversationSource(
+        db,
+        botSlug,
+        { bindingId: binding.id, conversation: source.conversation, name: conversationName },
+        'bot',
+      ),
+    ),
   };
 }

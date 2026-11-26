@@ -105,7 +105,7 @@ export function createOutboundConversations({
     sourceBlocks(botSlug, input) {
       active(botSlug);
       let source: Parameters<typeof botSourceBlocks>[3];
-      if (input.action === 'block') {
+      if (input.action === 'block' || input.action === 'preview') {
         if (
           typeof input.sourceEventId !== 'string' ||
           !input.sourceEventId ||
@@ -119,7 +119,7 @@ export function createOutboundConversations({
         (db) => botSourceBlocks(db, botSlug, input, source),
         ['pairing', 'bot-inbox'],
       );
-      if (input.action !== 'list') {
+      if (input.action === 'block' || input.action === 'unblock') {
         options.onAuthorizationChanged?.(botSlug);
         pairingCards.refresh(botSlug);
       }

@@ -284,15 +284,24 @@ export function registerExternalMessagingTools(
     defineTool({
       name: 'bridge_source_block',
       description:
-        "Rarely needed. Stop one external person, or one external group, channel or DM, from reaching you, or undo that. block takes a trusted source_event_id: scope sender blocks that message's author on that IM app, scope conversation blocks the conversation it came from. Blocked messages are dropped before you see them. The Owner's own IM accounts can never be blocked and still reach you inside a blocked conversation. list shows current blocks with blockId and revision; unblock takes a blockId. Every block or unblock asks the Human first.",
+        "Rarely needed. Stop one external person, or one external group, channel or DM, from reaching you, or undo that. First call preview with a trusted source_event_id and scope (sender: that message's author on that IM app; conversation: the conversation it came from); it returns the target name, or refuses with sender-block-owner for the Owner's own IM accounts, which can never be blocked and still reach you inside a blocked conversation. Then call block with the same source_event_id and scope plus the returned target_name and app. list shows current blocks with blockId, name and revision; unblock takes blockId, target_name and expected_revision. Blocked messages are dropped before you see them. Every block or unblock asks the Human first, showing target_name and app.",
       parameters: {
-        action: { type: 'string', required: true, enum: ['list', 'block', 'unblock'] },
+        action: { type: 'string', required: true, enum: ['list', 'preview', 'block', 'unblock'] },
         source_event_id: {
           type: 'string',
           description:
-            'For block: trusted Source Event ID of a message from the person or conversation.',
+            'For preview and block: trusted Source Event ID of a message from the person or conversation.',
         },
-        scope: { type: 'string', enum: ['sender', 'conversation'], description: 'For block.' },
+        scope: {
+          type: 'string',
+          enum: ['sender', 'conversation'],
+          description: 'For preview and block.',
+        },
+        target_name: {
+          type: 'string',
+          description: 'For block and unblock: the name returned by preview or list.',
+        },
+        app: { type: 'string', description: 'For block: the app returned by preview.' },
         block_id: { type: 'string', description: 'For unblock: blockId from list.' },
         expected_revision: { type: 'number', description: 'For unblock: revision from list.' },
       },
@@ -304,24 +313,34 @@ export function registerExternalMessagingTools(
         const active = currentRun();
         if (active === undefined || !active.externalMessaging?.sourceBlocks)
           throw new Error('bridge_source_block: unavailable');
-        if (args.action === 'list')
-          return JSON.stringify(active.externalMessaging.sourceBlocks({ action: 'list' }));
-        if (args.action === 'block') {
+        const blocks = active.externalMessaging.sourceBlocks;
+        if (args.action === 'list') return JSON.stringify(blocks({ action: 'list' }));
+        if (args.action === 'preview' || args.action === 'block') {
           if (!args.source_event_id || (args.scope !== 'sender' && args.scope !== 'conversation'))
-            throw new Error('bridge_source_block: block needs source_event_id and scope');
+            throw new Error(`bridge_source_block: ${args.action} needs source_event_id and scope`);
+          if (args.action === 'preview')
+            return JSON.stringify(
+              blocks({ action: 'preview', scope: args.scope, sourceEventId: args.source_event_id }),
+            );
+          if (!args.target_name || !args.app)
+            throw new Error('bridge_source_block: block needs target_name and app');
           return JSON.stringify(
-            active.externalMessaging.sourceBlocks({
+            blocks({
               action: 'block',
               scope: args.scope,
               sourceEventId: args.source_event_id,
+              targetName: args.target_name,
+              app: args.app,
             }),
           );
         }
-        if (!args.block_id) throw new Error('bridge_source_block: unblock needs block_id');
+        if (!args.block_id || !args.target_name)
+          throw new Error('bridge_source_block: unblock needs block_id and target_name');
         return JSON.stringify(
-          active.externalMessaging.sourceBlocks({
+          blocks({
             action: 'unblock',
             blockId: args.block_id,
+            targetName: args.target_name,
             ...(args.expected_revision === undefined
               ? {}
               : { expectedRevision: args.expected_revision }),

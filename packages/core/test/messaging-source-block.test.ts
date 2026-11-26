@@ -53,10 +53,36 @@ const blocked = (fx: Fixture, actorId: string, kind: 'dm' | 'group' = 'group') =
 it('the Bot blocks a conversation, drops everyone in it except the Owner, and unblocks it', async () => {
   const fx = await setup();
   const admitted = fx.admissions().length;
+  const sourceEventId = fx.sourceId('om-asked');
+  const preview = fx.core.externalMessaging.sourceBlocks('ada', {
+    action: 'preview',
+    scope: 'conversation',
+    sourceEventId,
+  });
+  expect(preview).toEqual({
+    target: {
+      scope: 'conversation',
+      name: channel,
+      conversationKind: 'group',
+      app: expect.any(String),
+    },
+  });
+  expect(blocked(fx, applicant)).toBe(false);
+  expect(() =>
+    fx.core.externalMessaging.sourceBlocks('ada', {
+      action: 'block',
+      scope: 'conversation',
+      sourceEventId,
+      targetName: 'Someone else',
+      app: (preview as { target: { app: string } }).target.app,
+    }),
+  ).toThrow('source-block-mismatch');
   const result = fx.core.externalMessaging.sourceBlocks('ada', {
     action: 'block',
     scope: 'conversation',
-    sourceEventId: fx.sourceId('om-asked'),
+    sourceEventId,
+    targetName: channel,
+    app: (preview as { target: { app: string } }).target.app,
   });
   expect(result).toMatchObject({
     block: { scope: 'conversation', conversationKind: 'group', blockedBy: 'bot', revision: 1 },
@@ -77,18 +103,18 @@ it('the Bot blocks a conversation, drops everyone in it except the Owner, and un
   ]);
   const list = fx.core.externalMessaging.sourceBlocks('ada', { action: 'list' });
   expect(list).toEqual({ blocks: [expect.objectContaining({ scope: 'conversation' })] });
-  const [block] = (list as { blocks: { blockId: string; revision: number }[] }).blocks;
+  const [block] = (list as { blocks: { blockId: string; name: string; revision: number }[] })
+    .blocks;
+  const unblock = { action: 'unblock' as const, blockId: block!.blockId, targetName: block!.name };
   expect(() =>
-    fx.core.externalMessaging.sourceBlocks('ada', {
-      action: 'unblock',
-      blockId: block!.blockId,
-      expectedRevision: 9,
-    }),
+    fx.core.externalMessaging.sourceBlocks('ada', { ...unblock, expectedRevision: 9 }),
   ).toThrow('sender-block-stale');
+  expect(() =>
+    fx.core.externalMessaging.sourceBlocks('ada', { ...unblock, targetName: 'Other' }),
+  ).toThrow('source-block-mismatch');
   expect(
     fx.core.externalMessaging.sourceBlocks('ada', {
-      action: 'unblock',
-      blockId: block!.blockId,
+      ...unblock,
       expectedRevision: block!.revision,
     }),
   ).toEqual({ unblocked: true });
@@ -104,8 +130,10 @@ it('the Bot blocks one person, but never the Owner or a DM with the Owner', asyn
       action: 'block',
       scope: 'sender',
       sourceEventId: fx.sourceId('om-asked'),
+      targetName: applicant,
+      app: fx.identity.name,
     }),
-  ).toMatchObject({ block: { scope: 'sender', blockedBy: 'bot' } });
+  ).toMatchObject({ block: { scope: 'sender', name: applicant, blockedBy: 'bot' } });
   expect(blocked(fx, applicant, 'dm')).toBe(true);
 
   const ownerSource = {
@@ -116,7 +144,7 @@ it('the Bot blocks one person, but never the Owner or a DM with the Owner', asyn
   const database = attachOperationalModule(fx.core.operationalDatabase, 'test');
   for (const scope of ['sender', 'conversation'] as const)
     expect(() =>
-      database.read((db) => botSourceBlocks(db, 'ada', { action: 'block', scope }, ownerSource)),
+      database.read((db) => botSourceBlocks(db, 'ada', { action: 'preview', scope }, ownerSource)),
     ).toThrow('sender-block-owner');
 
   const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
@@ -160,4 +188,5 @@ it('blocking asks the Human first, listing does not', () => {
     personalData: true,
   });
   expect(toolApprovalRequired('bridge_source_block', { action: 'list' }, false)).toBe(false);
+  expect(toolApprovalRequired('bridge_source_block', { action: 'preview' }, false)).toBe(false);
 });
