@@ -15,6 +15,12 @@ export const MEETING_ATTENDANCE_MIGRATION: SchemaMigration = {
     rebuildWithKind(database, 'source_events', 'self-record', ['meeting-speech']);
     rebuildWithKind(database, 'inbox_admissions', 'bot-action', ['meeting']);
     for (const object of linked) database.exec(object.sql);
+    if (
+      database
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'inbox_history_fts'")
+        .get() !== undefined
+    )
+      database.exec("INSERT INTO inbox_history_fts(inbox_history_fts) VALUES ('rebuild')");
     database.exec(`
       CREATE TABLE meeting_attendances (
         attendance_id TEXT PRIMARY KEY,

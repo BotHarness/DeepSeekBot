@@ -310,6 +310,7 @@ export interface VoiceCallReadiness {
   readonly media: 'ready' | 'unsupported-platform' | 'helper-missing' | 'unavailable';
   readonly activeCallId: string | null;
   readonly callElsewhere: boolean;
+  readonly voiceOff?: readonly ('asr' | 'tts')[];
 }
 
 export type VoiceCallCommand =

@@ -14,7 +14,7 @@ export interface OrchestratorMeetings {
 export function bindMeetingCommands(input: {
   readonly meetings: Meetings;
   readonly store: Pick<MeetingStore, 'get' | 'list' | 'lines'>;
-  readonly bot: PersonaBotRecord;
+  readonly bot: Pick<PersonaBotRecord, 'slug'>;
   readonly markSideEffect: () => void;
 }): OrchestratorMeetings {
   const { meetings, store, bot } = input;

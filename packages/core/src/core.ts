@@ -364,14 +364,19 @@ function initializeCore(
   const meetingStore = createMeetingStore({
     database: attachOperationalModule(operationalDatabase, 'meetings'),
   });
-  if (operationalDatabase.mode === 'ready') meetingStore.failInterrupted();
+  const interruptedMeetings =
+    operationalDatabase.mode === 'ready' ? meetingStore.failInterrupted() : [];
   const meetings = createMeetings({
     store: meetingStore,
     async stopCall(callId) {
-      await voiceCallsRef.current?.handle(
+      const calls = voiceCallsRef.current;
+      if (calls === undefined) return;
+      const result = await calls.handle(
         { deviceId: VOICE_CALL_HOST_OWNER },
         { kind: 'hangup', callId },
       );
+      if (!result.ok && result.code !== 'call-not-found')
+        throw new Error(`Could not stop the meeting call: ${result.error}`);
     },
     admitted: (slug) => runtime?.admitMeetingSpeech?.(slug),
     ...(options.voiceLog === undefined
@@ -444,6 +449,8 @@ function initializeCore(
   );
   startup.enter('bot-schedules', 'start');
   botSchedules.start(schedules, operationalDatabase);
+  for (const meeting of interruptedMeetings)
+    if (meeting.wake) runtime?.admitMeetingSpeech?.(meeting.botSlug);
   return {
     voiceProviders,
     voiceMessages,

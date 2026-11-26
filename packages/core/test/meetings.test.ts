@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { defineSchemaPlan } from '../src/database/schema.js';
 import { coalesceInbox } from '../src/features/activity/inbox-harvest.js';
 import { bindMeetingCommands } from '../src/meetings/commands.js';
 import { createMeetings } from '../src/meetings/meetings.js';
@@ -12,7 +13,6 @@ import {
 } from '../src/meetings/store.js';
 import { inboxLine } from '../src/runtime/inbox-render.js';
 import { runMeetingCommand } from '../src/bots/cli-meetings.js';
-import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 function database() {
@@ -57,6 +57,44 @@ function pendingMeetingRows(store: MeetingStore, port: ReturnType<typeof databas
 }
 
 describe('meeting store', () => {
+  it('keeps Inbox history search on the right events after the kind rebuild renumbers rows', () => {
+    const dshHome = createTempRoot('bh-meetings-upgrade-');
+    const plan = BOT_HARNESS_SCHEMA_PLAN.migrations;
+    const before = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome,
+        schemaPlan: defineSchemaPlan(
+          plan.slice(
+            0,
+            plan.findIndex((migration) => migration.id === 'meeting-attendance'),
+          ),
+        ),
+      }),
+    );
+    attachOperationalModule(before, 'meetings-upgrade').transaction((db) => {
+      const insert = db.prepare(
+        "INSERT INTO source_events (source_event_id, source_kind, bot_slug, body, created_at) VALUES (?, 'schedule', 'ada', ?, '2026-01-01T00:00:00.000Z')",
+      );
+      insert.run('gone', 'removed alpha');
+      insert.run('kept', 'quarterly roadmap');
+      db.prepare("DELETE FROM source_events WHERE source_event_id = 'gone'").run();
+    });
+    before.close();
+    const after = trackTestOwner(
+      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+    );
+    const found = attachOperationalModule(after, 'meetings-upgrade').read((db) =>
+      db
+        .prepare(`
+          SELECT e.source_event_id FROM inbox_history_fts f
+            JOIN source_events e ON e.rowid = f.rowid
+           WHERE inbox_history_fts MATCH 'roadmap'
+        `)
+        .all(),
+    );
+    expect(found).toEqual([{ source_event_id: 'kept' }]);
+  });
+
   it('keeps the Inbox history view and triggers across the kind rebuild', () => {
     const { port } = storeFixture();
     const names = port.read((db) =>
@@ -132,16 +170,78 @@ describe('meeting store', () => {
     expect(store.live('ada')).toBeUndefined();
   });
 
-  it('fails attendances a stopped Host left open', () => {
-    const { store } = storeFixture();
+  it('fails attendances a stopped Host left open and tells the Bot the meeting ended', () => {
+    const { port, store } = storeFixture();
+    const silent = store.create({
+      botSlug: 'kai',
+      platform: 'synthetic',
+      callId: 'call-0',
+      dispatcher,
+    });
     const meeting = store.create({
       botSlug: 'ada',
       platform: 'synthetic',
       callId: 'call-1',
       dispatcher,
     });
-    expect(store.failInterrupted()).toEqual([meeting.id]);
+    store.hear(meeting.id, { body: 'Ship on Friday?' });
+    expect(store.failInterrupted()).toEqual([
+      { id: silent.id, botSlug: 'kai', wake: false },
+      { id: meeting.id, botSlug: 'ada', wake: true },
+    ]);
     expect(store.get(meeting.id)).toMatchObject({ state: 'failed', endReason: 'host-stopped' });
+    const rows = pendingMeetingRows(store, port);
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0]!.meeting_json).meeting).toMatchObject({ ended: 'host-stopped' });
+  });
+
+  it('starts a new Inbox batch instead of dropping unread lines', () => {
+    const { port, store } = storeFixture();
+    const meeting = store.create({
+      botSlug: 'ada',
+      platform: 'synthetic',
+      callId: 'call-1',
+      dispatcher,
+    });
+    for (let index = 1; index <= 201; index += 1) store.hear(meeting.id, { body: `line ${index}` });
+    store.end(meeting.id, 'left', 'owner-stopped');
+    const rows = pendingMeetingRows(store, port);
+    expect(rows).toHaveLength(2);
+    const units = coalesceInbox(
+      rows.map((row) => ({
+        ...row,
+        assignment_session_id: null,
+        expects_reply: 0,
+        continuity_key: null,
+        activity: null,
+      })),
+    );
+    expect(units).toHaveLength(1);
+    expect(units[0]!.meeting?.lines).toHaveLength(201);
+    expect(units[0]!.meeting?.lines[0]!.body).toBe('line 1');
+    expect(units[0]!.meeting?.ended).toBe('owner-stopped');
+  });
+
+  it('wakes the Bot again when the meeting ends on a batch whose turn failed', () => {
+    const { port, store } = storeFixture();
+    const meeting = store.create({
+      botSlug: 'ada',
+      platform: 'synthetic',
+      callId: 'call-1',
+      dispatcher,
+    });
+    const heard = store.hear(meeting.id, { body: 'Ship on Friday?' })!;
+    port.transaction((db) => {
+      db.prepare(
+        "UPDATE inbox_admissions SET attempt_state = 'retryable' WHERE source_event_id = ?",
+      ).run(heard.sourceEventId);
+    });
+    expect(hasPendingMeetingSpeech(port, 'ada')).toBe(false);
+    expect(store.end(meeting.id, 'left', 'owner-stopped')).toMatchObject({
+      admitted: false,
+      wake: true,
+    });
+    expect(hasPendingMeetingSpeech(port, 'ada')).toBe(true);
   });
 });
 
@@ -206,6 +306,64 @@ describe('meetings', () => {
     expect(admitted).toEqual(['ada']);
   });
 
+  it('keeps the Bot in the meeting when stopping the call fails, so leaving can be retried', async () => {
+    const { store } = storeFixture();
+    let fail = true;
+    let meetings: ReturnType<typeof createMeetings>;
+    const ended: string[] = [];
+    meetings = createMeetings({
+      store,
+      admitted: () => undefined,
+      stopCall: async () => {
+        if (fail) throw new Error('helper offline');
+        meetings.callEnded(meeting.id, 'hangup');
+        ended.push('hangup');
+      },
+    });
+    cleanup.push(() => meetings.dispose());
+    const meeting = meetings.begin({
+      slug: 'ada',
+      callId: 'call-1',
+      platform: 'owner-window',
+      dispatcher,
+    });
+    await expect(meetings.leave('ada')).rejects.toThrow('helper offline');
+    expect(store.get(meeting.id)?.state).toBe('in-meeting');
+    fail = false;
+    await expect(meetings.leave('ada')).resolves.toMatchObject({
+      state: 'left',
+      endReason: 'asked-to-leave',
+    });
+    expect(ended).toEqual(['hangup']);
+  });
+
+  it('retries the time limit when stopping the call fails', async () => {
+    vi.useFakeTimers();
+    const { store } = storeFixture();
+    let attempts = 0;
+    const meetings = createMeetings({
+      store,
+      admitted: () => undefined,
+      stopCall: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('helper offline');
+      },
+      limits: { maxDurationMs: 1_000 },
+    });
+    cleanup.push(() => meetings.dispose());
+    const meeting = meetings.begin({
+      slug: 'ada',
+      callId: 'call-1',
+      platform: 'owner-window',
+      dispatcher,
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(store.get(meeting.id)?.state).toBe('in-meeting');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(attempts).toBe(2);
+    expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'time-limit' });
+  });
+
   it('stops the call when the Bot leaves or the time limit passes', async () => {
     vi.useFakeTimers();
     const { begin, meetings, store, stopped } = meetingsFixture({ maxDurationMs: 1_000 });
@@ -233,13 +391,13 @@ describe('meeting commands', () => {
     const ada = bindMeetingCommands({
       meetings,
       store,
-      bot: { slug: 'ada' } as PersonaBotRecord,
+      bot: { slug: 'ada' },
       markSideEffect: () => undefined,
     });
     const kai = bindMeetingCommands({
       meetings,
       store,
-      bot: { slug: 'kai' } as PersonaBotRecord,
+      bot: { slug: 'kai' },
       markSideEffect: () => undefined,
     });
     expect(ada.transcript({}).lines.map((line) => line.body)).toEqual(['hello']);

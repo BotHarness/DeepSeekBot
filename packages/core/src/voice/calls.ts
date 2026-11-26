@@ -167,7 +167,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     recordEnd(call, reason);
-    if (call.meetingId !== undefined) deps.meetings?.callEnded(call.meetingId, reason);
+    if (call.meetingId !== undefined)
+      try {
+        deps.meetings?.callEnded(call.meetingId, reason);
+      } catch (error) {
+        log('call-meeting-end-failed', { call: call.id, error: String(error).slice(0, 200) });
+      }
     const perf = call.perf.view();
     if (perf === undefined && call.connected && call.peer?.stats !== undefined)
       log('call-media-summary', { call: call.id, samples: 0 });
@@ -234,7 +239,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
 
   const hear = (call: Call, samples: Int16Array) => {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
-    if (call.muted) return;
+    if (call.muted && call.meetingId === undefined) return;
     call.vad.raise(!call.vad.speaking && now() < call.guardUntil ? barge.echoGuardDb : 0);
     for (const event of call.vad.push(samples)) {
       if (event.type === 'speech-start') {

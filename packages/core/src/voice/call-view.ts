@@ -241,7 +241,10 @@ export function callReadinessVerdict(
 function meetingReadiness(
   readiness: Exclude<CallReadinessAnswer, { code: unknown }>,
 ): Exclude<CallReadinessAnswer, { code: unknown }> {
-  const missing = readiness.missing.filter((item) => item !== 'tts');
+  const ttsOnly = readiness.voiceOff !== undefined && !readiness.voiceOff.includes('asr');
+  const missing = readiness.missing.filter(
+    (item) => item !== 'tts' && !(item === 'local-voice-off' && ttsOnly),
+  );
   return { ...readiness, missing, ready: missing.length === 0 };
 }
 

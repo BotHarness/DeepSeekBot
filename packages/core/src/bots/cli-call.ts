@@ -226,6 +226,8 @@ async function simulate(
   const meeting = values['as-meeting'] === true;
   if (meeting && (visual !== undefined || steps.some((step) => step.text !== undefined)))
     usage('--as-meeting plays audio only: no --video, --screen or typed text.');
+  if (meeting && steps.some((step) => step.after === 'playing'))
+    usage('--as-meeting: the Bot never speaks, so no step can wait for "playing".');
   const opened = result(
     await post({ kind: 'open', slug, media: 'synthetic', ...(meeting ? { meeting: true } : {}) }),
   );

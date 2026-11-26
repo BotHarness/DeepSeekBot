@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 describe('a meeting through the real call pipeline', () => {
-  it('turns the Owner window meeting sound into transcript lines and Inbox wakes, never TTS, a DM or a call record', async () => {
+  it('turns the Owner window meeting sound into transcript lines and Inbox wakes, even with the Owner muted, never TTS, a DM or a call record', async () => {
     const owner = trackTestOwner(
       mountOperationalDatabase({
         dshHome: createTempRoot('bh-meeting-pipeline-'),
@@ -90,6 +90,8 @@ describe('a meeting through the real call pipeline', () => {
     const meetingId = call.meetingId!;
     expect(store.get(meetingId)).toMatchObject({ state: 'in-meeting', callId: call.callId });
 
+    const muted = await calls.handle(caller, { kind: 'mute', callId: call.callId, muted: true });
+    expect(muted).toMatchObject({ ok: true, call: { muted: true } });
     const say = concat(silence(300), speech(1400), silence(900));
     for (const part of [say, say])
       for (let offset = 0; offset < part.length; offset += 3_200)

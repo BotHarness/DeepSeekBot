@@ -57,6 +57,8 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const log = deps.log ?? (() => undefined);
 
+  const stopping = new Map<string, MeetingEndReason>();
+
   const end = (attendanceId: string, state: 'left' | 'failed', reason: MeetingEndReason) => {
     clearTimeout(timers.get(attendanceId));
     timers.delete(attendanceId);
@@ -64,12 +66,26 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
     const ended = deps.store.end(attendanceId, state, reason);
     if (meeting === undefined || ended === undefined) return;
     log('meeting-ended', { meeting: attendanceId, bot: meeting.botSlug, reason });
-    if (ended.admitted) deps.admitted(meeting.botSlug);
+    if (ended.wake) deps.admitted(meeting.botSlug);
   };
 
   const stop = async (meeting: MeetingAttendance, reason: MeetingEndReason) => {
-    end(meeting.id, 'left', reason);
-    await deps.stopCall(meeting.callId).catch(() => undefined);
+    stopping.set(meeting.id, reason);
+    try {
+      await deps.stopCall(meeting.callId);
+    } finally {
+      stopping.delete(meeting.id);
+    }
+    if (deps.store.get(meeting.id)?.state === 'in-meeting') end(meeting.id, 'left', reason);
+  };
+
+  const expire = (meeting: MeetingAttendance) => {
+    stop(meeting, 'time-limit').catch((error: unknown) => {
+      log('meeting-stop-failed', { meeting: meeting.id, error: String(error).slice(0, 200) });
+      const retry = setTimeout(() => expire(meeting), 30_000);
+      retry.unref?.();
+      timers.set(meeting.id, retry);
+    });
   };
 
   return {
@@ -83,13 +99,15 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
         ...(input.originChannelId === undefined ? {} : { originChannelId: input.originChannelId }),
         dispatcher: input.dispatcher,
       });
-      const timer = setTimeout(() => void stop(meeting, 'time-limit'), limits.maxDurationMs);
+      const timer = setTimeout(() => expire(meeting), limits.maxDurationMs);
       timer.unref?.();
       timers.set(meeting.id, timer);
       log('meeting-started', { meeting: meeting.id, bot: input.slug, call: input.callId });
       return meeting;
     },
     callEnded(attendanceId, reason) {
+      const asked = stopping.get(attendanceId);
+      if (asked !== undefined) return end(attendanceId, 'left', asked);
       const mapped = CALL_END_REASONS[reason] ?? 'audio-lost';
       end(attendanceId, mapped === 'owner-stopped' ? 'left' : 'failed', mapped);
     },
@@ -109,7 +127,7 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
     },
     hear(attendanceId, body) {
       const heard = deps.store.hear(attendanceId, { body });
-      if (heard?.admitted !== true) return;
+      if (heard?.wake !== true) return;
       const meeting = deps.store.get(attendanceId);
       if (meeting !== undefined) deps.admitted(meeting.botSlug);
     },

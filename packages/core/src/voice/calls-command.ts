@@ -172,6 +172,10 @@ export function createCallCommands(wiring: {
     if (asrVoice === undefined || asrVoice.state === 'missing') missing.push('asr');
     if (ttsVoice === undefined || ttsVoice.state === 'missing') missing.push('tts');
     if (asrVoice?.state === 'off' || ttsVoice?.state === 'off') missing.push('local-voice-off');
+    const voiceOff = [
+      ...(asrVoice?.state === 'off' ? (['asr'] as const) : []),
+      ...(ttsVoice?.state === 'off' ? (['tts'] as const) : []),
+    ];
     const media = deps.media();
     const availability =
       media === undefined
@@ -195,6 +199,7 @@ export function createCallCommands(wiring: {
           ? active.id
           : null,
       callElsewhere: active !== undefined && !sameCaller(active, caller),
+      ...(voiceOff.length === 0 ? {} : { voiceOff }),
     };
   };
 
@@ -523,7 +528,7 @@ export function createCallCommands(wiring: {
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
         if (call.muted !== command['muted']) {
           call.muted = command['muted'];
-          if (call.muted) {
+          if (call.muted && call.meetingId === undefined) {
             call.vad.reset();
             dropStream(call);
             if (call.barge !== undefined) {

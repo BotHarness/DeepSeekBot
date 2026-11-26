@@ -259,6 +259,17 @@ describe('deepseekbot call commands', () => {
         .jpeg()
         .toFile(join(frames, `${index + 1}.jpg`));
     const script = join(root, 'script.json');
+    const playing = join(root, 'playing.json');
+    writeFileSync(
+      playing,
+      JSON.stringify([
+        { at: 0, file },
+        { at: 500, after: 'playing', file },
+      ]),
+    );
+    await expect(
+      host().run('call-simulate', ['ada'], { script: playing, 'as-meeting': true }),
+    ).rejects.toMatchObject({ code: 'usage', message: expect.stringContaining('playing') });
     writeFileSync(
       script,
       JSON.stringify([

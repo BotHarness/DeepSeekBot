@@ -213,6 +213,17 @@ describe('call view: readiness', () => {
     ).toBe(true);
   });
 
+  it('lets a meeting through when only the local TTS service is off, not the local ASR one', () => {
+    const off = (voiceOff: ('asr' | 'tts')[]) =>
+      readiness({ ready: false, missing: ['tts', 'local-voice-off'], voiceOff });
+    expect(callReadinessVerdict(off(['tts']), { meeting: true })).toMatchObject({ dial: true });
+    expect(callReadinessVerdict(off(['tts']))).toMatchObject({ dial: false });
+    expect(callReadinessVerdict(off(['asr']), { meeting: true })).toMatchObject({
+      dial: false,
+      notices: ['missing.local-voice-off'],
+    });
+  });
+
   it('turns a refused readiness check into one notice', () => {
     expect(callReadinessVerdict({ code: 'unreachable', error: 'offline' })).toEqual({
       dial: false,

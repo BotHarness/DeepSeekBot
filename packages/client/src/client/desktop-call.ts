@@ -31,6 +31,7 @@ import {
   type CallCaptureErrorCode,
 } from './call-camera.js';
 import { createBrowserCallMedia, type BrowserCallMedia } from './call-media.js';
+import { openMeetingSound, type MeetingSound } from './meeting-sound.js';
 import { watchCallPresence } from './call-presence.js';
 import { createVoiceCallBridge } from './features/voice/call-bridge.js';
 export type { CallPost, VoiceCallResult };
@@ -142,13 +143,17 @@ export function createDesktopCall(
     post?: CallPost;
     media?: (input: {
       readonly meeting: boolean;
+      readonly sound?: Promise<MeetingSound>;
     }) => CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>;
+    meetingSound?: () => Promise<MeetingSound>;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
   } = {},
 ): DesktopCall {
   const post = options.post ?? createCallPost(windowClientId());
   const media = options.media ?? ((input) => createBrowserCallMedia(undefined, input));
+  const meetingSound =
+    options.meetingSound ?? (() => openMeetingSound(globalThis.navigator?.mediaDevices));
   const makeCapture =
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
   const listeners = new Set<() => void>();
@@ -190,6 +195,8 @@ export function createDesktopCall(
     async start(slug, place, startOptions) {
       if (current.checking || active()) return;
       const meeting = startOptions?.meeting === true;
+      const sound = meeting ? meetingSound() : undefined;
+      sound?.catch(() => undefined);
       session?.dispose();
       session = undefined;
       sessionMedia = undefined;
@@ -209,13 +216,14 @@ export function createDesktopCall(
         verdict = callReadinessVerdict({ code: 'unreachable', error: '' });
       }
       if (!verdict.dial) {
+        void sound?.then((owned) => owned.release()).catch(() => undefined);
         set({
           checking: false,
           block: { kind: verdict.blocked ?? 'refused', notices: verdict.notices },
         });
         return;
       }
-      const ownedMedia = media({ meeting });
+      const ownedMedia = media({ meeting, ...(sound === undefined ? {} : { sound }) });
       const owned: CallSession<DesktopCapture, CallCaptureErrorCode> = createCallSession<
         DesktopCapture,
         CallCaptureErrorCode

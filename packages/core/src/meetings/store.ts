@@ -96,15 +96,22 @@ export interface MeetingStore {
     id: string,
     state: 'left' | 'failed',
     reason: MeetingEndReason,
-  ): { readonly admitted: boolean } | undefined;
+  ): { readonly admitted: boolean; readonly wake: boolean } | undefined;
   lines(id: string, after?: number): MeetingLine[];
-  failInterrupted(): string[];
+  failInterrupted(): InterruptedMeeting[];
 }
 
 export interface HeardLine {
   readonly line?: MeetingLine;
   readonly sourceEventId: string;
   readonly admitted: boolean;
+  readonly wake: boolean;
+}
+
+export interface InterruptedMeeting {
+  readonly id: string;
+  readonly botSlug: string;
+  readonly wake: boolean;
 }
 
 export function createMeetingStore(options: {
@@ -150,7 +157,7 @@ export function createMeetingStore(options: {
   ): HeardLine => {
     const pending = db
       .prepare(`
-        SELECT e.source_event_id, e.payload_json FROM source_events e
+        SELECT e.source_event_id, e.payload_json, a.attempt_state FROM source_events e
           JOIN inbox_admissions a ON a.source_event_id = e.source_event_id AND a.bot_slug = e.bot_slug
          WHERE e.source_kind = 'meeting-speech' AND e.bot_slug = ?
            AND json_extract(e.payload_json, '$.meeting.id') = ?
@@ -159,13 +166,14 @@ export function createMeetingStore(options: {
          ORDER BY e.rowid DESC LIMIT 1
       `)
       .get(current.bot_slug, current.attendance_id) as
-      | { source_event_id: string; payload_json: string }
+      | { source_event_id: string; payload_json: string; attempt_state: string }
       | undefined;
     const previous =
       pending === undefined
         ? []
         : (JSON.parse(pending.payload_json) as { meeting: MeetingSpeechFacts }).meeting.lines;
-    const lines = [...previous, ...(line === undefined ? [] : [line])].slice(-PENDING_LINES);
+    const merge = pending !== undefined && (line === undefined || previous.length < PENDING_LINES);
+    const lines = [...(merge ? previous : []), ...(line === undefined ? [] : [line])];
     const facts: MeetingSpeechFacts = {
       id: current.attendance_id,
       platform: current.platform,
@@ -175,14 +183,20 @@ export function createMeetingStore(options: {
     };
     const payload = JSON.stringify({ meeting: facts });
     const body = ended !== undefined ? `Meeting ended: ${ended}` : (line?.body ?? '');
-    if (pending !== undefined) {
+    if (merge) {
       db.prepare(
         'UPDATE source_events SET body = ?, payload_json = ? WHERE source_event_id = ?',
       ).run(body, payload, pending.source_event_id);
+      const wake = ended !== undefined && pending.attempt_state === 'retryable';
+      if (wake)
+        db.prepare(
+          "UPDATE inbox_admissions SET attempt_state = 'pending' WHERE source_event_id = ? AND bot_slug = ?",
+        ).run(pending.source_event_id, current.bot_slug);
       return {
         ...(line === undefined ? {} : { line }),
         sourceEventId: pending.source_event_id,
         admitted: false,
+        wake,
       };
     }
     const sourceEventId = createId();
@@ -194,7 +208,7 @@ export function createMeetingStore(options: {
       INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_wake_mode)
       VALUES (?, ?, 'meeting', 'immediate')
     `).run(sourceEventId, current.bot_slug);
-    return { ...(line === undefined ? {} : { line }), sourceEventId, admitted: true };
+    return { ...(line === undefined ? {} : { line }), sourceEventId, admitted: true, wake: true };
   };
 
   return {
@@ -265,7 +279,9 @@ export function createMeetingStore(options: {
         const heard = db
           .prepare('SELECT 1 FROM meeting_lines WHERE attendance_id = ? LIMIT 1')
           .get(id);
-        return heard === undefined ? { admitted: false } : admit(db, current, undefined, reason);
+        return heard === undefined
+          ? { admitted: false, wake: false }
+          : admit(db, current, undefined, reason);
       }, TOPICS);
     },
     lines(id, after = 0) {
@@ -294,12 +310,22 @@ export function createMeetingStore(options: {
     failInterrupted() {
       return database.transaction((db) => {
         const live = db
-          .prepare("SELECT attendance_id FROM meeting_attendances WHERE state = 'in-meeting'")
-          .all() as Array<{ attendance_id: string }>;
+          .prepare("SELECT * FROM meeting_attendances WHERE state = 'in-meeting'")
+          .all() as unknown as AttendanceRow[];
         db.prepare(
           "UPDATE meeting_attendances SET state = 'failed', ended_at = ?, end_reason = 'host-stopped' WHERE state = 'in-meeting'",
         ).run(now().toISOString());
-        return live.map((item) => item.attendance_id);
+        return live.map((current) => {
+          const heard = db
+            .prepare('SELECT 1 FROM meeting_lines WHERE attendance_id = ? LIMIT 1')
+            .get(current.attendance_id);
+          if (heard !== undefined) admit(db, current, undefined, 'host-stopped');
+          return {
+            id: current.attendance_id,
+            botSlug: current.bot_slug,
+            wake: heard !== undefined,
+          };
+        });
       }, TOPICS);
     },
   };

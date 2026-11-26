@@ -87,7 +87,7 @@ function meterMicrophone(stream: MediaStream): MicMeter | undefined {
 
 export function createBrowserCallMedia(
   devices: () => MediaDevices | undefined = () => globalThis.navigator?.mediaDevices,
-  options: { readonly meeting?: boolean } = {},
+  options: { readonly meeting?: boolean; readonly sound?: Promise<MeetingSound> } = {},
 ): BrowserCallMedia {
   const listeners = new Set<(state: CallMediaState, code?: CallMediaCode) => void>();
   let peer: RTCPeerConnection | undefined;
@@ -95,11 +95,24 @@ export function createBrowserCallMedia(
   let speaker: HTMLAudioElement | undefined;
   let meter: MicMeter | undefined;
   let sound: MeetingSound | undefined;
+  let shared: Promise<MeetingSound> | undefined;
+  let stopped = false;
   let generation = 0;
   let muted = false;
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
   };
+  const watch = (pending: Promise<MeetingSound>) => {
+    pending
+      .then((owned) =>
+        owned.onEnded(() => {
+          if (!stopped) emit('closed', 'meeting-sound-ended');
+        }),
+      )
+      .catch(() => undefined);
+    return pending;
+  };
+  if (options.sound !== undefined) shared = watch(options.sound);
   const release = () => {
     generation += 1;
     const current = peer;
@@ -111,9 +124,8 @@ export function createBrowserCallMedia(
     }
     meter?.close();
     meter = undefined;
-    sound?.release();
     sound = undefined;
-    for (const track of stream?.getTracks() ?? []) track.stop();
+    if (shared === undefined) for (const track of stream?.getTracks() ?? []) track.stop();
     stream = undefined;
     if (speaker !== undefined) {
       speaker.pause();
@@ -124,6 +136,7 @@ export function createBrowserCallMedia(
   return {
     async start({ offer }) {
       release();
+      stopped = false;
       const media = devices();
       if (media?.getUserMedia === undefined) throw new CallMicrophoneError('microphone-missing');
       const owned = generation;
@@ -131,9 +144,8 @@ export function createBrowserCallMedia(
       let opened: MeetingSound | undefined;
       try {
         if (options.meeting === true) {
-          opened = await openMeetingSound(media, () => {
-            if (owned === generation) emit('closed', 'meeting-sound-ended');
-          });
+          shared ??= watch(openMeetingSound(media));
+          opened = await shared;
           acquired = opened.stream;
         } else acquired = (await openMicrophone(media)).stream;
       } catch (error) {
@@ -146,8 +158,7 @@ export function createBrowserCallMedia(
         );
       }
       if (owned !== generation) {
-        opened?.release();
-        for (const late of acquired.getTracks()) late.stop();
+        if (opened === undefined) for (const late of acquired.getTracks()) late.stop();
         throw new Error('call-stopped');
       }
       stream = acquired;
@@ -192,6 +203,9 @@ export function createBrowserCallMedia(
     },
     stop() {
       release();
+      stopped = true;
+      void shared?.then((owned) => owned.release()).catch(() => undefined);
+      shared = undefined;
       muted = false;
     },
     level: () => (muted || meter === undefined ? 0 : meter.read()),
