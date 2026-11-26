@@ -9,7 +9,7 @@ import type {
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { SegmentedControl } from './ds/segmented.js';
+import { ChipTabs } from './ds/chip-tabs.js';
 import { space } from './ds/tokens.stylex.js';
 import { MarketAvatars } from './market-avatars.js';
 import { MarketAppConnections } from './app-connections-catalog.js';
@@ -39,7 +39,7 @@ import {
 
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column' },
-  tabs: { flexShrink: 0, marginBlockStart: space.x4, marginInline: space.x4 },
+  tabs: { flexShrink: 0, marginBlockStart: space.x4, paddingInline: space.x4 },
   panel: { flexGrow: 1, flexBasis: 0, minHeight: 0 },
   apps: { overflowY: 'auto' },
 });
@@ -239,17 +239,32 @@ function MarketPanelView({
       data-market-panel
       ref={listen}
     >
-      <SegmentedControl
+      <ChipTabs
         id="bh-market-section"
         value={section}
         options={[
-          { value: 'bots', label: t('market.avatar.bots') },
-          { value: 'skills', label: t('market.skills') },
-          { value: 'avatars', label: t('market.avatar.title') },
-          { value: 'apps', label: t('botSettings.section.connectors') },
+          {
+            value: 'bots',
+            label: t('market.avatar.bots'),
+            icon: <ChannelSidebarIcon name="bot" />,
+          },
+          {
+            value: 'skills',
+            label: t('market.skills'),
+            icon: <ChannelSidebarIcon name="sparkles" />,
+          },
+          {
+            value: 'avatars',
+            label: t('market.avatar.title'),
+            icon: <ChannelSidebarIcon name="user" />,
+          },
+          {
+            value: 'apps',
+            label: t('botSettings.section.connectors'),
+            icon: <ChannelSidebarIcon name="plug" />,
+          },
         ]}
         label={t('market.panel.title')}
-        controlsPanel
         className={stylex.props(styles.tabs).className}
         onChange={navigation.select}
       />
