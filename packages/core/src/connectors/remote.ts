@@ -622,7 +622,7 @@ export class RemoteMcpConnectors {
           return newer;
         }
         const held = this.#store.account(accountId);
-        if (held !== undefined && typeof tokens.scope === 'string') {
+        if (held?.access !== undefined && typeof tokens.scope === 'string') {
           const updated = this.#store.updateAccount(accountId, {
             status: held.status,
             access: grantedAccess(tokens.scope),
@@ -636,6 +636,17 @@ export class RemoteMcpConnectors {
           error: error instanceof Error ? error.name : 'unknown',
         });
         if (error instanceof OAuthError && REJECTED.has(error.code)) {
+          const record = await this.#native().readRecord(authKey(accountId));
+          const stored =
+            record?.kind === 'grant' ? storedAuthSchema.safeParse(record.payload) : undefined;
+          if (
+            stored?.success === true &&
+            (stored.data.refreshToken !== auth.refreshToken ||
+              stored.data.accessToken !== auth.accessToken)
+          ) {
+            this.#log('mcp-refresh-superseded');
+            return stored.data as StoredAuth;
+          }
           this.#expire(accountId);
           return { ...auth, accessToken: undefined };
         }

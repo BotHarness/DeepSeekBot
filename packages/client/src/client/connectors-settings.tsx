@@ -233,6 +233,11 @@ export function ConnectorsSettings({
                 ...(shared
                   ? [t(account.access === 'read' ? 'connectors.bot.read' : 'connectors.bot.write')]
                   : []),
+                ...(account.provider === 'mcp' &&
+                account.access === undefined &&
+                account.grants.some((grant) => grant.access === 'read')
+                  ? [t('connectors.accounts.signInAgain')]
+                  : []),
                 ...(account.grants.length > 0
                   ? [t('connectors.accounts.bots', { count: account.grants.length })]
                   : []),

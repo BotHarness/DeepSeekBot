@@ -339,6 +339,8 @@ describe('remote MCP App connections', () => {
   it('keeps a newer sign-in when a refresh races, and records the access a refresh grants', async () => {
     let release: (() => void) | undefined;
     let scope: string | undefined;
+    let rejected = false;
+    let refreshes = 0;
     const { client } = fakeMcp({
       exchange: async (_oauth, _client, input) => ({
         access_token: `access-${input.code}`,
@@ -351,10 +353,12 @@ describe('remote MCP App connections', () => {
         await new Promise<void>((resolve) => {
           release = resolve;
         });
+        refreshes += 1;
+        if (rejected) throw new OAuthError('invalid_grant', 'refused');
         return {
           access_token: 'access-refreshed',
           token_type: 'Bearer',
-          expires_in: 3600,
+          expires_in: 60,
           ...(scope === undefined ? {} : { scope }),
         };
       },
@@ -373,12 +377,34 @@ describe('remote MCP App connections', () => {
       expect((await racing)?.headers['Authorization']).toBe('Bearer access-b');
       expect(store.account(accountId)?.access).toBe('read');
 
+      rejected = true;
+      const stale = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const third = await service.reconnect(accountId);
+      await service.remote.finish(new URLSearchParams({ state: stateOf(third.url!), code: 'c' }));
+      release!();
+      expect((await stale)?.headers['Authorization']).toBe('Bearer access-c');
+      expect(store.account(accountId)?.status).toBe('active');
+      rejected = false;
+
       scope = 'openid insight:read insight:write';
       const widening = service.remote.connection(accountId);
       await new Promise((resolve) => setTimeout(resolve, 0));
       release!();
       expect((await widening)?.headers['Authorization']).toBe('Bearer access-refreshed');
       expect(store.account(accountId)).toMatchObject({ status: 'active', access: 'write' });
+
+      attachOperationalModule(owner, 'connectors').transaction((database) =>
+        database.prepare('UPDATE connector_accounts SET access = NULL').run(),
+      );
+      service.grant('tob', accountId, 'read');
+      const legacy = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      release!();
+      await legacy;
+      expect(refreshes).toBe(4);
+      expect(store.account(accountId)?.access).toBeUndefined();
+      expect(service.forBot('tob')).toMatchObject([{ access: 'read' }]);
     } finally {
       owner.close();
     }

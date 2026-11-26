@@ -455,7 +455,9 @@ export function mountConnectors(
               return JSON.stringify({
                 granted: true,
                 service: account.service,
-                access: account.provider === 'mcp' ? (account.access ?? 'write') : args.access,
+                access:
+                  service.forBot(info.botSlug).find((c) => c.accountId === account.accountId)
+                    ?.access ?? args.access,
                 tools:
                   account.provider === 'mcp'
                     ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
