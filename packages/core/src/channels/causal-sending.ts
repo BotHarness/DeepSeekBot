@@ -7,7 +7,8 @@ import {
 import type { TeamService } from '../team/service.js';
 import { botOwner } from '../team/bot-access.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
+import type { BotNetworkPort } from '../runtime/bot-network.js';
+import { BotNetworkDeliveryError } from './bot-network-error.js';
 import { BotHopLimitReached } from './hop-limit.js';
 import { SendReviewRequired, type GroupSendReview } from './send-review.js';
 import { isOwnerHumanDmSource } from '../tob/management-grants.js';
@@ -36,7 +37,7 @@ interface CausalSendingPorts {
   readonly admitBotDmMessage: (channelId: string, messageId: string) => void;
   readonly admitGroupMessage: (channelId: string, messageId: string) => void;
   readonly botHopLimit: () => number;
-  readonly botNetwork: import('../runtime/bot-network.js').BotNetworkPort | undefined;
+  readonly botNetwork: BotNetworkPort | undefined;
   readonly channels: ChannelStore;
   readonly closed: () => boolean;
   readonly createMessageId: () => string;

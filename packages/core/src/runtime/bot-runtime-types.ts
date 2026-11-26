@@ -67,7 +67,7 @@ import type {
   DmMessageAdmission,
   HandleDmMessageInput,
   OrchestratorMessageOutcome,
-} from '../channels/runtime-admission-types.js';
+} from './runtime-admission-types.js';
 
 export interface BotRuntime {
   networkBotAvailability?(

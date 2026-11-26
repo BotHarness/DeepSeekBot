@@ -49,22 +49,42 @@ export function bindingKey(binding: PinnedBinding): string {
   return binding.kind === 'bot' ? `bot:${binding.slug}` : `channel:${binding.id}`;
 }
 
-export function resolvePinnedTarget(
-  host: PinnedHost,
-  binding: PinnedBinding | undefined,
-): PinnedTarget | undefined {
+export function pinnedChoices(host: PinnedHost): readonly Conversation[] | undefined {
   const roster = host.roster;
   if (roster === undefined) return undefined;
   const shown =
     roster.arrangement === undefined
       ? roster
       : { ...roster, arrangement: { ...roster.arrangement, hidden: [] } };
-  const rows = conversations(shown, [...(host.action ?? [])], host.unread, host.quiet);
-  const find = (key: string) => rows.find((row) => row.key === key);
-  const bound = binding === undefined ? undefined : find(bindingKey(binding));
-  if (bound !== undefined) return { hostId: host.hostId, conversation: bound, fallback: false };
+  return conversations(shown, [...(host.action ?? [])], host.unread, host.quiet);
+}
+
+export function defaultPinnedConversation(
+  roster: RosterView,
+  rows: readonly Conversation[],
+): Conversation | undefined {
   const tob = tobSlug(roster);
-  const fallback = (typeof tob === 'string' ? find(`bot:${tob}`) : undefined) ?? rows[0];
+  return (
+    (typeof tob === 'string' ? rows.find((row) => row.key === `bot:${tob}`) : undefined) ?? rows[0]
+  );
+}
+
+export function bindingOf(conversation: Conversation): PinnedBinding {
+  return conversation.kind === 'bot'
+    ? { kind: 'bot', slug: conversation.bot.slug }
+    : { kind: 'channel', id: conversation.channel.id };
+}
+
+export function resolvePinnedTarget(
+  host: PinnedHost,
+  binding: PinnedBinding | undefined,
+): PinnedTarget | undefined {
+  const rows = pinnedChoices(host);
+  if (rows === undefined || host.roster === undefined) return undefined;
+  const bound =
+    binding === undefined ? undefined : rows.find((row) => row.key === bindingKey(binding));
+  if (bound !== undefined) return { hostId: host.hostId, conversation: bound, fallback: false };
+  const fallback = defaultPinnedConversation(host.roster, rows);
   return fallback === undefined
     ? undefined
     : { hostId: host.hostId, conversation: fallback, fallback: binding !== undefined };

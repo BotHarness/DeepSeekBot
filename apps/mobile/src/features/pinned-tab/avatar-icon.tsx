@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { PixelRatio, View, type ImageSourcePropType, type ViewInstance } from 'react-native';
+import { PixelRatio, View, type ViewInstance } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import type { Conversation } from '../../ui/chat/conversations';
 import { useDesignTheme } from '../../ui/design/theme';
@@ -7,7 +7,8 @@ import { navigationBar, pinnedTabIcon } from '../../ui/design/tokens';
 import { useMounted } from '../../ui/mounted';
 import { PinnedAvatar } from './pinned-avatar';
 
-export type AvatarIcons = { default: ImageSourcePropType; selected: ImageSourcePropType };
+export type AvatarIcon = { uri: string; scale: number };
+export type AvatarIcons = { default: AvatarIcon; selected: AvatarIcon };
 
 export function avatarIconKey(scheme: string, conversation: Conversation | undefined): string {
   if (conversation === undefined) return `${scheme}:none`;
@@ -24,7 +25,7 @@ export function avatarIconKey(scheme: string, conversation: Conversation | undef
   return JSON.stringify([scheme, conversation.key, ...face]);
 }
 
-export function useAvatarIcons(conversation: Conversation | undefined) {
+export function useAvatarIcons(conversation: Conversation | undefined, size: number) {
   const theme = useDesignTheme();
   const key = avatarIconKey(theme.scheme, conversation);
   const [shots, setShots] = useState<{ key: string; plain?: string; ring?: string }>({ key });
@@ -52,7 +53,7 @@ export function useAvatarIcons(conversation: Conversation | undefined) {
         <View key={`${key}:${index}`} ref={ref.mount} collapsable={false}>
           <PinnedAvatar
             conversation={conversation}
-            size={navigationBar.symbolBox}
+            size={size}
             selected={index === 1}
             onSettled={ref.again}
           />

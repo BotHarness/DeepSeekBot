@@ -70,14 +70,23 @@ export function createHostRequestActions(options: {
         status: value.status === 'pending' || value.status === 'stopped' ? value.status : 'expired',
         ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
         ...(value.execution === undefined ? {} : { execution: value.execution }),
+        ...(value.shellSuggestions === undefined
+          ? {}
+          : { shellSuggestions: value.shellSuggestions }),
       };
     },
     async toolApprovalExecutionState(channelId, messageId) {
       return (await approval(channelId, messageId)).execution;
     },
-    async decideToolApproval(channelId, messageId, outcome) {
+    async decideToolApproval(channelId, messageId, outcome, rule) {
       await decided(() =>
-        decideApproval(options.client(), options.ref(channelId, messageId, false), outcome),
+        decideApproval(
+          options.client(),
+          options.ref(channelId, messageId, false),
+          outcome,
+          'app',
+          rule,
+        ),
       );
     },
     async userQuestionStatus(channelId, messageId) {
@@ -155,10 +164,9 @@ export function createHostActivityActions(options: {
         throw new Error('Activity request author changed');
       return message;
     },
-    async decideToolApproval(channelId, messageId, outcome) {
-      if (outcome === 'allowed-always-exact' || outcome === 'allowed-always-all')
-        throw new Error('This approval choice is unavailable');
-      await requests.decideToolApproval(channelId, messageId, outcome);
+    async decideToolApproval(channelId, messageId, outcome, rule) {
+      if (outcome === 'allowed-always-all') throw new Error('This approval choice is unavailable');
+      await requests.decideToolApproval(channelId, messageId, outcome, rule);
     },
   };
 }

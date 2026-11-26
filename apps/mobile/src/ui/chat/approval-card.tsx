@@ -12,7 +12,7 @@ import {
   type ApprovalRequest,
   type DecisionResult,
 } from '@botharness/host-client/requests';
-import type { ToolApprovalOutcome } from '@botharness/host-protocol/wire';
+import type { ShellPrefixApproval, ToolApprovalOutcome } from '@botharness/host-protocol/wire';
 import { approvalFileChange } from '@botharness/host-client/shared/approval-diff';
 import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useMounted } from '../mounted';
@@ -33,10 +33,18 @@ import { FileDiff } from './approval-diff';
 import type { BubbleGroup } from './bubble-shape';
 import type { ApprovalPresetPort } from './approval-preset';
 import { ApprovalPresetRow } from './approval-preset-row';
+import { ContextMenuArea, nativeContextMenu } from '../primitives/context-menu';
+import { showActionMenu } from '../primitives/app-dialog';
+import {
+  shellScopeActions,
+  shellScopeErrorText,
+  type CustomShellScope,
+} from './shell-scope-actions';
+import { ShellScopeSheet } from './shell-scope-sheet';
 
 export interface ApprovalCardPort {
   load(): Promise<ApprovalRequest>;
-  decide(outcome: ApprovalChoice): Promise<DecisionResult>;
+  decide(outcome: ApprovalChoice, rule?: ShellPrefixApproval): Promise<DecisionResult>;
 }
 
 type Phase =
@@ -152,6 +160,7 @@ function ApprovalCardContent({
   const [phase, setPhase] = useState<Phase>(
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
+  const [customScope, setCustomScope] = useState<CustomShellScope>();
 
   const load = useCallback(async () => {
     if (contentCleared) return;
@@ -237,10 +246,16 @@ function ApprovalCardContent({
       ? phase.outcome
       : (resolution?.outcome ?? (phase.kind === 'settled' ? phase.outcome : undefined));
   const selected =
-    outcome === 'allowed-always-exact' || outcome === 'allowed-always-all'
+    outcome === 'allowed-always-exact' ||
+    outcome === 'allowed-always-prefix' ||
+    outcome === 'allowed-always-all'
       ? 'allowed-always-tool'
       : outcome;
-  const decide = async (outcome: ApprovalChoice) => {
+  const decide = async (
+    outcome: ApprovalChoice,
+    rule?: ShellPrefixApproval,
+    rethrow = false,
+  ): Promise<boolean> => {
     if (
       phase.kind !== 'pending' ||
       submission.pending ||
@@ -248,12 +263,12 @@ function ApprovalCardContent({
       current.current !== submission ||
       resolution !== undefined
     )
-      return;
+      return false;
     submission.pending = true;
     setPhase({ kind: 'pending', request: phase.request, busy: outcome });
     try {
-      const result = await port.decide(outcome);
-      if (!submission.active || current.current !== submission) return;
+      const result = await (rule === undefined ? port.decide(outcome) : port.decide(outcome, rule));
+      if (!submission.active || current.current !== submission) return true;
       if (result === 'accepted') {
         haptic(outcome === 'rejected' ? 'deny' : 'approve');
         setPhase({
@@ -265,10 +280,10 @@ function ApprovalCardContent({
           label: requestLabel(request),
         });
         onSettled?.(result);
-        return;
+        return true;
       }
       const now = await port.load().catch(() => undefined);
-      if (!submission.active || current.current !== submission) return;
+      if (!submission.active || current.current !== submission) return true;
       setPhase({
         kind: 'settled',
         request: now ?? phase.request,
@@ -278,16 +293,59 @@ function ApprovalCardContent({
         ...(now?.outcome === undefined ? {} : { outcome: now.outcome }),
       });
       onSettled?.(result);
+      return true;
     } catch (error) {
-      if (!submission.active || current.current !== submission) return;
+      if (!submission.active || current.current !== submission) return false;
       submission.pending = false;
+      if (rethrow) {
+        setPhase({ kind: 'pending', request: phase.request });
+        throw error;
+      }
       setPhase({
         kind: 'pending',
         request: phase.request,
-        error: `${t.decideFailed} ${errorText(error)}`,
+        error: shellScopeErrorText(error) ?? `${t.decideFailed} ${errorText(error)}`,
       });
+      return false;
     }
   };
+  const scopeActions =
+    actionable && alwaysAllow && busy === undefined && request.allowAlways
+      ? shellScopeActions(live?.shellSuggestions, request.toolName, {
+          decide: (decision) =>
+            void decide(
+              decision.outcome,
+              decision.outcome === 'allowed-always-prefix' ? decision.rule : undefined,
+            ),
+          custom: setCustomScope,
+        })
+      : [];
+  const alwaysAllowButton = (
+    <Button
+      label={t.alwaysAllow}
+      testID="approval-always-allow"
+      variant="card-solid"
+      disabled={!actionable || busy !== undefined || !request.allowAlways}
+      selected={selected === 'allowed-always-tool'}
+      busy={busy !== undefined && busy.startsWith('allowed-always')}
+      onPress={() => void decide('allowed-always-tool')}
+      {...(scopeActions.length === 0 || nativeContextMenu
+        ? {}
+        : {
+            onLongPress: () => {
+              haptic('menu');
+              showActionMenu(
+                t.shellScope.title,
+                scopeActions.map((action) => ({
+                  text: action.label,
+                  icon: action.key === 'custom' ? ('edit' as const) : ('check' as const),
+                  onPress: action.run,
+                })),
+              );
+            },
+          })}
+    />
+  );
   const rows = readableInput(request.input);
   const change = approvalFileChange(request.toolName, request.input);
   const shown = change === undefined ? approvalCommand(request.toolName, request.input) : undefined;
@@ -375,17 +433,11 @@ function ApprovalCardContent({
             busy={busy === 'allowed-once'}
             onPress={() => void decide('allowed-once')}
           />
-          {alwaysAllow ? (
-            <Button
-              label={t.alwaysAllow}
-              testID="approval-always-allow"
-              variant="card-solid"
-              disabled={!actionable || busy !== undefined || !request.allowAlways}
-              selected={selected === 'allowed-always-tool'}
-              busy={busy === 'allowed-always-tool'}
-              onPress={() => void decide('allowed-always-tool')}
-            />
-          ) : null}
+          {!alwaysAllow ? null : nativeContextMenu && scopeActions.length > 0 ? (
+            <ContextMenuArea actions={scopeActions}>{alwaysAllowButton}</ContextMenuArea>
+          ) : (
+            alwaysAllowButton
+          )}
           <Button
             label={t.reject}
             testID="approval-deny"
@@ -403,6 +455,13 @@ function ApprovalCardContent({
           </CardEmbed>
         ) : null}
       </ActionCard>
+      {customScope === undefined || !actionable ? null : (
+        <ShellScopeSheet
+          choice={customScope}
+          onSave={(rule) => decide('allowed-always-prefix', rule, true)}
+          onClose={() => setCustomScope(undefined)}
+        />
+      )}
     </View>
   );
 }

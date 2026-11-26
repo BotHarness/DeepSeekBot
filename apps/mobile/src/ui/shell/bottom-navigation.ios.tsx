@@ -62,7 +62,7 @@ function NativeNavigation() {
   const chrome = useMemo(() => ({ hidden, islandTop }), [hidden, islandTop]);
   const quickActions = useQuickActionRouting();
   const profileSetup = useProfileSetupPrompt();
-  const avatar = useAvatarIcons(pinned?.conversation);
+  const avatar = useAvatarIcons(pinned?.conversation, navigationBar.symbolBox);
   const [focusedRoute, setFocusedRoute] = useState<string>('(home)');
   const focusedNow = useRef(focusedRoute);
   focusedNow.current = focusedRoute;

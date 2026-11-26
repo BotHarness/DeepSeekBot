@@ -1,6 +1,6 @@
-import { quotePromptBlock } from './quotes.js';
-import { type ChannelMessage } from './channel.js';
-import type { ChannelStore } from './store.js';
+import { quotePromptBlock } from '../channels/quotes.js';
+import { type ChannelMessage } from '../channels/channel.js';
+import type { ChannelStore } from '../channels/store.js';
 
 interface RuntimeQuotesPorts {
   channels: ChannelStore;

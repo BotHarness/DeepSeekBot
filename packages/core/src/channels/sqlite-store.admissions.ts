@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { BotSourceClass, BotSourcePolicyStore } from '../runtime/source-policy.js';
+import type { BotSourceClass, ChannelSourcePolicy } from './source-policy.js';
 import { isValidSlug } from '../bots/slug.js';
 import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from './channel.js';
 import type { ChannelStore } from './store.js';
@@ -23,7 +23,7 @@ export function createChannelAdmissions({
   sql,
 }: {
   database: OperationalDatabaseModulePort;
-  sourcePolicy: BotSourcePolicyStore;
+  sourcePolicy: ChannelSourcePolicy;
   readRecord: ReturnType<typeof createChannelRecords>['readRecord'];
   options: SqliteChannelStoreOptions;
   sql: {

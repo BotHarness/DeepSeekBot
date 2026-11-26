@@ -1,17 +1,17 @@
-import type { createOrchestratorScheduling } from '../runtime/orchestrator-scheduling.js';
+import type { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import type {
   createOrchestratorContinuation,
   PendingAutoContinue,
   DmContinuation,
-} from '../runtime/orchestrator-continuation.js';
-import { GROUP_MENTION_REMINDER } from '../runtime/inbound-envelope.js';
+} from './orchestrator-continuation.js';
+import { GROUP_MENTION_REMINDER } from './inbound-envelope.js';
 import type { TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
 import { botOwner } from '../team/bot-access.js';
 import type { HumanContext } from '../humans/context.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import type { createMemoryEvents } from '../features/memory/events.js';
-import {
+import type {
   callTimelineNote,
   callVisualNote,
   lastCallNote,
@@ -24,20 +24,17 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from './channel.js';
-import type { ChannelStore } from './store.js';
+import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from '../channels/channel.js';
+import type { ChannelStore } from '../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import {
-  SESSION_DIRECT_MESSAGE_PREFIX,
-  sessionDirectPrompt,
-} from '../runtime/session-direct-message.js';
-import type { BotSourcePolicyStore } from '../runtime/source-policy.js';
+import { SESSION_DIRECT_MESSAGE_PREFIX, sessionDirectPrompt } from './session-direct-message.js';
+import type { BotSourcePolicyStore } from './source-policy.js';
 import type { PromptText } from '../prompts/prompt-parts.js';
 import {
   sessionSkillText,
   skillInvocationPrompt,
   takeoverResolutionPrompt,
-} from '../runtime/channel-prompts.js';
+} from './channel-prompts.js';
 import type {
   BotAgentAdapter,
   BotRuntimeOptions,
@@ -47,10 +44,16 @@ import type {
   SourceEventAttemptState,
   SourceEventClaim,
   TobCliRequestLease,
-} from '../runtime/bot-runtime.js';
-import type { GroupContext } from '../runtime/group-digest.js';
+} from './bot-runtime.js';
+import type { GroupContext } from './group-digest.js';
 
 interface ChannelAdmissionPorts {
+  readonly voiceNotes: {
+    callTimelineNote: typeof callTimelineNote;
+    callVisualNote: typeof callVisualNote;
+    lastCallNote: typeof lastCallNote;
+    timelineSuffix: typeof timelineSuffix;
+  };
   readonly acceptTurnSources: (botSlug: string, sourceEventIds: readonly string[]) => void;
   readonly activeMemoryEvents: ReadonlyMap<
     string,
@@ -776,6 +779,7 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
       parts.push(managementGrantTimeline(marker.capability, marker.enabled));
     }
     if (message.genuiReplyContext !== undefined) parts.push(message.genuiReplyContext);
+    const { callTimelineNote, callVisualNote, lastCallNote, timelineSuffix } = ports.voiceNotes;
     if (message.voiceCall !== undefined) {
       parts.push(
         `[Voice call ${message.voiceCall.callId}${timelineSuffix(callTimelineNote(message.voiceCall))}] ${ports.promptText(botSlug)('voice-call-hint')}`,

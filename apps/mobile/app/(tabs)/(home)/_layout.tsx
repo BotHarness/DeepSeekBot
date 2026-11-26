@@ -7,7 +7,6 @@ import {
 } from '../../../src/ui/shell/channel-navigation';
 import { swipeEntryListeners } from '../../../src/ui/shell/swipe-entry';
 import { sessionRouteOptions, TabStack } from '../../../src/ui/shell/tab-stack';
-import { tobEntranceScreenOptions } from '../../../src/ui/shell/tob-mode-model';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
@@ -27,7 +26,6 @@ export default function ChatsLayout() {
         options={conversationRouteOptions}
         listeners={swipeEntryListeners('default')}
       />
-      <Stack.Screen name="dm-tob" options={tobEntranceScreenOptions} />
       <Stack.Screen name="session/[id]" options={sessionRouteOptions} />
     </TabStack>
   );

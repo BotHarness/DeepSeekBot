@@ -42,7 +42,7 @@ import type {
   DmMessageAdmission,
   HandleDmMessageInput,
   OrchestratorMessageOutcome,
-} from '../channels/runtime-admission-types.js';
+} from './runtime-admission-types.js';
 
 export type {
   BotReactionInput,
@@ -54,7 +54,7 @@ export type {
   ChannelQueryInput,
   ChannelQueryPage,
   OrchestratorChannelAccess,
-} from '../channels/runtime-access-types.js';
+} from './runtime-access-types.js';
 export { DirectBotToolError } from '../features/sessions/direct-tools.js';
 export type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
 export type { TobCliAuthority, TobCliRequestLease } from '../features/tob/cli-runtime.js';
@@ -122,7 +122,7 @@ export type {
   DmAdmissionFailure,
   OrchestratorMessageOutcome,
   DmMessageAdmission,
-} from '../channels/runtime-admission-types.js';
+} from './runtime-admission-types.js';
 export type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
 
 class BotRuntimeImplementation implements BotRuntime {

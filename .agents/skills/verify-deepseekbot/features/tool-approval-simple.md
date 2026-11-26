@@ -55,6 +55,8 @@ This list reads the existing canonical owner once during permissions refresh; it
 
 With a pending Bash approval for a harmless command in a disposable workspace, read `tool-approval-status <channel> --message-id <card>`. Check that `shellSuggestions` contains the exact command and each applicable prefix. Save a matching pattern with `approval-rule-add <channel> --message-id <card> --prefix "git status *"`. For a compound call, pass each prefix in subcommand order. Read the approval history and rule list, then repeat the covered call with a changed argument. Check the output and each covering rule's count. An uncovered subcommand, different workdir, revoked rule or matching Always ask guidance should produce a new card. If an IM route mirrors the request, its settled card shows the saved pattern text and refreshes when the rule is revoked.
 
+On Android, use the system keyboard and leave a pending Shell card visible with the keyboard closed. Run `heavy node scripts/e2e-mobile-shell-scope-keyboard.mjs <bound-agent-device>` with the command from the T3 device panel. The check opens the scope menu, chooses Custom, and verifies that the first prefix field is focused and the keyboard opens without an extra tap. The sheet stays open for capture or further checks.
+
 ## Gotchas
 
 - DSH native pwsh uses `sandbox_permissions: danger-full-access`, not Codex's `require_escalated`. A harmless output marker explicitly requesting that mode can exercise the real ask without touching a sensitive file.
