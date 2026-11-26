@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { errorText, type WorkspaceOption } from '@botharness/host-client/bot-settings';
 import { newFolderNameProblem, newFolderRefusal } from '@botharness/host-client/new-folder';
@@ -71,7 +71,7 @@ export function NewFolderPage({
           on={SHEET_GROUP}
         />
       </SettingsGroupItem>
-      <SheetHeading>{t.newFolderName}</SheetHeading>
+      {Platform.OS === 'android' ? null : <SheetHeading>{t.newFolderName}</SheetHeading>}
       <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
         <TextField
           testID="new-folder-name"
