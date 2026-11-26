@@ -3,6 +3,7 @@ import { withMentionNames } from '../../messaging/mention-text.js';
 import { sourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type { MessagingInboundEvent } from '../../messaging/provider.js';
 import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
+import { sourceBlockToken, sourceBlockTokenValid } from '../../workspaces/source-block-token.js';
 
 function withContextMentionNames<
   T extends { text: string; mentions?: MessagingInboundEvent['mentions'] },
@@ -284,7 +285,7 @@ export function registerExternalMessagingTools(
     defineTool({
       name: 'bridge_source_block',
       description:
-        "Rarely needed. Stop one external person, or one external group, channel or DM, from reaching you, or undo that. First call preview with a trusted source_event_id and scope (sender: that message's author on that IM app; conversation: the conversation it came from); it returns the target name, or refuses with sender-block-owner for the Owner's own IM accounts, which can never be blocked and still reach you inside a blocked conversation. Then call block with the same source_event_id and scope plus the returned target_name and app. list shows current blocks with blockId, name and revision; unblock takes blockId, target_name and expected_revision. Blocked messages are dropped before you see them. Every block or unblock asks the Human first, showing target_name and app.",
+        "Rarely needed. Stop one external person, or one external group, channel or DM, from reaching you, or undo that. First call preview with a trusted source_event_id and scope (sender: that message's author on that IM app; conversation: the conversation it came from); it returns the target name, app and confirm_token, or refuses with sender-block-owner for the Owner's own IM accounts, which can never be blocked and still reach you inside a blocked conversation. Then call block with the same source_event_id and scope plus the returned target_name, app and confirm_token. list shows current blocks with blockId, name, revision and confirm_token; unblock takes blockId, target_name, confirm_token and expected_revision. Never invent target_name, app or confirm_token: a block or unblock without the token from preview or list is refused. Blocked messages are dropped before you see them. Every block or unblock asks the Human first, showing target_name and app.",
       parameters: {
         action: { type: 'string', required: true, enum: ['list', 'preview', 'block', 'unblock'] },
         source_event_id: {
@@ -303,6 +304,10 @@ export function registerExternalMessagingTools(
         },
         app: { type: 'string', description: 'For block: the app returned by preview.' },
         block_id: { type: 'string', description: 'For unblock: blockId from list.' },
+        confirm_token: {
+          type: 'string',
+          description: 'For block and unblock: confirm_token returned by preview or list.',
+        },
         expected_revision: { type: 'number', description: 'For unblock: revision from list.' },
       },
       output: {
@@ -314,17 +319,44 @@ export function registerExternalMessagingTools(
         if (active === undefined || !active.externalMessaging?.sourceBlocks)
           throw new Error('bridge_source_block: unavailable');
         const blocks = active.externalMessaging.sourceBlocks;
-        if (args.action === 'list') return JSON.stringify(blocks({ action: 'list' }));
+        if (args.action === 'list') {
+          const listed = blocks({ action: 'list' });
+          if (!('blocks' in listed)) return JSON.stringify(listed);
+          return JSON.stringify({
+            blocks: listed.blocks.map((block) => ({
+              ...block,
+              confirm_token: sourceBlockToken({
+                action: 'unblock',
+                block_id: block.blockId,
+                target_name: block.name,
+              }),
+            })),
+          });
+        }
         if (args.action === 'preview' || args.action === 'block') {
           if (!args.source_event_id || (args.scope !== 'sender' && args.scope !== 'conversation'))
             throw new Error(`bridge_source_block: ${args.action} needs source_event_id and scope`);
-          if (args.action === 'preview')
-            return JSON.stringify(
-              blocks({ action: 'preview', scope: args.scope, sourceEventId: args.source_event_id }),
-            );
-          if (!args.target_name || !args.app)
+          if (args.action === 'preview') {
+            const previewed = blocks({
+              action: 'preview',
+              scope: args.scope,
+              sourceEventId: args.source_event_id,
+            });
+            if (!('target' in previewed)) return JSON.stringify(previewed);
+            return JSON.stringify({
+              ...previewed,
+              confirm_token: sourceBlockToken({
+                action: 'block',
+                scope: args.scope,
+                source_event_id: args.source_event_id,
+                target_name: previewed.target.name,
+                app: previewed.target.app,
+              }),
+            });
+          }
+          if (!args.target_name || !args.app || !sourceBlockTokenValid(args))
             throw new Error(
-              'bridge_source_block: call preview first, then block with its target_name and app',
+              'bridge_source_block: call preview first, then block with its target_name, app and confirm_token',
             );
           return JSON.stringify(
             blocks({
@@ -336,8 +368,10 @@ export function registerExternalMessagingTools(
             }),
           );
         }
-        if (!args.block_id || !args.target_name)
-          throw new Error('bridge_source_block: unblock needs block_id and target_name');
+        if (!args.block_id || !args.target_name || !sourceBlockTokenValid(args))
+          throw new Error(
+            'bridge_source_block: call list first, then unblock with its blockId, name and confirm_token',
+          );
         return JSON.stringify(
           blocks({
             action: 'unblock',

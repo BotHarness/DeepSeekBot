@@ -3,6 +3,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { botSourceBlocks, sourceBlocked } from '../src/messaging/permissions/index.js';
+import { sourceBlockToken } from '../src/workspaces/source-block-token.js';
 import { toolApprovalRequired, toolEffects } from '../src/workspaces/tool-effects.js';
 import { fixture, cleanup } from './messaging-default-traffic-fixtures.js';
 import {
@@ -188,29 +189,52 @@ it('the Host blocks and unblocks a conversation through sender access', async ()
   expect(blocked(fx, applicant, 'dm')).toBe(false);
 });
 
-it('blocking asks the Human first, listing does not', () => {
-  const block = {
-    action: 'block',
+it('blocking asks the Human first only with a token from preview or list', () => {
+  const fields = {
     scope: 'sender',
     source_event_id: 'e',
     target_name: 'QA',
     app: 'Slack',
+  } as const;
+  const block = {
+    action: 'block',
+    ...fields,
+    confirm_token: sourceBlockToken({ action: 'block', ...fields }),
   };
   expect(toolEffects('bridge_source_block', block)).toMatchObject({ authority: 'management' });
   expect(toolApprovalRequired('bridge_source_block', block, false)).toBe(true);
+  const conversation = { ...fields, scope: 'conversation' } as const;
   expect(
-    toolApprovalRequired('bridge_source_block', { ...block, scope: 'conversation' }, false),
+    toolApprovalRequired(
+      'bridge_source_block',
+      {
+        action: 'block',
+        ...conversation,
+        confirm_token: sourceBlockToken({ action: 'block', ...conversation }),
+      },
+      false,
+    ),
   ).toBe(true);
-  const unblock = { action: 'unblock', block_id: 'b', target_name: 'QA' };
+  const unblockFields = { block_id: 'b', target_name: 'QA' };
+  const unblock = {
+    action: 'unblock',
+    ...unblockFields,
+    confirm_token: sourceBlockToken({ action: 'unblock', ...unblockFields }),
+  };
   expect(toolApprovalRequired('bridge_source_block', unblock, false)).toBe(true);
-  for (const incomplete of [
+  for (const unproven of [
     { action: 'block', source_event_id: 'e' },
-    { ...block, scope: undefined },
+    { action: 'block', ...fields },
+    { ...block, confirm_token: 'forged' },
+    { ...block, target_name: 'DoodleBear' },
+    { ...block, app: 'slack' },
+    { ...block, scope: 'conversation' },
     { ...block, scope: 'everyone' },
-    { action: 'block', source_event_id: 'e', target_name: 'QA' },
-    { action: 'unblock', block_id: 'b' },
+    { action: 'unblock', ...unblockFields },
+    { ...unblock, target_name: 'Other' },
+    { ...unblock, confirm_token: block.confirm_token },
   ])
-    expect(toolApprovalRequired('bridge_source_block', incomplete, false)).toBe(false);
+    expect(toolApprovalRequired('bridge_source_block', unproven, false)).toBe(false);
   expect(toolEffects('bridge_source_block', { action: 'list' })).toEqual({
     changes: 'none',
     reach: 'local',

@@ -1,5 +1,6 @@
 import { cliEffects, brokerCliEffects } from '../bots/cli-effects.js';
 import { requiresHumanDecision } from './approval-templates.js';
+import { sourceBlockTokenValid } from './source-block-token.js';
 
 import type { ToolEffects } from './tool-effects-contract.js';
 export type { ToolEffects } from './tool-effects-contract.js';
@@ -144,24 +145,6 @@ function inputText(args: unknown): string {
   }
 }
 
-function sourceBlockChange(operation: object): boolean {
-  const named = (key: string) =>
-    key in operation &&
-    typeof (operation as Record<string, unknown>)[key] === 'string' &&
-    (operation as Record<string, unknown>)[key] !== '';
-  const action = 'action' in operation ? operation.action : undefined;
-  const scope = 'scope' in operation ? operation.scope : undefined;
-  if (action === 'block')
-    return (
-      (scope === 'sender' || scope === 'conversation') &&
-      named('source_event_id') &&
-      named('target_name') &&
-      named('app')
-    );
-  if (action === 'unblock') return named('block_id') && named('target_name');
-  return false;
-}
-
 export function toolEffects(name: string, args: unknown): ToolEffects | undefined {
   if (name === 'deepseekbot_cli') {
     if (
@@ -206,7 +189,7 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     name === 'bridge_source_block' &&
     operation &&
     'action' in operation &&
-    !sourceBlockChange(operation)
+    !sourceBlockTokenValid(operation)
   ) {
     const { authority: _authority, ...listed } = effects;
     return { ...listed, changes: 'none' };
