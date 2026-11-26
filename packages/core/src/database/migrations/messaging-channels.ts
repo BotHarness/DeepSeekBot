@@ -1,4 +1,4 @@
-import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
+import { OWNER_HUMAN_CONTEXT } from '../historical-migration-snapshots.js';
 import type { SchemaMigration } from '../schema.js';
 
 export const MESSAGING_TRACER_MIGRATION: SchemaMigration = {

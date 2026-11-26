@@ -1,4 +1,4 @@
-import { invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { type CloudWork } from '../../cloud/work.js';
 import { runCloudWorkDirect } from '../../cloud/work-tool.js';
 import {

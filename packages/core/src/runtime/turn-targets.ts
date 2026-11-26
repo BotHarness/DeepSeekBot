@@ -9,7 +9,7 @@ import {
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
-export const TURN_TARGET_TOPIC = 'session-turn-target:';
+import { TURN_TARGET_TOPIC } from '../sessions/turn-target-topic.js';
 
 export interface TurnTargetSegment {
   turn: number;

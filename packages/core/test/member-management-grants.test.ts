@@ -69,7 +69,7 @@ it('lets a member turn grants on for their own Bots only once the Owner authoriz
   authorize(core, bob.humanId);
   expect(methods(bob).managementGrants({ slug: 'bob-bot' })).toMatchObject({
     ok: true,
-    value: { editable: true },
+    value: { editable: true, memberBot: true },
   });
   expect(methods(bob).managementGrants({ slug: 'ali-bot' })).toMatchObject({
     ok: false,

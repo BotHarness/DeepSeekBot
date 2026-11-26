@@ -1,5 +1,10 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync, type AdminResult } from '../../bridge/rpc-result.js';
+import type { BotMetadataResult } from '../../team/bot-administration.js';
+import {
+  unwrap,
+  unwrapAsync,
+  type AdminResult as KernelAdminResult,
+} from '../../kernel/rpc-result.js';
 import type {
   ModelProvidersView,
   ModelProviderSave,
@@ -26,6 +31,9 @@ import type {
   EngineAccountBridgeMethods,
 } from './methods.js';
 import type { ModelPlanSubView, ModelPresetSubView } from './preset-sub-methods.js';
+
+type AdminResult<T> = KernelAdminResult<T, BotMetadataResult>;
+
 function presetGroupArgs(
   orchestratorGroupId: string | null | undefined,
   assignmentGroups: string[] | undefined,

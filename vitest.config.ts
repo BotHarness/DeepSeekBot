@@ -1,5 +1,10 @@
 import { fileURLToPath } from 'node:url';
-import { configDefaults, defineConfig, type ViteUserConfig } from 'vitest/config';
+import {
+  configDefaults,
+  defineConfig,
+  type UserWorkspaceConfig,
+  type ViteUserConfig,
+} from 'vitest/config';
 
 import { stylexPlugin } from './scripts/stylex-plugin.mjs';
 
@@ -13,12 +18,15 @@ const genuiBudgetTests = [
 
 const docsSiteTest = 'apps/docs/test/changelog-public-surfaces.test.ts';
 
+const mobileTests = ['apps/mobile/test/**/*.test.ts', 'apps/mobile/test/**/*.test.tsx'];
+
 const durableIntegrationTests = [
   'packages/core/test/bot-group-review-rounds.test.ts',
   'packages/core/test/channel-attachment-forwarding.test.ts',
 ];
 
 const CI_WORKERS = 4;
+const ciWorkerLimit = process.env.CI ? { maxWorkers: CI_WORKERS } : {};
 
 function sourceOptions(): ViteUserConfig {
   return {
@@ -47,10 +55,24 @@ const testDefaults = {
   include: [
     'packages/*/test/**/*.test.{ts,tsx}',
     'apps/docs/test/**/*.test.ts',
-    'apps/mobile/test/**/*.test.ts',
-    'apps/mobile/test/**/*.test.tsx',
+    ...mobileTests,
     'scripts/test/**/*.test.mjs',
   ],
+};
+
+export const mobileTestProject: UserWorkspaceConfig & { extends: false } = {
+  extends: false,
+  ...sourceOptions(),
+  root: fileURLToPath(new URL('.', import.meta.url)),
+  test: {
+    ...testDefaults,
+    name: 'mobile',
+    include: mobileTests,
+    pool: 'forks',
+    env: { ...testDefaults.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
+    ...ciWorkerLimit,
+    sequence: { groupOrder: 0 },
+  },
 };
 
 export default defineConfig({
@@ -69,11 +91,13 @@ export default defineConfig({
             ...genuiBudgetTests,
             ...durableIntegrationTests,
             docsSiteTest,
+            ...mobileTests,
           ],
-          ...(process.env.CI ? { maxWorkers: CI_WORKERS } : {}),
+          ...ciWorkerLimit,
           sequence: { groupOrder: 0 },
         },
       },
+      mobileTestProject,
       {
         extends: false,
         ...sourceOptions(),

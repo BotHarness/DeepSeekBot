@@ -1,6 +1,6 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { MarketplaceAvatarEdit } from '@botharness/host-protocol/marketplace-avatar';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarApplyCandidate,

@@ -1,4 +1,4 @@
-import { type BridgeResult } from '../../bridge/method-utils.js';
+import { type BridgeResult } from '../../kernel/method-utils.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import {
   engineAccountKey,

@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { BotConnector, ConnectorAppSearch, ConnectorsView } from '../../connectors/service.js';
 import type { McpAppSearch } from '../../connectors/remote.js';
 import type { ConnectorAccess, ConnectorAccountRecord } from '../../connectors/store.js';

@@ -245,6 +245,37 @@ describe('Simple Side column', () => {
     expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBeDefined();
   });
 
+  it('lets a workbench panel replace both the Side column and Messages', async () => {
+    values = new Map();
+    const ws = mountWorkspace();
+    ws.registry.register({
+      id: 'team-workbench',
+      title: 'Team',
+      order: 400,
+      scope: 'global',
+      presentation: 'workbench',
+      component: () => createElement('div', { 'data-content': 'team-workbench' }),
+    });
+    await ws.render();
+    const draft = host.querySelector<HTMLInputElement>('[data-message-draft]')!;
+    draft.value = 'unsent message';
+
+    await ws.click('team-workbench');
+    expect(ws.shown()).toEqual(['team-workbench']);
+    expect(ws.pressed()).toEqual(['team-workbench']);
+    expect(ws.sideColumn()).toBe('team-workbench');
+    expect(readLayoutMode(storage).channelsWidth).toBeLessThan(0.6);
+
+    await ws.click('activity-center');
+    expect(ws.shown()).toEqual(['activity-center', CHANNEL_BODY_PANEL]);
+    expect(host.querySelector('[data-message-draft]')).toBe(draft);
+    expect(draft.value).toBe('unsent message');
+
+    await ws.click('team-workbench');
+    await ws.click('team-workbench');
+    expect(ws.shown()).toEqual([CHANNEL_BODY_PANEL]);
+  });
+
   it('keeps the Side column when a Channel, Messages or a Subpanel opens', async () => {
     values = new Map();
     const ws = mountWorkspace();

@@ -4,7 +4,7 @@ import {
   invalidInput,
   unavailable,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { isUsageOverviewPeriod, usageOverviewPeriods } from '../../usage/overview.js';
 import { OperationalDatabaseError } from '../../database/owner.js';
 import {

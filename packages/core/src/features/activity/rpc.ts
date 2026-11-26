@@ -1,7 +1,7 @@
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import { LiveUnavailable, type ActivityLiveFrame } from '../../channels/live.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { PersonaBotActivitySnapshot } from '../../state/bot-state.js';
 import type { ProfileActivity } from '../../bridge/methods.js';
 import type { ChannelActivityToday } from '../../channels/activity-today.js';

@@ -4,7 +4,7 @@ import {
   invalidInput,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { TakeoverError, type TakeoverHandoff } from '../../takeover/contracts.js';
 import { dmChannelId } from '../../channels/channel.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';

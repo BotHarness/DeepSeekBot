@@ -1762,7 +1762,7 @@ The repository moves to `<absolute-dir>/<bot-id>`; the folder must already exist
 
 ## Home and Tob
 
-`deepseekbot bot-grants` lists the Bots that hold an App management grant, with `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }], "editable": true }`; pass `--bot <bot-id>` (payload `slug`) to ask about one Bot. `editable` is true for the Human Host Owner and for a member whose role holds the Owner-granted `bots.manageGrants`, and with a Bot named only when the caller owns it; each caller sees only the holders among their own Bots, and any other Team member gets only `tobSlug`, an empty list and `editable: false`. The Human Host Owner, or such a member, runs `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off` to turn "Manage the App" or "Manage other Bots" on or off for an active Bot they own; `on` needs `--confirm`. The result is `{botSlug, capabilities, changed, noAppManager}`. The Bot's own Human DM receives a system notice, and its next Human DM turn gets a `[Host timeline]` line instead of a system prompt change. The CLI broker refuses `bot-grant` with `cli-command-refused`, and a Team member without `bots.manageGrants` receives `permission-required`. See [Tob decisions §11](decisions/tob.md#app-management-grant).
+`deepseekbot bot-grants` lists the Bots that hold an App management grant, with `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }], "editable": true, "memberBot": false }`; pass `--bot <bot-id>` (payload `slug`) to ask about one Bot. `editable` is true for the Human Host Owner and for a member whose role holds the Owner-granted `bots.manageGrants`, and with a Bot named only when the caller owns it; each caller sees only the holders among their own Bots, and any other Team member gets only `tobSlug`, an empty list and `editable: false`. The Human Host Owner, or such a member, runs `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off` to turn "Manage the App" or "Manage other Bots" on or off for an active Bot they own; `on` needs `--confirm`. `memberBot` is true when the caller is a member rather than the Owner: on a member's Bot, "Manage the App" covers only creating Bots and sharing Bot drafts, never settings, models or diagnostics. The result is `{botSlug, capabilities, changed, noAppManager}`. The Bot's own Human DM receives a system notice, and its next Human DM turn gets a `[Host timeline]` line instead of a system prompt change. The CLI broker refuses `bot-grant` with `cli-command-refused`, and a Team member without `bots.manageGrants` receives `permission-required`. See [Tob decisions §11](decisions/tob.md#app-management-grant).
 
 `deepseekbot tob-home` prepares/reuses the local Tob identity, Memory, managed Workspace and DM, returning their IDs and the canonical attention summary. It does not send a message. `deepseekbot home-model-set --provider <id> --model <id>` sets the pinned Default preset’s main model. Bots with independent plans keep their choices.
 
@@ -2577,6 +2577,8 @@ deepseekbot roles catalog
 deepseekbot roles list
 deepseekbot roles create --name reviewers --permissions audit.view,usage.view
 deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles update <roleId> --deny channels.create
+deepseekbot roles effective bob
 deepseekbot roles delete <roleId> --confirm
 deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
 deepseekbot members roles bob --set member,<roleId>
@@ -2584,6 +2586,8 @@ deepseekbot --as bob devices --member bob
 deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
+
+`--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 
 `members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
 

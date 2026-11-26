@@ -78,6 +78,7 @@ export const roleSchema = z.object({
   name: z.string(),
   builtin: z.enum(['admin', 'member']).nullable(),
   permissions: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
+  denied: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
   models: z.string().transform((value) => roleModelsSchema.parse(JSON.parse(value))),
   policy: z.string().transform((v) => rolePolicySchema.parse(JSON.parse(v))),
   policyRevision: z.number().int().positive(),

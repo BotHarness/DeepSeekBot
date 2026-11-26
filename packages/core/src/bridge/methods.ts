@@ -94,7 +94,7 @@ import {
   type SchedulesBridgeMethods,
   type SchedulesBridgeDeps,
 } from '../features/schedules/methods.js';
-import { asObject, invalidInput, type BridgeResult } from './method-utils.js';
+import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
 import {
   createPromptBridgeMethods,
   type PromptBridgeMethods,
@@ -276,7 +276,7 @@ export type { ModelCatalogGroup } from '../features/models/routing.js';
 
 export type { SkillDetail } from '../features/skills/methods.js';
 
-export type { BridgeError, BridgeResult } from './method-utils.js';
+export type { BridgeError, BridgeResult } from '../kernel/method-utils.js';
 
 export type {
   BotPromptView,

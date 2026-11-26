@@ -7,7 +7,7 @@ import {
   asObject,
   invalidInput,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import { writeBotAvatar } from '../avatars/methods.js';
 import type { HumanContext } from '../../humans/context.js';

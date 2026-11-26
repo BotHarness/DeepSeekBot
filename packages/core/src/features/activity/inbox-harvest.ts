@@ -1,7 +1,7 @@
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelRecord, SessionFailureProgress } from '../../channels/channel.js';
-import type { createChannelAdmission } from '../../channels/runtime-admission.js';
+import type { createChannelAdmission } from '../../runtime/runtime-admission.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { EngineLimitError } from '../../engines/engine-session.js';

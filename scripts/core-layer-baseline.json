@@ -12,47 +12,8 @@
     "packages/core/src/bots/registry.ts": {
       "bots -> features": 1
     },
-    "packages/core/src/channels/card-context-live.ts": {
-      "channels -> runtime": 1
-    },
-    "packages/core/src/channels/causal-sending.ts": {
-      "channels -> runtime": 1
-    },
-    "packages/core/src/channels/runtime-access.ts": {
-      "channels -> features": 2,
-      "channels -> runtime": 7
-    },
-    "packages/core/src/channels/runtime-admission.ts": {
-      "channels -> features": 1,
-      "channels -> runtime": 3
-    },
-    "packages/core/src/channels/runtime-reads.ts": {
-      "channels -> features": 1,
-      "channels -> runtime": 2
-    },
-    "packages/core/src/channels/sqlite-store.append.ts": {
-      "channels -> runtime": 2
-    },
-    "packages/core/src/channels/sqlite-store.group-membership.ts": {
-      "channels -> runtime": 1
-    },
-    "packages/core/src/channels/sqlite-store.ts": {
-      "channels -> runtime": 1
-    },
     "packages/core/src/credentials/secret-mcp.ts": {
       "credentials -> runtime": 1
-    },
-    "packages/core/src/database/migrations/assignments.ts": {
-      "database -> runtime": 1
-    },
-    "packages/core/src/database/migrations/messaging-channels.ts": {
-      "database -> humans": 1
-    },
-    "packages/core/src/database/migrations/model-presets.ts": {
-      "database -> models": 1
-    },
-    "packages/core/src/database/migrations/team.ts": {
-      "database -> team": 2
     },
     "packages/core/src/devices/bot-connect-bridge.ts": {
       "devices -> runtime": 1
@@ -91,226 +52,7 @@
     "packages/core/src/engines/engine-log.ts": {
       "engines -> runtime": 1
     },
-    "packages/core/src/features/activity/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/activity/rpc.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/appearance/rpc.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/approvals/methods.ts": {
-      "features -> bridge": 1
-    },
     "packages/core/src/features/approvals/rpc.ts": {
-      "features -> bridge": 3
-    },
-    "packages/core/src/features/assignments/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/assignments/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/avatars/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/avatars/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/browser/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/browser/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/channel-files/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/channel-files/rpc.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/channels/group-members.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/channels/management-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/channels/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/channels/rpc.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/channels/send-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/cloud/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/cloud/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/computer/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/computer/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/connectors/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/connectors/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/diagnostics/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/diagnostics/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/genui/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/genui/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/humans/methods.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/humans/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/marketplace/avatar-apply.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/marketplace/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/marketplace/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/memory/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/memory/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/messaging/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/messaging/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/models/catalog-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/models/inputs.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/models/methods.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/models/model-link-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/models/preset-sub-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/models/routing.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/models/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/personabots/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/personabots/onboarding-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/personabots/roster-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/personabots/rpc.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/profile-storage/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/profile-storage/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/prompts/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/prompts/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/release/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/release/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/schedules/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/schedules/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/sessions/host-sessions.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/sessions/methods.ts": {
-      "features -> bridge": 2
-    },
-    "packages/core/src/features/sessions/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/sessions/session-bot-methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/sessions/session-bot-rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/skills/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/skills/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/takeover/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/takeover/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/team/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/team/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/tob/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/tob/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/usage/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/usage/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/voice/rpc.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/workspaces/methods.ts": {
-      "features -> bridge": 1
-    },
-    "packages/core/src/features/workspaces/rpc.ts": {
       "features -> bridge": 1
     },
     "packages/core/src/messaging/defaults.ts": {
@@ -324,9 +66,6 @@
     },
     "packages/core/src/messaging/outbound.ts": {
       "messaging -> runtime": 1
-    },
-    "packages/core/src/models/provider-bridge.ts": {
-      "models -> bridge": 2
     },
     "packages/core/src/portability/package.ts": {
       "portability -> runtime": 1
@@ -405,9 +144,6 @@
     },
     "packages/core/src/workspaces/assignment-shell.ts": {
       "workspaces -> runtime": 1
-    },
-    "packages/core/src/workspaces/folder-create.ts": {
-      "workspaces -> bridge": 1
     },
     "packages/core/src/workspaces/orchestrator-file-tools.ts": {
       "workspaces -> runtime": 1
@@ -552,21 +288,6 @@
     },
     "packages/core/src/channels/mark-all-read.ts": {
       "channels -> humans": 1
-    },
-    "packages/core/src/channels/runtime-access.ts": {
-      "channels -> humans": 1,
-      "channels -> purge": 1,
-      "channels -> team": 2,
-      "channels -> tob": 1,
-      "channels -> workspaces": 1
-    },
-    "packages/core/src/channels/runtime-admission.ts": {
-      "channels -> purge": 1,
-      "channels -> team": 1
-    },
-    "packages/core/src/channels/runtime-membership.ts": {
-      "channels -> bots": 1,
-      "channels -> team": 1
     },
     "packages/core/src/channels/send-review.ts": {
       "channels -> purge": 1

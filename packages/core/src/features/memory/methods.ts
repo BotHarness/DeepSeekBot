@@ -6,7 +6,7 @@ import {
   unknownBot,
   unknownChannel,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { botOwner } from '../../team/bot-access.js';
 import { type HumanContext } from '../../humans/context.js';
 import { MemoryImageError } from '../../memory/image.js';

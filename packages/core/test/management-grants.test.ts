@@ -29,7 +29,7 @@ it('gives a new built-in Tob both grants and lets only an authorized Human chang
   expect(MEMBER_METHODS.has('managementGrants')).toBe(true);
   expect(methods(bob).managementGrants({})).toEqual({
     ok: true,
-    value: { tobSlug: home.botSlug, holders: [], editable: false },
+    value: { tobSlug: home.botSlug, holders: [], editable: false, memberBot: true },
   });
   expect(methods(owner).managementGrants({})).toEqual({
     ok: true,
@@ -37,6 +37,7 @@ it('gives a new built-in Tob both grants and lets only an authorized Human chang
       tobSlug: home.botSlug,
       holders: [{ botSlug: home.botSlug, capabilities: both }],
       editable: true,
+      memberBot: false,
     },
   });
   expect(methods(bob).managementGrantSet(on)).toMatchObject({

@@ -6,7 +6,7 @@ import {
   unknownBot,
   unknownChannel,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelRecord } from '../../channels/channel.js';
 import type { ChannelStore } from '../../channels/store.js';

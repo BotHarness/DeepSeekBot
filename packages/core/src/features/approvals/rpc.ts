@@ -2,7 +2,7 @@ import type {
   ShellPrefixApproval,
   WireShellApprovalSuggestions,
 } from '@botharness/host-protocol/wire';
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import { TeamError } from '../../team/service.js';
 import { type HumanContext } from '../../humans/context.js';
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol';
@@ -10,7 +10,7 @@ import type { PrivateInputs } from '../../credentials/private-inputs.js';
 import type { PrivateAccountSummary, PrivateInputStatus } from '../../credentials/contracts.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { resolveInvocationHuman } from '../../bridge/invocation-human.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { ApprovalTemplateDeletionPreview } from '../../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../../team/approval-contract.js';
 import type { ApprovalReviewerModelView } from '../../bridge/methods.js';

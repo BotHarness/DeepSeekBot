@@ -65,7 +65,7 @@ vi.mock('../src/ui/primitives/drawer-material', () => ({
   useLiquidGlass: () => false,
 }));
 
-import { Dimensions } from 'react-native';
+import { Dimensions, Platform } from 'react-native';
 import { SessionDrawerPanel } from '../src/features/sessions/session-drawer-panel';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { sessionQueries } from '../src/features/sessions/session-list-query';
@@ -267,6 +267,28 @@ it('floats the header and footer over the list when the native edge bars exist',
     expect(view.querySelector('[data-testid="session-drawer-new"]')).toBeNull();
   } finally {
     edge.on = false;
+  }
+});
+
+it('gives Android the search and New Session footer without the native edge bars', async () => {
+  const os = Platform.OS;
+  Platform.OS = 'android';
+  try {
+    const onNew = vi.fn();
+    const { view } = await render({ onNew });
+    const footer = view.querySelector('[data-testid="session-drawer-footer"]')!;
+    expect(footer.querySelector('[data-testid="session-drawer-search-field"]')).toBeNull();
+    const create = footer.querySelector<HTMLElement>('[data-testid="session-drawer-new"]')!;
+    expect(create.textContent).toBe('New Session');
+    await act(async () => create.click());
+    expect(onNew).toHaveBeenCalledOnce();
+    await act(async () =>
+      footer.querySelector<HTMLElement>('[data-testid="session-drawer-search"]')!.click(),
+    );
+    expect(view.querySelector('[data-testid="session-drawer-search-field"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="session-drawer-new"]')).toBeNull();
+  } finally {
+    Platform.OS = os;
   }
 });
 

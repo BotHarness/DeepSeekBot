@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TobCliCommand, TobCliStatus } from '../../tob/cli-request.js';
 import type { DirectBotToolSpec } from '../../runtime/bot-runtime.js';
 import type { TobAdapterMethods } from './methods.js';

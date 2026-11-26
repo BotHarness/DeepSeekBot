@@ -3,7 +3,7 @@ import { attachmentIdentity } from '../../attachments/ref.js';
 import type { AttachmentStore } from '../../attachments/store.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import type { createChannelAccess } from '../../channels/runtime-access.js';
+import type { createChannelAccess } from '../../runtime/runtime-access.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { externalMemberWake } from '../../messaging/defaults.js';
@@ -26,9 +26,26 @@ import type { TeamService } from '../../team/service.js';
 import { holdsManagementGrant } from '../../tob/management-grants.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createActivityEvents } from '../activity/events.js';
+import { createChannelFileAccess } from '../channel-files/events.js';
+import {
+  callTimelineNote,
+  callVisualNote,
+  createVoiceAccess,
+  lastCallNote,
+  queryCallWindow,
+  timelineSuffix,
+} from '../voice/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
 import { bindScheduleCommands } from '../schedules/events.js';
 import type { WorkspaceSessionReader } from './workspace-sessions.js';
+
+export const channelToolFeatures = { createChannelFileAccess, createVoiceAccess, queryCallWindow };
+export const voiceAdmissionNotes = {
+  callTimelineNote,
+  callVisualNote,
+  lastCallNote,
+  timelineSuffix,
+};
 
 interface OrchestratorServicesPorts {
   activityEvents: ReturnType<typeof createActivityEvents>;
