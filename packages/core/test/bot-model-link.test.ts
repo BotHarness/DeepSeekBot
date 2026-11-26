@@ -177,6 +177,23 @@ describe('Bot model link in the registry', () => {
     expect(stored.modelLink).toMatchObject({ presetId: work.id });
   });
 
+  it('saves a Bot sub list with a Routing Group that has no effort options', () => {
+    const { presets, registry } = setup();
+    const work = presets.create({ name: 'Work', orchestrator: pro, assignmentDefault: flash });
+    registry.applyModelPreset('tob', work);
+    const group = { kind: 'group' as const, group: 'daily' };
+    const result = registry.setModelPlanSub(
+      'tob',
+      { choices: [flashChoice, group], default: flashDefault },
+      registry.get('tob')!.modelPlan!.revision,
+    );
+    expect(result.ok).toBe(true);
+    const plan = registry.get('tob')!.modelPlan!;
+    expect(plan.overrides).toEqual(['sub']);
+    expect(plan.assignmentGroups).toEqual(['daily']);
+    expect(plan).not.toHaveProperty('assignmentGroupOptions');
+  });
+
   it('falls back to the Default preset when the linked preset is deleted', () => {
     const { presets, registry } = setup();
     const work = presets.create({ name: 'Work', orchestrator: kimi, assignmentDefault: flash });

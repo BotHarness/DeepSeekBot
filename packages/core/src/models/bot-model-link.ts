@@ -62,7 +62,15 @@ export function subOverrideOf(plan: BotSubOverride): BotSubOverride {
 export function withPlanSub(plan: PersonaBotModelPlan, input: PresetSub): PersonaBotModelPlan {
   const kept = omit(plan, SUB_KEYS);
   const sub = cleanPresetSub(input);
-  return { ...kept, ...planSubProjection(sub, kept), sub };
+  const { assignmentGroupOptions, ...projection } = planSubProjection(sub, kept);
+  return {
+    ...kept,
+    ...projection,
+    ...(assignmentGroupOptions === undefined || assignmentGroupOptions.length === 0
+      ? {}
+      : { assignmentGroupOptions }),
+    sub,
+  };
 }
 
 export function resolveLinkedPlan(
