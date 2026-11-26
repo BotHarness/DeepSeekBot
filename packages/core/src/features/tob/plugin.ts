@@ -90,7 +90,10 @@ const OWNER_BOT_CAPABILITIES = [
 
 export const MEMBER_BOT_CAPABILITIES = [
   ...TOB_BOT_CREATE_CAPABILITIES,
-  ...TOB_BOT_PROFILE_CAPABILITIES,
+  ...TOB_BOT_PROFILE_CAPABILITIES.filter(
+    (entry) =>
+      !['pause', 'resume'].includes(entry.command) && !entry.command.startsWith('bot-delete-'),
+  ),
   ...TOB_MEMORY_EDIT_CAPABILITIES,
   ...TOB_SHARE_DRAFT_CAPABILITIES,
 ];
@@ -408,12 +411,15 @@ export function createOrchestratorFileSetup(
                   return prepared
                     ? {
                         ...prepared,
-                        run: (guard, beforeEffect) =>
-                          prepared.run(() => {
+                        run: (guard, beforeEffect) => {
+                          const recheck = () => {
                             guard();
                             required.forEach(requireGrant);
                             checkTargets();
-                          }, beforeEffect),
+                          };
+                          recheck();
+                          return prepared.run(recheck, beforeEffect);
+                        },
                       }
                     : prepared;
                 }

@@ -195,6 +195,16 @@ it('limits member Bots to commands that run through the member’s own bridge', 
   expect(commands).toContain('create');
   expect(commands).toContain('memory-save');
   expect(commands).toContain('share-draft-show');
-  for (const ownerOnly of ['cli', 'doctor', 'diagnostic-logs', 'group-create', 'memory-snapshot'])
+  expect(commands).toContain('update');
+  for (const ownerOnly of [
+    'cli',
+    'doctor',
+    'diagnostic-logs',
+    'group-create',
+    'memory-snapshot',
+    'pause',
+    'resume',
+    'bot-delete-confirm',
+  ])
     expect(commands).not.toContain(ownerOnly);
 });
