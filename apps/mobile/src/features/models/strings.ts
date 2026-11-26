@@ -4,6 +4,7 @@ import {
 } from '@botharness/host-protocol/subscription-engine';
 
 const engineEffortZh = {
+  off: '关闭',
   none: '无',
   minimal: '极低',
   low: '低',

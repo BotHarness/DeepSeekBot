@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { isTob, TobError } from '../tob/service.js';
+import { TobError } from '../tob/service.js';
+import { managementGrantHolders } from '../tob/management-grants.js';
+import { botOwner } from '../team/bot-access.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -49,6 +51,7 @@ export interface PersonaBotDeletionPreview {
   refusal?: string;
   dependencies: PersonaBotDeletionDependencies;
   deletion?: PersonaBotDeletion;
+  lastAppManager?: true;
 }
 
 export interface PersonaBotDeletions {
@@ -333,7 +336,11 @@ export function createPersonaBotDeletions(options: {
       refusal = error instanceof Error ? error.message : 'Memory ownership check failed';
     }
     const dependencies = options.dependencies(slug);
-    const snapshot = { record, path, proof, refusal, dependencies, state };
+    const appManagers = managementGrantHolders(port, botOwner(record))
+      .filter((holder) => holder.capabilities.includes('manage-app'))
+      .map((holder) => holder.botSlug);
+    const lastAppManager = appManagers.length === 1 && appManagers[0] === slug;
+    const snapshot = { record, path, proof, refusal, dependencies, state, appManagers };
     return {
       slug,
       displayName: record.displayName,
@@ -343,12 +350,10 @@ export function createPersonaBotDeletions(options: {
       ...(refusal === undefined ? {} : { refusal }),
       dependencies,
       ...(state === undefined ? {} : { deletion: state }),
+      ...(lastAppManager ? { lastAppManager: true as const } : {}),
     };
   };
-  const preview = (slug: string): PersonaBotDeletionPreview => {
-    if (isTob(port, slug)) throw new TobError('protected-bot');
-    return snapshot(slug);
-  };
+  const preview = snapshot;
   const run = (state: PersonaBotDeletion): Promise<PersonaBotDeletion> => {
     const active = pending.get(state.slug);
     if (active !== undefined) return active;
@@ -422,8 +427,11 @@ export function createPersonaBotDeletions(options: {
     get,
     async confirm(slug, token, eraseMemory) {
       const reviewed = preview(slug);
-      if (reviewed.token !== token || reviewed.deletion !== undefined)
-        throw new Error('Deletion scope changed; reopen confirmation');
+      if (reviewed.deletion !== undefined)
+        throw new Error(
+          'Deletion was already accepted; retry it (bot-delete-retry) instead of confirming again',
+        );
+      if (reviewed.token !== token) throw new Error('Deletion scope changed; reopen confirmation');
       if (eraseMemory && !reviewed.eraseAvailable) throw new Error(reviewed.refusal);
       const state: PersonaBotDeletion = {
         slug,

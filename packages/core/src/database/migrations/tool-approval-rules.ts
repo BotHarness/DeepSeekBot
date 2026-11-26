@@ -102,3 +102,32 @@ export const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
     );
   },
 };
+
+export const SHELL_PREFIX_TOOL_RULE_MIGRATION: SchemaMigration = {
+  id: 'shell-prefix-tool-rule',
+  module: 'tool-approval-rules',
+  description: 'Allow scoped Shell command prefix approval rules',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE tool_approval_rules_next (
+        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('orchestrator', 'assignment')),
+        scope_key TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('exact', 'prefix', 'tool', 'all-opaque', 'secret-cli')),
+        tool_name TEXT NOT NULL, input TEXT NOT NULL, created_at TEXT NOT NULL,
+        active INTEGER NOT NULL CHECK (active IN (0, 1)), revoked_at TEXT, external_creator TEXT,
+        auto_approved_count INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO tool_approval_rules_next
+        (id, bot_slug, role, scope_key, kind, tool_name, input, created_at, active, revoked_at,
+         external_creator, auto_approved_count)
+      SELECT id, bot_slug, role, scope_key, kind, tool_name, input, created_at, active, revoked_at,
+             external_creator, auto_approved_count
+        FROM tool_approval_rules;
+      DROP TABLE tool_approval_rules;
+      ALTER TABLE tool_approval_rules_next RENAME TO tool_approval_rules;
+      CREATE INDEX tool_approval_rules_lookup
+        ON tool_approval_rules (bot_slug, role, scope_key, active, revoked_at);
+    `);
+  },
+};

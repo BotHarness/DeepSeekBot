@@ -23,6 +23,8 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 export const MEMBER_GLOBAL_METHODS = [
+  'managementGrants',
+  'managementGrantSet',
   'marketplaceAvatarList',
   'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
@@ -110,6 +112,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'messageSearch',
   'channels',
   'channelListChanges',
+  'channelAccessState',
   'channelUnreadCounts',
   'list',
   'rosterGet',

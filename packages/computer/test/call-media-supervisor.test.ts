@@ -88,6 +88,17 @@ describe('call media supervisor', () => {
     await second.close();
   });
 
+  it('runs one media helper per call up to the Host limit and refuses the next', async () => {
+    const calls = await media([]);
+    const peers = await Promise.all(['call-a', 'call-b', 'call-c'].map((id) => open(calls, id)));
+    expect(peers.map((peer) => peer.offer?.type)).toEqual(['offer', 'offer', 'offer']);
+    await expect(open(calls, 'call-d')).rejects.toMatchObject({ code: 'busy' });
+    await peers[0]!.close();
+    const next = await open(calls, 'call-e');
+    expect(next.offer?.type).toBe('offer');
+    await Promise.all([...peers.slice(1), next].map((peer) => peer.close()));
+  });
+
   it('stops a reply interrupted while its audio uploads and never starts it', async () => {
     const calls = await media([]);
     const call = await open(calls, 'call-3');

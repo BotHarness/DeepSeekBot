@@ -26,6 +26,8 @@ import { ApprovalInput } from './approval-input.js';
 import { approvalMemoryEdit, approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
+import { ApprovalPresetPicker } from './approval-preset-picker.js';
+import type { TemplateActions } from './approval-template-entry.js';
 
 function isReadTimeout(error: unknown): boolean {
   const cause: unknown = error instanceof Error ? error.cause : undefined;
@@ -58,13 +60,15 @@ export function ToolApprovalCard({
     | 'toolApprovalState'
     | 'toolApprovalExecutionState'
     | 'decideToolApproval'
-  >;
+  > &
+    TemplateActions;
   hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
     | 'allowed-once'
     | 'allowed-always-tool'
     | 'allowed-always-exact'
+    | 'allowed-always-prefix'
     | 'allowed-always-all'
     | 'rejected'
     | undefined;
@@ -299,7 +303,13 @@ export function ToolApprovalCard({
     if (surface === 'activity') return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
     const target = event.target as HTMLElement;
-    if (target.closest('input, textarea, select, [contenteditable="true"]') !== null) return;
+    if (!event.currentTarget.contains(target)) return;
+    if (
+      target.closest(
+        'input, textarea, select, [contenteditable="true"], [data-approval-preset]',
+      ) !== null
+    )
+      return;
     if (!actionable) return;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (disabled) return;
@@ -397,6 +407,8 @@ export function ToolApprovalCard({
         : request.approvalReview.fallback === undefined
           ? request.approvalReview.reason
           : t('autoApproval.reviewUnavailable');
+  const secretRisk =
+    canAlwaysAllow && (secretCli || request.toolName === 'secret_mcp_connect') ? scope : undefined;
   const hostAccess =
     message.approval?.masked === false && message.approval.opaque
       ? t('approval.opaqueWarning')
@@ -408,28 +420,20 @@ export function ToolApprovalCard({
           t('approval.cwd', { path: request.cwd }),
           effects,
           review,
-          scope,
-          summary.command === undefined ? hostAccess : undefined,
+          secretRisk === undefined ? scope : undefined,
+          hostAccess,
         ]
       : [
           `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
           effects,
           origin,
           review,
-          canAlwaysAllow ? undefined : scope,
+          scope !== undefined && canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
           hostAccess,
         ]
   )
     .filter((line) => line !== undefined && line !== '')
     .join('\n');
-  const shortScope =
-    scope === undefined || !canAlwaysAllow
-      ? undefined
-      : memoryEdit !== undefined
-        ? t('approval.alwaysMemoryScope')
-        : secretCli || request.toolName === 'secret_mcp_connect'
-          ? scope
-          : t('approval.alwaysToolScopeShort', { tool: request.toolName });
   const details =
     memoryEdit !== undefined ? (
       <ApprovalInput
@@ -466,9 +470,10 @@ export function ToolApprovalCard({
     ) : null;
   const onCardClick = (event: MouseEvent<HTMLDivElement>): void => {
     const target = event.target as HTMLElement;
+    if (!event.currentTarget.contains(target)) return;
     if (
       target.closest(
-        'button, a, input, textarea, select, label, [role="group"], .bh-tool-approval-details-body',
+        'button, a, input, textarea, select, label, [role="group"], [data-approval-preset], .bh-tool-approval-details-body',
       ) !== null
     )
       return;
@@ -566,8 +571,8 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {shortScope === undefined ? null : (
-        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{shortScope}</div>
+      {secretRisk === undefined ? null : (
+        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{secretRisk}</div>
       )}
       {settled !== undefined ? (
         <RequestOutcome
@@ -592,7 +597,6 @@ export function ToolApprovalCard({
       {effectiveDecision !== undefined || actionable ? (
         <ActionGroup groupRef={focusMount} className="bh-tool-approval-actions" stack>
           <ActionButton
-            icon="check"
             pill
             tone="primary"
             size={size}
@@ -604,7 +608,6 @@ export function ToolApprovalCard({
             {t('approval.allowOnce')}
           </ActionButton>
           <ActionButton
-            icon="shield-check"
             pill
 
             size={size}
@@ -616,7 +619,6 @@ export function ToolApprovalCard({
             {t('approval.allowAlways')}
           </ActionButton>
           <ActionButton
-            icon="x"
             pill
 
             size={size}
@@ -633,6 +635,9 @@ export function ToolApprovalCard({
         <div role="status" {...stylex.props(styles.caption)}>
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
+      ) : null}
+      {actionable && botSlug !== undefined ? (
+        <ApprovalPresetPicker botSlug={botSlug} actions={actions} manage={!hostScoped} t={t} />
       ) : null}
       {status === 'unavailable' ? (
         <ActionGroup>

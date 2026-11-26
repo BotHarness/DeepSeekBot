@@ -6,6 +6,51 @@ import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
 import type { TobCliWriteProposal } from './cli-broker.js';
 import { TobError } from './service.js';
 import { toolApprovalRequired } from '../workspaces/tool-effects.js';
+import { canonicalCliCommandName } from '../bots/cli-command-names.js';
+
+export const ALWAYS_ASK_CLI_COMMANDS: ReadonlySet<string> = new Set([
+  'release-install',
+  'release-restart',
+  'pause',
+  'bot-delete-confirm',
+  'bot-delete-retry',
+  'bot-delete-memory-folder',
+  'channel-purge-confirm',
+  'data-reset-confirm',
+  'group-delete',
+  'marketplace-delete',
+  'marketplace-avatar-delete',
+  'memory-save',
+  'memory-restore',
+  'memory-restore-commit',
+  'memory-repair',
+  'profile-backup-restore',
+  'profile-backup-activate',
+  'profile-backup-recovery',
+  'secret-put',
+  'secret-unset',
+  'im-credentials',
+  'ask-secret-replace',
+  'ask-secret-revoke',
+  'ask-secret-submit',
+  'connect-account-revoke',
+  'connector-key-set',
+  'connector-key-clear',
+  'connector-connect',
+  'connector-reconnect',
+  'connector-grant',
+  'connector-remove',
+  'device-offer',
+  'device-pair',
+  'device-account-pair',
+  'device-revoke',
+  'pairing-review',
+  'messaging-revoke',
+]);
+
+export function alwaysAsksHuman(command: string): boolean {
+  return ALWAYS_ASK_CLI_COMMANDS.has(canonicalCliCommandName(command));
+}
 
 export async function approveTobCliOperation(options: {
   execution: ToolExecution;
@@ -21,16 +66,7 @@ export async function approveTobCliOperation(options: {
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
   const generic = 'via' in operation && operation.via === 'cli';
-  const requireExplicitApproval =
-    generic ||
-    [
-      'release-install',
-      'release-restart',
-      'bot-delete-confirm',
-      'bot-delete-retry',
-      'memory-save',
-      'memory-restore-commit',
-    ].includes(command);
+  const requireExplicitApproval = alwaysAsksHuman(command);
   const scope =
     !generic &&
     'target' in operation &&
@@ -81,9 +117,9 @@ export async function approveTobCliOperation(options: {
       toolName: call.name,
       callId: call.callId,
       reason: generic
-        ? 'Tob wants to run this exact deepseekbot command on this Host as you. Review patch.argv (and the stdin size and hash, if any); approve only if it is what you asked for.'
+        ? 'This Bot wants to run this exact deepseekbot command on this Host as you. Review patch.argv (and the stdin size and hash, if any); approve only if it is what you asked for.'
         : command.startsWith('memory-')
-          ? `Tob wants to change the Memory of ${'target' in operation ? operation.target : 'a Bot'}. Review patch.diff against previousValue.revision, the base commit it applies to; patch.takesEffect says when Sessions see it. If Memory changes before you decide, nothing is written.`
+          ? `This Bot wants to change the Memory of ${'target' in operation ? operation.target : 'a Bot'}. Review patch.diff against previousValue.revision, the base commit it applies to; patch.takesEffect says when Sessions see it. If Memory changes before you decide, nothing is written.`
           : 'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
       signal,
     });

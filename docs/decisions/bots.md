@@ -4,7 +4,7 @@ Publish: true
 
 # Bot identity and lifecycle decisions
 
-The PersonaBot Registry owns identity and lifecycle. See the [living architecture](../architecture/botharness-architecture.md) for runtime relationships and the [Tob decisions](tob.md) for the built-in Steward Bot.
+The PersonaBot Registry owns identity and lifecycle. See the [living architecture](../architecture/botharness-architecture.md) for runtime relationships and the [Tob decisions](tob.md) for the built-in Tob.
 
 ## BotHarness extends DSH through published plugins
 
@@ -132,7 +132,7 @@ Enforced by: [creation receipt and restart](../../packages/core/test/bot-creatio
 
 <a id="adr-0248"></a>
 
-Tobs is the application brand, BotHarness the framework and Tob the Steward Bot. The `tobs` npm entry depends on the exact matching `deepseekbot` release. Both use the same Bundle and compatible entry points. Mobile keeps its application and store identities. Brand migration preserves existing link identifiers, attribution and compatibility routes.
+Tobs is the application brand, BotHarness the framework and Tob the built-in Bot that manages the App. The `tobs` npm entry depends on the exact matching `deepseekbot` release. Both use the same Bundle and compatible entry points. Mobile keeps its application and store identities. Brand migration preserves existing link identifiers, attribution and compatibility routes.
 
 Why: A new public brand does not require moving Profiles, invalidating links or making users reinstall. Matching package versions preserve the same Plugins and storage from either entry point.
 

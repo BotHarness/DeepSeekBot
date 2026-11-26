@@ -1,16 +1,24 @@
 import type { ConnectionState } from '@botharness/host-client/client';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { useIsFocused, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
 import type { NativeStackHeaderItem } from 'expo-router';
-import { Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  View,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { materialSearchHeight, searchAppBarHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { headerLabelScaleCeiling } from '../design/capped-text';
+import { headerBarItem, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ChatsIcon, ChevronDownIcon, CloudIcon } from './icons';
@@ -18,6 +26,18 @@ import { HostGlyph } from './host-tile';
 import { FixedToolbar } from './fixed-toolbar';
 import { TabPageHeader } from './tab-page-header';
 import { TabNativeHeader, type TabHeaderSearch } from './tab-native-header';
+import { glassHeader } from '../chat/header-kind';
+import { ListEdgeFades } from './list-edge-fades';
+import {
+  environmentChipShowsName,
+  environmentChipSizes,
+  nativeChipRoom,
+} from './environment-chip-fit';
+
+export function useGlassHomeHeader(): boolean {
+  const theme = useDesignTheme();
+  return Platform.OS === 'ios' && glassHeader;
+}
 
 export function HomeHeader({
   environment,
@@ -46,7 +66,10 @@ export function HomeHeader({
   const router = useRouter();
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
+  const headerHeight = useHeaderHeight();
   const native = Platform.OS === 'ios' && nativeSearch !== undefined;
+  const glass = useGlassHomeHeader() && native;
   const android = Platform.OS === 'android';
   const searchBar = android && bar !== undefined;
   const minimumHeight = searchBar
@@ -66,6 +89,10 @@ export function HomeHeader({
     );
   };
   const title = environment.kind === 'all' ? t.chats : environment.title;
+  const chip = environmentChipSizes(theme.type, theme.fontScale, glass);
+  const nativeRoom = native ? nativeChipRoom(window.width, insets) : undefined;
+  const [measuredRoom, setMeasuredRoom] = useState<number>();
+  const showsName = environmentChipShowsName(nativeRoom ?? measuredRoom, chip);
   const location = (
     <Pressable
       testID="chats-environment-name"
@@ -77,49 +104,51 @@ export function HomeHeader({
       accessibilityState={{ busy: connectionLabel !== undefined }}
       onPress={() => router.push('/environment')}
       style={({ pressed }) => ({
-        minHeight: theme.touch,
+        minHeight: native ? headerBarItem.size : theme.touch,
+        ...(nativeRoom === undefined ? {} : { maxWidth: nativeRoom }),
         flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
+        paddingHorizontal: chip.padding,
         opacity: pressed ? 0.6 : 1,
       })}
     >
       {environment.kind === 'computer' && environment.hostIcon ? (
         <HostGlyph
           icon={environment.hostIcon}
-          size={theme.type.title.line * theme.fontScale}
+          size={chip.icon}
           color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
         />
       ) : environment.kind === 'cloud' ? (
-        <CloudIcon color={theme.color.accent} size={theme.type.title.line * theme.fontScale} />
+        <CloudIcon color={theme.color.accent} size={chip.icon} />
       ) : (
-        <ChatsIcon color={theme.color.accent} size={theme.type.title.line * theme.fontScale} />
+        <ChatsIcon color={theme.color.accent} size={chip.icon} />
       )}
-      <Text variant="title" strong style={{ flexShrink: 1 }}>
-        {title}
-      </Text>
+      {showsName ? (
+        <Text
+          variant="title"
+          strong
+          maxFontSizeMultiplier={headerLabelScaleCeiling}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{ flexShrink: 1 }}
+        >
+          {title}
+        </Text>
+      ) : null}
       <ConnectionProgress active={connectionLabel !== undefined} />
-      <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line * theme.fontScale} />
+      {showsName ? <ChevronDownIcon color={theme.color.muted} size={chip.chevron} /> : null}
     </Pressable>
   );
   const header = native ? (
-    <>
-      <TabNativeHeader
-        title={title}
-        leading={theme.largeText ? null : location}
-        search={nativeSearch}
-        items={nativeItems}
-      />
-      {theme.largeText ? (
-        <View
-          testID="home-header"
-          style={{ paddingHorizontal: space.x5, paddingVertical: space.x2 }}
-        >
-          {location}
-        </View>
-      ) : null}
-    </>
+    <TabNativeHeader
+      title={title}
+      leading={location}
+      search={nativeSearch}
+      items={nativeItems}
+      glass={glass}
+    />
   ) : searchBar ? (
     <View
       testID="home-header"
@@ -139,7 +168,19 @@ export function HomeHeader({
     <TabPageHeader
       testID="home-header"
       onLayout={android ? measure : undefined}
-      leading={search ?? location}
+      leading={
+        search ?? (
+          <View
+            style={{ minWidth: 0 }}
+            onLayout={({ nativeEvent }) => {
+              const next = Math.round(nativeEvent.layout.width);
+              setMeasuredRoom((previous) => (previous === next ? previous : next));
+            }}
+          >
+            {location}
+          </View>
+        )
+      }
       actions={search === undefined ? actions : undefined}
     />
   );
@@ -154,7 +195,10 @@ export function HomeHeader({
       {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
       {android ? (
         <>
-          <View style={{ flex: 1, marginTop: height }}>{children}</View>
+          <View style={{ flex: 1, marginTop: height }}>
+            {children}
+            <ListEdgeFades />
+          </View>
           <FixedToolbar height={height}>{header}</FixedToolbar>
           <View
             pointerEvents="none"
@@ -169,10 +213,17 @@ export function HomeHeader({
           />
         </>
       ) : (
-        <>
+        <View style={{ flex: 1, paddingTop: native && !glass ? headerHeight : 0 }}>
           {header}
-          {children}
-        </>
+          {glass ? (
+            children
+          ) : (
+            <View style={{ flex: 1 }}>
+              {children}
+              <ListEdgeFades />
+            </View>
+          )}
+        </View>
       )}
     </View>
   );

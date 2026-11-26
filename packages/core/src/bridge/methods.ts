@@ -180,6 +180,11 @@ import {
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
 import { createUsageAdapterMethods, type UsageAdapterMethods } from '../features/usage/methods.js';
 import {
+  createConnectorsBridgeMethods,
+  type ConnectorsBridgeDeps,
+  type ConnectorsBridgeMethods,
+} from '../features/connectors/methods.js';
+import {
   createTakeoverAdapterMethods,
   type TakeoverAdapterMethods,
 } from '../features/takeover/methods.js';
@@ -404,6 +409,7 @@ export interface BridgeMethods
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
     UsageAdapterMethods,
+    ConnectorsBridgeMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -435,6 +441,7 @@ export interface BridgeMethodsDeps
     ApprovalsBridgeDeps,
     WorkspacesBridgeDeps,
     AssignmentsBridgeDeps,
+    ConnectorsBridgeDeps,
     MemoryBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
@@ -716,6 +723,7 @@ function buildBridgeMethods(
       isHostOwner,
       log: deps.voiceLog,
     }),
+    ...createConnectorsBridgeMethods(deps, isHostOwner),
     ...createBotModeBridgeMethods({
       modes: deps.botModes,
       registry: deps.registry,
@@ -756,8 +764,7 @@ function buildBridgeMethods(
     messagingRevoke: messagingMethods.messagingRevoke,
     messagingConversation: messagingMethods.messagingConversation,
     messagingSend: messagingMethods.messagingSend,
-    tobCli: tobAdapterMethods.tobCli,
-    tobHome: tobAdapterMethods.tobHome,
+    ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
     acknowledgements: humansAdapterMethods.acknowledgements,
     acknowledge: humansAdapterMethods.acknowledge,
@@ -844,6 +851,7 @@ function buildBridgeMethods(
     channelHumanNameSet: humansMethods.channelHumanNameSet,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
+    channelAccessState: channelsAdapterMethods.channelAccessState,
     channelDm: channelsAdapterMethods.channelDm,
     channelGet: channelsAdapterMethods.channelGet,
     channelCreate: channelsManagementAdapterMethods.channelCreate,
@@ -942,8 +950,6 @@ function buildBridgeMethods(
     userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     botToolTrace: sessionsMethods.botToolTrace,
     botTurnInput: promptsAdapterMethods.botTurnInput,
-    botTools: tobAdapterMethods.botTools,
-    botToolRun: tobAdapterMethods.botToolRun,
     sessions: sessionsMethods.sessions,
     sessionArchiveSet: sessionsMethods.sessionArchiveSet,
     memoryMove: memoryMethods.memoryMove,

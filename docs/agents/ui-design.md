@@ -76,6 +76,17 @@ Use `ds/read-failure` or native `primitives/read-failure` for standalone failed 
 
 Session maintenance uses the shared `session-maintenance` controller, scoped to a Host client and Bot DM. Failure cards and usage panels observe the same in-flight operation and outcome. Compact and new Session never resend messages. Group channels and Assignment failures do not expose these actions; the Host remains authoritative for busy and permission refusals.
 
+## Request cards
+
+Approval, question, grant and other request cards in a chat, Activity or companion surface follow one layout rule.
+
+- **One content inset.** Every row starts at the same left edge. On desktop and Web the inset is `space.x4` (12px). The chat bubble supplies it in a chat, and the card's `inset` style supplies it elsewhere, never both. Native cards use `space.x5` (16px).
+- **One row gap.** The heading, subject, warnings, notes and the action group are separated by one gap: `space.x3` (8px) on desktop and Web and `space.x4` (12px) on native cards. A nested group inside the card, such as a sentence above its command, repeats the same gap rather than a tighter one.
+- **Nested blocks line up.** A well such as a command, diff or option list keeps its own inner padding, but its outer edge sits on the content inset. A primitive used as a row, such as the clickable summary `Button`, resets its padding with `paddingBlock`/`paddingInline`: StyleX resolves by property specificity, so a `padding` shorthand in `xstyle` loses to the primitive's own longhand.
+- **Reading order.** Heading and state, then the subject (sentence and command or file), then irreversible effects and risks the Human must read before choosing, then the outcome, and the actions last. Context the Human can look up (rule scope, Host access, working folder, origin) goes behind the info icon or Details, not in a caption line on the card. Nothing sits above the card.
+
+[UI rule `xstyleShorthand`](../../scripts/check-ui-rules.mjs) rejects a `padding` or `margin` shorthand in a style passed through `xstyle`. Review the rest with a rendered card: measure that row edges and gaps match in both themes.
+
 ## Component names and motion
 
 **Name the component.** When discussing, planning, reviewing or implementing UI (issues, PRs, commits, code comments, chat), name the concrete component by its platform term from `GLOSSARY.md` → Native UI components: the Material 3 name on Android, the HIG name on iOS, and the API name (Compose, SwiftUI, UIKit, `@expo/ui`) when you mean code. Say "Android `ModalBottomSheet`" or "iOS pull-down button", not "popup", "弹窗", "drawer", "dropdown" or "the bottom thing". When a change covers both platforms, name both sides of the pair (Android `ModalBottomSheet` ↔ iOS form sheet). If a job has no counterpart, say so and name the custom surface recorded in `apps/mobile/DESIGN.md`. A component missing from the table is added to `GLOSSARY.md` and `GLOSSARY.zh.md` in the same change.

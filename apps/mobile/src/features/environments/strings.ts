@@ -7,6 +7,7 @@ export const en = {
   createHere: 'Create or join',
   chatsCreate: {
     group: 'New Group',
+    person: 'Message a person',
     join: 'Join',
     invite: 'Invite',
     blank: 'Blank',
@@ -155,6 +156,7 @@ export const zh: typeof en = {
   createHere: '创建或加入',
   chatsCreate: {
     group: '新建群聊',
+    person: '给某人发消息',
     join: '加入',
     invite: '邀请',
     blank: '空白 Bot',

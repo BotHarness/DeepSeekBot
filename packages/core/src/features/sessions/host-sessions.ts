@@ -57,6 +57,7 @@ export interface DshSessionListRow {
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
+  createdAt?: number;
 }
 
 export interface NativeSessions {
@@ -404,10 +405,10 @@ export function createHostSessionsMethods(
       if (sessionId === undefined) return invalidInput('sessionId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
       const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+      if (owner?.botSlug !== slug)
         return {
           ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+          error: { code: 'not-found', message: `unknown Session: ${sessionId}` },
         };
       return snapshot(sessionId, after, false);
     },

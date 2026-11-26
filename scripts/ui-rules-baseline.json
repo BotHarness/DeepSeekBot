@@ -1417,6 +1417,7 @@
     "packages/client/src/client/ds/tooltip.tsx": ["BaseTooltip.Trigger"],
     "packages/client/src/client/ds/work-row.tsx": ["button"]
   },
+  "xstyleShorthand": {},
   "catalogue": {},
   "duplicateComponent": {
     "packages/client/src/client/activity-list-controls.tsx": ["ActivityListSourceButton"],

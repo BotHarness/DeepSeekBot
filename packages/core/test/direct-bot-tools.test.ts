@@ -11,6 +11,7 @@ import { executeNativeTool, installNativeTools } from '../src/runtime/native-age
 import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 import { PRIVATE_INPUT_TOOLS } from '../src/credentials/tool-contract.js';
 import { TAKEOVER_TOOLS } from '../src/takeover/contracts.js';
+import { CONNECTOR_TOOLS } from '../src/connectors/policy.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -229,9 +230,11 @@ describe('direct Bot tool runner', () => {
             !exempt.includes(name) &&
             name !== 'cloud_work' &&
             name !== 'deepseekbot_cli' &&
+            name !== 'bot_create' &&
             !TURN_ONLY_BOT_TOOLS.has(name) &&
             !PRIVATE_INPUT_TOOLS.has(name) &&
-            !TAKEOVER_TOOLS.has(name),
+            !TAKEOVER_TOOLS.has(name) &&
+            !CONNECTOR_TOOLS.has(name),
         )
         .sort(),
     );

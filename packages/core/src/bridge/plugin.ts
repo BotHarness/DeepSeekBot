@@ -318,6 +318,7 @@ export function createHostBridgeDependencies(
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    ...(core.connectors === undefined ? {} : { connectors: core.connectors }),
     sessionLive,
     nativeSessions: deps.nativeSessions,
     externalSessions: deps.externalSessions,

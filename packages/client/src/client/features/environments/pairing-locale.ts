@@ -33,6 +33,13 @@ export const zh = {
   'pairing.search': '搜索{title}',
   'pairing.noMatches': '没有匹配的条目。',
   'pairing.noPeople': '尚无有效配对人员。',
+  'pairing.blocked': '已屏蔽',
+  'pairing.noBlocked': '没有被屏蔽的发送者。',
+  'pairing.blockedAt': '屏蔽时间',
+  'pairing.block': '屏蔽',
+  'pairing.unblock': '取消屏蔽',
+  'pairing.blockHelp':
+    '被屏蔽的人在此 IM 应用里发的消息不会进入收件箱，也不会唤醒 Bot。审核人可在 IM 中用 /屏蔽 @某人。',
   'pairing.noRoles': '尚无角色。',
   'pairing.noRequests': '尚无待处理或历史申请。',
   'pairing.selectPerson': '选择条目查看详情。',
@@ -50,6 +57,12 @@ export const zh = {
   'pairing.behavior': '自然语言行为权限',
   'pairing.ordinary': '普通聊天 · 无管理能力',
   'pairing.editRole': '编辑角色',
+  'pairing.deleteRole': '删除角色',
+  'pairing.deleteRoleWarning': '删除后无法恢复。没有人在使用这个角色。',
+  'pairing.deleteDefaultRoleWarning':
+    '删除后无法恢复。这是默认审批角色，删除后新的配对申请将不再预选角色。',
+  'pairing.deleteRoleInUse':
+    '仍有 {count} 人使用或申请这个角色。先为他们改用其他角色，或拒绝待审核的申请。',
   'pairing.defaultRole': '默认批准角色',
   'pairing.defaultRoleHelp':
     '审核人在 IM 里只回复「同意」时，配对申请会获得这个角色。审核人只能分配自己权限范围内的角色。',
@@ -80,6 +93,7 @@ export const zh = {
   'pairing.refresh': '刷新申请',
   'pairing.actor': '申请人',
   'pairing.account': '接收账号',
+  'pairing.app': '应用',
   'pairing.reference': '申请编号',
   'pairing.expires': '过期时间',
   'pairing.approve': '批准所选能力',
@@ -90,6 +104,7 @@ export const zh = {
   'pairing.rejectCapability': '拒绝操作',
   'pairing.reviewCapability': '审核聊天配对',
   'pairing.delegable': '可委派管理能力',
+  'pairing.delegateApproved': '也可在 IM 里把这些能力授予别人',
   'pairing.delegateAllow': '允许委派',
   'pairing.delegateDeny': '禁止委派',
   'pairing.delegationHelp':
@@ -364,6 +379,13 @@ export const en = {
   'pairing.search': 'Search {title}',
   'pairing.noMatches': 'No matching entries.',
   'pairing.noPeople': 'No active paired people yet.',
+  'pairing.blocked': 'Blocked',
+  'pairing.noBlocked': 'No blocked senders.',
+  'pairing.blockedAt': 'Blocked at',
+  'pairing.block': 'Block',
+  'pairing.unblock': 'Unblock',
+  'pairing.blockHelp':
+    'Messages from a blocked person in this IM app never reach the Inbox or wake the Bot. Reviewers can send /block @someone in IM.',
   'pairing.noRoles': 'No roles yet.',
   'pairing.noRequests': 'No pending or historical requests.',
   'pairing.selectPerson': 'Select an entry to view its details.',
@@ -381,6 +403,12 @@ export const en = {
   'pairing.behavior': 'Behavior permissions',
   'pairing.ordinary': 'Ordinary chat · no management capabilities',
   'pairing.editRole': 'Edit role',
+  'pairing.deleteRole': 'Delete role',
+  'pairing.deleteRoleWarning': 'This cannot be undone. No one uses this role.',
+  'pairing.deleteDefaultRoleWarning':
+    'This cannot be undone. It is the default approval role, so new pairing requests will no longer preselect a role.',
+  'pairing.deleteRoleInUse':
+    'Still used or requested by {count}. Move them to another role or reject their pending requests first.',
   'pairing.defaultRole': 'Default approval role',
   'pairing.defaultRoleHelp':
     'When a reviewer replies only "approve" in IM, the pairing request gets this role. A reviewer can only assign roles within their own permissions.',
@@ -411,6 +439,7 @@ export const en = {
   'pairing.refresh': 'Refresh requests',
   'pairing.actor': 'Applicant',
   'pairing.account': 'Receiving account',
+  'pairing.app': 'App',
   'pairing.reference': 'Request reference',
   'pairing.expires': 'Expires',
   'pairing.approve': 'Approve selected capabilities',
@@ -421,6 +450,7 @@ export const en = {
   'pairing.rejectCapability': 'Reject operations',
   'pairing.reviewCapability': 'Review chat pairing',
   'pairing.delegable': 'Delegable management capabilities',
+  'pairing.delegateApproved': 'Can also grant these to others in IM',
   'pairing.delegateAllow': 'Allow delegation',
   'pairing.delegateDeny': 'Deny delegation',
   'pairing.delegationHelp':

@@ -39,6 +39,7 @@ import {
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { PromptPresetSettings } from './prompt-preset-settings.js';
+import { ConnectorsSettings } from './connectors-settings.js';
 import { BotModeDefaultSetting, BotModeTemplateSettings } from './bot-mode-settings.js';
 import { buildLabel, clientBuild } from './build-id.js';
 import { DataResetSettings } from './data-reset-settings.js';
@@ -210,6 +211,23 @@ export function PromptsSection(props: SectionProps<{ actions: BridgeActions }>):
   return (
     <Rows>
       <PromptPresetSettings actions={props.actions} t={props.t} />
+    </Rows>
+  );
+}
+
+export function ConnectorsSection(
+  props: SectionProps<{ actions: BridgeActions; call: BridgeCall }>,
+): ReactElement {
+  const viewer = useTeamMode(props.call)?.viewer;
+  return (
+    <Rows>
+      {viewer?.owner === false ? (
+        <SettingsSection>
+          <Note>{props.t('connectors.bot.ownerOnly')}</Note>
+        </SettingsSection>
+      ) : (
+        <ConnectorsSettings actions={props.actions} t={props.t} />
+      )}
     </Rows>
   );
 }

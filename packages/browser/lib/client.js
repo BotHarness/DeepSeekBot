@@ -504,6 +504,20 @@ window.__ModuleLoader__.load({
 					rx: "2"
 				}]
 			],
+			cable: [
+				["path", { d: "M17 19a1 1 0 0 1-1-1v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1z" }],
+				["path", { d: "M17 21v-2" }],
+				["path", { d: "M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10" }],
+				["path", { d: "M21 21v-2" }],
+				["path", { d: "M3 5V3" }],
+				["path", { d: "M4 10a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2z" }],
+				["path", { d: "M7 5V3" }]
+			],
+			"message-square-share": [
+				["path", { d: "M12 3H4a2 2 0 0 0-2 2v16.286a.71.71 0 0 0 1.212.502l2.202-2.202A2 2 0 0 1 6.828 19H20a2 2 0 0 0 2-2v-4" }],
+				["path", { d: "M16 3h6v6" }],
+				["path", { d: "m16 9 6-6" }]
+			],
 			plug: [
 				["path", { d: "M12 22v-5" }],
 				["path", { d: "M15 8V2" }],
@@ -1303,11 +1317,12 @@ window.__ModuleLoader__.load({
 			base: "var(--tobs-layer-canvas)",
 			modal: "var(--tobs-layer-sheet)",
 			well: "var(--tobs-layer-well)",
-			accentTint: "var(--tobs-accent-tint)"
+			accentTint: "var(--tobs-accent-tint)",
+			logoTile: "var(--tobs-layer-logo)"
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
-		const styles$4 = {
+		const styles$5 = {
 			base: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -1411,7 +1426,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
-			const styled = props(styles$4.base, styles$4[size], styles$4[variant], xstyle);
+			const styled = props(styles$5.base, styles$5[size], styles$5[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
@@ -1452,7 +1467,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/tag.tsx
-		const styles$3 = {
+		const styles$4 = {
 			wrap: {
 				khDVqt: "bhxeaf4i8",
 				kHjlTd: "bhxj0a0fe",
@@ -1517,7 +1532,7 @@ window.__ModuleLoader__.load({
 				...props$1,
 				ref,
 				"data-tone": tone,
-				className: joinClass(props(styles$3.tag, styles$3[tone], wrap && styles$3.wrap).className, className)
+				className: joinClass(props(styles$4.tag, styles$4[tone], wrap && styles$4.wrap).className, className)
 			});
 		});
 		//#endregion
@@ -3895,7 +3910,7 @@ window.__ModuleLoader__.load({
 		* @param {string | undefined} prefix prefixes the generated id when provided
 		* @returns {string | undefined}
 		*/
-		function useId$6(idOverride, prefix) {
+		function useId$7(idOverride, prefix) {
 			if (maybeReactUseId !== void 0) {
 				const reactId = maybeReactUseId();
 				return idOverride ?? (prefix ? `${prefix}-${reactId}` : reactId);
@@ -4222,7 +4237,7 @@ window.__ModuleLoader__.load({
 		const attr = createAttribute("portal");
 		function useFloatingPortalNode(props = {}) {
 			const { ref, container: containerProp, componentProps = EMPTY_OBJECT, elementProps } = props;
-			const uniqueId = useId$6();
+			const uniqueId = useId$7();
 			const parentPortalNode = usePortalContext()?.portalNode;
 			const [containerElement, setContainerElement] = react.useState(null);
 			const [portalNode, setPortalNode] = react.useState(null);
@@ -4406,7 +4421,7 @@ window.__ModuleLoader__.load({
 		* @see https://floating-ui.com/docs/FloatingTree
 		*/
 		function useFloatingNodeId(externalTree) {
-			const id = useId$6();
+			const id = useId$7();
 			const tree = useFloatingTree(externalTree);
 			const parentId = useFloatingParentNodeId();
 			useIsoLayoutEffect(() => {
@@ -5813,7 +5828,7 @@ window.__ModuleLoader__.load({
 		* floating element instead of the default positioner.
 		*/
 		function usePopupRootStore(createStore, treatPopupAsFloatingElement = false) {
-			const floatingId = useId$6();
+			const floatingId = useId$7();
 			const nested = useFloatingParentNodeId() != null;
 			const store = useRefWithInit(() => createStore(floatingId, nested)).current;
 			useSyncedFloatingRootContext({
@@ -9536,7 +9551,7 @@ window.__ModuleLoader__.load({
 		* @returns {string | undefined}
 		*/
 		function useBaseUiId(idOverride) {
-			return useId$6(idOverride, "base-ui");
+			return useId$7(idOverride, "base-ui");
 		}
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/provider/TooltipProviderContext.mjs
@@ -10649,7 +10664,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
 		const SettingsGroupContext = (0, react.createContext)(false);
-		const styles$2 = {
+		const styles$3 = {
 			rows: {
 				k1xSpc: "bhx78zum5",
 				kXwgrk: "bhxdt5ytf",
@@ -10749,9 +10764,33 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		styles$2.row;
+		styles$3.row;
 		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
+		const styles$2 = {
+			line: {
+				kVAEAm: "bhx1n2onr6",
+				$$css: true
+			},
+			stretch: {
+				kVAEAm: "bhx10l6tqk",
+				kpwlN0: "bhx10a8y8t",
+				$$css: true
+			},
+			stretched: {
+				kVAEAm: "bhx1n2onr6",
+				kfzvcC: "bhx47corl",
+				$$css: true
+			},
+			above: {
+				kVAEAm: "bhx1n2onr6",
+				$$css: true
+			}
+		};
+		function withStyle(base, extra) {
+			const added = extra === false ? void 0 : props(extra).className;
+			return added === void 0 ? base : `${base} ${added}`;
+		}
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			if ((0, react.useContext)(SettingsGroupContext)) {
 				const part = { className: "bhx-default-marker bhxjp7ctv bhxe8uvvx" };
@@ -10772,8 +10811,10 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, chipActions, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
 			const inGroup = (0, react.useContext)(SettingsGroupContext);
+			const titleId = (0, react.useId)();
+			const stretched = chipActions !== void 0 && onClick !== void 0 && selection === void 0;
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bh-card-leading",
@@ -10793,11 +10834,13 @@ window.__ModuleLoader__.load({
 					className: "bh-card-body",
 					children: [
 						badge === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							id: titleId,
 							className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
 							children: title
 						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 							className: "bh-card-title-row",
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								id: titleId,
 								className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
 								children: title
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -10809,9 +10852,12 @@ window.__ModuleLoader__.load({
 							className: "bh-card-summary",
 							children: summary
 						}),
-						chips === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						chips === void 0 && chipActions === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 							className: "bh-card-chips",
-							children: chips
+							children: [chips, chipActions === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "bhxjp7ctv bhx67bb7w",
+								children: chipActions
+							})]
 						}),
 						meta === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: "bh-card-meta",
@@ -10830,7 +10876,7 @@ window.__ModuleLoader__.load({
 				"data-anchor": anchor,
 				"data-flip-key": flipKey,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "bh-card-line",
+					className: withStyle("bh-card-line", stretched && styles$2.line),
 					children: [selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
 						className,
 						title: hint,
@@ -10845,9 +10891,10 @@ window.__ModuleLoader__.load({
 						className,
 						title: hint,
 						children: body
-					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
-						className,
+						className: withStyle(className, stretched && styles$2.stretch),
+						"aria-labelledby": stretched ? titleId : void 0,
 						title: hint,
 						disabled,
 						"aria-pressed": selection?.checked,
@@ -10859,9 +10906,12 @@ window.__ModuleLoader__.load({
 							if (event.pointerType !== "touch") onIntent();
 						},
 						onFocus: onIntent,
+						children: stretched ? null : body
+					}), stretched ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: withStyle(className, styles$2.stretched),
 						children: body
-					}), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "bh-card-trailing",
+					}) : null] }), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: withStyle("bh-card-trailing", stretched && styles$2.above),
 						"data-card-trailing": trailingAlign,
 						children: trailing
 					})]
@@ -14939,6 +14989,7 @@ window.__ModuleLoader__.load({
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
 .bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
+.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
 .bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}
 .bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}

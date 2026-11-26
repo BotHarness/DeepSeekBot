@@ -746,5 +746,25 @@
   {
     "id": "sender-default-role",
     "sha256": "2c8c51128525b7ef3b3b1d2951e686df84031e0174f28dab373f691556661e5b"
+  },
+  {
+    "id": "connector-accounts",
+    "sha256": "6466c009108fbaad7510d9eecb7f79f66f5dd980969be49762a74448bf3d0865"
+  },
+  {
+    "id": "bot-management-grants",
+    "sha256": "63437bdd59b8ed905577534d32987ae8f5cf58ea60db90a546c183e35efe3caf"
+  },
+  {
+    "id": "connector-remote-mcp",
+    "sha256": "4897d986659a9c3f523737c7efb0ce62b8845f98fb9f85a75b1545a6f9ee2d82"
+  },
+  {
+    "id": "sender-block",
+    "sha256": "6038e99514650fd293e152f4c762f10765a7321c66edc1a5c79d025dc1420f9c"
+  },
+  {
+    "id": "shell-prefix-tool-rule",
+    "sha256": "5e6de29688067eefc270b7e31808afc7d16dac03c4ee45d01a77f2c35b96a0a0"
   }
 ]

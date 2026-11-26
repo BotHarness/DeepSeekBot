@@ -183,6 +183,9 @@ export const zh = {
   'team.permission.dm.humans': '私信其他人',
   'team.permission.bots.create': '创建 Bot',
   'team.permission.bots.manageAll': '管理所有共享 Bot',
+  'team.permission.bots.manageGrants': '为自己的 Bot 开启管理权限',
+  'team.permission.bots.manageGrants.hint':
+    '可以给自己的 Bot 打开“管理 App”和“管理其他 Bot”。只有所有者能授予。',
   'team.permission.models.use': '使用已配置的模型',
   'team.permission.im.bind': '把 Bot 连接到 IM 应用',
   'team.permission.workspaces.manageShared': '管理共享文件夹',
@@ -591,6 +594,9 @@ export const en = {
   'team.permission.dm.humans': 'Message other people directly',
   'team.permission.bots.create': 'Create Bots',
   'team.permission.bots.manageAll': 'Manage every shared Bot',
+  'team.permission.bots.manageGrants': 'Turn on management for own Bots',
+  'team.permission.bots.manageGrants.hint':
+    'Can turn on “Manage the App” and “Manage other Bots” for their own Bots. Only the Owner can grant this.',
   'team.permission.models.use': 'Use configured models',
   'team.permission.im.bind': 'Connect Bots to IM apps',
   'team.permission.workspaces.manageShared': 'Manage shared folders',

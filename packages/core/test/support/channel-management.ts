@@ -51,7 +51,6 @@ export function fixture(home = createTempRoot('channel-management-')): ChannelMa
     database,
     registry: core.registry,
     channels: core.channels,
-    isProtectedBot: (slug) => slug === 'tob',
     autoAcceptGroupInvitations: () => autoAccept,
     onInvitation: admitted,
     onJoinDecision: joinDecided,

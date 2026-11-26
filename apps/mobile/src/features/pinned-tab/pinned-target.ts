@@ -3,7 +3,7 @@ import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { conversations, type Conversation, type UnreadCounts } from '../../ui/chat/conversations';
 import type { PinnedBinding } from './pinned-binding';
-import { stewardSlug } from './steward';
+import { tobSlug } from './tob';
 
 export type PinnedHost = {
   hostId: string;
@@ -63,8 +63,8 @@ export function resolvePinnedTarget(
   const find = (key: string) => rows.find((row) => row.key === key);
   const bound = binding === undefined ? undefined : find(bindingKey(binding));
   if (bound !== undefined) return { hostId: host.hostId, conversation: bound, fallback: false };
-  const steward = stewardSlug(roster);
-  const fallback = typeof steward === 'string' ? find(`bot:${steward}`) : undefined;
+  const tob = tobSlug(roster);
+  const fallback = (typeof tob === 'string' ? find(`bot:${tob}`) : undefined) ?? rows[0];
   return fallback === undefined
     ? undefined
     : { hostId: host.hostId, conversation: fallback, fallback: binding !== undefined };

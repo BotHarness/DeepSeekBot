@@ -16,6 +16,7 @@ import { parseToolApprovalActor } from '../../bridge.js';
 import { isChannelVoiceCallRecord } from '../../bridge.js';
 import { isChannelTurnStopEngine, isChannelTurnStopRests } from '../../bridge.js';
 import { isChannelModelSwitch } from '../../bridge.js';
+import { isChannelManagementGrant } from '../../bridge.js';
 import { parseMessagePerf } from '../../message-perf.js';
 import { isChannelClearedAttachment } from '../../bridge.js';
 
@@ -263,6 +264,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
+  let managementGrant: ChannelMessage['managementGrant'];
   let modelSwitch: ChannelMessage['modelSwitch'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
@@ -342,6 +344,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
+  } else if (record['managementGrant'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelManagementGrant(record['managementGrant']))
+      return undefined;
+    managementGrant = record['managementGrant'];
   } else if (record['modelSwitch'] !== undefined) {
     if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
     modelSwitch = record['modelSwitch'];
@@ -634,6 +640,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       (decision['outcome'] !== 'allowed-once' &&
         decision['outcome'] !== 'allowed-always-tool' &&
         decision['outcome'] !== 'allowed-always-exact' &&
+        decision['outcome'] !== 'allowed-always-prefix' &&
         decision['outcome'] !== 'allowed-always-all' &&
         decision['outcome'] !== 'rejected') ||
       replyTo !== decision['requestMessageId']
@@ -880,6 +887,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
     ...(modelSwitch === undefined ? {} : { modelSwitch }),
+    ...(managementGrant === undefined ? {} : { managementGrant }),
     ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),

@@ -11,6 +11,7 @@ export {
   trustedSenderReference,
   type ExternalUserRole,
   type SenderAccessInput,
+  type SenderAccessReviewer,
   type SenderAdmission,
   type SenderPermissions,
   type SenderPolicy,
@@ -24,6 +25,13 @@ export {
   type PermissionChoices,
 } from './groups.js';
 export { behaviorPermissions } from './behavior.js';
+export {
+  listSenderBlocks,
+  senderBlockBindingIds,
+  readSenderBlock,
+  senderBlocked,
+  type SenderBlock,
+} from './sender-blocks.js';
 export {
   behaviorConfigurationConflicts,
   resolveBehaviorPermissions,

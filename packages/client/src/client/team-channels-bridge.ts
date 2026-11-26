@@ -1,4 +1,8 @@
 import { readChannel } from '@botharness/host-client/channel-management';
+import {
+  openHumanDm as openHumanDmChannel,
+  readTeamDirectory,
+} from '@botharness/host-client/human-dm';
 import { bridgeHost, type BridgeCall } from './bridge.js';
 import { list, record, strings, unwrap } from './team-bridge.js';
 
@@ -132,20 +136,11 @@ export async function setChannelAdmins(
   await unwrap(call, 'channelAdminsSet', { channelId, humanIds: [...humanIds] });
 }
 
-export function parseDirectoryEntry(value: unknown): DirectoryEntry | undefined {
-  const row = record(value);
-  const humanId = row?.['humanId'];
-  const displayName = row?.['displayName'];
-  return typeof humanId === 'string' && humanId.length > 0 && typeof displayName === 'string'
-    ? { humanId, displayName }
-    : undefined;
-}
-
 export async function loadTeamDirectory(
   call: BridgeCall,
   signal?: AbortSignal,
 ): Promise<DirectoryEntry[]> {
-  return list(await unwrap(call, 'teamDirectory', {}, signal), parseDirectoryEntry);
+  return readTeamDirectory(bridgeHost(call, signal));
 }
 
 export async function openHumanDm(
@@ -153,11 +148,7 @@ export async function openHumanDm(
   humanId: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const value = record(await unwrap(call, 'humanDm', { humanId }, signal));
-  const channel = record(value?.['channel']);
-  const channelId = channel?.['id'] ?? value?.['channelId'];
-  if (typeof channelId !== 'string') throw new Error('invalid humanDm response');
-  return channelId;
+  return (await openHumanDmChannel(bridgeHost(call, signal), { humanId })).channelId;
 }
 
 export interface RoleChoice {
