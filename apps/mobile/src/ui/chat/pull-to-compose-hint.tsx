@@ -48,7 +48,7 @@ export function PullToComposeHint({
       >
         <KeyboardIcon
           color={ready ? theme.color.fg : theme.color.muted}
-          size={theme.type.meta.line}
+          size={theme.type.meta.line * theme.fontScale}
         />
         <Text variant="meta" tone={ready ? 'fg' : 'muted'} strong={ready}>
           {ready ? t.releaseToCompose : t.pullToCompose}

@@ -41,6 +41,7 @@ export function SettingsView({
   chatBackground,
   hapticFeedback,
   deliveryReceipts,
+  tabBar,
 }: {
   environment?: ReactNode;
   environmentFooter?: string | undefined;
@@ -55,6 +56,7 @@ export function SettingsView({
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
   deliveryReceipts?: ReactNode;
+  tabBar?: ReactNode;
 }) {
   const t = useStrings();
   const [versionCopied, setVersionCopied] = useState(false);
@@ -131,6 +133,7 @@ export function SettingsView({
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
         <SessionsTabSetting on={SHEET_GROUP} />
+        {tabBar}
         <HideBarsSetting on={SHEET_GROUP} />
         {messageDisplay}
         {sendJump}
