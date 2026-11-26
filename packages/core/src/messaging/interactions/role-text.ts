@@ -4,8 +4,10 @@ import type { BotPairing, PairingCapability, PairingRequest } from '../pairing.j
 import {
   changeSenderAccess,
   effectivePairingPermissions,
+  externalPermissionGroups,
   externalUserRoles,
   platformPeople,
+  type ExternalPermissionGroup,
   type ExternalUserRole,
 } from '../permissions/index.js';
 import { isMessagingPlatform } from '../platforms/index.js';
@@ -48,6 +50,26 @@ export function parsePermissionCommand(text: string): PermissionCommand | undefi
   if (/[\n\r]/u.test(rest) || rest.length > 80) return undefined;
   const action = /^(?:grant|授予)$/iu.test(match[1]!) ? 'grant' : 'revoke';
   return rest ? { action, capability: rest } : { action };
+}
+
+export interface GroupCommand {
+  action?: 'add' | 'remove';
+  group?: string;
+}
+
+export function parseGroupCommand(text: string): GroupCommand | undefined {
+  const match = /^[/／](?:group|权限组)(?:\s+([\s\S]*))?$/iu.exec(text.trim());
+  if (!match) return undefined;
+  const rest = (match[1] ?? '').trim();
+  if (/[\n\r]/u.test(rest) || rest.length > 120) return undefined;
+  if (!rest) return {};
+  const action = /^(add|remove|加入|移出)(?:\s+([\s\S]*))?$/iu.exec(rest);
+  if (!action) return undefined;
+  const group = (action[2] ?? '').trim();
+  return {
+    action: /^(?:add|加入)$/iu.test(action[1]!) ? 'add' : 'remove',
+    ...(group ? { group } : {}),
+  };
 }
 
 type ManagedCapability = Exclude<PairingCapability, 'answer'>;
@@ -121,6 +143,35 @@ const NOTICE = {
     `${name} already cannot ${cap}. / ${name} 本来就没有「${cap}」权限。`,
   groupDenies: (name: string, cap: string) =>
     `A permission group still denies ${cap} to ${name}. Change the group in Web settings. / 有授权组仍拒绝 ${name} 的「${cap}」权限，请在 Web 设置中修改该组。`,
+  unauthorizedGroup:
+    'Only people allowed to review pairing for this Bot can change permission groups. / 只有此 Bot 的配对审核人可以修改权限组。',
+  oneGroup:
+    'Mention exactly one person and one permission group, for example "/group add @name Reviewers". / 请只提及一个人和一个权限组，例如「/权限组 加入 @某人 Reviewers」。',
+  noGroup:
+    'You cannot change any permission group. Use Web settings. / 你没有可修改的权限组，请在 Web 设置中处理。',
+  groups: (groups: string[]) =>
+    [
+      `Permission groups you can change / 可修改的权限组: ${groups.join(', ')}`,
+      'Add or remove a paired person with "/group add @name <group>" or "/group remove @name <group>". / 用「/权限组 加入 @某人 <权限组>」或「/权限组 移出 @某人 <权限组>」修改成员。',
+    ].join('\n\n'),
+  unknownGroup: (name: string, groups: string[]) =>
+    `Permission group "${name}" was not found. Groups you can change: ${groups.join(', ') || 'none'}. / 没有找到权限组「${name}」。可修改的权限组：${groups.join('、') || '无'}。`,
+  unknownGroupPublic: (name: string) =>
+    `Permission group "${name}" was not found. The groups you can change were sent to you privately. / 没有找到权限组「${name}」。可修改的权限组已私信发给你。`,
+  deniedGroup: (name: string) =>
+    `You cannot change the permission group "${name}". / 你不能修改权限组「${name}」。`,
+  selfGroup:
+    'You cannot change your own permission groups here. / 不能在这里修改自己所在的权限组。',
+  added: (person: string, group: string) =>
+    `${person} is now in ${group}. / ${person} 已加入权限组「${group}」。`,
+  removed: (person: string, group: string) =>
+    `${person} is no longer in ${group}. / ${person} 已移出权限组「${group}」。`,
+  alreadyIn: (person: string, group: string) =>
+    `${person} is already in ${group}. / ${person} 已经在权限组「${group}」中。`,
+  alreadyOut: (person: string, group: string) =>
+    `${person} is not in ${group}. / ${person} 本来就不在权限组「${group}」中。`,
+  groupFailed:
+    'The permission group could not be changed here. Use Web settings. / 无法在此修改权限组，请在 Web 设置中处理。',
   permissionFailed:
     'The permission could not be changed here. Use Web settings. / 无法在此修改权限，请在 Web 设置中处理。',
 };
@@ -147,12 +198,26 @@ export function createRoleText(options: {
           delegable.includes(cap),
         );
       const all = externalUserRoles(db, botSlug);
+      const groupWithin = (group: ExternalPermissionGroup) =>
+        !group.behaviorAllow?.length &&
+        !group.behaviorDeny?.length &&
+        [
+          ...group.allow,
+          ...group.deny,
+          ...(group.delegateAllow ?? []),
+          ...(group.delegateDeny ?? []),
+        ].every((cap) => delegable.includes(cap));
+      const groups = externalPermissionGroups(db, botSlug).filter(
+        (group) => group.bindingId === bindingId && group.available !== false,
+      );
       return {
         reviewer: permissions.capabilities.includes('review-pairing'),
         delegable,
         roles: all.filter(within),
         all,
         within,
+        groups,
+        groupWithin,
       };
     });
 
@@ -185,7 +250,8 @@ export function createRoleText(options: {
     const normalized = rest.replace(/\s+/gu, ' ');
     const command = parseRoleCommand(normalized);
     const permission = command ? undefined : parsePermissionCommand(normalized);
-    if (!command && !permission) return false;
+    const groupCommand = command || permission ? undefined : parseGroupCommand(normalized);
+    if (!command && !permission && !groupCommand) return false;
     const binding = controlBinding(database, providerId, event);
     if (!binding?.enabled || !options.isBotActive(binding.botSlug)) return false;
     if (!deliveries.claim(event)) return true;
@@ -218,7 +284,13 @@ export function createRoleText(options: {
     };
     const reviewer = scope(binding.botSlug, binding.id, event.actor.id);
     if (!reviewer.reviewer) {
-      reply(permission ? NOTICE.unauthorizedPermission : NOTICE.unauthorized);
+      reply(
+        permission
+          ? NOTICE.unauthorizedPermission
+          : groupCommand
+            ? NOTICE.unauthorizedGroup
+            : NOTICE.unauthorized,
+      );
       log('command', 'unauthorized');
       return true;
     }
@@ -276,6 +348,79 @@ export function createRoleText(options: {
             : code === 'pairing-delegation-denied'
               ? NOTICE.deniedCapability(capability)
               : NOTICE.permissionFailed,
+        );
+      }
+      return true;
+    }
+    if (groupCommand) {
+      const manageable = reviewer.groups.filter(reviewer.groupWithin).map((group) => group.name);
+      if (!groupCommand.action) {
+        if (targets.length) reply(NOTICE.oneGroup);
+        else if (manageable.length) privately(NOTICE.groups(manageable));
+        else reply(NOTICE.noGroup);
+        return true;
+      }
+      if (distinctTargets.length !== 1 || !groupCommand.group) {
+        reply(NOTICE.oneGroup);
+        return true;
+      }
+      const mention = targets[0]!;
+      const label = mention.name ? `@${mention.name}` : `@${mention.id}`;
+      const person = pairedPerson(binding, mention.id);
+      if (!person) {
+        reply(NOTICE.notPaired(label));
+        return true;
+      }
+      if (person.actorId === event.actor.id) {
+        reply(NOTICE.selfGroup);
+        return true;
+      }
+      const wanted = groupCommand.group.toLowerCase();
+      const group = reviewer.groups.find((item) => item.name.trim().toLowerCase() === wanted);
+      if (!group) {
+        if (manageable.length)
+          privately(
+            NOTICE.unknownGroup(groupCommand.group, manageable),
+            NOTICE.unknownGroupPublic(groupCommand.group),
+          );
+        else reply(NOTICE.noGroup);
+        return true;
+      }
+      if (!reviewer.groupWithin(group)) {
+        reply(NOTICE.deniedGroup(group.name));
+        log('group', 'delegation-denied');
+        return true;
+      }
+      const member = group.memberIds.includes(person.id);
+      if (member === (groupCommand.action === 'add')) {
+        reply(
+          groupCommand.action === 'add'
+            ? NOTICE.alreadyIn(label, group.name)
+            : NOTICE.alreadyOut(label, group.name),
+        );
+        return true;
+      }
+      if (signal.aborted) return true;
+      try {
+        changeMembership(binding.botSlug, group, person, groupCommand.action, {
+          bindingId: binding.id,
+          actorId: event.actor.id,
+        });
+        log('group', 'accepted');
+        reply(
+          groupCommand.action === 'add'
+            ? NOTICE.added(label, group.name)
+            : NOTICE.removed(label, group.name),
+        );
+      } catch (error) {
+        const code = errorCode(error);
+        log('group', code);
+        reply(
+          code === 'pairing-unauthorized'
+            ? NOTICE.unauthorizedGroup
+            : code === 'pairing-delegation-denied'
+              ? NOTICE.deniedGroup(group.name)
+              : NOTICE.groupFailed,
         );
       }
       return true;
@@ -405,6 +550,37 @@ export function createRoleText(options: {
     );
     if (outcome === 'changed') options.changed(binding.botSlug);
     return outcome;
+  };
+
+  const changeMembership = (
+    botSlug: string,
+    group: ExternalPermissionGroup,
+    person: PairingRequest,
+    action: 'add' | 'remove',
+    reviewer: { bindingId: string; actorId: string },
+  ) => {
+    database.transaction(
+      (db) =>
+        changeSenderAccess(
+          db,
+          botSlug,
+          {
+            kind: 'edit-group',
+            id: group.id,
+            expectedRevision: group.revision,
+            name: group.name,
+            allow: group.allow.filter(managed),
+            deny: group.deny.filter(managed),
+            memberIds:
+              action === 'add'
+                ? [...group.memberIds, person.id]
+                : group.memberIds.filter((id) => id !== person.id),
+          },
+          reviewer,
+        ),
+      ['pairing', 'bot-inbox'],
+    );
+    options.changed(botSlug);
   };
 
   const reassign = (
