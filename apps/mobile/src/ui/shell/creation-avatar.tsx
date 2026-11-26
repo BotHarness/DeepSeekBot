@@ -115,10 +115,19 @@ function initialGallery(avatar: BotAvatarChoice | undefined): Gallery {
   return 'tilties';
 }
 
+function recipeKey(recipe: AvatarRecipe): string {
+  return JSON.stringify(recipe, (_key, value: unknown) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+    const entries = Object.entries(value);
+    entries.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return Object.fromEntries(entries);
+  });
+}
+
 function sameRecipe(avatar: BotAvatarChoice | undefined, recipe: AvatarRecipe): boolean {
   return (
     avatar?.kind === 'recipe' &&
-    (avatar.recipe === recipe || JSON.stringify(avatar.recipe) === JSON.stringify(recipe))
+    (avatar.recipe === recipe || recipeKey(avatar.recipe) === recipeKey(recipe))
   );
 }
 

@@ -124,6 +124,17 @@ it('opens on Pixel when the draft already holds a chosen pixel avatar', async ()
   expect(byTestID('create-bot-avatar-pixel-2')?.getAttribute('aria-checked')).toBe('true');
 });
 
+it('selects a saved Pixel preset regardless of recipe property order', async () => {
+  const preset = AVATAR_PRESETS[1];
+  if (!preset) throw Error('Expected a Pixel preset');
+  const { family, ...fields } = preset;
+
+  await render({ kind: 'recipe', recipe: { ...fields, family } });
+
+  expect(byTestID('create-bot-avatar-pixel-2')?.getAttribute('aria-checked')).toBe('true');
+  expect(byTestID('create-bot-avatar-pixel-1')?.getAttribute('aria-checked')).toBe('false');
+});
+
 it('sets a photo from the photo action', async () => {
   const change = vi.fn();
   await render(undefined, change);
