@@ -425,6 +425,11 @@ export const zh = {
   'botManagement.manage-bots.confirmTitle': '让这个 Bot 管理其他 Bot？',
   'botManagement.manage-bots.abilities':
     '它可以在你和它的私信里查看和修改你其他 Bot 的资料和 Memory。',
+  'botManagement.member.manage-app.hint':
+    '在你和它的私信里，替你创建 Bot、分享 Bot 草稿。不能改设置、模型和诊断。',
+  'botManagement.member.manage-app.confirmTitle': '让这个 Bot 替你创建 Bot？',
+  'botManagement.member.manage-app.abilities':
+    '它可以在你和它的私信里替你创建 Bot、分享 Bot 草稿。App 设置、模型和诊断仍然只有 Owner 能改。',
   'botManagement.approval': '写操作跟随它的审批模板，删除这类操作总会先问你。',
   'botManagement.turnOn': '打开',
   'botManagement.ownerOnly':
@@ -904,6 +909,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botManagement.manage-bots.confirmTitle': 'Let this Bot manage other Bots?',
   'botManagement.manage-bots.abilities':
     'In your DM with it, it can read and change your other Bots’ profiles and Memory.',
+  'botManagement.member.manage-app.hint':
+    'In your DM with it, it can create Bots and share Bot drafts for you. It can’t change settings, models or diagnostics.',
+  'botManagement.member.manage-app.confirmTitle': 'Let this Bot create Bots for you?',
+  'botManagement.member.manage-app.abilities':
+    'In your DM with it, it can create Bots and share Bot drafts for you. Only the Owner can change App settings, models and diagnostics.',
   'botManagement.approval':
     'Writes follow its Approval Template, and steps like deleting always ask you first.',
   'botManagement.turnOn': 'Turn on',
