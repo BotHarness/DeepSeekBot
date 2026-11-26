@@ -298,6 +298,7 @@ export function renderPinnedChannels({
                     {bot?.displayName ?? channel.name}
                     {bot === undefined ? null : (
                       <ChannelRowStatusGlyph
+                        size={14}
                         status={channelRowStatus({
                           activity: personaBotActivity(state, bot),
                           attention: bot.attention,

@@ -199,9 +199,7 @@ function parse(text: string, path: string): EngineFile {
         : isEngineId(assignmentEngine)
           ? { assignment: { engine: assignmentEngine, ...choiceOf(assignment) } }
           : {}),
-      ...(isEngineId(orchestrator) && entry?.['fallback'] === true
-        ? { fallback: true as const }
-        : {}),
+      ...(orchestrator !== null && entry?.['fallback'] === true ? { fallback: true as const } : {}),
       ...(isEngineId(orchestrator) ? choiceOf(entry) : {}),
       accounts,
       models,
@@ -321,7 +319,9 @@ export function createEngineStore(path: string): EngineStore {
       delete entry.accountId;
       if (engine === undefined) delete entry.orchestrator;
       else entry.orchestrator = engine;
-      if (engine != null && options?.fallback === true) entry.fallback = true;
+      if (engine === undefined) {
+        if (options?.fallback === false) delete entry.fallback;
+      } else if (engine !== null && options?.fallback === true) entry.fallback = true;
       else delete entry.fallback;
       if (engine != null) Object.assign(entry, choiceOf(options));
       file.bots[botSlug] = entry;

@@ -5,7 +5,15 @@ import {
   conversationEnvironments,
 } from './conversation-environments';
 
-export type CreationAction = 'channel' | 'bot' | 'zip' | 'marketplace' | 'git' | 'invite' | 'join';
+export type CreationAction =
+  | 'channel'
+  | 'bot'
+  | 'zip'
+  | 'marketplace'
+  | 'git'
+  | 'invite'
+  | 'join'
+  | 'person';
 export type CreationTarget =
   | {
       kind: 'computer';
@@ -14,6 +22,7 @@ export type CreationTarget =
       name: string;
       channelCreation?: boolean;
       botCreation?: boolean;
+      peopleDm?: boolean;
     }
   | { kind: 'cloud'; key: string; name: string; workspace: ConversationWorkspace };
 
@@ -65,7 +74,8 @@ export function targetsFor(
         (['bot', 'zip', 'marketplace', 'git'].includes(action) &&
           target.kind === 'computer' &&
           target.botCreation !== false) ||
-        (action === 'invite' && target.kind === 'cloud')),
+        (action === 'invite' && target.kind === 'cloud') ||
+        (action === 'person' && target.kind === 'computer' && target.peopleDm === true)),
   );
 }
 

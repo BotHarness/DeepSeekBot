@@ -66,4 +66,42 @@ describe('grantedWorkspacePath', () => {
     expect(grantedWorkspacePath(roots, '/work/apps')).toBe('/work');
     expect(grantedWorkspacePath(roots, '/other')).toBeUndefined();
   });
+
+  it('adds Claude Code and Codex sessions, marks folders that are not Workspaces and surfaces read failures', async () => {
+    const answers = (external: () => unknown) => ({
+      call: vi.fn(async (method: string) => {
+        if (method === 'workspaceOptions')
+          return { workspaces: [{ id: 'app', title: 'app', path: '/work/app' }] };
+        if (method === 'externalSessions') return external();
+        return { queryVersion: 1, sources: [{ kind: 'native' }], sessions: [] };
+      }),
+    });
+    const rows = await readImportableSessions(
+      answers(() => ({
+        sessions: [
+          {
+            sessionId: 'claude-code:a',
+            source: 'claude-code',
+            cwd: '/work/app/web',
+            lastActivityAt: 2,
+          },
+          { sessionId: 'codex:b', source: 'codex', cwd: '/elsewhere', lastActivityAt: 3 },
+          'junk',
+        ],
+      })),
+    );
+    expect(
+      rows.map((row) => [row.sessionId, row.product, row.workspacePath, row.addsWorkspace]),
+    ).toEqual([
+      ['codex:b', 'codex', '/elsewhere', true],
+      ['claude-code:a', 'claude-code', '/work/app', undefined],
+    ]);
+    await expect(
+      readImportableSessions(
+        answers(() => {
+          throw new Error('The Host could not read sessions from other products.');
+        }),
+      ),
+    ).rejects.toThrow('could not read');
+  });
 });

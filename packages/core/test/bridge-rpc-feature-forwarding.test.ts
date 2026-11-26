@@ -121,49 +121,18 @@ describe('bridge typert service', () => {
     expect(channels.list()).toEqual(before);
   });
 
-  it('refuses admitting protected Tob through legacy group creation, invitation or join acceptance', () => {
-    const { service, channels } = setup(
-      undefined,
-      {
-        tob: {
-          async close() {},
-          ensure: async () => {
-            throw new Error('unused');
-          },
-          isTob: (slug) => slug === 'ada',
-          slug: () => 'ada',
-          readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
-          writeSetting: async () => {
-            throw new Error('unused');
-          },
-        },
-      },
-      true,
-    );
+  it('allows the legacy Group path to admit a Bot', () => {
+    const { service, channels } = setup(undefined, {}, true);
     const bot = service.create('Ada').bot;
+    expect(service.channelCreate('With Ada', [bot.slug]).channel.members).toEqual([bot.slug]);
     const group = service.channelCreate('Group', []).channel;
-    expect(() => service.channelCreate('Protected', ['ada'])).toThrow(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
-    expect(() => service.channelGroupInvite(group.id, 'ada')).toThrow(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
     const request = channels.requestGroupJoin({
       channelId: group.id,
-      requesterBotSlug: 'ada',
+      requesterBotSlug: bot.slug,
       requesterBotCreatedAt: bot.createdAt,
     });
-    expect(() => service.channelGroupJoinDecide(group.id, request.id, true)).toThrow(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
-    expect(channels.get(group.id)?.members).toEqual([]);
-    expect(
-      channels.get(group.id)?.joinRequests?.find((entry) => entry.id === request.id)?.status,
-    ).toBe('pending');
-    service.channelGroupJoinDecide(group.id, request.id, false);
-    expect(
-      channels.get(group.id)?.joinRequests?.find((entry) => entry.id === request.id)?.status,
-    ).toBe('declined');
+    service.channelGroupJoinDecide(group.id, request.id, true);
+    expect(channels.get(group.id)?.members).toContain(bot.slug);
   });
 
   it('forwards optional reviewed fingerprints for Group name, avatar, wake and member edits', () => {
@@ -595,7 +564,9 @@ describe('bridge typert service', () => {
       'queryVersion',
       'dismissed',
       'notifications',
+      'source',
     ]);
+    expect(parameterNames(service.humanAttentionStatus)).toEqual(['messageCounts', 'source']);
     expect(parameterNames(service.humanAttentionRestore)).toEqual(['itemId', 'sourceKey']);
     expect(() =>
       service.humanAttention(
@@ -643,6 +614,7 @@ describe('bridge typert service', () => {
       queryVersion: undefined,
       dismissed: undefined,
       notifications: true,
+      source: undefined,
     });
   });
 
@@ -663,6 +635,7 @@ describe('bridge typert service', () => {
       'presetId',
       'expectedRevision',
       'expectedPresetRevision',
+      'keepOverrides',
     ]);
     expect(parameterNames(service.modelPresetCreate)).toEqual([
       'name',

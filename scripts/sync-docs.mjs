@@ -35,7 +35,6 @@ const LINK_REWRITES = [
     /\]\((?:\.\.\/){1,2}decisions\/([a-z0-9-]+)\.md(#[\w-]+)?\)/g,
     `](${GITHUB_BLOB}docs/decisions/$1.md$2)`,
   ],
-  [/\]\((?:\.\.\/){1,2}adr\/([0-9]{4}-[a-z0-9-]+)\.md\)/g, '](/dev/adr/$1)'],
   [
     /\]\((?:\.\.\/){1,2}architecture\/botharness-architecture\.md\)/g,
     '](/dev/design/architecture)',
@@ -45,7 +44,6 @@ const LINK_REWRITES = [
     '](/dev/guides/personabot-output)',
   ],
   [/\]\((?:\.\.\/|\.?\/?docs\/)?file-open(?:\.zh)?\.md\)/g, '](/docs/file-open)'],
-  [/\]\(adr\/([0-9]{4}-[a-z0-9-]+)\.md\)/g, '](/dev/adr/$1)'],
   [
     /\]\(\.?\/?docs\/architecture\/botharness-architecture\.(?:md|html)\)/g,
     '](/dev/design/architecture)',
@@ -55,8 +53,6 @@ const LINK_REWRITES = [
   [/\]\(\.?\/?CONTEXT\.md\)/g, '](/dev/design/context)'],
   [/\]\((?:\.\.\/){1,2}CONTEXT\.md\)/g, '](/dev/design/context)'],
   [/\]\(\.?\/?docs\/client-bridge\.md\)/g, '](/dev/guides/client-bridge)'],
-  [/\]\(\.?\/?docs\/adr\/([0-9]{4}-[a-z0-9-]+)\.md\)/g, '](/dev/adr/$1)'],
-  [/\]\(([0-9]{4}-[a-z0-9-]+)\.md\)/g, '](/dev/adr/$1)'],
   [/\]\(\.?\/?README\.en?\.md\)/g, `](${GITHUB_BLOB}README.md)`],
 ];
 
@@ -417,66 +413,27 @@ function syncAdr() {
     });
   const topicList = (prefix) =>
     topics.map(({ slug, title }) => `- [${title}](${prefix}/dev/adr/${slug})`).join('\n');
-  const directory = join(ROOT, 'docs', 'adr');
-  const files = readdirSync(directory)
-    .filter((name) => /^\d{4}-[a-z0-9-]+\.md$/.test(name))
-    .sort();
-  const entries = files.map((file) => {
-    const raw = readFileSync(join(directory, file), 'utf8');
-    const { frontmatter: sourceFrontmatter, body } = stripFrontmatter(raw);
-    return {
-      file,
-      body,
-      title: titleFrom(body, file),
-      status: sourceFrontmatter.match(/^Status:\s*(.+)$/m)?.[1]?.trim(),
-    };
-  });
-  const indexList = entries
-    .map(
-      ({ file, title, status }) =>
-        `- [${title}](/dev/adr/${file.replace(/\.md$/, '')})${status ? ` — ${status}` : ''}`,
-    )
-    .join('\n');
-  const indexListZh = indexList.replaceAll('](/dev/adr/', '](/zh/dev/adr/');
   writeText(
     'docs/dev/adr/index.mdx',
     frontmatter({
       title: 'Architecture decisions',
-      description: 'Current topic decisions and numbered records for BotHarness architecture',
+      description: 'Current topic decisions for BotHarness architecture',
       order: DEV_SECTION_ORDER.adr,
     }) +
-      'Topic documents describe the current decisions. Check the status of a numbered record before relying on it. See the [living architecture](/dev/design/architecture) for how the system fits together.\n\n' +
-      `${topicList('')}\n\n<details>\n<summary>Numbered decisions (${entries.length})</summary>\n\n${indexList}\n\n</details>\n`,
+      'Topic documents describe the current decisions. A former numbered ADR is a section anchor such as `#adr-0041` in its topic document. See the [living architecture](/dev/design/architecture) for how the system fits together.\n\n' +
+      `${topicList('')}\n`,
   );
   writeText(
     'docs-zh/dev/adr/index.mdx',
     frontmatter({
       title: 'Architecture decisions',
-      description: 'BotHarness 当前架构决策与编号记录',
+      description: 'BotHarness 当前架构决策',
       order: DEV_SECTION_ORDER.adr,
     }) +
-      '主题文档说明当前决策。引用编号记录前，请查看其状态。[现行架构](/zh/dev/design/architecture) 说明系统如何协作。\n\n' +
-      `${topicList('/zh')}\n\n<details>\n<summary>编号决策（${entries.length}）</summary>\n\n${indexListZh}\n\n</details>\n`,
+      '主题文档说明当前决策。原编号 ADR 是所在主题文档中的章节锚点，例如 `#adr-0041`。[现行架构](/zh/dev/design/architecture) 说明系统如何协作。\n\n' +
+      `${topicList('/zh')}\n`,
   );
-  process.stdout.write(`adr: index -> ${entries.length} decision(s)\n`);
-  for (const entry of entries) {
-    const { file, body, title, status } = entry;
-    const number = Number.parseInt(file.slice(0, 4), 10);
-    const statusLine = status ? `> Status: ${status}\n\n` : '';
-    const order = Number.isNaN(number) ? 99 : number;
-    const relative = `dev/adr/${file.replace(/\.md$/, '.mdx')}`;
-    writeText(
-      `docs/${relative}`,
-      frontmatter({ title, order, untranslated: true }) + statusLine + prepare(body),
-    );
-    writeText(
-      `docs-zh/${relative}`,
-      frontmatter({ title, order }) +
-        statusLine +
-        prepare(body).replaceAll('](/dev/adr/', '](/zh/dev/adr/'),
-    );
-    process.stdout.write(`adr: ${file} -> docs/${relative} + docs-zh/${relative}\n`);
-  }
+  process.stdout.write(`adr: index -> ${topics.length} topic(s)\n`);
 }
 
 function renderReleaseLedgerEntry(release, language) {

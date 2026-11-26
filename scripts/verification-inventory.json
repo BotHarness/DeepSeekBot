@@ -754,11 +754,11 @@
     },
     {
       "id": "desktop.computer.lifecycle",
-      "label": "Enable/stop Computer and export/restore container state",
+      "label": "Broader Computer lifecycle and export/restore container state",
       "source": "packages/core/src/bots/cli-browser-computer.ts",
       "guide": null,
       "task": 1977,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": "Container start/frame/stop has a separate bounded row; export/restore and broader lifecycle remain unmapped and unqualified."
     },
     {
       "id": "desktop.computer.native",
@@ -841,6 +841,14 @@
       "gap": null
     },
     {
+      "id": "desktop.settings.app-connections",
+      "label": "Owner adds a Composio key, connects apps and gives each Bot Read or Read and write; Bots reach them only through guarded tools",
+      "source": "packages/core/src/connectors/service.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/app-connections.md",
+      "task": 5332,
+      "gap": "Isolated Host covers the settings page, CLI and key rejection. A live Composio sign-in and Bot turn need the Owner's key."
+    },
+    {
       "id": "desktop.browser.open-observe-stop",
       "label": "Default local Browser: one fixture tab, observation, stop and Access-off refusal",
       "source": "packages/browser/src/client/index.tsx",
@@ -904,7 +912,7 @@
     },
     {
       "id": "desktop.tob.home",
-      "label": "Open the protected Tob DM (Channel list or Home shortcut), Settings model setup and approved global concurrency change",
+      "label": "Open the Tob DM, test reviewed Host management, and change App management grants",
       "source": "packages/client/src/client/workspace-shortcuts.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/tob-home.md",
       "task": 2082,
@@ -920,7 +928,7 @@
     },
     {
       "id": "desktop.group.invitation-candidates",
-      "label": "Invite eligible Bots while explaining protected Tob's private-chat-only participation",
+      "label": "Invite eligible Bots, including Tob, to a Group",
       "source": "packages/client/src/client/group-member-controls.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/group-invitations.md",
       "task": 3537,
@@ -1176,6 +1184,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/model-presets.md",
       "task": 4657,
       "gap": "Run preset CRUD and application in the Web Client and M15 C4 for the Member and Admin CLI authorization paths."
+    },
+    {
+      "id": "desktop.computer.container-start-frame-stop",
+      "label": "Start one task-owned Container Computer, observe its real frame and stop",
+      "source": "packages/computer/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/computer-lifecycle.md",
+      "task": 1977,
+      "gap": null
     }
   ],
   "scripts": [
@@ -1218,6 +1234,14 @@
       "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only. TB6 uses the rendered Always allow name for the disabled-state assertion. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 2730,
       "sha256": "dd494da2928ceac643a8efb3e1eff45bc1ad192d01baa99316d8eb652814a4d1"
+    },
+    {
+      "path": "scripts/e2e-mobile-shell-scope-keyboard.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.approval.three-actions"],
+      "reason": "On a prepared Android emulator with a real IME and a pending Shell approval, opens Custom from the scope menu and verifies keyboard visibility and prefix field focus.",
+      "task": 5459,
+      "sha256": "ca43c2b10fb690e7546ee5c1e84c37c143a14e1e71a53eff6aa15f862d7ddd9e"
     },
     {
       "path": "scripts/e2e-workspace-request-write.mjs",
@@ -1732,6 +1756,14 @@
       "sha256": "bfd0a4efda98bb5357a372f3d6ba9a4107ee7a536feced5f2fa4548b0df734fa"
     },
     {
+      "path": "scripts/e2e-computer-lifecycle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.computer.container-start-frame-stop"],
+      "task": 1977,
+      "reason": "Isolated Container-only Web/CLI lifecycle journey qualified on Docker Desktop (PR #5287 records the exact-source run); requires a healthy Engine, the product default image and fresh task-owned Profile/container/volume. Tolerates only #5274 desktop-viewer churn. No Local Computer, input, import/export or phone WebRTC.",
+      "sha256": "4cb7a0eb86326619ab80c1615fe0779509740341bdee52a4f4143aeb47b3cb39"
+    },
+    {
       "path": "scripts/e2e-computer-settings.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.lifecycle"],
@@ -2063,17 +2095,17 @@
       "path": "scripts/e2e-team-auto-join.mjs",
       "category": "mapped",
       "behaviors": ["team.channel-auto-join"],
-      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. #4394 re-audit: the revoke step matches the Channel row by exact text and waits for the no-access notice; journey classification unchanged; this hash is not runtime qualification. #4393 re-audit: dismisses first-run profile setup and reopens the member page past the per-member stream cap before the live grant; journey classification unchanged; this hash is not runtime qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 4222,
-      "sha256": "9c8ff5f363a5cc858a3890f18546c258c82c8b436b519446cec82affa7a2a556"
+      "sha256": "9063d766e132ef8883c28e066bac090577b81ff9c46eb7d33ce359a3e569dbba"
     },
     {
       "path": "scripts/e2e-team-human-dm.mjs",
       "category": "mapped",
       "behaviors": ["team.human-dm-first-message"],
-      "reason": "Fresh named Host; picker opens a Human DM through --as without listing it for either side, the first message lists it for both and the recipient's member Web Client shows it live in light and dark; no model or native mobile qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
-      "task": 4222,
-      "sha256": "ec48d399157f5ed368d0aa3bc2166eff5133638af509aec88373d93d20143479"
+      "reason": "Fresh named Host; alice dismisses the first-run name and photo prompt with Later, starts the DM from New > Message a person in the member Web Client and lands in an empty DM with a composer, the DM is listed for neither side until her first message from that composer, then both list it and bob's member Web Client shows it live, in light and dark; no model or native mobile qualification. #5418 re-audit: child-process calls keep shell: false and windowsHide; this hash is not runtime qualification.",
+      "task": 5418,
+      "sha256": "ce2f29eabc7c98157c45ef1649f76ac2e66548f48891c380fd92a3d32bf0cff7"
     },
     {
       "path": "scripts/e2e-team-profile-setup.mjs",
@@ -2130,6 +2162,14 @@
       "reason": "Own task Host and Expo Web export; prepared Group info and controls in browser, no native acceptance. #3666 re-audit: composer discovery uses its stable testID instead of recipient placeholder text; preparation, side effects and assertions remain unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
       "sha256": "aaf7004949991ddf95d28438a48f4285220fadcac732f9e292b1e43d210db3d9"
+    },
+    {
+      "path": "scripts/e2e-mobile-im-pairing-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["im.apps.bot-eligibility", "phone.pairing"],
+      "reason": "Own task Host and Expo Web export with a synthetic Lark provider (no real IM network); Settings IM apps bind, External contacts approve with Role, Role change and reject in browser. Confirm dialogs (unbind, revoke, move) and the native Bot profile row need native acceptance.",
+      "task": 1967,
+      "sha256": "539c9eaadef8f7ac5c51fbc3d5af03774d2b715d29e3662e188e5554210f0bfe"
     },
     {
       "path": "scripts/e2e-mobile-pairing-web.mjs",
@@ -2504,7 +2544,7 @@
       "behaviors": ["desktop.tob.home"],
       "reason": "Natural Tob creation, profile and optional model changes through rendered approval, completed native Shell turns, canonical identity/Memory/DM replay, deny/protected refusals and separate restart readback on Web and Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 3092,
-      "sha256": "09ab7510bb4a3555856c88ce8a81efc37224ab1bfbc3be090da079d46541a502"
+      "sha256": "be51f88b26dcd4917b0203a31633d66472f78695e795c70b79017a00cde3e5df"
     },
     {
       "path": "scripts/e2e-install-review.mjs",
@@ -2520,15 +2560,15 @@
       "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
       "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged. #3377 re-audit: adds browser-youtube-search (Browser Access on, a DM asks the Bot to search YouTube; passes when its current Bot Browser tab is the youtube.com/results page for the query and it replied; keeps browser calls, final tabs and Host logs/diagnostics), marked external so it runs only when named and never in the default or changed-from selection; classification unchanged. L-4 makes direct-argv process options explicit.",
       "task": 3377,
-      "sha256": "679341f1855b9952041942a72e6985a5575dbca868b493718609dce4b81cf74e"
+      "sha256": "810797979f1a4faca4a079679ea87dbd87f6124cd0c9e0bd35f93d907d2da250"
     },
     {
       "path": "scripts/e2e-tob-channel-management.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, protected identity and receipt replay/conflict, plus separate same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, an ordinary invitation of Tob as a grant holder (#5193) and receipt replay/conflict, plus separate same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 3092,
-      "sha256": "0a4fca69e13e20a83f86a0cbaf4dca7682122467e9df3854e30ec1992b45f8ac"
+      "sha256": "7f422d7b4480194fcaf0af24f57823ad4365be4da28f5c56b7f094bf9eaf1e34"
     },
     {
       "path": "scripts/e2e-tob-delegation.mjs",
@@ -2861,10 +2901,15 @@
     {
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
-      "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send, Model Choice, approval and question answers, Stop, and Archive. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates. B1 uses a synthetic Host data file with a distinct sentinel. B6 uses the live CLI and filesystem state to verify the folder creation permission, granted-parent containment, symlink refusal, and selection of the returned Workspace for a Bot grant.",
+      "behaviors": [
+        "team.security-suite",
+        "settings.model-providers",
+        "settings.model-presets",
+        "desktop.tob.home"
+      ],
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send, Model Choice, approval and question answers, Stop, and Archive. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates. B1 uses a synthetic Host data file with a distinct sentinel. B6 uses the live CLI and filesystem state to verify the folder creation permission, granted-parent containment, symlink refusal, and selection of the returned Workspace for a Bot grant. C8 verifies the member grant read, the refusal for a member the Owner has not authorized, the Owner grant with its DM marker, the broker refusal of grant changes before approval, and, after the Owner grants bots.manageGrants, that the member switches only their own Bot, sees only their own holders, and loses the grant when the authorization is withdrawn (#5461).",
       "task": 4197,
-      "sha256": "3f4ce32c9b4f2c6d29436ce2c3a20b2b17771f9909682006be35391a6ed9c400"
+      "sha256": "b3d5e545a2e62a150a8606c02ea86341e4139a2ddfc27ebeee7963bbd5d83abd"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

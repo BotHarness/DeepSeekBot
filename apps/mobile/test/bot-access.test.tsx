@@ -10,6 +10,8 @@ vi.mock('../src/ui/shell/icons', async () => ({
   ChevronRightIcon: () => null,
 }));
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+const { confirmAppDialog } = vi.hoisted(() => ({ confirmAppDialog: vi.fn(async () => true) }));
+vi.mock('../src/ui/primitives/app-dialog', () => ({ confirmAppDialog }));
 
 import { botAccess, setBotAccess } from '../src/host/bot-access';
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
@@ -29,9 +31,14 @@ const bot: RosterBot = {
   paused: false,
 };
 
-function hostClient(call: (method: string, args?: Record<string, unknown>) => Promise<unknown>) {
+function hostClient(
+  call: (method: string, args?: Record<string, unknown>) => Promise<unknown>,
+  grants: unknown = { holders: [], editable: false },
+) {
   return {
-    call: vi.fn(call),
+    call: vi.fn((method: string, args?: Record<string, unknown>) =>
+      method === 'managementGrants' ? Promise.resolve(grants) : call(method, args),
+    ),
     refresh: vi.fn(async () => undefined),
   } as unknown as HostClient & {
     call: ReturnType<typeof vi.fn>;
@@ -115,7 +122,9 @@ describe('Bot access switches', () => {
     await act(async () => toggle('browser').click());
     expect(toggle('browser').checked).toBe(true);
     await act(async () => toggle('browser').click());
-    expect(client.call).toHaveBeenCalledTimes(1);
+    expect(client.call.mock.calls.filter(([method]) => method !== 'managementGrants')).toHaveLength(
+      1,
+    );
     await act(async () => fail(new Error('Bot is paused.')));
     expect(toggle('browser').checked).toBe(false);
     expect(container!.querySelector('[role="alert"]')?.textContent).toBe(
@@ -139,5 +148,78 @@ describe('Bot access switches', () => {
     await expect(setBotAccess(client, 'scout', 'browser', true)).rejects.toThrow(
       'browserAccessSet returned no Bot.',
     );
+  });
+});
+
+describe('App management switches', () => {
+  const managementToggle = (capability: string) =>
+    container!.querySelector<HTMLInputElement>(`[data-testid="bot-management-${capability}"]`);
+
+  it('tells a member without the permission who can turn it on', async () => {
+    await render(hostClient(async () => ({})));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(managementToggle('manage-app')).toBeNull();
+    expect(container!.textContent).toContain(t.profilePermissions.management);
+    expect(container!.textContent).toContain(t.profilePermissions.managementOwnerOnly);
+  });
+
+  it('asks before turning a grant on and sends confirm with it', async () => {
+    confirmAppDialog.mockClear();
+    const client = hostClient(
+      async () => ({
+        capabilities: ['manage-app', 'manage-bots'],
+        noAppManager: false,
+      }),
+      {
+        editable: true,
+        holders: [{ botSlug: 'scout', capabilities: ['manage-app'] }],
+      },
+    );
+    await render(client);
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(managementToggle('manage-app')!.checked).toBe(true);
+    expect(managementToggle('manage-bots')!.checked).toBe(false);
+    await act(async () => managementToggle('manage-bots')!.click());
+    expect(confirmAppDialog).toHaveBeenCalledTimes(1);
+    expect(client.call).toHaveBeenCalledWith('managementGrantSet', {
+      slug: 'scout',
+      capability: 'manage-bots',
+      enabled: true,
+      confirm: true,
+    });
+    expect(managementToggle('manage-bots')!.checked).toBe(true);
+  });
+
+  it('does nothing when the Owner cancels', async () => {
+    confirmAppDialog.mockClear();
+    confirmAppDialog.mockResolvedValueOnce(false);
+    const client = hostClient(async () => ({}), {
+      editable: true,
+      holders: [],
+    });
+    await render(client);
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    await act(async () => managementToggle('manage-app')!.click());
+    expect(client.call).not.toHaveBeenCalledWith('managementGrantSet', expect.anything());
+    expect(managementToggle('manage-app')!.checked).toBe(false);
+  });
+
+  it('turns a grant off without asking and warns when no Bot manages the App', async () => {
+    confirmAppDialog.mockClear();
+    const client = hostClient(async () => ({ capabilities: [], noAppManager: true }), {
+      editable: true,
+      holders: [{ botSlug: 'scout', capabilities: ['manage-app'] }],
+    });
+    await render(client);
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    await act(async () => managementToggle('manage-app')!.click());
+    expect(confirmAppDialog).not.toHaveBeenCalled();
+    expect(client.call).toHaveBeenCalledWith('managementGrantSet', {
+      slug: 'scout',
+      capability: 'manage-app',
+      enabled: false,
+    });
+    expect(managementToggle('manage-app')!.checked).toBe(false);
+    expect(container!.textContent).toContain(t.profilePermissions.noAppManager);
   });
 });

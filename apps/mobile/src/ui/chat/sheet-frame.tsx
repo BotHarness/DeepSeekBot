@@ -17,6 +17,7 @@ export interface SheetFrameProps {
   avoidKeyboard: boolean;
   animationType: 'none' | 'slide' | 'fade';
   fill?: boolean | undefined;
+  resizable?: boolean | undefined;
 }
 
 function Grabber() {

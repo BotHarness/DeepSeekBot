@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,19 +23,21 @@ import {
   type PickedFolder,
 } from '../../ui/chat/folder-picker-sheet';
 import {
-  SessionModelChip,
+  SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
 } from '../../ui/chat/session-model-composer';
 import { SHEET_GROUP, Sheet } from '../../ui/chat/sheet';
 import { useDesignTheme } from '../../ui/design/theme';
 import { space } from '../../ui/design/tokens';
+import { useSessionsTab } from '../../ui/interface-preferences';
 import { KeyboardChatFrame } from '../../ui/primitives/keyboard-frame';
 import { SettingsGroupItem, SettingsRow } from '../../ui/primitives/settings-row';
 import { Text } from '../../ui/primitives/text';
 import { canCreateNativeSession } from '../../ui/shell/page-create-actions';
 import { promptPlaceholder } from '../../ui/chat/session-header-title';
 import { useStrings } from '../../ui/strings';
+import { useCreateFolder } from '../../host/member-permissions';
 import { lastSessionFolder, rememberSessionFolder } from './last-session-folder';
 import { preselectedComputer } from './session-drawer-model';
 import { HeaderBackButton } from '../../ui/chat/header-chrome';
@@ -55,6 +57,7 @@ function NewSessionLeading({ stacked }: { stacked: boolean }) {
 }
 
 export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
+  const enabled = useSessionsTab();
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -80,6 +83,7 @@ export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
   const target = computers.find((host) => host.saved.hostId === hostId);
   useFocusEffect(useCallback(() => (stacked ? undefined : enterDrawerRoot()), [stacked]));
   useSessionsStackFit();
+  if (!enabled) return <Redirect href="/" />;
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.base }} testID="new-session-screen">
       <Stack.Screen options={{ title: t.create, headerShown: false }} />
@@ -171,16 +175,19 @@ function NewSessionForm({
     slug: null,
     sessionId: undefined,
     host: client,
+    hostId,
     enabled: online,
     running: false,
   });
+  const createFolder = useCreateFolder(client);
   const port = useMemo<FolderPickerPort>(
     () => ({
       listFolders: (path) => listHostFolders(client, path),
       loadWorkspaceOptions: () => loadWorkspaceOptions(client),
       resolveFolder: (path) => resolveWorkspaceFolder(client, path),
+      createFolder,
     }),
-    [client],
+    [client, createFolder],
   );
 
   async function send() {
@@ -251,9 +258,7 @@ function NewSessionForm({
             blocksSend: model.visible || folder === undefined,
             stopping: busy || !online,
             onStop: undefined,
-            render: (width) => (
-              <SessionModelChip control={model} width={width} disabled={!online || busy} />
-            ),
+            model: <SessionModelLogo control={model} disabled={!online || busy} />,
           }}
         />
       }

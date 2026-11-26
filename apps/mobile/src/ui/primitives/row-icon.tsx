@@ -34,6 +34,9 @@ const ROW_ICONS = {
   newSession: { ios: 'square.and.pencil', android: 'edit_square' },
   list: { ios: 'list.bullet', android: 'list' },
   stay: { ios: 'pin', android: 'keep' },
+  scrollBars: { ios: 'rectangle.expand.vertical', android: 'fullscreen' },
+  tabBar: { ios: 'dock.rectangle', android: 'bottom_navigation' },
+  pin: { ios: 'pin', android: 'keep' },
   sendJump: { ios: 'arrow.down.to.line', android: 'vertical_align_bottom' },
   messageDisplay: { ios: 'text.bubble', android: 'chat' },
   streaming: { ios: 'ellipsis.bubble', android: 'stream' },
@@ -49,6 +52,7 @@ const ROW_ICONS = {
   lan: { ios: 'wifi', android: 'wifi' },
   encrypted: { ios: 'lock', android: 'vpn_lock' },
   add: { ios: 'plus', android: 'add' },
+  newFolder: { ios: 'folder.badge.plus', android: 'create_new_folder' },
   voice: { ios: 'waveform', android: 'graphic_eq' },
 } as const;
 

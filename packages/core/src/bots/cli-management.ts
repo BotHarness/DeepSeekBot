@@ -317,7 +317,10 @@ export async function runOnlineManagement(
     AbortSignal.timeout(Math.ceil(seconds * 1000)),
   );
   if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
-  if (command === 'list') return rpc('list', values.administration ? { administration: true } : {});
+  if (command === 'list')
+    return withoutDeletedBots(
+      await rpc('list', values.administration ? { administration: true } : {}),
+    );
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
@@ -336,7 +339,12 @@ export async function runOnlineManagement(
         usage(`--${flag} must be a nonnegative integer.`);
       revisions[field] = Number(raw);
     }
-    return rpc('modelPresetApply', { slug, presetId: values.preset!.trim(), ...revisions });
+    return rpc('modelPresetApply', {
+      slug,
+      presetId: values.preset!.trim(),
+      ...revisions,
+      ...(values['keep-overrides'] === true ? { keepOverrides: true } : {}),
+    });
   }
   if (command === 'model-plan') return rpc('modelPlan', { slug });
   const reader = { call: (method: string, args = {}) => rpc(method, args) };
@@ -435,6 +443,7 @@ export async function runOnlineManagement(
           }>('createFromSessions', {
             ...metadata,
             sessionIds: create.source.sessionIds,
+            ...(create.source.addWorkspaces === true ? { addWorkspaces: true } : {}),
             ...(create.persona === undefined ? {} : { persona: create.persona }),
             ...(operationKey === undefined ? {} : { operationKey }),
           })
@@ -552,4 +561,17 @@ export async function runOnlineManagement(
     }
     throw error;
   }
+}
+
+function withoutDeletedBots(listed: unknown): unknown {
+  if (typeof listed !== 'object' || listed === null || !('bots' in listed)) return listed;
+  const { bots } = listed;
+  if (!Array.isArray(bots)) return listed;
+  return {
+    ...listed,
+    bots: bots.filter(
+      (bot: unknown) =>
+        typeof bot !== 'object' || bot === null || !('deleted' in bot) || bot.deleted !== true,
+    ),
+  };
 }

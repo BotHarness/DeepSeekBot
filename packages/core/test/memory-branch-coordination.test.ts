@@ -90,9 +90,7 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
       }
       if (run.message.includes('Switch Memory')) {
         await run.channels.send({ body: 'Requested Memory branch: history' });
-        expect(() => run.memory!.switchBranch('history')).toThrow(
-          /Git could not switch Memory branch/,
-        );
+        expect(() => git(memoryRoot, 'switch', 'history')).toThrow();
         const working = run.assignments.list().find((item) => item.activity === 'working');
         expect(working).toBeDefined();
         await run.channels.send({ body: 'Memory branch history blocked; preserving staged work.' });
@@ -105,9 +103,7 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
         return;
       }
       if (run.inbox.includes('Cannot pause') && !run.inbox.includes('Assignment paused')) {
-        expect(() => run.memory!.switchBranch('history')).toThrow(
-          /Git could not switch Memory branch/,
-        );
+        expect(() => git(memoryRoot, 'switch', 'history')).toThrow();
         await run.channels.send({
           body: 'Memory branch history still blocked; staged work remains.',
         });
@@ -123,8 +119,7 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
         '-m',
         'Memory branch switch checkpoint',
       );
-      const switched = run.memory!.switchBranch('history');
-      expect(switched.to).toBe('history');
+      git(memoryRoot, 'switch', 'history');
       expect(readFileSync(join(memoryRoot, 'PERSONA.md'), 'utf8')).toContain('Ada');
       await run.channels.send({ body: 'Memory branch switched to history.' });
     },

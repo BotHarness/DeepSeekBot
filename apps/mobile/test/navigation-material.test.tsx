@@ -5,9 +5,14 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
-vi.mock('../src/features/pinned-tab/pinned-avatar', () => ({
-  PinnedAvatar: ({ selected }: { selected: boolean }) =>
-    createElement('em', { 'data-avatar': selected ? 'ring' : 'plain' }),
+const avatar = vi.hoisted(() => ({
+  icons: {
+    default: { uri: 'file:///plain.png', scale: 3 },
+    selected: { uri: 'file:///ring.png', scale: 3 },
+  } as { default: { uri: string }; selected: { uri: string } } | undefined,
+}));
+vi.mock('../src/features/pinned-tab/avatar-icon', () => ({
+  useAvatarIcons: () => ({ icons: avatar.icons, capture: null }),
 }));
 vi.mock('@expo/ui/jetpack-compose/modifiers', async () => {
   const { modifiers } = await import('./compose-menu-shim');
@@ -44,10 +49,21 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
       children,
     );
   };
-  const Toolbar = ({ children, modifiers }: { children?: ReactNode; modifiers?: Modifier[] }) =>
+  const Toolbar = ({
+    children,
+    modifiers,
+    colors,
+  }: {
+    children?: ReactNode;
+    modifiers?: Modifier[];
+    colors?: { toolbarContainerColor?: string };
+  }) =>
     createElement(
       'nav',
-      { 'data-shadow': modifiers?.find((modifier) => modifier.shadow !== undefined)?.shadow },
+      {
+        'data-shadow': modifiers?.find((modifier) => modifier.shadow !== undefined)?.shadow,
+        'data-container': colors?.toolbarContainerColor,
+      },
       children,
     );
   return {
@@ -59,6 +75,8 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
         createElement('span', { 'data-slot': 'badge' }, children),
     }),
     Icon: ({ source }: { source: string }) => createElement('i', { 'data-icon': source }),
+    Image: ({ source }: { source: { uri: string } }) =>
+      createElement('em', { 'data-avatar': source.uri }),
   };
 });
 vi.mock('../src/ui/primitives/count-badge.android', () => ({
@@ -67,6 +85,7 @@ vi.mock('../src/ui/primitives/count-badge.android', () => ({
 import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.android';
 import type { NavigationDestination } from '../src/ui/shell/navigation-destination';
 import type { TabSlot } from '../src/ui/shell/tab-slots';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -82,16 +101,19 @@ const names = [
 
 async function withAssets(run: () => Promise<void> | void) {
   const requireAsset = createRequire(import.meta.url);
-  const assets = names.map((name) => requireAsset.resolve('../assets/toolbar/' + name + '.xml'));
-  for (const [index, path] of assets.entries()) {
+  const assets = new Map(
+    names.map((name) => [requireAsset.resolve(`../assets/toolbar/${name}.xml`), name]),
+  );
+  assets.set(requireAsset.resolve('../assets/row-icons/stay.xml'), 'pin');
+  for (const [path, name] of assets) {
     const asset = new Module(path);
-    asset.exports = names[index];
+    asset.exports = name;
     requireAsset.cache[path] = asset;
   }
   try {
     await run();
   } finally {
-    for (const path of assets) delete requireAsset.cache[path];
+    for (const path of assets.keys()) delete requireAsset.cache[path];
   }
 }
 
@@ -109,7 +131,7 @@ function item(slot: TabSlot, extra: Partial<NavigationDestination> = {}): Naviga
   };
 }
 
-it('floats five icon-only items with a tonal selected pill, an elevation shadow and the Pinned avatar', () =>
+it('floats five icon-only items flat on the page colour with a tonal selected pill and the Pinned avatar', () =>
   withAssets(() => {
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -132,7 +154,9 @@ it('floats five icon-only items with a tonal selected pill, an elevation shadow 
           }),
         ),
       );
-      expect(host.querySelector('nav')?.getAttribute('data-shadow')).not.toBeNull();
+      const nav = host.querySelector('nav')!;
+      expect(nav.getAttribute('data-shadow')).toBeNull();
+      expect(nav.getAttribute('data-container')).toBe(resolveTheme('light').color.base);
       const buttons = [...host.querySelectorAll('button')];
       expect(buttons.map((button) => button.getAttribute('data-testid'))).toEqual([
         'navigation-chats',
@@ -144,7 +168,7 @@ it('floats five icon-only items with a tonal selected pill, an elevation shadow 
       expect(
         buttons.map((button) => button.querySelector('i')?.getAttribute('data-icon') ?? null),
       ).toEqual(['chats', null, 'activity', 'code', 'settings-outline']);
-      expect(buttons[1]!.querySelector('em')?.getAttribute('data-avatar')).toBe('ring');
+      expect(buttons[1]!.querySelector('em')?.getAttribute('data-avatar')).toBe('file:///ring.png');
       expect(buttons[1]!.querySelector('[data-slot="badge"]')?.textContent).toBe('3');
       expect(buttons[2]!.querySelector('[data-slot="badge"]')?.textContent).toBe('2');
       expect(
@@ -185,6 +209,37 @@ it('routes a tap to onPress and a long press to onLongPress', () =>
       expect(chats.onPress).toHaveBeenCalledOnce();
       expect(chats.onLongPress).toHaveBeenCalledOnce();
     } finally {
+      act(() => root.unmount());
+    }
+  }));
+
+it('shows the Pin until both captures are available, then displays the focused or unfocused avatar', () =>
+  withAssets(() => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const render = (focused: boolean) =>
+      act(() =>
+        root.render(
+          createElement(NavigationDestinations, {
+            items: [item('chats'), item('pinned', { focused })],
+          }),
+        ),
+      );
+    const face = () => host.querySelector('[data-testid="navigation-pinned"]')!.firstElementChild;
+    const captured = avatar.icons;
+    try {
+      avatar.icons = undefined;
+      render(false);
+      expect(face()?.getAttribute('data-icon')).toBe('pin');
+      render(true);
+      expect(face()?.getAttribute('data-icon')).toBe('pin');
+      avatar.icons = captured;
+      render(false);
+      expect(face()?.getAttribute('data-avatar')).toBe('file:///plain.png');
+      render(true);
+      expect(face()?.getAttribute('data-avatar')).toBe('file:///ring.png');
+    } finally {
+      avatar.icons = captured;
       act(() => root.unmount());
     }
   }));

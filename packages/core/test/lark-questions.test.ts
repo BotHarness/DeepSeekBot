@@ -29,7 +29,7 @@ afterEach(async () => {
     core.operationalDatabase.close();
   }
 });
-async function fixture() {
+async function fixture(textOnly = false) {
   const core = createCore({ dshHome: createTempRoot('bh-lark-question-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -53,16 +53,26 @@ async function fixture() {
           };
     },
   );
+  let sent = 0;
   const replies = vi.fn<NonNullable<DshImOutboundService['replyChecked']>>(
     async (_bot, _route, _text, input) => {
       expect(input.beforeSend?.()).toBe(true);
-      return { sent: true };
+      return textOnly
+        ? {
+            sent: true,
+            receipt: {
+              version: 1,
+              messageId: `om_text_${++sent}`,
+              conversationId: _route.conversationId,
+            },
+          }
+        : { sent: true };
     },
   );
   const host: DshImOutboundService = {
     contractVersion: 1,
     approvalCardVersion: 1,
-    questionCardVersion: 1,
+    ...(textOnly ? { replyReceiptVersion: 1 as const } : { questionCardVersion: 1 as const }),
     replyFenceVersion: 1,
     listBots: async () => [{ botId: 'lark-qa', channel: 'feishu' }],
     listTargets: async () => [],
@@ -87,7 +97,7 @@ async function fixture() {
     sendChecked: async () => ({ sent: true }),
     replyChecked: replies,
     approvalCardChecked: async () => ({ sent: true }),
-    questionCardChecked: cards,
+    ...(textOnly ? {} : { questionCardChecked: cards }),
     consumeInbound: async (_bot, input) => {
       receiver = input;
       return () => {};
@@ -198,7 +208,11 @@ async function fixture() {
   const text = (
     text: string,
     parentId?: string,
-    from: { actorId?: string; conversation?: MessagingInboundEvent['conversation'] } = {},
+    from: {
+      actorId?: string;
+      conversation?: MessagingInboundEvent['conversation'];
+      mentions?: MessagingInboundEvent['mentions'];
+    } = {},
   ) => {
     const messageId = crypto.randomUUID();
     const conversation = from.conversation ?? event.conversation;
@@ -211,6 +225,7 @@ async function fixture() {
         text,
         actor: { ...event.actor, id: actorId },
         conversation,
+        ...(from.mentions ? { mentions: from.mentions, mentionedAccount: true } : {}),
         reply: {
           messageId,
           conversationId: conversation.id,
@@ -453,6 +468,82 @@ it('text replies answer with letters, several questions, a #reference, or a bare
   });
 });
 
+it('a question asked while the turn handles a bridged Lark group message goes to that group, and a turn from elsewhere stays in the DM', async () => {
+  const f = await fixture();
+  const bridged = placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_bridged',
+    messageId: 'om_bridged_ask',
+    placed: false,
+  });
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_stale',
+    messageId: 'om_stale_ask',
+  });
+  const turn = vi.spyOn(f.core.runtime, 'turnSourceEventIds').mockReturnValue([bridged]);
+  const asked = await f.start();
+  expect(asked.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_bridged' });
+  expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({
+    messageId: 'om_bridged_ask',
+    conversationId: 'oc_bridged',
+  });
+  turn.mockReturnValue(['local-source']);
+  const local = await f.start();
+  expect(local.delivery.destination).toBeUndefined();
+  turn.mockReturnValue(undefined);
+  const idle = await f.start();
+  expect(idle.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_stale' });
+});
+
+it('a quoted group answer drops only the leading @Bot and keeps other people it mentions', async () => {
+  const f = await fixture();
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  const asked = await f.start([{ id: 'who', question: 'Who reviews?' }]);
+  await f.text('@_user_1 ask @_user_2', 'om_' + asked.delivery.id, {
+    conversation: { kind: 'group', id: 'oc_team' },
+    mentions: [
+      { id: 'ou_bot', key: '@_user_1', name: 'QA Bot' },
+      { id: 'ou_bob', key: '@_user_2', name: 'Bob' },
+    ],
+  });
+  expect(await asked.answer).toEqual({
+    answers: [{ id: 'who', selected: [], custom: 'ask @Bob' }],
+  });
+});
+
+it('a question whose group card the provider refuses is sent to the DM instead and answered there', async () => {
+  const f = await fixture();
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  f.cards.mockImplementationOnce(async () => {
+    throw Object.assign(new Error('stale-route'), { code: 'stale-route' });
+  });
+  const asked = await f.start();
+  const id = asked.delivery.id;
+  const delivered = () =>
+    f.core.externalMessaging.questions.snapshot('ada').find((value) => value.id === id);
+  await vi.waitFor(() => expect(delivered()?.delivery).toBe('sent'));
+  expect(delivered()?.destination).toBeUndefined();
+  expect(f.cards.mock.calls.map((call) => call[1].conversationId)).toEqual([
+    'oc_team',
+    'oc_private',
+  ]);
+  await f.text('B', 'om_' + id);
+  expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+});
+
 it('a question raised from a Lark group conversation is answered in that group by paired people only, and the Binding or its platform default can send it back to the DM', async () => {
   const f = await fixture();
   const group = { kind: 'group' as const, id: 'oc_team' };
@@ -479,7 +570,10 @@ it('a question raised from a Lark group conversation is answered in that group b
   await f.text('A', card, { actorId: 'ou_bob', conversation: group });
   await f.text('B', undefined, { conversation: group });
   expect(f.owner.pending('ada', asked.delivery.id)).toBeDefined();
-  await f.text('B', card, { conversation: group });
+  await f.text('@_user_1 B', card, {
+    conversation: group,
+    mentions: [{ id: 'ou_bot', key: '@_user_1', name: 'QA Bot' }],
+  });
   expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
   const actor = f.core.channels
     .readMessages(dmChannelId('ada'))
@@ -547,4 +641,62 @@ it('a question raised from a Lark group conversation is answered in that group b
   await setBinding(false);
   await f.text('A', 'om_' + bindingOn.delivery.id, { conversation: group });
   expect(f.owner.pending('ada', bindingOn.delivery.id)).toBeDefined();
+});
+
+it('asks by text when cards are unavailable and takes a quoted letter', async () => {
+  const f = await fixture(true);
+  const { answer, delivery } = await f.start();
+  expect(f.cards).not.toHaveBeenCalled();
+  const asked = f.replies.mock.calls.find((call) => String(call[2]).includes('Choose a branch'))!;
+  expect(asked[2]).toContain('B. qa');
+  expect(asked[2]).toContain(`#${delivery.reference}`);
+  const receipt = f.core.externalMessaging.questions.snapshot('ada')[0]!.receipt!.messageId;
+  await f.text('B', receipt);
+  expect(await answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+  await vi.waitFor(() => expect(f.replies.mock.calls.at(-1)![2]).toContain('Answered / 已回答'));
+  expect(f.replies.mock.calls.at(-1)![1]).toEqual(asked[1]);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(
+    f.replies.mock.calls.filter((call) => String(call[2]).includes('Answered / 已回答')),
+  ).toHaveLength(1);
+});
+
+it('a quoted free-text question does not take an unknown #reference as its answer', async () => {
+  const f = await fixture(true);
+  const { answer, delivery } = await f.start([{ id: 'note', question: 'Anything to add?' }]);
+  const receipt = f.core.externalMessaging.questions.snapshot('ada')[0]!.receipt!.messageId;
+  await f.text('#0123456789AB allow', receipt);
+  await vi.waitFor(() =>
+    expect(f.replies.mock.calls.at(-1)![2]).toContain(`#${delivery.reference}`),
+  );
+  expect(f.owner.pending('ada', delivery.id)).toBeDefined();
+  await f.text('Ship it', receipt);
+  expect(await answer).toEqual({ answers: [{ id: 'note', selected: [], custom: 'Ship it' }] });
+});
+
+it('in text mode, a second refused answer during an update is still told', async () => {
+  const f = await fixture(true);
+  const { delivery } = await f.start();
+  const receipt = f.core.externalMessaging.questions.snapshot('ada')[0]!.receipt!.messageId;
+  vi.spyOn(f.owner, 'answer').mockResolvedValue(false);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const reply = f.replies.getMockImplementation()!;
+  f.replies.mockImplementationOnce(async (...args) => {
+    await held;
+    return reply(...args);
+  });
+  const notices = () =>
+    f.replies.mock.calls.filter((call) => String(call[2]).includes('回答未被接受')).length;
+  await f.text('A', receipt);
+  await vi.waitFor(() => expect(notices()).toBe(1));
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.questions.snapshot('ada').find((d) => d.id === delivery.id)
+        ?.submission,
+    ).toBe('refused'),
+  );
+  await f.text('B', receipt);
+  release();
+  await vi.waitFor(() => expect(notices()).toBe(2));
 });

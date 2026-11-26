@@ -286,6 +286,10 @@ export interface ChannelStore {
     causeSourceEventId: string;
     commits: ReadonlyArray<Omit<ChannelMemoryCommit, 'botSlug'>>;
   }): ChannelMessage[];
+  appendSystemNotices?(
+    notices: ReadonlyArray<{ channelId: string; message: ChannelMessage }>,
+    commit: (database: DatabaseSync) => boolean,
+  ): boolean;
   appendBotCreateAction?(input: {
     botSlug: string;
     causeSourceEventId: string;

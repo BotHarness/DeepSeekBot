@@ -656,7 +656,7 @@ it('denies Bot wake by default and uses the current local original-Human policy 
 });
 it('keeps cloud work authorization above explicit ordinary-message wake and queued-source consumption', async () => {
   const { createCore } = await import('../src/plugin.js');
-  const { sourceSenderAllowed } = await import('../src/messaging/sender-access.js');
+  const { sourceAdmission } = await import('../src/messaging/permissions/index.js');
   const f = await fixture();
   const runs: unknown[] = [];
   const core = createCore({
@@ -772,19 +772,23 @@ it('keeps cloud work authorization above explicit ordinary-message wake and queu
       )
       .get(String(sequence)),
   ) as { source_event_id: string };
-  expect(port.read((db) => sourceSenderAllowed(db, 'cloud-b', source.source_event_id))).toBe(true);
-  expect(port.read((db) => sourceSenderAllowed(db, 'other-bot', source.source_event_id))).toBe(
-    false,
+  expect(port.read((db) => sourceAdmission(db, 'cloud-b', source.source_event_id)) === 'wake').toBe(
+    true,
   );
+  expect(
+    port.read((db) => sourceAdmission(db, 'other-bot', source.source_event_id)) === 'wake',
+  ).toBe(false);
   owner.setPolicy(connection.id, 2, {
     allowedUsers: [],
     forwardTargets: [],
     environment: 'host-b',
   });
-  expect(port.read((db) => sourceSenderAllowed(db, 'cloud-b', source.source_event_id))).toBe(false);
-  expect(port.read((db) => sourceSenderAllowed(db, 'cloud-b', source.source_event_id, true))).toBe(
-    true,
+  expect(port.read((db) => sourceAdmission(db, 'cloud-b', source.source_event_id)) === 'wake').toBe(
+    false,
   );
+  expect(
+    port.read((db) => sourceAdmission(db, 'cloud-b', source.source_event_id)) !== 'refused',
+  ).toBe(true);
   const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
     name: 'Shared context',
     members: ['cloud-b', 'other-bot'],
@@ -803,7 +807,7 @@ it('keeps cloud work authorization above explicit ordinary-message wake and queu
     'Ordinary cloud context never authorizes local work',
   );
   await owner.remove(connection.id, 3);
-  expect(port.read((db) => sourceSenderAllowed(db, 'cloud-b', source.source_event_id, true))).toBe(
-    false,
-  );
+  expect(
+    port.read((db) => sourceAdmission(db, 'cloud-b', source.source_event_id)) !== 'refused',
+  ).toBe(false);
 });

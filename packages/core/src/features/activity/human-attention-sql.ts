@@ -1,5 +1,6 @@
 import { notChannelNoticeSql } from '../../channels/channel-notice.js';
 import { channelRoleEligibleSql } from '../../team/channel-contract.js';
+import { roleGrantsPermissionSql } from '../../team/host-permissions.js';
 
 export const attentionBotOwner = (slug: string): string =>
   `coalesce((SELECT b.owner_human_id FROM persona_bots b WHERE b.slug = ${slug}), 'local-human') = $humanId`;
@@ -298,13 +299,11 @@ export const ACTION_ATTENTION_CTE = `WITH all_attention AS (
                   AND ${approvalAudience('approval_channel', 'h.human_id')})
                 AND (h.human_id = (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug)
                   OR h.human_id = (SELECT owner_human_id FROM team_settings)
-                  OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
-                    WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
+                  OR ${roleGrantsPermissionSql('h.human_id', 'approvals.opaqueTools')})
                 AND (candidate.kind <> 'tool-approval'
                   OR (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug) = (SELECT owner_human_id FROM team_settings)
                   OR h.human_id = (SELECT owner_human_id FROM team_settings)
-                  OR EXISTS (SELECT 1 FROM human_roles hr JOIN host_roles r USING(role_id), json_each(r.permissions_json) permission_entry
-                    WHERE hr.human_id = h.human_id AND permission_entry.value = 'approvals.opaqueTools'))
+                  OR ${roleGrantsPermissionSql('h.human_id', 'approvals.opaqueTools')})
             ))))
             OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND (
               EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = candidate.channel_id

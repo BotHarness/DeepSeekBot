@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -66,6 +66,27 @@ describe('append-only migration guard', () => {
       snapshot.findIndex((entry) => entry.id === 'minimal-member') + 1,
     );
     expect(snapshot[0].id).toBe('session-ownership');
+  });
+  it('rejects changes to the frozen inputs even though their syntax is excluded from legacy hashes', () => {
+    const root = mkdtempSync(join(tmpdir(), 'bh-frozen-migration-inputs-'));
+    const sourceRoot = new URL('../../', import.meta.url);
+    try {
+      cpSync(new URL(database, sourceRoot), join(root, database), { recursive: true });
+      mkdirSync(join(root, 'scripts'));
+      cpSync(
+        new URL('scripts/schema-migrations.json', sourceRoot),
+        join(root, 'scripts/schema-migrations.json'),
+      );
+      expect(checkSchemaMigrations(root)).toEqual([]);
+      const frozen = join(root, database, 'historical-migration-snapshots.ts');
+      writeFileSync(
+        frozen,
+        readFileSync(frozen, 'utf8').replace("post: 'everyone'", "post: 'admins'"),
+      );
+      expect(() => checkSchemaMigrations(root)).toThrow('frozen migration inputs changed');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
   it('checks the merged snapshot even when source and local hashes are edited together', () => {
     const root = mkdtempSync(join(tmpdir(), 'bh-migration-guard-'));
@@ -143,6 +164,49 @@ describe('append-only migration guard', () => {
 });
 
 describe('split migration modules', () => {
+  it.each([
+    'import { live } from "../../domain.js";',
+    'import { type Live } from "../../domain.js";',
+    'import "../../domain.js";',
+    'export { live } from "../../domain.js";',
+    'export * from "../../domain.js";',
+    'import("../../domain.js");',
+    'require("../../domain.js");',
+    'import live = require("../../domain.js");',
+    'import { z } from "zod";',
+  ])(
+    'rejects runtime dependencies in a migration without requiring a body reference: %s',
+    (edge) => {
+      expect(() => checkSplitPlan({ migrations: `${edge}\n${withSharedHelper}` })).toThrow(
+        /database-only migration dependency/i,
+      );
+    },
+  );
+
+  it.each([
+    'import type { Live } from "../../domain.js";',
+    'export type { Live } from "../../domain.js";',
+  ])('permits erased dependencies: %s', (edge) => {
+    expect(checkSplitPlan({ migrations: `${edge}\n${withSharedHelper}` })).toEqual([]);
+  });
+
+  it('checks unreferenced modules loaded through an internal re-export', () => {
+    expect(() =>
+      checkSplitPlan({
+        shared: `${sharedHelper}\nexport { helper }; export * from '../side-effect.js';`,
+        extraFiles: { [`${database}/side-effect.ts`]: 'import "../domain.js";' },
+      }),
+    ).toThrow(/side-effect\.ts.*database-only migration dependency/i);
+  });
+
+  it('checks migration files even when the schema plan does not load them', () => {
+    expect(() =>
+      checkSplitPlan({
+        extraFiles: { [`${database}/migrations/unused.ts`]: 'import "../../domain.js";' },
+      }),
+    ).toThrow(/unused\.ts.*database-only migration dependency/i);
+  });
+
   it('keeps the hash when moving a migration and its local helpers verbatim', () => {
     expect(checkSplitPlan({ migrations: `${sharedHelper}\n${splitMigrations}` })).toEqual([]);
   });
@@ -180,7 +244,7 @@ describe('split migration modules', () => {
         schemaPlan: splitPlan.replace('./migrations/sample.js', '../database-other/sample.js'),
         extraFiles: { 'packages/core/src/database-other/sample.ts': splitMigrations },
       }),
-    ).toThrow('must be imported from packages/core/src/database/');
+    ).toThrow('must resolve inside packages/core/src/database/');
   });
 
   it('rejects migration re-exports without a local definition', () => {

@@ -1,18 +1,19 @@
-import type { OrchestratorChannelAccess } from '../../channels/runtime-access-types.js';
+import type { OrchestratorChannelAccess } from '../../runtime/runtime-access-types.js';
 import { type DirectBotToolSpec } from './direct-tools.js';
 import type { TurnTarget, TurnTargetSwitchReason } from '@botharness/host-protocol/turn-target';
 import { type TurnTargetSegment } from '../../runtime/turn-targets.js';
 import type { TobCliTurn } from '../../tob/cli-request.js';
 import type { TeamService } from '../../team/service.js';
 import type { externalMemberWake } from '../../messaging/defaults.js';
-import type { SenderPermissions } from '../../messaging/sender-access.js';
-import type { MessagingDirectoryQuery, MessagingDirectoryPage } from '../../messaging/directory.js';
 import type {
+  SenderPermissions,
   ThreadReceptionInput,
   ThreadReceptionPolicy,
   ThreadReceptionView,
-} from '../../messaging/thread-policy.js';
-import type { GroupReceptionInput, GroupReceptionPolicy } from '../../messaging/group-policy.js';
+  GroupReceptionInput,
+  GroupReceptionPolicy,
+} from '../../messaging/permissions/index.js';
+import type { MessagingDirectoryQuery, MessagingDirectoryPage } from '../../messaging/directory.js';
 import type { saveAttachmentFile } from '../../attachments/file-operations.js';
 import type { OutboxIntent, OutboundMessaging } from '../../messaging/outbound.js';
 import type {
@@ -61,7 +62,7 @@ export interface OrchestratorAgentRun {
   ):
     | { kind: 'external'; source: ExternalSource }
     | { kind: 'channel'; channelId: string; messageId: string };
-  tobCli?: boolean;
+  holdsManagementGrant?: () => boolean;
   workspaceSessions?: {
     list(): Promise<import('./workspace-sessions.js').WorkspaceSessionSummary[]>;
     read(sessionId: string): Promise<string>;
@@ -83,6 +84,11 @@ export interface OrchestratorAgentRun {
   externalMessaging?: {
     connected(): boolean;
     senderPermissions?(sourceEventId: string): SenderPermissions;
+    sourceBlocks?(
+      input: import('../../messaging/permissions/index.js').BotSourceBlockInput & {
+        sourceEventId?: string;
+      },
+    ): ReturnType<OutboundMessaging['sourceBlocks']>;
     directory?(query: MessagingDirectoryQuery): MessagingDirectoryPage;
     targets?(): Promise<
       Array<{
@@ -185,10 +191,6 @@ export interface OrchestratorAgentRun {
     create(input: BotScheduleInput): BotSchedule;
     update(id: string, change: BotScheduleChange): BotSchedule;
     remove(id: string): boolean;
-  };
-  memory?: {
-    switchBranch(branch: string): { from: string; to: string; head: string };
-    continueFromCommit(sha: string, branch: string): { from: string; to: string; head: string };
   };
 }
 

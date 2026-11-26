@@ -554,6 +554,9 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(await retry.retry('a')).toMatchObject({ phase: 'complete', memory: 'erased' });
     expect(await retry.retry('a')).toMatchObject({ phase: 'complete', memory: 'erased' });
     expect(existsSync(path)).toBe(false);
+    const after = retry.preview('a');
+    expect(after.deletion).toMatchObject({ phase: 'complete' });
+    await expect(retry.confirm('a', after.token, false)).rejects.toThrow('already accepted');
   });
   it('never treats a missing repository before accepted cleanup as erased', async () => {
     const f = fixture();

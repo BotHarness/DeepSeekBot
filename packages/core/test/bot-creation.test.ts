@@ -147,6 +147,12 @@ describe('canonical keyed Bot creation', () => {
     expect(() => bridge.create(input, key, { sessionIds: ['b1'] })).toThrowError(
       expect.objectContaining({ code: 'creation-key-conflict' }),
     );
+    expect(bridge.lookup(key, input, { sessionIds: ['a1'] })).toMatchObject({
+      botSlug: kept.record.slug,
+    });
+    expect(() => bridge.lookup(key, input)).toThrowError(
+      expect.objectContaining({ code: 'creation-key-conflict' }),
+    );
   });
 
   it('refuses an unknown Memory folder for a reserved identity without modifying it', () => {

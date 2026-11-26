@@ -12,9 +12,10 @@ import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
 import { useStackRoot, useTabRoot } from '../shell/stack-root';
-import { useEntranceSettled } from '../shell/entrance-settled';
 import { HideChromeWhile } from '../shell/tab-chrome';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
+import { useHistoryChrome } from './history-chrome';
+import { HistoryChromeContext } from './history-chrome-context';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -47,6 +48,9 @@ import {
   conversationNotice,
 } from './conversation-header';
 import { renderConversation } from './conversation-layout';
+import { useTimelineIslandFloor } from '../primitives/chat-scroll';
+import { useChatBottom } from '../primitives/chat-keyboard';
+import { useOverlaySettle } from '../primitives/composer-drop';
 
 export type { ChatPlace } from './chat-place';
 
@@ -61,7 +65,6 @@ export function ConversationScreen({
   place,
   focus,
   focusRequest,
-  composeOnOpen = false,
   latestWindowOnly = false,
   presentation,
   active = true,
@@ -70,7 +73,6 @@ export function ConversationScreen({
   expectedHostId?: string | undefined;
   focus: string | undefined;
   focusRequest?: string | undefined;
-  composeOnOpen?: boolean;
   latestWindowOnly?: boolean;
   presentation?: ConversationPresentation;
   active?: boolean;
@@ -124,7 +126,6 @@ export function ConversationScreen({
             place={place}
             focus={focus}
             focusRequest={focusRequest}
-            composeOnOpen={composeOnOpen}
             latestWindowOnly={latestWindowOnly}
             focused={focused}
             presentation={presentation}
@@ -139,7 +140,6 @@ function ChatConversation({
   place,
   focus: routeFocus,
   focusRequest: routeFocusRequest,
-  composeOnOpen,
   latestWindowOnly,
   focused,
   presentation,
@@ -148,7 +148,6 @@ function ChatConversation({
   place: ChatPlace;
   focus: string | undefined;
   focusRequest: string | undefined;
-  composeOnOpen: boolean;
   latestWindowOnly: boolean;
   presentation: ConversationPresentation | undefined;
 }) {
@@ -192,8 +191,18 @@ function ChatConversation({
   };
   const { width: windowWidth } = useWindowDimensions();
   const source = useConversationSource({ place, focused });
-  const { client, inbox, saved, bot, channel, botDm, conversation, activeChannel, snapshot } =
-    source;
+  const {
+    client,
+    inbox,
+    saved,
+    bot,
+    channel,
+    pendingPerson,
+    botDm,
+    conversation,
+    activeChannel,
+    snapshot,
+  } = source;
   const draftState = useConversationDraft({ place, source });
   const { draftKey, setFiles, dictation } = draftState;
   const messageState = useConversationMessageState({ focused, source });
@@ -213,6 +222,10 @@ function ChatConversation({
     timeline,
   });
   const { viewportLayout, composable, compose } = composer;
+  const history = useHistoryChrome({
+    enabled: island && focused && !composer.typing,
+    inverted: Platform.OS === 'android',
+  });
   const stackRoot = useStackRoot();
   const tabRoot = useTabRoot();
   const closePresentation = presentation?.onClose;
@@ -255,7 +268,7 @@ function ChatConversation({
             title: bot.displayName,
             href: chatHref(`/dm/${encodeURIComponent(bot.slug)}`, saved?.hostId),
           }
-        : channel !== undefined
+        : channel !== undefined && !pendingPerson
           ? {
               id: `channel:${saved?.hostId ?? ''}:${channel.id}`,
               title: channel.name,
@@ -365,8 +378,12 @@ function ChatConversation({
     timelineRows,
     profile,
   });
+  const islandFloor = useTimelineIslandFloor();
+  const overlaySettle = useOverlaySettle(useChatBottom().island, history.hiddenNow);
   const screenTree = renderConversation({
     focused,
+    islandFloor,
+    overlaySettle,
     presentation,
     t,
     theme,
@@ -387,7 +404,6 @@ function ChatConversation({
     prepareProfile,
     windowWidth,
     listSafeArea,
-    stackRoot,
     tabRoot,
     leave,
     pull,
@@ -409,25 +425,12 @@ function ChatConversation({
     profile,
     header,
     notice,
+    history,
   });
   return (
-    <>
+    <HistoryChromeContext value={history}>
       {screenTree}
-      {composeOnOpen ? <ComposeOnOpen ready={focused && composable} compose={compose} /> : null}
       {android && island ? <HideChromeWhile hidden={profileOpen || profileOpening} /> : null}
-    </>
+    </HistoryChromeContext>
   );
-}
-
-function ComposeOnOpen({ ready, compose }: { ready: boolean; compose(): void }) {
-  const settled = useEntranceSettled();
-  const done = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (done.current || !settled || !ready) return;
-      done.current = true;
-      compose();
-    }, [settled, ready, compose]),
-  );
-  return null;
 }

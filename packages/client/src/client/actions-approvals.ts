@@ -19,6 +19,10 @@ import {
   type ModelRouteView,
   type BridgeCall,
 } from './bridge.js';
+import type {
+  ShellPrefixApproval,
+  WireShellApprovalSuggestions,
+} from '@botharness/host-protocol/wire';
 import type { UserQuestionAnswerItem } from './store.js';
 import type { BridgeActions } from './actions.js';
 import type { createActivityActions } from './actions-activity.js';
@@ -51,6 +55,7 @@ export interface ApprovalActions {
     status: import('./bridge.js').ToolApprovalStatus;
     execution?: ToolApprovalExecutionState;
     expiresAt?: string;
+    shellSuggestions?: WireShellApprovalSuggestions;
   }>;
   toolApprovalExecutionState?(
     channelId: string,
@@ -63,8 +68,10 @@ export interface ApprovalActions {
       | 'allowed-once'
       | 'allowed-always-tool'
       | 'allowed-always-exact'
+      | 'allowed-always-prefix'
       | 'allowed-always-all'
       | 'rejected',
+    rule?: ShellPrefixApproval,
   ): Promise<void>;
   userQuestionStatus(
     channelId: string,
@@ -81,6 +88,7 @@ const APPROVAL_DECISIONS = {
   'allowed-once': 'allow_once',
   'allowed-always-tool': 'allow_always',
   'allowed-always-exact': 'allow_always',
+  'allowed-always-prefix': 'allow_always',
   'allowed-always-all': 'allow_always',
   rejected: 'reject',
 } as const;
@@ -104,13 +112,13 @@ export function createApprovalActions(
     toolApprovalState: (channelId, messageId) => loadToolApprovalState(call, channelId, messageId),
     toolApprovalExecutionState: (channelId, messageId) =>
       loadToolApprovalExecutionState(call, channelId, messageId),
-    decideToolApproval: (channelId, messageId, outcome) =>
+    decideToolApproval: (channelId, messageId, outcome, rule) =>
       recorded(
         settleNativeInboxAction(
           'tool-approval',
           channelId,
           messageId,
-          () => decideToolApproval(call, channelId, messageId, outcome),
+          () => decideToolApproval(call, channelId, messageId, outcome, rule),
           () => loadToolApprovalStatus(call, channelId, messageId),
         ),
         () =>

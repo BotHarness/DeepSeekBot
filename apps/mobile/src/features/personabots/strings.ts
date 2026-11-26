@@ -227,6 +227,22 @@ export const en = {
     computerDetail: (name: string) => `${name} can see the screen and use the mouse and keyboard.`,
     accessFailed: (detail: string) => `Couldn’t save the change. ${detail}`,
     accessRetry: 'Couldn’t save the change. Try again.',
+    management: 'Management',
+    'manage-app': 'Manage the App',
+    'manage-appDetail': (name: string) =>
+      `In your DM, ${name} can change settings, models and diagnostics, and create Bots.`,
+    'manage-bots': 'Manage other Bots',
+    'manage-botsDetail': (name: string) =>
+      `In your DM, ${name} can change your other Bots’ profiles and Memory.`,
+    'manage-appConfirm': (name: string) => `Let ${name} manage the App?`,
+    'manage-botsConfirm': (name: string) => `Let ${name} manage other Bots?`,
+    managementApproval:
+      'Writes follow its Approval Template, and steps like deleting always ask you first.',
+    turnOn: 'Turn on',
+    noAppManager:
+      'No Bot can manage the App now. You can still change things yourself in Settings.',
+    managementOwnerOnly:
+      'Only the App Owner, or a member the Owner authorized, can change management access for their own Bots.',
   },
   profileEmpty: {
     work: 'No Assignments yet.',
@@ -438,6 +454,19 @@ export const zh: typeof en = {
     computerDetail: (name: string) => `${name} 可以看到屏幕并使用鼠标和键盘。`,
     accessFailed: (detail: string) => `未能保存更改。${detail}`,
     accessRetry: '未能保存更改，请重试。',
+    management: '管理权限',
+    'manage-app': '管理 App',
+    'manage-appDetail': (name: string) =>
+      `在你和 ${name} 的私信里，它可以改设置、模型和诊断，也可以创建 Bot。`,
+    'manage-bots': '管理其他 Bot',
+    'manage-botsDetail': (name: string) =>
+      `在你和 ${name} 的私信里，它可以改你其他 Bot 的资料和 Memory。`,
+    'manage-appConfirm': (name: string) => `让 ${name} 管理 App？`,
+    'manage-botsConfirm': (name: string) => `让 ${name} 管理其他 Bot？`,
+    managementApproval: '写操作跟随它的审批模板，删除这类操作总会先问你。',
+    turnOn: '打开',
+    noAppManager: '现在没有 Bot 能管理 App。你仍然可以自己在设置里修改。',
+    managementOwnerOnly: '只有 App 的 Owner，或经 Owner 授权的成员，可以修改自己 Bot 的管理权限。',
   },
   profileEmpty: {
     work: '还没有 Assignment。',

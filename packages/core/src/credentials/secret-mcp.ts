@@ -13,6 +13,8 @@ import {
 } from './secret-command.js';
 import { SECRET_PLACEHOLDER } from './references.js';
 
+import { CONNECTOR_MCP_SERVER, REMOTE_MCP_SERVER_PREFIX } from '../connectors/policy.js';
+
 import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
 
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
@@ -66,6 +68,14 @@ export function secretMcpPlan(input: SecretMcpInput): {
 } {
   if (!/^[A-Za-z0-9_-]{1,32}$/.test(input.server_name))
     throw new SecretCommandRefusal('server_name must be 1–32 letters, digits, _ or -');
+  if (input.server_name.toLowerCase() === CONNECTOR_MCP_SERVER)
+    throw new SecretCommandRefusal(
+      `server_name "${CONNECTOR_MCP_SERVER}" is reserved for App connections; choose another name`,
+    );
+  if (input.server_name.toLowerCase().startsWith(REMOTE_MCP_SERVER_PREFIX))
+    throw new SecretCommandRefusal(
+      `server_name may not start with "${REMOTE_MCP_SERVER_PREFIX}"; that prefix is reserved for App connections`,
+    );
   if (!/^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(input.program))
     throw new SecretCommandRefusal('program must be a bare program name without a path');
   if (SHELLS.has(input.program.toLowerCase().replace(/\.(?:exe|cmd|bat)$/, '')))

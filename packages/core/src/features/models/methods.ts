@@ -21,8 +21,8 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
-import { sessionTarget } from '../../bridge/session-target.js';
+} from '../../kernel/method-utils.js';
+import { sessionTarget } from '../../kernel/session-target.js';
 import { EngineRefusal } from '../../engines/engine-session.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { type RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
@@ -46,6 +46,8 @@ import {
 } from '../../models/presets.js';
 import { type ModelFavorite } from '../../models/favorites.js';
 import { storedPresetSub } from '../../models/preset-sub.js';
+import { linkedPresetId } from '../../models/bot-model-engines.js';
+import { createModelLinkMethods } from './model-link-methods.js';
 import { RoutingGroupError, type RoutingGroup } from '../../models/routing-groups.js';
 import type { ModelCatalogEntry } from '../../models/catalog.js';
 import type { ModelPlanState } from '../../models/readiness.js';
@@ -58,6 +60,9 @@ import {
 } from './routing.js';
 export interface ModelsBridgeMethods extends PresetSubBridgeMethods {
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
+  modelPlanReset(
+    payload: unknown,
+  ): BridgeResult<{ revision: number; overrides: ('main' | 'sub')[] }>;
   modelCatalog(payload: unknown): Promise<
     BridgeResult<{
       models: ModelCatalogEntry[];
@@ -78,7 +83,9 @@ export interface ModelsBridgeMethods extends PresetSubBridgeMethods {
   modelPresetDelete(payload: unknown): BridgeResult<{ id: string }>;
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
-  modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
+  modelPresetApply(
+    payload: unknown,
+  ): Promise<BridgeResult<{ plan: PersonaBotModelPlan; overrides?: ('main' | 'sub')[] }>>;
   modelGroups(payload: unknown): BridgeResult<{
     groups: RoutingGroup[];
     rests: import('../../models/route-rest.js').RestingRoute[];
@@ -142,38 +149,16 @@ export function createModelsBridgeMethods(
     routing,
     subChecks,
   );
+  const { slotOverrides, followEngines, modelPlanInherit, modelPlanReset } = createModelLinkMethods(
+    deps,
+    requireOwnedBot,
+    routing,
+  );
   return {
     modelInheritance: {
-      modelPlanInherit(payload) {
-        const slug = asSlug(payload);
-        const revision = asObject(payload)['expectedRevision'];
-        if (slug === undefined || !Number.isSafeInteger(revision))
-          return invalidInput('Bot and expected revision required');
-        try {
-          const route =
-            deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.();
-          requireOwnedBot(slug);
-          const preset = deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID);
-          if (preset) {
-            const plan = defaultPresetPlan(preset);
-            requireRoutes(slug, [
-              plan.orchestrator,
-              ...assignmentModelsOf(plan),
-              ...presetGroupRoutes(plan, slug),
-            ]);
-            requireEngineChoices(presetEngineChoices(preset), slug);
-          } else if (route) requireRoutes(slug, [route]);
-        } catch (error) {
-          return modelFailure(error);
-        }
-        const result = deps.registry.inheritModel(slug, revision as number);
-        if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
-        return {
-          ok: true,
-          value: { revision: result.record.modelPlanRevision ?? 0 },
-        };
-      },
-    } satisfies Pick<ModelsBridgeMethods, 'modelPlanInherit'>,
+      modelPlanInherit,
+      modelPlanReset,
+    } satisfies Pick<ModelsBridgeMethods, 'modelPlanInherit' | 'modelPlanReset'>,
     modelSettings: {
       ...createModelCatalogMethods(human, deps, isHostOwner, routing),
       modelPresets(payload) {
@@ -447,6 +432,9 @@ export function createModelsBridgeMethods(
         if (deps.registry.get(slug) === undefined) return unknownBot(slug);
         const expectedRevision = source['expectedRevision'];
         const expectedPresetRevision = source['expectedPresetRevision'];
+        const keepOverrides = source['keepOverrides'] === true;
+        if (source['keepOverrides'] !== undefined && typeof source['keepOverrides'] !== 'boolean')
+          return invalidInput('keepOverrides must be a boolean');
         if (
           [expectedRevision, expectedPresetRevision].some(
             (value) => value !== undefined && (!Number.isSafeInteger(value) || Number(value) < 0),
@@ -509,29 +497,20 @@ export function createModelsBridgeMethods(
           ]);
           requireEngineChoices(presetEngineChoices(preset), slug);
           assertEngineAccounts(presetEngineChoices(preset));
-          const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
-          if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
-          const engines = deps.subscriptionEngines;
-          if (engines !== undefined) {
-            for (const [role, selection] of [
-              ['orchestrator', preset.orchestratorEngine],
-              ['assignment', preset.assignmentEngine],
-            ] as const) {
-              if (selection === undefined && engines.store.selection(slug, role) === undefined)
-                continue;
-              const { engine, ...choice } = selection ?? {};
-              engines.use(
-                slug,
-                role,
-                engine,
-                role === 'orchestrator'
-                  ? { ...choice, fallback: engine !== undefined && engines.fallsBack(slug) }
-                  : choice,
-              );
-              if (role === 'orchestrator') deps.releaseEngineQuotaHold?.(slug);
-            }
-          }
-          return { ok: true, value: { plan: result.record.modelPlan } };
+          const before = deps.registry.get(slug);
+          const kept = keepOverrides && before !== undefined ? slotOverrides(before) : [];
+          const result = deps.registry.applyModelPreset(
+            slug,
+            { ...preset, orchestrator },
+            { keepOverrides },
+          );
+          if (!result.ok) return unknownBot(slug);
+          followEngines(
+            slug,
+            (['main', 'sub'] as const).filter((slot) => !kept.includes(slot)),
+          );
+          const plan = deps.registry.get(slug)?.modelPlan ?? defaultPresetPlan(saved);
+          return { ok: true, value: { plan, overrides: slotOverrides(result.record) } };
         } catch (error) {
           if (error instanceof RoutingGroupError) return routingGroupFailure(error);
           return error instanceof TeamError ||
@@ -676,6 +655,8 @@ export function createModelsBridgeMethods(
                 ...executed,
                 ...inheritance(current),
                 revision: current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0,
+                presetId: linkedPresetId(current ?? bot),
+                overrides: slotOverrides(current ?? bot),
               },
             };
           } catch (failure) {
@@ -688,6 +669,8 @@ export function createModelsBridgeMethods(
             ...executed,
             ...inheritance(bot),
             revision: bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0,
+            presetId: linkedPresetId(bot),
+            overrides: slotOverrides(bot),
             ...(bot.modelPlan === undefined ? {} : { plan: bot.modelPlan }),
           },
         };

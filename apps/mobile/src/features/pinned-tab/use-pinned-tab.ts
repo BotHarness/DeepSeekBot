@@ -7,7 +7,7 @@ import { badgeCount } from '../../ui/primitives/badge-count';
 import { recentHostIds, useRecentChats } from '../../ui/shell/recent-chats';
 import { useStrings } from '../../ui/strings';
 import { usePinnedBinding, usePinnedBindingsSettled } from './native-pinned-binding';
-import { pinnedHostId, resolvePinnedTarget } from './pinned-target';
+import { pinnedHostId, resolvePinnedTarget, type PinnedHost } from './pinned-target';
 
 export type PinnedTab = {
   key: string;
@@ -36,8 +36,7 @@ export function usePinnedTab(): PinnedTab | undefined {
   return state.kind === 'ready' ? state.tab : undefined;
 }
 
-export function usePinnedTabState(): PinnedTabState {
-  const t = useStrings();
+export function usePinnedHost() {
   const hosts = useHostSessions();
   const [scope] = useConversationFilter();
   const recent = useRecentChats();
@@ -48,23 +47,27 @@ export function usePinnedTabState(): PinnedTabState {
     recentHostIds(recent),
     saved?.hostId,
   );
-  const binding = usePinnedBinding(hostId);
-  const bindingsSettled = usePinnedBindingsSettled();
   const host = hosts.find((entry) => entry.saved.hostId === hostId);
   const ready = host?.attention.status === 'ready' ? host.attention : undefined;
-  const target =
+  const pinned: PinnedHost | undefined =
     host === undefined
       ? undefined
-      : resolvePinnedTarget(
-          {
-            hostId: host.saved.hostId,
-            roster: host.snapshot.roster,
-            action: ready?.sections.action,
-            unread: ready?.unread,
-            quiet: quietChannels.get(host.saved.hostId),
-          },
-          binding,
-        );
+      : {
+          hostId: host.saved.hostId,
+          roster: host.snapshot.roster,
+          action: ready?.sections.action,
+          unread: ready?.unread,
+          quiet: quietChannels.get(host.saved.hostId),
+        };
+  return { hostId, host, pinned };
+}
+
+export function usePinnedTabState(): PinnedTabState {
+  const t = useStrings();
+  const { hostId, host, pinned } = usePinnedHost();
+  const binding = usePinnedBinding(hostId);
+  const bindingsSettled = usePinnedBindingsSettled();
+  const target = pinned === undefined ? undefined : resolvePinnedTarget(pinned, binding);
   const conversation = target?.conversation;
   const badge = conversation === undefined ? undefined : countBadge(conversation);
   const count = badge === undefined || badge.tone === 'muted' ? 0 : badge.count;

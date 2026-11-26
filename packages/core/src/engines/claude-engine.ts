@@ -15,17 +15,33 @@ import {
   type EngineSendOptions,
   type EngineSession,
   type EngineStartOptions,
+  type EngineSubagentStep,
   type EngineTurnEnd,
   type EngineWorkspaceMode,
   EngineRefusal,
+  SUBAGENT_GATEWAY_REFUSAL,
   engineEffort,
   engineEnvironment,
 } from './engine-session.js';
 
 export const CLAUDE_GATEWAY_SERVER = 'deepseekbot';
 const GATEWAY_PREFIX = `mcp__${CLAUDE_GATEWAY_SERVER}__`;
-const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'];
+const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'Agent'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'];
+const SUBAGENT_TOOLS = new Set(['Agent', 'Task']);
+
+export async function refuseSubagentGateway(input: unknown) {
+  const hook = record(input);
+  if (text(hook['agent_id']) === '' || !text(hook['tool_name']).startsWith(GATEWAY_PREFIX))
+    return { continue: true };
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse' as const,
+      permissionDecision: 'deny' as const,
+      permissionDecisionReason: SUBAGENT_GATEWAY_REFUSAL,
+    },
+  };
+}
 
 export interface ClaudeUserMessage {
   type: 'user';
@@ -37,6 +53,7 @@ export interface ClaudeUserMessage {
 export interface ClaudePermissionContext {
   signal: AbortSignal;
   toolUseID: string;
+  agentID?: string;
   title?: string;
   description?: string;
   decisionReason?: string;
@@ -62,6 +79,8 @@ export interface ClaudeQueryOptions extends Pick<
   | 'tools'
   | 'disallowedTools'
   | 'settings'
+  | 'forwardSubagentText'
+  | 'hooks'
 > {
   cwd: string;
   env: Record<string, string>;
@@ -70,7 +89,12 @@ export interface ClaudeQueryOptions extends Pick<
   strictMcpConfig: true;
   mcpServers: Record<
     string,
-    { type: 'http'; url: string; headers: Record<string, string>; alwaysLoad: true }
+    {
+      type: 'http';
+      url: string;
+      headers: Record<string, string>;
+      alwaysLoad: true;
+    }
   >;
   mcpServersDelivery?: 'initialize';
   permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions';
@@ -177,7 +201,15 @@ export function claudeQueryOptions(
       : {}),
     ...(options.model === undefined ? {} : { model: options.model }),
     ...(options.effort === undefined ? {} : { effort: options.effort }),
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: options.instructions },
+    systemPrompt: {
+      type: 'preset',
+      preset: 'claude_code',
+      append: options.instructions,
+    },
+    forwardSubagentText: true,
+    hooks: {
+      PreToolUse: [{ matcher: `${GATEWAY_PREFIX}.*`, hooks: [refuseSubagentGateway] }],
+    },
     ...session,
     ...handlers,
     spawnClaudeCodeProcess: (spawnOptions) => spawnClaudeProcess(spawnOptions, handlers.stderr),
@@ -261,6 +293,13 @@ export function claudeModels(list: unknown): EngineModel[] {
 
 export function claudeToolName(name: string): string {
   return name.startsWith(GATEWAY_PREFIX) ? name.slice(GATEWAY_PREFIX.length) : name;
+}
+
+function asyncLaunch(message: Json, result: string): boolean {
+  return (
+    record(message['tool_use_result'])['status'] === 'async_launched' ||
+    /^Async agent launched/i.test(result)
+  );
 }
 
 function resultText(content: unknown): string {
@@ -440,6 +479,8 @@ export class ClaudeEngineSession implements EngineSession {
   #metered: string | undefined;
   #outdated: string | undefined;
   #stderr = '';
+  readonly #subagents = new Map<string, { background: boolean }>();
+  readonly #retiredSubagents = new Set<string>();
   readonly #approvals = new Map<string, (decision: EngineApprovalDecision) => void>();
 
   constructor(options: ClaudeEngineOptions) {
@@ -643,7 +684,11 @@ export class ClaudeEngineSession implements EngineSession {
     context: ClaudePermissionContext,
   ): Promise<ClaudePermission> {
     if (name.startsWith(GATEWAY_PREFIX))
-      return Promise.resolve({ behavior: 'allow', updatedInput: input });
+      return Promise.resolve(
+        context.agentID === undefined
+          ? { behavior: 'allow', updatedInput: input }
+          : { behavior: 'deny', message: SUBAGENT_GATEWAY_REFUSAL },
+      );
     if (this.#options.workspaceMode === 'read-only' && !READ_ONLY_TOOLS.includes(name))
       return Promise.resolve({ behavior: 'deny', message: 'Workspace access is read-only.' });
     const approvalId = context.toolUseID || randomUUID();
@@ -686,6 +731,10 @@ export class ClaudeEngineSession implements EngineSession {
   #receive(message: Json): void {
     switch (message['type']) {
       case 'system': {
+        if (message['subtype'] === 'task_notification') {
+          this.#taskSettled(message);
+          return;
+        }
         if (message['subtype'] !== 'init') return;
         const model = text(message['model']);
         if (model !== '') this.#model = model;
@@ -719,31 +768,39 @@ export class ClaudeEngineSession implements EngineSession {
   }
 
   #assistant(message: Json): void {
-    if (message['parent_tool_use_id'] != null || this.#turn === undefined) return;
-    const error = text(message['error']);
-    if (error !== '') this.#turn.failure ??= `Claude Code reported ${error}`;
+    if (this.#turn === undefined) return;
+    const parent = text(message['parent_tool_use_id']);
+    if (parent === '') {
+      const error = text(message['error']);
+      if (error !== '') this.#turn.failure ??= `Claude Code reported ${error}`;
+    }
     const content = record(message['message'])['content'];
     for (const raw of Array.isArray(content) ? content : []) {
       const block = record(raw);
       switch (block['type']) {
         case 'thinking': {
           const value = text(block['thinking']);
-          if (value) this.#emit({ kind: 'reasoning', text: value });
+          if (value) this.#step(parent, { kind: 'reasoning', text: value });
           break;
         }
         case 'text': {
           const value = text(block['text']);
-          if (value) this.#emit({ kind: 'text', text: value });
+          if (value) this.#step(parent, { kind: 'text', text: value });
           break;
         }
-        case 'tool_use':
-          this.#emit({
+        case 'tool_use': {
+          const callId = text(block['id']);
+          const name = claudeToolName(text(block['name']));
+          const input = record(block['input']);
+          this.#step(parent, {
             kind: 'tool-call',
-            callId: text(block['id']),
-            name: claudeToolName(text(block['name'])),
-            arguments: JSON.stringify(block['input'] ?? {}),
+            callId,
+            name,
+            arguments: JSON.stringify(input),
           });
+          if (SUBAGENT_TOOLS.has(name) && callId !== '') this.#subagentStarted(callId, input);
           break;
+        }
         default:
           break;
       }
@@ -751,23 +808,84 @@ export class ClaudeEngineSession implements EngineSession {
   }
 
   #toolResults(message: Json): void {
-    if (message['parent_tool_use_id'] != null) return;
+    const parent = text(message['parent_tool_use_id']);
     const content = record(message['message'])['content'];
     for (const raw of Array.isArray(content) ? content : []) {
       const block = record(raw);
       if (block['type'] !== 'tool_result') continue;
-      this.#emit({
+      const callId = text(block['tool_use_id']);
+      const result = resultText(block['content']);
+      const isError = block['is_error'] === true;
+      this.#step(parent, {
         kind: 'tool-result',
-        callId: text(block['tool_use_id']),
-        text: resultText(block['content']),
-        isError: block['is_error'] === true,
+        callId,
+        text: result,
+        isError,
       });
+      const subagent = this.#subagents.get(callId);
+      if (subagent !== undefined && !isError && asyncLaunch(message, result))
+        subagent.background = true;
+      if (subagent !== undefined && (!subagent.background || isError))
+        this.#subagentEnded(
+          callId,
+          isError ? { status: 'failed', message: result || 'The Subagent failed' } : undefined,
+          result,
+        );
     }
+  }
+
+  #step(parent: string, step: EngineSubagentStep): void {
+    if (parent === '') this.#emit(step);
+    else if (this.#retiredSubagents.has(parent)) return;
+    else this.#emit({ kind: 'subagent-step', subagentId: parent, step });
+  }
+
+  #subagentStarted(callId: string, input: Json): void {
+    if (this.#subagents.has(callId)) return;
+    this.#subagents.set(callId, {
+      background: input['run_in_background'] === true,
+    });
+    const prompt = text(input['prompt']);
+    this.#emit({
+      kind: 'subagent-start',
+      subagentId: callId,
+      title: text(input['description']) || text(input['subagent_type']) || 'Subagent',
+      ...(prompt === '' ? {} : { prompt }),
+    });
+  }
+
+  #subagentEnded(callId: string, failure: EngineTurnEnd | undefined, result?: string): void {
+    if (!this.#subagents.delete(callId)) return;
+    this.#retiredSubagents.add(callId);
+    this.#emit({
+      kind: 'subagent-end',
+      subagentId: callId,
+      end: failure ?? { status: 'completed' },
+      ...(result === undefined || failure !== undefined ? {} : { result }),
+    });
+  }
+
+  #taskSettled(message: Json): void {
+    const callId = text(message['tool_use_id']);
+    if (callId === '' || !this.#subagents.has(callId)) return;
+    const status = message['status'];
+    const summary = text(message['summary']);
+    this.#subagentEnded(
+      callId,
+      status === 'failed'
+        ? { status: 'failed', message: summary || 'The Subagent failed' }
+        : status === 'stopped'
+          ? { status: 'interrupted' }
+          : undefined,
+      summary,
+    );
   }
 
   #result(message: Json): void {
     const turn = this.#turn;
     if (turn === undefined) return;
+    for (const callId of this.#subagents.keys()) this.#retiredSubagents.add(callId);
+    this.#subagents.clear();
     this.#turn = undefined;
     if (turn.failure !== undefined) {
       turn.resolve({ status: 'failed', message: turn.failure });

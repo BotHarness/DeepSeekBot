@@ -78,7 +78,10 @@ export function pendingActivity(
 }
 
 export function activityLabel(item: HumanAttentionItem, roster: RosterView | undefined): string {
-  const bot = roster?.bots.find((entry) => entry.slug === item.botSlug)?.displayName;
+  const bot =
+    item.nativeSession !== undefined
+      ? item.nativeSession.sessionTitle
+      : roster?.bots.find((entry) => entry.slug === item.botSlug)?.displayName;
   const summary = item.summary.trim();
   if (bot === undefined) return summary;
   return summary === '' ? bot : `${bot}: ${summary}`;

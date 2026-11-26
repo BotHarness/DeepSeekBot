@@ -5,6 +5,7 @@ export const HOST_SESSION_SORTS = ['last-human-turn', 'created', 'last-activity'
 export type HostSessionSort = (typeof HOST_SESSION_SORTS)[number];
 export type HostSessionFilter = 'all' | 'native' | `bot:${string}`;
 export const HOST_SESSION_SEARCH_MAX = 200;
+export const HOST_SESSION_PAGE_MAX = 200;
 
 export function isHostSessionSort(value: unknown): value is HostSessionSort {
   return HOST_SESSION_SORTS.some((sort) => sort === value);
@@ -23,6 +24,8 @@ export interface HostSessionListOptions {
   sort?: HostSessionSort;
   source?: HostSessionFilter;
   includeArchived?: boolean;
+  limit?: number;
+  cursor?: string;
 }
 
 export type HostSessionCreateRequest = (
@@ -47,13 +50,62 @@ export type HostSessionSource =
 
 export type HostSessionSourceOption =
   | { kind: 'native' }
-  | { kind: 'bot'; botSlug: string; displayName: string };
+  | {
+      kind: 'bot';
+      botSlug: string;
+      displayName: string;
+      avatar?: string;
+      appearance?: unknown;
+      avatarSeed?: 2;
+    };
 
 export interface HostSessionListResult {
   sessions: HostSessionRow[];
   queryVersion?: 1;
   includeArchived?: true;
   sources?: HostSessionSourceOption[];
+  nextCursor?: string;
+}
+
+export type HostSessionStatus = 'running' | 'needs-you' | 'idle';
+export type HostSessionAttention = 'approval' | 'question' | 'failed';
+
+export function hostSessionStatus(state: {
+  running: boolean;
+  attention?: HostSessionAttention | undefined;
+}): HostSessionStatus {
+  return state.attention !== undefined ? 'needs-you' : state.running ? 'running' : 'idle';
+}
+
+export type HostSessionListCursor = { epoch: string; seq: number };
+
+export type HostSessionListChanges =
+  | { reset: true; cursor: HostSessionListCursor }
+  | {
+      reset?: never;
+      sessions: HostSessionRow[];
+      removed: string[];
+      sources: HostSessionSourceOption[];
+      cursor: HostSessionListCursor;
+    };
+
+export type WorkspaceLookIcon =
+  | { kind: 'symbol'; id: string }
+  | { kind: 'emoji'; emoji: string }
+  | { kind: 'monogram' };
+
+export interface WorkspaceLook {
+  color?: string;
+  icon?: WorkspaceLookIcon;
+}
+
+export interface HostSessionFolderLook extends WorkspaceLook {
+  favicon?: string;
+}
+
+export interface WorkspaceLookResult {
+  path: string;
+  look: WorkspaceLook | null;
 }
 
 export interface HostSessionRow {
@@ -61,14 +113,18 @@ export interface HostSessionRow {
   source: HostSessionSource;
   title?: string;
   folderName?: string;
+  folderLook?: HostSessionFolderLook;
   cwd?: string;
   running: boolean;
   waiting?: true;
+  status?: HostSessionStatus;
+  attention?: HostSessionAttention;
   archived?: true;
   model?: { provider: string; model: string };
   sortedAt?: number;
   lastPromptAt: number | null;
   updatedAt: number;
+  createdAt?: number;
 }
 
 export type HostSessionApprovalDecision = 'allowed-once' | 'rejected';
@@ -80,6 +136,7 @@ export type HostSessionPendingInput =
       toolName: string;
       callId?: string;
       reason?: string;
+      preview?: string;
     }
   | {
       kind: 'question';

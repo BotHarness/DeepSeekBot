@@ -23,14 +23,13 @@ export const TOB_CHANNEL_CAPABILITIES: readonly TobCliCapability[] = [
   },
   {
     command: 'group-create',
-    description:
-      'Create a Human-owned Group; explicitly selected initial Bots join directly, and Tob never joins',
+    description: 'Create a Human-owned Group; explicitly selected initial Bots join directly',
     write: true,
   },
   {
     command: 'group-invite',
     description:
-      'Invite one active Bot under the reviewed Group invitation policy; preserve the canonical acceptance outcome',
+      'Invite one active Bot under the reviewed Group invitation policy. Read channel first and pass its fingerprint as --expected-channel. With automatic acceptance (the default) the Bot joins at once: report it as joined after read-back, without asking for another confirmation. Only when the Human disabled automatic acceptance does the invitation stay pending for the Bot to decide. Report pending, accepted or declined exactly as read back and never claim a pending invitation joined. Keep one operation key and payload for retries',
     write: true,
   },
   {
@@ -138,10 +137,8 @@ export function createTobChannelOperations(deps: {
   management: ChannelManagementService;
   channels: Pick<ChannelStore, 'list'>;
   registry: Pick<PersonaBotRegistry, 'get'>;
-  isProtectedBot(slug: string): boolean;
 }): PrepareTobOperation {
   const bot = (slug: string) => {
-    if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
     const record = deps.registry.get(slug);
     if (!record) throw new TobError('unknown-bot');
     if (record.paused) throw new TobError('archived-bot');
@@ -207,7 +204,6 @@ export function createTobChannelOperations(deps: {
       );
       if (previous.channelFingerprint !== expectedChannel) throw new TobError('stale-channel');
       const target = (slug: string, createdAt: string) => {
-        if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
         const record = deps.registry.get(slug);
         if (!record) throw new TobError('unknown-bot');
         if (record.createdAt !== createdAt) throw new TobError('stale-profile');
@@ -313,7 +309,6 @@ export function createTobChannelOperations(deps: {
       );
       if (previous.channelFingerprint !== expectedChannel) throw new TobError('stale-channel');
       const member = (slug: string, allowPaused: boolean) => {
-        if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
         if (!previous.channel.members.includes(slug)) throw new TobError('not-group-member');
         const record = deps.registry.get(slug);
         if (!record) throw new TobError('unknown-bot');

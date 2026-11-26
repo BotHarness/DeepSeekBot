@@ -4,26 +4,26 @@ import {
   Host,
   HorizontalFloatingToolbar,
   Icon,
-  RNHostView,
+  Image,
 } from '@expo/ui/jetpack-compose';
 import {
   background,
   clip,
   combinedClickable,
-  dropShadow,
+  padding,
   paddingAll,
   Shapes,
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { PinnedAvatar } from '../../features/pinned-tab/pinned-avatar';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useAvatarIcons } from '../../features/pinned-tab/avatar-icon';
 import { useDesignTheme } from '../design/theme';
 import { cornerBadge, floatingToolbar } from '../design/tokens';
 import { MaterialCountBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
-import type { NavigationDestination } from './navigation-destination';
+import { toolbarGap, type NavigationDestination } from './navigation-destination';
 import type { TabSlot } from './tab-slots';
 
 function glyphFor(slot: TabSlot, focused: boolean) {
@@ -36,6 +36,7 @@ function glyphFor(slot: TabSlot, focused: boolean) {
       ? require('../../../assets/toolbar/activity-filled.xml')
       : require('../../../assets/toolbar/activity.xml');
   if (slot === 'sessions') return require('../../../assets/toolbar/code.xml');
+  if (slot === 'pinned') return require('../../../assets/row-icons/stay.xml');
   return focused
     ? require('../../../assets/toolbar/chats-filled.xml')
     : require('../../../assets/toolbar/chats.xml');
@@ -52,7 +53,12 @@ export function tabTestID(slot: TabSlot): string {
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { item, height, shadowRoom, shadow } = floatingToolbar;
+  const { item, height, inset } = floatingToolbar;
+  const gap = toolbarGap(useWindowDimensions().width, items.length);
+  const avatar = useAvatarIcons(
+    items.find((entry) => entry.slot === 'pinned')?.conversation,
+    floatingToolbar.avatar,
+  );
   const badged = (entry: NavigationDestination, face: ReactNode) =>
     entry.count === 0 ? (
       face
@@ -72,16 +78,12 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       </BadgedBox>
     );
   const face = (entry: NavigationDestination) =>
-    entry.slot === 'pinned' ? (
-      <RNHostView modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}>
-        <View>
-          <PinnedAvatar
-            conversation={entry.conversation}
-            size={floatingToolbar.avatar}
-            selected={entry.focused}
-          />
-        </View>
-      </RNHostView>
+    entry.slot === 'pinned' && avatar.icons !== undefined ? (
+      <Image
+        source={entry.focused ? avatar.icons.selected : avatar.icons.default}
+        contentDescription={null}
+        modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}
+      />
     ) : (
       <Icon
         source={glyphFor(entry.slot, entry.focused)}
@@ -99,26 +101,20 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           seedColor={theme.color.accent}
           ignoreSafeAreaKeyboardInsets
         >
-          <Box modifiers={[paddingAll(shadowRoom)]}>
+          <Box modifiers={[paddingAll(inset)]}>
             <HorizontalFloatingToolbar
               colors={{
-                toolbarContainerColor: theme.layer.raised.fill,
+                toolbarContainerColor: theme.color.base,
                 toolbarContentColor: theme.color.fg,
               }}
-              modifiers={[
-                dropShadow(Shapes.RoundedCorner(height), {
-                  radius: shadow.radius,
-                  offsetY: shadow.offsetY,
-                  alpha: shadow.alpha[theme.scheme],
-                }),
-                testID('android-navigation-bar'),
-              ]}
+              modifiers={[testID('android-navigation-bar')]}
             >
-              {items.map((entry) => (
+              {items.map((entry, index) => (
                 <Box
                   key={entry.key}
                   contentAlignment="center"
                   modifiers={[
+                    padding(index === 0 ? 0 : gap, 0, 0, 0),
                     size(item, height),
                     clip(Shapes.RoundedCorner(height / 2)),
                     background(entry.focused ? theme.layer.raised.chosen : 'transparent'),
@@ -140,7 +136,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
         ]}
       >
-        {items.map((entry) => (
+        {items.map((entry, index) => (
           <View
             key={entry.key}
             testID={`${tabTestID(entry.slot)}-a11y`}
@@ -156,10 +152,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               if (nativeEvent.actionName === 'activate') entry.onPress();
               if (nativeEvent.actionName === 'longpress') entry.onLongPress();
             }}
-            style={{ width: item, height }}
+            style={{ width: item, height, marginLeft: index === 0 ? 0 : gap }}
           />
         ))}
       </View>
+      {avatar.capture}
     </View>
   );
 }

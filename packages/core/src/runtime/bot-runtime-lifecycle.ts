@@ -1,4 +1,4 @@
-import type { createChannelAdmission } from '../channels/runtime-admission.js';
+import type { createChannelAdmission } from './runtime-admission.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { createActivityEvents } from '../features/activity/events.js';

@@ -1,6 +1,15 @@
 {
   "$description": "Tobs dark mode: palettes, surfaces, ink, lines, states, status roles and elevation. Accent roles are derived at build time from palette.accent.",
   "palette": {
+    "brand-vivid": {
+      "$type": "color",
+      "$description": "Marketing-site brand colour: a more saturated blue for the homepage, buttons and links. The app keeps palette.brand.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.549, 0.6196, 1.0],
+        "hex": "#8c9eff"
+      }
+    },
     "accent": {
       "classic-blue": {
         "$type": "color",
@@ -111,6 +120,11 @@
             "hex": "#000000"
           },
           "$description": "No fill; lets a style turn a surface off without carrying a colour value."
+        },
+        "logo": {
+          "$type": "color",
+          "$description": "Fixed light tile behind third-party brand logos, so dark marks stay legible in every theme.",
+          "$value": "{palette.neutral.100}"
         }
       },
       "ink": {

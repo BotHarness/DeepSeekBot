@@ -9,10 +9,11 @@ export function placeGroupSource(
     conversationId: string;
     messageId: string;
     revision?: number;
+    placed?: boolean;
   },
 ) {
+  const id = `src-${input.messageId}`;
   attachOperationalModule(core.operationalDatabase, 'messaging').transaction((db) => {
-    const id = `src-${input.messageId}`;
     db.prepare(
       "INSERT INTO source_events (source_event_id, source_kind, bot_slug, body, created_at, payload_json) VALUES (?, 'bridge-message', 'ada', 'help', ?, ?)",
     ).run(
@@ -34,6 +35,7 @@ export function placeGroupSource(
         },
       }),
     );
+    if (input.placed === false) return;
     const revision =
       (
         db
@@ -44,4 +46,5 @@ export function placeGroupSource(
       'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)',
     ).run(input.channelId, input.revision ?? revision + 1, id, `placed-${input.messageId}`);
   });
+  return id;
 }

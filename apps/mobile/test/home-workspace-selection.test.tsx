@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { headerLabelScaleCeiling } from '../src/ui/design/capped-text';
 import { act, useLayoutEffect, type ReactNode } from 'react';
 import { createHostClient } from '@botharness/host-client/client';
 import { CONNECTION_OFFLINE_MS, CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
@@ -20,7 +21,6 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/des
 import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { refreshMemberPermissions } from '../src/host/member-permissions';
-import type { CreationPanelControls } from '../src/ui/shell/creation-panel';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -86,6 +86,8 @@ vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 
 vi.mock('react-native', mockReactNative);
 
+vi.mock('../src/ui/shell/message-person-sheet', () => ({ MessagePersonSheet: () => null }));
+
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
@@ -102,6 +104,8 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+vi.mock('../src/ui/shell/list-edge-fades', () => ({ ListEdgeFades: () => null }));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;
@@ -131,17 +135,6 @@ vi.mock('expo-router', () => {
 vi.mock('../src/host/host-session', mockHostSession);
 
 vi.mock('../src/host/native-section-collapse', mockSectionCollapse);
-
-vi.mock('../src/ui/shell/creation-panel', () => ({
-  CreationPanel: ({ children }: { children: (controls: CreationPanelControls) => ReactNode }) =>
-    children({
-      level: 'actions',
-      showSources: vi.fn(),
-      back: vi.fn(),
-      dismiss: vi.fn(),
-      firstAction: { current: null },
-    }),
-}));
 
 vi.mock('../src/ui/shell/navigation-material', () => ({ NavigationMaterial: () => null }));
 
@@ -865,7 +858,6 @@ describe('Search in the Chats header', () => {
       const view = await home();
       await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
       expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
-      expect(view.querySelector('[data-testid="tob-mode-button"]')).toBeNull();
     } finally {
       roster.bots.pop();
     }
@@ -874,7 +866,7 @@ describe('Search in the Chats header', () => {
 
 describe('Selected view header accessibility', () => {
   it.each(['all', 'computer', 'cloud'] as const)(
-    'announces the full %s view and scales its icon with live system text size',
+    'announces the full %s view and scales its icon with live system text size up to the header ceiling',
     async (kind) => {
       const title = kind === 'all' ? t.allEnvironments : 'Studio team with a long complete name';
       const accessibilityLabel =
@@ -907,7 +899,9 @@ describe('Selected view header accessibility', () => {
         push.mockClear();
         await act(async () => (button as HTMLElement).click());
         expect(push).toHaveBeenCalledWith('/environment');
-        const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
+        const size =
+          resolveTheme('light', {}, 'ios').type.title.line *
+          Math.min(fontScale, headerLabelScaleCeiling);
         if (kind === 'computer') {
           expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
             String(size),

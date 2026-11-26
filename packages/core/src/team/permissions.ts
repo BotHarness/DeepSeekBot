@@ -11,6 +11,7 @@ export const PERMISSION_CATALOG = [
   { id: 'bots.createPrivate', group: 'bots' },
   { id: 'bots.createPublic', group: 'bots' },
   { id: 'bots.manageAll', group: 'bots' },
+  { id: 'bots.manageGrants', group: 'bots' },
   { id: 'models.use', group: 'compute' },
   { id: 'models.configure', group: 'compute' },
   { id: 'modelSources.manage', group: 'compute' },
@@ -25,7 +26,7 @@ export const PERMISSION_CATALOG = [
 export type HostPermission = (typeof PERMISSION_CATALOG)[number]['id'];
 export const ALL_PERMISSIONS = PERMISSION_CATALOG.map(({ id }) => id);
 export function ownerGrantedPermission(id: string): boolean {
-  return id === 'privateContent.view' || id === 'modelSources.manage';
+  return id === 'privateContent.view' || id === 'modelSources.manage' || id === 'bots.manageGrants';
 }
 export const ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((id) => !ownerGrantedPermission(id));
 export const MEMBER_PERMISSIONS: HostPermission[] = ['dm.humans'];
@@ -77,6 +78,7 @@ export const roleSchema = z.object({
   name: z.string(),
   builtin: z.enum(['admin', 'member']).nullable(),
   permissions: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
+  denied: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
   models: z.string().transform((value) => roleModelsSchema.parse(JSON.parse(value))),
   policy: z.string().transform((v) => rolePolicySchema.parse(JSON.parse(v))),
   policyRevision: z.number().int().positive(),

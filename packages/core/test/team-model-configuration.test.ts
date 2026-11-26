@@ -259,10 +259,7 @@ describe('Shared model configuration', () => {
       f.methods.modelPresetDelete({ id: preset.id, expectedRevision: 2, confirmed: true }),
     ).toEqual({ ok: true, value: { id: preset.id } });
     expect(f.deps.modelPresets.get(preset.id)).toBeUndefined();
-    expect(f.registry.get('ada')?.modelPlan).toMatchObject({
-      sourcePresetId: preset.id,
-      sourcePresetName: 'Daily',
-    });
+    expect(f.registry.get('ada')?.modelPlan).toMatchObject({ sourcePresetId: f.pinned.id });
   });
 });
 
@@ -359,7 +356,7 @@ describe('Bot Model Plan sub choices', () => {
       }),
     ).toMatchObject({ ok: true });
     expect(f.registry.customizeModelPlan('bob', permitted, 0).ok).toBe(true);
-    expect(f.registry.get('bob')?.modelPlan?.assignmentDefault).toBeUndefined();
+    expect(f.registry.get('bob')?.modelPlan?.overrides).toEqual(['main']);
     expect(methods.modelPlanSub({ slug: 'bob' })).toMatchObject({
       ok: true,
       value: { revision: 1, sub: customSub },

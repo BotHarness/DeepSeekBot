@@ -122,6 +122,7 @@ export function guardHumanBridge(
             'reachableBots',
             'botProactiveOptOut',
             'roleConflicts',
+            'memberPermissions',
             'speakerPolicy',
           ].includes(property)
         )
@@ -327,6 +328,7 @@ export function guardHumanBridge(
             'channelMemberCandidates',
             'channelGroupMemberPicker',
             'channelGroupMembersAdd',
+            'channelAccessState',
           ].includes(property)
         ) {
           const channel = deps.channels.get(channelId);

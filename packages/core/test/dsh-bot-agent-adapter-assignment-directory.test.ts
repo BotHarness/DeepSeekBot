@@ -161,7 +161,7 @@ describe('Assignment Directory Tools', () => {
     }
   });
 
-  it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
+  it('lets the Orchestrator pick an allowed Loadout for a new Assignment, and still takes the former mode argument', async () => {
     let modesFail = false;
     let narrowed = false;
     let modeParameter: unknown;
@@ -177,22 +177,23 @@ describe('Assignment Directory Tools', () => {
             if (found === undefined) throw new Error(`${name} not registered`);
             return found;
           };
-          const create = (mode: string) =>
+          const create = (loadout: string, key: 'loadout' | 'mode' = 'loadout') =>
             tool('create_assignment').execute(
               {
                 title: 'Port the parser',
                 description: 'Port the parser to the new API.',
                 grant_id: 'grant-1',
-                mode,
+                [key]: loadout,
               },
               {} as ToolRunContext,
             );
           modeParameter = Reflect.get(
             Reflect.get(tool('create_assignment').parameters, 'properties') as object,
-            'mode',
+            'loadout',
           );
           calls.push(tool('list_assignment_models').execute({}, {} as ToolRunContext));
           calls.push(create('ptc'));
+          calls.push(create('ptc', 'mode'));
           calls.push(create('acp').then(String, (error: Error) => error.message));
           const settled = Promise.allSettled([...calls]);
           calls.push(
@@ -276,27 +277,29 @@ describe('Assignment Directory Tools', () => {
       },
     });
     try {
-      const [models, accepted, refused, narrowedRefusal, withoutModes] = await Promise.all(calls);
+      const [models, accepted, legacy, refused, narrowedRefusal, withoutModes] =
+        await Promise.all(calls);
       expect(modeParameter).toMatchObject({ type: 'string', enum: ['deepseekbot', 'ptc'] });
       expect(Reflect.get(modeParameter as object, 'description')).toContain(
-        'omitted uses this Bot’s mode (deepseekbot)',
+        'omitted uses this Bot’s Loadout (deepseekbot)',
       );
       expect(Reflect.get(modeParameter as object, 'description')).toContain('- ptc: PTC');
       expect(JSON.parse(String(models))).toMatchObject({
-        assignmentModes: {
+        assignmentLoadouts: {
           default: 'deepseekbot',
           allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
         },
       });
       expect(JSON.parse(String(accepted))).toMatchObject({
         outcome: 'created',
-        mode: 'ptc',
+        loadout: 'ptc',
       });
-      expect(refused).toContain('"mode" must be one of ["deepseekbot","ptc"]');
-      expect(narrowedRefusal).toContain('mode ptc is not allowed; choose one of deepseekbot');
+      expect(JSON.parse(String(legacy))).toMatchObject({ outcome: 'created', loadout: 'ptc' });
+      expect(refused).toContain('"loadout" must be one of ["deepseekbot","ptc"]');
+      expect(narrowedRefusal).toContain('Loadout ptc is not allowed; choose one of deepseekbot');
       const fallback = JSON.parse(String(withoutModes)) as Record<string, unknown>;
-      expect(fallback['assignmentModes']).toBeUndefined();
-      expect(String(fallback['assignmentModesError'])).toContain('roster unavailable');
+      expect(fallback['assignmentLoadouts']).toBeUndefined();
+      expect(String(fallback['assignmentLoadoutsError'])).toContain('roster unavailable');
       expect(created).toContainEqual({
         title: 'Port the parser',
         description: 'Port the parser to the new API.',
@@ -304,6 +307,7 @@ describe('Assignment Directory Tools', () => {
         mode: 'ptc',
       });
       expect(created.filter((input) => input.title === 'Port the parser')).toEqual([
+        expect.objectContaining({ mode: 'ptc' }),
         expect.objectContaining({ mode: 'ptc' }),
       ]);
     } finally {

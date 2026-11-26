@@ -268,15 +268,13 @@ export async function loadToolApprovalState(
   channelId: string,
   messageId: string,
 ) {
-  const { status, expiresAt, execution } = await approvalReaders.readToolApprovalStatus(
-    bridgeHost(call),
-    channelId,
-    messageId,
-  );
+  const { status, expiresAt, execution, shellSuggestions } =
+    await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId);
   return {
     status,
     ...(status !== 'pending' || expiresAt === undefined ? {} : { expiresAt }),
     ...(execution === undefined ? {} : { execution }),
+    ...(status !== 'pending' || shellSuggestions === undefined ? {} : { shellSuggestions }),
   };
 }
 
@@ -294,8 +292,9 @@ export async function decideToolApproval(
   channelId: string,
   messageId: string,
   outcome: Parameters<typeof approvalReaders.decideToolApproval>[3],
+  rule?: Parameters<typeof approvalReaders.decideToolApproval>[4],
 ): Promise<void> {
-  await approvalReaders.decideToolApproval(bridgeHost(call), channelId, messageId, outcome);
+  await approvalReaders.decideToolApproval(bridgeHost(call), channelId, messageId, outcome, rule);
 }
 
 export async function loadUserQuestionStatus(

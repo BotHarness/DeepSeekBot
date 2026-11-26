@@ -14,7 +14,7 @@ import {
 import type { MessagingIdentity } from './identity.js';
 import { readMessagingIdentity } from './identity.js';
 import { currentReceptionPaths, grantReception } from './reception-paths.js';
-import { groupReceptionPolicy } from './group-policy.js';
+import { groupReceptionPolicy } from './permissions/index.js';
 import { bridgeChannel, humanBridgeChannel, placeBridgeSource } from './channel-target.js';
 import { messagingDefaults } from './defaults.js';
 import { assertMessagingIdentity } from './identity.js';

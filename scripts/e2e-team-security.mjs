@@ -19,6 +19,7 @@ import { runModelConfigurationGate } from './team-security-model-configuration-g
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
+import { runManagementGrantGate } from './team-security-management-grant-gate.mjs';
 import { formatTeamSecurityReport } from './team-security-report.mjs';
 import { runScenarioAttempts } from './team-security-scenario.mjs';
 import {
@@ -933,6 +934,22 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C6', 'Native Session access', (check) => runHostSessionGate(s, fx, check));
     await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
       runVoiceProviderGate(s, { as: fx.users.bob }, check),
+    );
+    await define(
+      'C8',
+      'App management grants: the Owner, or a member the Owner authorized, for their own Bots',
+      (check) =>
+        runManagementGrantGate(
+          s,
+          {
+            as: fx.users.bob,
+            target: fx.vaultSlug,
+            ownBot: fx.bots.bob,
+            roleIds: ['member', fx.roles.creators.roleId],
+            tag,
+          },
+          check,
+        ),
     );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);

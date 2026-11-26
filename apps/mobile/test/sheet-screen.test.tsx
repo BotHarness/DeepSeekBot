@@ -116,7 +116,7 @@ describe('iOS sheet frame and header', () => {
     expect(closeSheet).toHaveBeenCalledTimes(1);
   });
 
-  it('paints the header on the sheet fill as a native view beside the scrolling body', async () => {
+  it('leaves the iOS header background to the system sheet, as a native view beside the scrolling body', async () => {
     const view = await render(
       <SheetScreen>
         <SheetHeader title="A very long assignment title" />
@@ -128,7 +128,7 @@ describe('iOS sheet frame and header', () => {
     expect(header!.getAttribute('data-collapsable')).toBe('false');
     const style = JSON.parse(header!.getAttribute('data-style')!) as Record<string, unknown>;
     expect(style['zIndex']).toBeUndefined();
-    expect(style['backgroundColor']).toBeTypeOf('string');
+    expect(style['backgroundColor']).toBeUndefined();
     expect(header!.querySelector('header')!.getAttribute('data-lines')).toBe('1');
   });
 });

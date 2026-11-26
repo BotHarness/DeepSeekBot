@@ -1,5 +1,9 @@
 import { type HumanContext } from '../humans/context.js';
-import type { HumanAttentionPage, HumanAttentionQuery } from './human-attention.js';
+import type {
+  HumanAttentionPage,
+  HumanAttentionQuery,
+  HumanAttentionSource,
+} from './human-attention.js';
 
 type Cursor = {
   section: number;
@@ -10,7 +14,7 @@ type Cursor = {
 export function notificationAttentionPage(
   human: HumanContext,
   attention: Pick<HumanAttentionQuery, 'list' | 'dmReplies'>,
-  input: { limit?: number; cursor?: string },
+  input: { limit?: number; cursor?: string; source?: HumanAttentionSource },
 ): HumanAttentionPage {
   const limit = input.limit ?? 100;
   let cursor: Cursor = { section: 0 };
@@ -38,17 +42,24 @@ export function notificationAttentionPage(
       unreadOnly: true,
       limit,
       ...(cursor.page === undefined ? {} : { cursor: cursor.page }),
+      ...(input.source === undefined ? {} : { source: input.source }),
     });
+    const done = input.source === 'native' && page.nextCursor === undefined;
     return {
       notificationVersion: 1,
       items: page.items,
-      nextCursor: encode(
-        page.nextCursor
-          ? { section: cursor.section, page: page.nextCursor }
-          : { section: cursor.section + 1 },
-      ),
+      ...(done
+        ? {}
+        : {
+            nextCursor: encode(
+              page.nextCursor
+                ? { section: cursor.section, page: page.nextCursor }
+                : { section: cursor.section + 1 },
+            ),
+          }),
     };
   }
+  if (input.source === 'native') return { notificationVersion: 1, items: [] };
   const rows = attention.dmReplies(human, limit + 1, cursor.before);
   const items = rows.slice(0, limit);
   const last = items.at(-1);

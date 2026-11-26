@@ -1,3 +1,4 @@
+import type { WorkspaceLooks } from '../workspaces/workspace-looks.js';
 import {
   createHostSessionsMethods,
   type HostSessionBridgeMethods,
@@ -93,7 +94,7 @@ import {
   type SchedulesBridgeMethods,
   type SchedulesBridgeDeps,
 } from '../features/schedules/methods.js';
-import { asObject, invalidInput, type BridgeResult } from './method-utils.js';
+import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
 import {
   createPromptBridgeMethods,
   type PromptBridgeMethods,
@@ -107,8 +108,7 @@ import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import type { TeamService } from '../team/service.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { type HumanContext, type HumanId } from '../humans/context.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext, type HumanId } from '../humans/context.js';
 import {
   createVoiceBridgeMethods,
   type VoiceBridgeMethods,
@@ -180,6 +180,11 @@ import {
 } from '../features/channels/methods.js';
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
 import { createUsageAdapterMethods, type UsageAdapterMethods } from '../features/usage/methods.js';
+import {
+  createConnectorsBridgeMethods,
+  type ConnectorsBridgeDeps,
+  type ConnectorsBridgeMethods,
+} from '../features/connectors/methods.js';
 import {
   createTakeoverAdapterMethods,
   type TakeoverAdapterMethods,
@@ -271,7 +276,7 @@ export type { ModelCatalogGroup } from '../features/models/routing.js';
 
 export type { SkillDetail } from '../features/skills/methods.js';
 
-export type { BridgeError, BridgeResult } from './method-utils.js';
+export type { BridgeError, BridgeResult } from '../kernel/method-utils.js';
 
 export type {
   BotPromptView,
@@ -405,6 +410,7 @@ export interface BridgeMethods
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
     UsageAdapterMethods,
+    ConnectorsBridgeMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -436,6 +442,7 @@ export interface BridgeMethodsDeps
     ApprovalsBridgeDeps,
     WorkspacesBridgeDeps,
     AssignmentsBridgeDeps,
+    ConnectorsBridgeDeps,
     MemoryBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
@@ -463,6 +470,7 @@ export interface BridgeMethodsDeps
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
   ownership: SessionOwnership;
+  workspaceLooks?: WorkspaceLooks;
   sessionModels?: ReturnType<
     typeof import('../runtime/session-model-choices.js').sessionModelChoices
   >;
@@ -482,6 +490,7 @@ export interface BridgeMethodsDeps
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   nativeSessions?: NativeSessions;
+  externalSessions?: import('../features/sessions/external-sessions.js').ExternalSessionReader;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -716,6 +725,7 @@ function buildBridgeMethods(
       isHostOwner,
       log: deps.voiceLog,
     }),
+    ...createConnectorsBridgeMethods(deps, isHostOwner),
     ...createBotModeBridgeMethods({
       modes: deps.botModes,
       registry: deps.registry,
@@ -756,8 +766,7 @@ function buildBridgeMethods(
     messagingRevoke: messagingMethods.messagingRevoke,
     messagingConversation: messagingMethods.messagingConversation,
     messagingSend: messagingMethods.messagingSend,
-    tobCli: tobAdapterMethods.tobCli,
-    tobHome: tobAdapterMethods.tobHome,
+    ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
     acknowledgements: humansAdapterMethods.acknowledgements,
     acknowledge: humansAdapterMethods.acknowledge,
@@ -796,6 +805,7 @@ function buildBridgeMethods(
     botImportPreview: personabotsMethods.botImportPreview,
     createFromGit: personabotsMethods.createFromGit,
     createFromSessions: sessionBots.createFromSessions,
+    externalSessions: sessionBots.externalSessions,
     ...marketplaceReads,
     releaseInfo: releaseAdapterMethods.releaseInfo,
     releaseUpdate: releaseAdapterMethods.releaseUpdate,
@@ -843,6 +853,7 @@ function buildBridgeMethods(
     channelHumanNameSet: humansMethods.channelHumanNameSet,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
+    channelAccessState: channelsAdapterMethods.channelAccessState,
     channelDm: channelsAdapterMethods.channelDm,
     channelGet: channelsAdapterMethods.channelGet,
     channelCreate: channelsManagementAdapterMethods.channelCreate,
@@ -941,8 +952,6 @@ function buildBridgeMethods(
     userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     botToolTrace: sessionsMethods.botToolTrace,
     botTurnInput: promptsAdapterMethods.botTurnInput,
-    botTools: tobAdapterMethods.botTools,
-    botToolRun: tobAdapterMethods.botToolRun,
     sessions: sessionsMethods.sessions,
     sessionArchiveSet: sessionsMethods.sessionArchiveSet,
     memoryMove: memoryMethods.memoryMove,

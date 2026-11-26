@@ -2,6 +2,8 @@ export const SKILL_OPTIONS = {
   skill: { type: 'string', multiple: true },
   owner: { type: 'string' },
   confirm: { type: 'boolean' },
+  global: { type: 'boolean' },
+  'on-conflict': { type: 'string' },
 } as const;
 
 export const APPROVAL_REVIEWER_OPTIONS = {
@@ -110,6 +112,7 @@ export const HOST_ADMIN_OPTIONS = {
   reason: { type: 'string' },
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
+  delegable: { type: 'boolean' },
   confirm: { type: 'boolean' },
   'accept-terms': { type: 'boolean' },
   'include-uploads': { type: 'boolean' },
@@ -157,6 +160,8 @@ export const INBOX_OPTIONS = {
   workspace: { type: 'string' },
   model: { type: 'string' },
   message: { type: 'string' },
+  symbol: { type: 'string' },
+  monogram: { type: 'boolean' },
 } as const;
 
 export const MESSAGING_OPTIONS = {
@@ -173,6 +178,7 @@ export const MESSAGING_OPTIONS = {
 
 export const MODELS_USAGE_OPTIONS = {
   'include-usage': { type: 'boolean' },
+  'keep-overrides': { type: 'boolean' },
   'migration-dry-run': { type: 'boolean' },
   'assignment-follows-main': { type: 'boolean' },
   template: { type: 'string' },
@@ -239,6 +245,13 @@ export const PROMPT_PRESET_OPTIONS = {
   confirm: { type: 'boolean' },
 } as const;
 
+export const CONNECTOR_OPTIONS = {
+  'key-stdin': { type: 'boolean' },
+  label: { type: 'string' },
+  access: { type: 'string' },
+  confirm: { type: 'boolean' },
+} as const;
+
 export const SCHEDULE_OPTIONS = {
   confirm: { type: 'boolean' },
 } as const;
@@ -292,6 +305,7 @@ export const TEAM_OPTIONS = {
   'token-stdin': { type: 'boolean' },
   'sign-out-others': { type: 'string' },
   permissions: { type: 'string' },
+  deny: { type: 'string' },
   set: { type: 'string' },
   revoke: { type: 'string' },
   'role-ids': { type: 'string' },
@@ -373,6 +387,7 @@ export const LIVE_OPTIONS = {
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...PROMPT_PRESET_OPTIONS,
+  ...CONNECTOR_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   ...VOICE_OPTIONS,
   ...CALL_OPTIONS,
@@ -394,6 +409,7 @@ export const LIVE_OPTIONS = {
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },
+  prefix: { type: 'string', multiple: true },
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
   since: { type: 'string' },
@@ -452,6 +468,7 @@ export const BOT_CLI_OPTIONS = {
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
   'from-sessions': { type: 'string' },
+  'add-workspaces': { type: 'boolean' },
   'expected-commit': { type: 'string' },
   'memory-location': { type: 'string' },
   home: { type: 'string' },

@@ -1,7 +1,7 @@
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import { LiveUnavailable, type ActivityLiveFrame } from '../../channels/live.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { PersonaBotActivitySnapshot } from '../../state/bot-state.js';
 import type { ProfileActivity } from '../../bridge/methods.js';
 import type { ChannelActivityToday } from '../../channels/activity-today.js';
@@ -88,6 +88,7 @@ export function humanAttention(
   queryVersion?: number,
   dismissed?: boolean,
   notifications?: boolean,
+  source?: 'all' | 'bot' | 'native',
 ): HumanAttentionPage {
   return unwrap(
     methods.humanAttention({
@@ -104,6 +105,7 @@ export function humanAttention(
       queryVersion,
       dismissed,
       notifications,
+      source,
     }),
   );
 }
@@ -111,8 +113,9 @@ export function humanAttention(
 export function humanAttentionStatus(
   methods: ActivityBridgeMethods,
   messageCounts?: boolean,
+  source?: 'all' | 'bot' | 'native',
 ): HumanAttentionStatus {
-  return unwrap(methods.humanAttentionStatus({ messageCounts }));
+  return unwrap(methods.humanAttentionStatus({ messageCounts, source }));
 }
 
 export function channelUnreadCounts(methods: ActivityBridgeMethods): {
@@ -276,6 +279,7 @@ export const attentionRpc = {
     queryVersion?: number,
     dismissed?: boolean,
     notifications?: boolean,
+    source?: 'all' | 'bot' | 'native',
   ): HumanAttentionPage {
     return humanAttention(
       this.methods,
@@ -292,11 +296,15 @@ export const attentionRpc = {
       queryVersion,
       dismissed,
       notifications,
+      source,
     );
   },
 
-  humanAttentionStatus(messageCounts?: boolean): HumanAttentionStatus {
-    return humanAttentionStatus(this.methods, messageCounts);
+  humanAttentionStatus(
+    messageCounts?: boolean,
+    source?: 'all' | 'bot' | 'native',
+  ): HumanAttentionStatus {
+    return humanAttentionStatus(this.methods, messageCounts, source);
   },
 
   channelUnreadCounts(): {

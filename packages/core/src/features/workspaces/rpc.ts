@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { WorkspaceGrant } from '../../workspaces/grants.js';
 import type { WorkspacesBridgeMethods } from './methods.js';
 import type { FolderListing } from '../../workspaces/folder-browse.js';

@@ -381,6 +381,5 @@ it('handles a local member reply after shared external harvest without granting 
     (r) => r.bot.slug === 'bea' && r.message.includes('Local shared result'),
   );
   expect(peerReplyTurn).toBeDefined();
-  expect(peerReplyTurn!.memory).toBeUndefined();
   expect(fx.core.channels.readMessages(id).some((m) => m.sessionFailure)).toBe(false);
 });

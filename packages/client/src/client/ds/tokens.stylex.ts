@@ -84,4 +84,5 @@ export const color = stylex.defineConsts({
   modal: 'var(--tobs-layer-sheet)',
   well: 'var(--tobs-layer-well)',
   accentTint: 'var(--tobs-accent-tint)',
+  logoTile: 'var(--tobs-layer-logo)',
 });

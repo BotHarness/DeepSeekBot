@@ -1,4 +1,5 @@
 import type { useProfilePaging } from './profile-paging';
+import type { HistoryChrome } from './history-chrome-context';
 import { Platform, type NativeScrollEvent, type NativeSyntheticEvent, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
@@ -9,7 +10,7 @@ import {
   type useChatInitialScroll,
 } from './chat-timeline-chrome';
 import { ChatList } from '../primitives/chat-list';
-import { useTimelineIslandFloor } from '../primitives/chat-scroll';
+import type { useOverlaySettle } from '../primitives/composer-drop';
 import type { usePullToCompose } from './pull-to-compose';
 import { SwipeOpen } from '../shell/swipe-open';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -37,6 +38,8 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
 export function renderConversationTimeline({
   t,
+  islandFloor,
+  overlaySettle,
   paging,
   focus,
   focusRequest,
@@ -45,7 +48,6 @@ export function renderConversationTimeline({
   nativeSpacer,
   headerPadding,
   listSafeArea,
-  stackRoot,
   pull,
   markdownViewport,
   initialScroll,
@@ -58,8 +60,12 @@ export function renderConversationTimeline({
   focusJump,
   rowRendering,
   profile,
+  history,
 }: {
+  history: Pick<HistoryChrome, 'onScroll' | 'onScrollToTop' | 'hiddenNow'>;
   t: ReturnType<typeof useStrings>;
+  islandFloor: number;
+  overlaySettle: ReturnType<typeof useOverlaySettle>;
   paging: ReturnType<typeof useProfilePaging>;
   focus: string | undefined;
   focusRequest: string | undefined;
@@ -68,7 +74,6 @@ export function renderConversationTimeline({
   nativeSpacer: boolean;
   headerPadding: number;
   listSafeArea: number;
-  stackRoot: boolean;
   pull: ReturnType<typeof usePullToCompose>;
   markdownViewport: ContextType<typeof MarkdownViewportContext>;
   initialScroll: ReturnType<typeof useChatInitialScroll>;
@@ -104,7 +109,6 @@ export function renderConversationTimeline({
   } = scrollState;
   const { viewport, attachList, latest } = timeline;
   const { composerHeight, viewportHeight, viewportLayout, stage, flights, composable } = composer;
-  const islandFloor = useTimelineIslandFloor();
   const { rows } = timelineRows;
   const { key, ...initialScrollProps } = initialScroll;
   const { jump } = focusJump;
@@ -204,7 +208,9 @@ export function renderConversationTimeline({
                   onScroll={(event: ScrollEvent) => {
                     latest.listProps.onScroll(event);
                     pull.onScroll(event);
+                    history.onScroll(event.nativeEvent);
                   }}
+                  onScrollToTop={history.onScrollToTop}
                   onScrollEndDrag={(event: ScrollEvent) => {
                     latest.listProps.onScrollEndDrag(event);
                     pull.onScrollEndDrag(event);
@@ -269,6 +275,7 @@ export function renderConversationTimeline({
           style={[
             { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
             latest.overlayStyle,
+            overlaySettle,
           ]}
           onLayout={() => {
             viewportLayout.value += 1;
@@ -291,12 +298,11 @@ export function renderConversationTimeline({
             latest={latest}
             composerHeight={composerHeight}
           >
-            {(composable || stackRoot) && Platform.OS === 'ios' ? (
+            {composable && Platform.OS === 'ios' ? (
               <PullToComposeHint
                 progress={pull.progress}
                 ready={pull.ready}
                 bottom={composerHeight + space.x3}
-                leaves={stackRoot}
               />
             ) : null}
           </ChatTimelineOverlays>

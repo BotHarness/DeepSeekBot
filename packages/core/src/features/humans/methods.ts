@@ -1,4 +1,4 @@
-import { invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { type HumanContext } from '../../humans/context.js';
 import { z } from 'zod';
 import {
@@ -10,7 +10,7 @@ import {
 } from '../../channels/channel.js';
 import type { ComposerRecoveryIdentity } from '../../bridge/composer-recovery.js';
 import type { BridgeMethodsDeps, ChannelListItem } from '../../bridge/methods.js';
-import { asObject, unavailable } from '../../bridge/method-utils.js';
+import { asObject, unavailable } from '../../kernel/method-utils.js';
 
 export interface HumansBridgeMethods {
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;

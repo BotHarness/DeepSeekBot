@@ -31,6 +31,8 @@ const MEMORY_CONFIG = [
   ['user.email', 'bot@botharness.local'],
   ['commit.gpgsign', 'false'],
   ['core.autocrlf', 'false'],
+  ['gc.autoDetach', 'false'],
+  ['maintenance.autoDetach', 'false'],
 ] as const;
 const NEW_REPOSITORY_CONFIG = MEMORY_CONFIG.map(([key, value]) => {
   const [section, name] = key.split('.');
@@ -119,8 +121,7 @@ export function initializeMemoryGit(root: string): { created: boolean } {
   if (!created || !configureFreshRepository(root)) {
     ensureIdentity(root, 'user.name', 'BotHarness');
     ensureIdentity(root, 'user.email', 'bot@botharness.local');
-    run(root, ['config', 'commit.gpgsign', 'false']);
-    run(root, ['config', 'core.autocrlf', 'false']);
+    for (const [key, value] of MEMORY_CONFIG.slice(2)) run(root, ['config', key, value]);
   }
   const attributes = join(root, '.gitattributes');
   if ((created || revParse(root) === '') && !existsSync(attributes)) {

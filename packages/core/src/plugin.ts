@@ -1,3 +1,7 @@
+import {
+  WORKSPACE_FAVICON_PATH,
+  createWorkspaceFaviconHttp,
+} from './workspaces/workspace-looks.js';
 import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -11,6 +15,7 @@ import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
+import { sessionToolInputPreview } from './runtime/session-tool-detail.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
 import type { TeamError } from './team/error.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
@@ -38,6 +43,9 @@ import { resolveDshHome } from './im/config-store.js';
 import type { ChannelToolApproval } from './workspaces/tool-approval.js';
 import type { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
+import { connectorCallback, mountConnectors } from './connectors/mount.js';
+import { ConnectorService } from './connectors/service.js';
+import { createConnectorStore } from './connectors/store.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import type { DshSessionStore } from './sessions/source.js';
 import type { PersonaBotActivityEvent } from './state/bot-state.js';
@@ -59,6 +67,7 @@ import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
+import { createSessionListChanges } from './features/sessions/session-list-changes.js';
 import * as channelsFeature from './features/channels/plugin.js';
 import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
@@ -66,6 +75,7 @@ import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
+import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
 export type { BotHarnessCore } from './plugin-types.js';
 
@@ -236,7 +246,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = tobFeature.createCliInvocation();
   const sessionLive = new SessionLiveStreams();
-  const { engineHost, localEngines } = models.mountEngines(
+  const { engineHost, localEngines, followPresetEngines } = models.mountEngines(
     ctx,
     config,
     dshHome,
@@ -278,12 +288,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     get agentAdapter() {
       return agentAdapter;
     },
-    get team() {
-      return team;
-    },
-    get invocationBridgeMethods() {
-      return invocationBridgeMethods;
-    },
     get tobSettingsOperations() {
       return tobSettingsOperations;
     },
@@ -312,6 +316,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     routingDefaults,
   );
   let hostNativeSessions: NativeSessions | undefined;
+  const externalSessions = createExternalSessionReader();
   const core = createCore(
     Object.assign(
       createHostCoreOptions(ctx, {
@@ -343,9 +348,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           return imCommandServices;
         },
       }),
-      { nativeSessions: () => hostNativeSessions },
+      { nativeSessions: () => hostNativeSessions, externalSessions },
     ),
   );
+  followPresetEngines();
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
     core.live.publishDraft(event);
@@ -367,6 +373,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     'botharness: purge ledger and operational database',
   );
+  ctx.inject(['workspaceRegistry'], (workspaceCtx) => {
+    if (core.operationalDatabase.mode !== 'ready') return;
+    void core.tob.ensure().catch(() => {
+      workspaceCtx.logger.warn('Could not initialize the built-in Tob');
+    });
+  });
   const storage = profileStorage.mountStorage(ctx, core, dshHome);
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
@@ -380,6 +392,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (topics.includes('host-relationships'))
           core.live.publishResourceChanged('relationships');
         if (topics.includes('outbox')) core.live.publishResourceChanged('reachable-posts');
+        if (topics.includes('management-grants')) core.live.publishRosterCommitted();
         if (topics.includes('bot-onboarding')) core.live.publishResourceChanged('onboarding');
       }),
     'botharness: live resource changes',
@@ -438,6 +451,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
+  if (core.operationalDatabase.mode === 'ready') {
+    const callback = connectorCallback(core.team.publicOrigins);
+    const connectors = new ConnectorService({
+      store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
+      credentials: () => ctx.get('credentials'),
+      log: (phase, fields) => ctx.logger.info('connectors %j', { phase, ...fields }),
+      redirectUri: callback.url,
+    });
+    core.connectors = connectors;
+    mountConnectors(ctx, core, connectors, callback);
+  }
   teamFeature.mountConfinement(ctx, core, dshHome);
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   mountTakeoverTools(ctx, core, takeovers);
@@ -544,13 +568,44 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     releaseService,
   });
   const folders = workspacesFeature.mountFolders(ctx);
-  const { marketplaceClient, marketplaceUploads, shareDrafts } = marketplace.apply(ctx, {
+  const {
+    marketplaceClient,
+    marketplaceUploads,
+    shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
+  } = marketplace.apply(ctx, {
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     dshHome,
     registry: core.registry,
     account: () => connectAccount,
   });
   const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const sessionListChanges = createSessionListChanges(() =>
+    core.live.publishResourceChanged('sessions'),
+  );
+  ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
+  const nativeSessionInput = dshHostSessionInput(
+    ctx,
+    (id) => core.ownership.resolve(id) === undefined,
+    (id) => {
+      sessionLive.observe(id, { type: 'native-input' });
+      sessionListChanges.changed(true, id);
+    },
+    (sessionId, callId) =>
+      sessionToolInputPreview(dshSessions.get(sessionId)?.snapshotEvents() ?? [], callId),
+  );
+  ctx.effect(
+    () =>
+      core.contributeNativeSessionAttention({
+        list: nativeSessionInput.attention,
+        subscribe: nativeSessionInput.subscribe,
+      }),
+    'botharness: native Session attention',
+  );
+  const stopTeamSessionWatch = team?.onAccessChanged(() => sessionListChanges.changedAll());
+  if (stopTeamSessionWatch !== undefined)
+    ctx.effect(() => stopTeamSessionWatch, 'botharness: Session list Team access');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,
@@ -579,14 +634,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
+    externalSessions,
     nativeSessions: (hostNativeSessions = dshHostSessions(
       ctx,
       dshSessions,
-      dshHostSessionInput(
-        ctx,
-        (id) => core.ownership.resolve(id) === undefined,
-        (id) => sessionLive.observe(id, { type: 'native-input' }),
-      ),
+      nativeSessionInput,
+      sessionListChanges,
     )),
     takeovers,
     folders,
@@ -595,6 +648,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,
@@ -638,6 +693,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const tobOperations = tobFeature.mountOperations(ctx, core, {
     bridgeMethods,
+    bridgeFor: invocationBridgeMethods,
     diagnosticEvents,
     hostDiagnosticEnvironment,
     readWebServices: (webCtx) =>
@@ -712,6 +768,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
     channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
     avatars.mountRoutes(connectionCtx, () => connection.fetch, core.registry);
+    const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: WORKSPACE_FAVICON_PATH,
+          methods: ['GET'],
+          requestBody: 'buffered',
+          fetch: workspaceFaviconHttp,
+        }),
+      'botharness: Workspace favicon',
+    );
     const botZipHttp = marketplace.createZipTransfer(ctx, {
       registry: core.registry,
       detail: (slug) => bridgeMethods.get({ slug }),
@@ -757,6 +824,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     idleCompaction,
     agentAdapter,
     dshSessions,
+    sessionListChanges,
     openAssignmentRoutes,
     effectivePlan: routingDefaults.effectivePlan,
   });

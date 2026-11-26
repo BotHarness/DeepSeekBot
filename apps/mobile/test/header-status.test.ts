@@ -38,6 +38,7 @@ describe('conversation header status', () => {
       count: 5,
       at: undefined,
     });
+    expect(headerStatus(undefined, undefined, []).count).toBeUndefined();
     expect(headerStatus(bot('new', 'idle'), undefined, [])).toMatchObject({
       state: 'idle',
       at: undefined,

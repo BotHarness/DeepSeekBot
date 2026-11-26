@@ -3,19 +3,21 @@ import {
   type SessionModelChoice,
   type SessionModelState,
 } from '@botharness/host-protocol/session-model';
-import { posix, win32 } from 'node:path';
 import {
+  HOST_SESSION_PAGE_MAX,
   HOST_SESSION_SEARCH_MAX,
   isHostSessionApprovalDecision,
   isHostSessionFilter,
   isHostSessionSort,
   type HostSessionActionReceipt,
   type HostSessionApprovalDecision,
+  type HostSessionListChanges,
   type HostSessionListResult,
   type HostSessionPendingInput,
   type HostSessionRow,
   type HostSessionSort,
   type HostSessionSourceOption,
+  type WorkspaceLookResult,
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer } from '@botharness/host-protocol/wire';
 import { z } from 'zod';
@@ -27,8 +29,9 @@ import {
   invalidInput,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
-import { botAvatarUrl } from '../../bots/avatar-http.js';
+} from '../../kernel/method-utils.js';
+import { normalizeWorkspaceLook } from '../../workspaces/workspace-looks.js';
+import { isAbsolute } from 'node:path';
 import type { HumanContext } from '../../humans/context.js';
 import {
   sessionDisplayTitle,
@@ -38,10 +41,13 @@ import {
 import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { DshSessionEvent } from '../../sessions/source.js';
 import {
-  createSessionTitleCache,
-  type SessionTitleCache,
-  type SessionTitleReader,
-} from './session-title-cache.js';
+  compareSessionKeys,
+  decodeSessionCursor,
+  sessionPage,
+  sessionPageLimit,
+} from './session-list-page.js';
+import { fillSessionTitles, mayKnowSession, readVisibleSessionRows } from './session-list-rows.js';
+import type { SessionListChangeSet } from './session-list-changes.js';
 
 export interface DshSessionListRow {
   sessionId: string;
@@ -51,9 +57,12 @@ export interface DshSessionListRow {
   running: boolean;
   archived?: boolean;
   waiting?: true;
+  pendingInput?: 'approval' | 'question';
+  failed?: true;
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
+  createdAt?: number;
 }
 
 export interface NativeSessions {
@@ -94,6 +103,8 @@ export interface NativeSessions {
   ): Promise<boolean>;
   stop?(sessionId: string): Promise<void>;
   archive?(sessionId: string): Promise<void>;
+  listChanges?(request: { sinceSeq?: number; epoch?: string }): SessionListChangeSet;
+  markChanged?(sessionId: string): void;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
   create?(
     target: ({ cwd: string } | { workspaceId: string }) & { sessionId?: string },
@@ -158,26 +169,11 @@ function dshFailure(cause: unknown): BridgeResult<never> {
   return { ok: false, error: { code, message: failure.message } };
 }
 
-function folderName(cwd: string): string {
-  const path = win32.isAbsolute(cwd) && !posix.isAbsolute(cwd) ? win32 : posix;
-  return path.basename(cwd) || path.parse(cwd).root;
-}
-
 function isNativeTranscriptEvent(event: DshSessionEvent): boolean {
   if (event.type !== 'user/message') return true;
   const data = asObject(event.data);
   const source = asObject(data['source'] ?? asObject(data['message'])['source']);
   return source['kind'] !== 'agent-instructions' && source['kind'] !== 'time-context';
-}
-
-const titleCaches = new WeakMap<SessionTitleReader, SessionTitleCache>();
-
-function sessionTitleCache(read: SessionTitleReader): SessionTitleCache {
-  const existing = titleCaches.get(read);
-  if (existing !== undefined) return existing;
-  const cache = createSessionTitleCache(read);
-  titleCaches.set(read, cache);
-  return cache;
 }
 
 export function createHostSessionsMethods(
@@ -223,9 +219,16 @@ export function createHostSessionsMethods(
         source = 'all',
         queryVersion,
         includeArchived = false,
+        limit: requestedLimit,
+        cursor: requestedCursor,
       } = asObject(payload);
       if (typeof includeArchived !== 'boolean')
         return invalidInput('includeArchived must be a boolean');
+      const limit = sessionPageLimit(requestedLimit);
+      if (limit === 'invalid')
+        return invalidInput(`limit must be a whole number from 1 to ${HOST_SESSION_PAGE_MAX}`);
+      const after = decodeSessionCursor(requestedCursor);
+      if (after === 'invalid') return invalidInput('Unknown Session list cursor');
       if (!isHostSessionSort(sort)) return invalidInput('Unknown Session sort order');
       if (!isHostSessionFilter(source)) return invalidInput('Unknown Session source filter');
       if (queryVersion !== undefined && queryVersion !== 1)
@@ -240,83 +243,14 @@ export function createHostSessionsMethods(
       const query = search === undefined ? '' : normalizeSessionSearch(search);
       const service = deps.nativeSessions;
       if (service === undefined) return unavailable;
-      const rows = await service.list().catch(() => undefined);
-      if (rows === undefined) return unavailable;
-      const owner = nativeAllowed();
-      const privateSessions = owner ? undefined : deps.team?.bots.privateSessions(human);
-      const ownership = new Map(deps.ownership.list().map((record) => [record.sessionId, record]));
-      let sessions: HostSessionRow[] = [];
-      const sources = new Map<string, HostSessionSourceOption>();
-      if (owner) sources.set('native', { kind: 'native' });
-      const assignments = new Map<string, string>();
-      const seenBots = new Set<string>();
-      for (const row of rows) {
-        const record = ownership.get(row.sessionId);
-        if (row.archived === true && !includeArchived) continue;
-        if (row.parentSessionId !== undefined || record?.parentSessionId !== undefined) continue;
-        const cwd = row.cwd ?? record?.cwdReference;
-        const base = {
-          sessionId: row.sessionId,
-          ...(row.title === undefined ? {} : { title: row.title }),
-          ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
-          ...(row.archived === true ? { archived: true as const } : {}),
-          ...(cwd === undefined || !owner ? {} : { cwd }),
-          ...(row.waiting === true ? { waiting: true as const } : {}),
-          ...(row.model === undefined ? {} : { model: row.model }),
-          running: row.running,
-          lastPromptAt: row.lastPromptAt,
-          updatedAt: row.updatedAt,
-        };
-        if (record === undefined) {
-          if (owner && (source === 'all' || source === 'native'))
-            sessions.push({ ...base, source: { kind: 'native' } });
-          continue;
-        }
-        const bot = (owner ? globalRegistry : deps.registry).getHistorical(record.botSlug);
-        if (bot === undefined || privateSessions?.has(bot.slug)) continue;
-        if (queryVersion === 1 && !sources.has(`bot:${bot.slug}`))
-          sources.set(`bot:${bot.slug}`, {
-            kind: 'bot',
-            botSlug: bot.slug,
-            displayName: bot.displayName,
-          });
-        if (source !== 'all' && source !== `bot:${bot.slug}`) continue;
-        if (!seenBots.has(bot.slug)) {
-          seenBots.add(bot.slug);
-          for (const assignment of deps.runtime?.listAssignments(bot.slug) ?? [])
-            assignments.set(assignment.sessionId, assignment.title);
-        }
-        const assignedTitle = assignments.get(row.sessionId);
-        const engine = deps.describeEngineSession?.(row.sessionId);
-        const avatar = bot.avatar?.startsWith('data:image/')
-          ? botAvatarUrl(bot.slug, bot.avatar)
-          : bot.avatar;
-        sessions.push({
-          ...base,
-          ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
-          running: row.running || (engine !== undefined && engine.state !== 'idle'),
-          ...(row.waiting === true || engine?.state === 'waiting-approval'
-            ? { waiting: true as const }
-            : {}),
-          source: {
-            kind: 'bot',
-            botSlug: bot.slug,
-            displayName: bot.displayName,
-            ...(avatar === undefined ? {} : { avatar }),
-            ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
-            ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
-          },
-        });
-      }
-      const untitled = sessions.filter((row) => row.title === undefined);
-      const titles =
-        deps.readSessionTitles === undefined || untitled.length === 0
-          ? undefined
-          : await sessionTitleCache(deps.readSessionTitles)(untitled);
-      for (const row of sessions) {
-        const title = titles?.get(row.sessionId);
-        if (title !== undefined) row.title = title;
-      }
+      const read = await readVisibleSessionRows(
+        { human, deps, globalRegistry, owner: nativeAllowed() },
+        { source, includeArchived, withSources: queryVersion === 1 },
+      );
+      if (read === undefined) return unavailable;
+      let sessions = read.sessions;
+      const fillTitles = (rows: readonly HostSessionRow[]) => fillSessionTitles(deps, rows);
+      if (query) await fillTitles(sessions);
       let sortTimes: ReadonlyMap<string, number> | undefined;
       try {
         if (query && sessions.length > 0) {
@@ -355,21 +289,87 @@ export function createHostSessionsMethods(
       }
       const clock = (row: HostSessionRow) =>
         sortTimes === undefined ? (row.lastPromptAt ?? -1) : (sortTimes.get(row.sessionId) ?? -1);
-      sessions.sort(
-        (a, b) =>
-          clock(b) - clock(a) ||
-          b.updatedAt - a.updatedAt ||
-          a.sessionId.localeCompare(b.sessionId),
-      );
-      if (queryVersion === 1) for (const row of sessions) row.sortedAt = clock(row);
+      const key = (row: HostSessionRow) => ({
+        clock: clock(row),
+        updatedAt: row.updatedAt,
+        sessionId: row.sessionId,
+      });
+      sessions.sort((a, b) => compareSessionKeys(key(a), key(b)));
+      const page = sessionPage(sessions, key, after, limit);
+      if (!query) await fillTitles(page.rows);
+      if (queryVersion === 1) for (const row of page.rows) row.sortedAt = clock(row);
       return {
         ok: true,
         value: {
-          sessions,
+          sessions: page.rows,
           ...(includeArchived ? { includeArchived: true as const } : {}),
-          ...(queryVersion === 1 ? { queryVersion, sources: [...sources.values()] } : {}),
+          ...(queryVersion === 1 ? { queryVersion, sources: read.sources } : {}),
+          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
         },
       };
+    },
+    async sessionListChanges(payload: unknown): Promise<BridgeResult<HostSessionListChanges>> {
+      const { sinceSeq, epoch } = asObject(payload);
+      if (sinceSeq !== undefined && (!Number.isSafeInteger(sinceSeq) || (sinceSeq as number) < 0))
+        return invalidInput('sinceSeq must be a nonnegative integer');
+      if (epoch !== undefined && typeof epoch !== 'string')
+        return invalidInput('epoch must be a string');
+      const service = deps.nativeSessions;
+      if (service?.listChanges === undefined) return unavailable;
+      const changes = service.listChanges({
+        ...(sinceSeq === undefined ? {} : { sinceSeq: sinceSeq as number }),
+        ...(epoch === undefined ? {} : { epoch }),
+      });
+      if (changes.reset === true) return { ok: true, value: changes };
+      const scope = { human, deps, globalRegistry, owner: nativeAllowed() };
+      const read = await readVisibleSessionRows(scope, {
+        source: 'all',
+        includeArchived: true,
+        withSources: true,
+      });
+      if (read === undefined) return unavailable;
+      const visible = new Map(read.sessions.map((row) => [row.sessionId, row]));
+      const sessions: HostSessionRow[] = [];
+      const removed: string[] = [];
+      for (const id of changes.sessionIds) {
+        const row = visible.get(id);
+        if (row !== undefined) sessions.push(row);
+        else if (read.children.has(id)) continue;
+        else if (read.roots.has(id)) {
+          if (mayKnowSession(scope, id))
+            return { ok: true, value: { reset: true, cursor: changes.cursor } };
+        } else if (mayKnowSession(scope, id)) removed.push(id);
+      }
+      await fillSessionTitles(deps, sessions, { wait: false });
+      return {
+        ok: true,
+        value: { sessions, removed, sources: read.sources, cursor: changes.cursor },
+      };
+    },
+    workspaceLook(payload: unknown): BridgeResult<WorkspaceLookResult> {
+      if (!nativeAllowed()) return denied;
+      const path = asNonBlank(asObject(payload), 'path');
+      if (path === undefined) return invalidInput('path is required');
+      if (deps.workspaceLooks === undefined) return unavailable;
+      return { ok: true, value: { path, look: deps.workspaceLooks.get(path) ?? null } };
+    },
+    workspaceLookSet(payload: unknown): BridgeResult<WorkspaceLookResult> {
+      if (!nativeAllowed()) return denied;
+      const input = asObject(payload);
+      const path = asNonBlank(input, 'path');
+      if (path === undefined || !isAbsolute(path))
+        return invalidInput('path must be an absolute folder path');
+      if (deps.workspaceLooks === undefined) return unavailable;
+      if (input['look'] === null) {
+        deps.workspaceLooks.clear(path);
+        return { ok: true, value: { path, look: null } };
+      }
+      const look = normalizeWorkspaceLook(input['look']);
+      if (look === undefined)
+        return invalidInput(
+          'look needs a known color, and an icon that is a known symbol, one emoji or the monogram',
+        );
+      return { ok: true, value: { path, look: deps.workspaceLooks.set(path, look) } };
     },
     sessionTranscript(payload: unknown) {
       return native<
@@ -435,10 +435,10 @@ export function createHostSessionsMethods(
       if (sessionId === undefined) return invalidInput('sessionId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
       const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+      if (owner?.botSlug !== slug)
         return {
           ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+          error: { code: 'not-found', message: `unknown Session: ${sessionId}` },
         };
       return snapshot(sessionId, after, false);
     },

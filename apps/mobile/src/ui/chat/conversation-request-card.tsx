@@ -15,7 +15,9 @@ import {
   loadQuestion,
   type RequestRef,
 } from '@botharness/host-client/requests';
+import { useCreateFolder } from '../../host/member-permissions';
 import { ApprovalCard } from './approval-card';
+import { approvalPresetPort } from './approval-preset-port';
 import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
@@ -62,8 +64,11 @@ export const RequestCard = memo(function RequestCard({
   const approval = useMemo(
     () => ({
       load: () => loadApproval(client, ref),
-      decide: async (outcome: Parameters<typeof decideApproval>[2]) => {
-        const result = await decideApproval(client, ref, outcome);
+      decide: async (
+        outcome: Parameters<typeof decideApproval>[2],
+        rule?: Parameters<typeof decideApproval>[4],
+      ) => {
+        const result = await decideApproval(client, ref, outcome, 'app', rule);
         void inbox?.refresh();
         return result;
       },
@@ -81,9 +86,11 @@ export const RequestCard = memo(function RequestCard({
     }),
     [client, inbox, ref],
   );
+  const createFolder = useCreateFolder(client);
+  const preset = useMemo(() => approvalPresetPort(client, botSlug, true), [client, botSlug]);
   const grant = useMemo(
-    () => grantRequestPort(client, ref, () => void inbox?.refresh()),
-    [client, inbox, ref],
+    () => ({ ...grantRequestPort(client, ref, () => void inbox?.refresh()), createFolder }),
+    [client, inbox, ref, createFolder],
   );
 
   const subject = card.subject === undefined ? {} : { subject: card.subject };
@@ -133,6 +140,7 @@ export const RequestCard = memo(function RequestCard({
         decidedHere={handledHere(ref)}
         focused={focused}
         group={group}
+        preset={preset}
       />
     );
   return (

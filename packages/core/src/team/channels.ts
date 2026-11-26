@@ -98,6 +98,19 @@ export class TeamChannels {
         .get(human.humanId, channelId),
     );
   }
+  accessRemoved(human: HumanContext, channelId: string): boolean {
+    if (this.canRead(human, channelId)) return false;
+    return !!this.db.read((db) =>
+      db
+        .prepare(
+          `SELECT 1 FROM channel_records c JOIN channel_human_members m ON m.channel_id = c.channel_id
+            WHERE c.channel_id = ? AND m.human_id = ? AND m.left_at IS NOT NULL
+              AND json_extract(c.record_json, '$.type') = 'group'
+              AND json_extract(c.record_json, '$.deletedAt') IS NULL`,
+        )
+        .get(channelId, human.humanId),
+    );
+  }
   role(human: HumanContext, channelId: string): 'owner' | 'admin' | 'member' {
     const settings = this.settings(channelId);
     if (settings.owner === human.humanId) return 'owner';
@@ -230,7 +243,7 @@ export class TeamChannels {
       },
       ['channels', 'team'],
     );
-    this.changed(true);
+    this.changed(visibility.kind !== 'public');
     return null;
   }
   private memberId(reference: string): string {

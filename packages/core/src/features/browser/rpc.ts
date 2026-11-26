@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
 import type { BrowserBridgeMethods } from './methods.js';
 

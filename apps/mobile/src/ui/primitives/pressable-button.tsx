@@ -34,6 +34,7 @@ export type ButtonSymbol = ActionSymbol | 'photo';
 export function Button({
   label,
   onPress,
+  onLongPress,
   tone = 'secondary',
   disabled = false,
   busy = false,
@@ -46,6 +47,7 @@ export function Button({
   fit?: boolean;
   label: string;
   onPress(): void;
+  onLongPress?: (() => void) | undefined;
   tone?: ButtonTone;
   disabled?: boolean;
   busy?: boolean;
@@ -75,6 +77,7 @@ export function Button({
       accessibilityState={{ disabled: disabled || busy, busy, selected }}
       disabled={disabled || busy}
       onPress={onPress}
+      {...(onLongPress === undefined ? {} : { onLongPress })}
       {...(solid ? {} : { android_ripple: { color: pressTint(labelColor) } })}
       style={({ pressed }) => {
         const paint = pressed && !unavailable ? pressedChoice : choice;

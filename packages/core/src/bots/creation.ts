@@ -61,7 +61,11 @@ function matchImport(row: CreationRow, input: BotImportReference): void {
 
 export interface BotCreationService {
   create(input: BotCreationInput, operationKey?: string, scope?: object): BotCreationResult;
-  lookup(operationKey: string, input: BotCreationInput): BotCreationReceipt | undefined;
+  lookup(
+    operationKey: string,
+    input: BotCreationInput,
+    scope?: object,
+  ): BotCreationReceipt | undefined;
   lookupImport(operationKey: string, input: BotImportReference): BotCreationReceipt | undefined;
   importBot(
     input: BotImportInput,
@@ -296,11 +300,11 @@ export function createBotCreation(options: {
         throw error;
       }
     },
-    lookup(operationKey, input) {
+    lookup(operationKey, input, scope) {
       checkedKey(operationKey);
       const row = read(operationKey);
       if (!row) return undefined;
-      match(row, input);
+      match(row, input, scope);
       return receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
     },
     create(input, operationKey, scope) {
@@ -413,8 +417,8 @@ export function privateBotCreations(
         ...(created.receipt ? { receipt: { ...created.receipt, operationKey } } : {}),
       };
     },
-    lookup(operationKey, input) {
-      const found = service.lookup(key(operationKey), inputFor(input));
+    lookup(operationKey, input, scope) {
+      const found = service.lookup(key(operationKey), inputFor(input), scope);
       return found === undefined ? undefined : { ...found, operationKey };
     },
     create(input, operationKey, scope) {

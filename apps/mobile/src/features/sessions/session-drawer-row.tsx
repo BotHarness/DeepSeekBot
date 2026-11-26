@@ -1,33 +1,36 @@
 import { Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import { modelBrand } from '@botharness/host-client/shared/model-brand';
-import {
-  HOST_COLOR_IDS,
-  hostColorInk,
-  hostTileFill,
-} from '@botharness/host-client/ui/design/host-look';
+import { hostColorInk, type HostColorId } from '@botharness/host-client/ui/design/host-look';
 import { BotPortrait } from '../../ui/bot-avatar';
 import { ModelBrandIcon } from '../../ui/chat/model-brand-icon';
 import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
 import { useHostLook } from '../../host/native-host-look';
 import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
-import { cornerBadge, edge, radius, space } from '../../ui/design/tokens';
+import { radius, rowGlyph, space } from '../../ui/design/tokens';
+import { clampScaledIconSize } from '../../ui/design/scaled-icon-size';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
-import { folderColorIndex, folderMonogram, type SessionQueryRow } from './session-query-model';
+import { SessionFolderAvatar } from './session-folder-avatar';
+import type { SessionQueryRow } from './session-query-model';
 
 export type SessionRowStatus = 'working' | 'needs-you' | 'done';
 
+const HOST_STATUS = { 'needs-you': 'needs-you', running: 'working', idle: 'done' } as const;
+
 export function sessionRowStatus(
-  row: Pick<SessionQueryRow, 'running' | 'waiting'>,
+  row: Pick<SessionQueryRow, 'running' | 'waiting' | 'status' | 'attention'>,
 ): SessionRowStatus {
+  if (row.attention !== undefined) return 'needs-you';
+  if (row.status !== undefined) return HOST_STATUS[row.status];
   return row.waiting === true ? 'needs-you' : row.running ? 'working' : 'done';
 }
 
 export function SessionDrawerRow({
   row,
   client,
+  folderColor,
   showHost,
   selected,
   now = Date.now(),
@@ -35,6 +38,7 @@ export function SessionDrawerRow({
 }: {
   row: SessionQueryRow;
   client: HostClient | undefined;
+  folderColor?: HostColorId | undefined;
   showHost: boolean;
   selected: boolean;
   now?: number;
@@ -53,16 +57,18 @@ export function SessionDrawerRow({
   const minutes = Math.max(0, Math.floor((now - (row.lastPromptAt ?? row.updatedAt)) / 60_000));
   const when = strings.ago(minutes);
   const brand = row.model === undefined ? undefined : modelBrand(row.model);
-  const colorId = HOST_COLOR_IDS[folderColorIndex(row.folderName, HOST_COLOR_IDS.length)];
-  const badge = theme.touch;
+  const hostColor = look.color ?? 'blue';
+  const badge = Math.round(clampScaledIconSize(theme.touch, theme.fontScale, theme.touch * 1.5));
   const avatar = Math.round(badge / 2);
+  const metaIcon = Math.round(theme.type.meta.line * theme.fontScale);
+  const statusIcon = Math.round(rowGlyph.size * theme.fontScale);
   const statusLine = (
     <View
       testID={`session-status-${row.sessionId}`}
       accessibilityLabel={statusText}
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
     >
-      <RowStatusGlyph status={status} />
+      <RowStatusGlyph status={status} size={statusIcon} />
       <Text variant="meta" tone="subtle" numberOfLines={1}>
         {when}
       </Text>
@@ -71,7 +77,7 @@ export function SessionDrawerRow({
   const modelIcon =
     row.model === undefined ? null : (
       <View testID={`session-model-${row.sessionId}`}>
-        <ModelBrandIcon brand={brand} size={theme.type.meta.line} color={theme.color.muted} />
+        <ModelBrandIcon brand={brand} size={metaIcon} color={theme.color.muted} />
       </View>
     );
   return (
@@ -102,27 +108,13 @@ export function SessionDrawerRow({
       })}
     >
       <View accessible={false} style={{ width: badge, height: badge }}>
-        <View
+        <SessionFolderAvatar
           testID={`session-monogram-${row.sessionId}`}
-          style={{
-            width: badge,
-            height: badge,
-            borderRadius: radius.md,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: hostTileFill(theme.scheme, theme.color, colorId, theme.color.base),
-          }}
-        >
-          <Text
-            strong
-            variant="meta"
-            numberOfLines={1}
-            maxFontSizeMultiplier={cornerBadge.maxTextScale}
-            style={{ color: hostColorInk(theme.scheme, theme.color, colorId) }}
-          >
-            {folderMonogram(row.folderName)}
-          </Text>
-        </View>
+          folderName={row.folderName}
+          colorId={folderColor}
+          size={badge}
+          corner={radius.md}
+        />
         {row.source.kind === 'bot' ? (
           <View
             testID={`session-bot-${row.sessionId}`}
@@ -130,10 +122,6 @@ export function SessionDrawerRow({
               position: 'absolute',
               right: -space.x1,
               bottom: -space.x1,
-              borderRadius: radius.round,
-              borderWidth: edge.focus,
-              borderColor: theme.color.base,
-              backgroundColor: theme.color.base,
             }}
           >
             <BotPortrait
@@ -183,7 +171,13 @@ export function SessionDrawerRow({
               minWidth: 0,
             }}
           >
-            <HostGlyph icon={look.icon} size={theme.type.meta.line} color={theme.color.muted} />
+            <View testID={`session-host-mark-${row.sessionId}`}>
+              <HostGlyph
+                icon={look.icon}
+                size={metaIcon}
+                color={hostColorInk(theme.scheme, theme.color, hostColor)}
+              />
+            </View>
             <Text
               variant="meta"
               tone="muted"

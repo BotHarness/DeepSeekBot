@@ -9,7 +9,11 @@ export const SESSION_TITLE_BATCH = 16;
 
 export function createSessionTitleCache(
   read: SessionTitleReader,
-  { waitMs = SESSION_TITLE_WAIT_MS, batch = SESSION_TITLE_BATCH } = {},
+  {
+    waitMs = SESSION_TITLE_WAIT_MS,
+    batch = SESSION_TITLE_BATCH,
+    onTitled,
+  }: { waitMs?: number; batch?: number; onTitled?: (sessionIds: string[]) => void } = {},
 ) {
   const known = new Map<string, Known>();
   const queued = new Map<string, number>();
@@ -19,13 +23,17 @@ export function createSessionTitleCache(
     while (queued.size > 0) {
       const chunk = [...queued].slice(0, batch);
       const titles = await read(chunk.map(([id]) => id)).catch(() => undefined);
+      const titled: string[] = [];
       for (const [id, updatedAt] of chunk) {
         if (queued.get(id) === updatedAt) queued.delete(id);
         if (titles === undefined) continue;
         const current = known.get(id);
-        if (current === undefined || current.updatedAt <= updatedAt)
-          known.set(id, { updatedAt, title: titles.get(id) });
+        if (current !== undefined && current.updatedAt > updatedAt) continue;
+        const title = titles.get(id);
+        if (title !== undefined && title !== current?.title) titled.push(id);
+        known.set(id, { updatedAt, title });
       }
+      if (titled.length > 0) onTitled?.(titled);
     }
   }
 
@@ -35,6 +43,7 @@ export function createSessionTitleCache(
 
   return async function titles(
     rows: readonly SessionTitleVersion[],
+    { wait = true }: { wait?: boolean } = {},
   ): Promise<ReadonlyMap<string, string>> {
     for (const row of rows)
       if (
@@ -45,7 +54,7 @@ export function createSessionTitleCache(
     drain ??= readQueued().finally(() => {
       drain = undefined;
     });
-    if (!settled(rows)) {
+    if (wait && !settled(rows)) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
         (async () => {

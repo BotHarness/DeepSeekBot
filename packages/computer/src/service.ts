@@ -1,9 +1,11 @@
 import type { SelkiesWebRtcContainer } from '../../core/src/http/selkies-webrtc.js';
 import type { ComputerProvider, ComputerRuntimeProbe, ComputerStatus } from './provider.js';
+import type { ComputerUnlockOwner } from './unlock-contract.js';
 import type { LocalVideoOwner } from './local-video-contract.js';
 import type { VoiceCallMedia } from '../../core/src/voice/calls.js';
 
 export interface ComputerService {
+  unlock?: ComputerUnlockOwner | undefined;
   localVideo?: LocalVideoOwner | undefined;
   callMedia?: VoiceCallMedia | undefined;
   readonly providerName: string | undefined;

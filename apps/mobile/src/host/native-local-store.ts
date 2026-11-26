@@ -1,5 +1,5 @@
 import { File, Paths } from 'expo-file-system';
-import { defaultDatabaseDirectory, deleteDatabaseAsync, openDatabaseAsync } from 'expo-sqlite';
+import { defaultDatabaseDirectory, deleteDatabaseSync, openDatabaseSync } from 'expo-sqlite';
 
 import {
   localStoreName,
@@ -11,7 +11,7 @@ import {
 const bind = (params: readonly SqlValue[] | undefined): SqlValue[] => (params ? [...params] : []);
 
 export async function openNativeLocalStore(hostId: string): Promise<LocalStore> {
-  const database = await openDatabaseAsync(localStoreName(hostId));
+  const database = openDatabaseSync(localStoreName(hostId));
   return openLocalStore({
     exec: (sql) => database.execAsync(sql),
     async run(sql, params) {
@@ -23,7 +23,7 @@ export async function openNativeLocalStore(hostId: string): Promise<LocalStore> 
 }
 
 export async function deleteNativeLocalStore(hostId: string): Promise<void> {
-  await deleteDatabaseAsync(localStoreName(hostId));
+  deleteDatabaseSync(localStoreName(hostId));
 }
 
 function nativeLocalStoreSize(hostId: string): number {

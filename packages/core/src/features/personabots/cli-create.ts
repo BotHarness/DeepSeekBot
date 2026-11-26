@@ -179,7 +179,7 @@ export interface ValidatedCreate {
     | { kind: 'git'; gitUrl: string }
     | { kind: 'zip'; path: string }
     | { kind: 'dir'; path: string }
-    | { kind: 'sessions'; sessionIds: string[] };
+    | { kind: 'sessions'; sessionIds: string[]; addWorkspaces?: true };
 }
 
 export async function validatedCreate(
@@ -275,7 +275,11 @@ export async function validatedCreate(
       roles,
       description,
       presetId,
-      source: { kind: 'sessions', sessionIds },
+      source: {
+        kind: 'sessions',
+        sessionIds,
+        ...(values['add-workspaces'] === true ? { addWorkspaces: true as const } : {}),
+      },
     };
   }
   if (zip !== undefined) {
@@ -362,9 +366,9 @@ export async function runCreate(
   io: BotCreateCliIo,
   readStdin: () => Promise<string>,
 ): Promise<BotCreateResult> {
-  const validated = await validatedCreate(values, readStdin);
-  if (validated.source.kind === 'sessions')
+  if (values['from-sessions'] !== undefined)
     throw usageError('--from-sessions reads Sessions from a running Host; pass --host.');
+  const validated = await validatedCreate(values, readStdin);
   const dshHome = resolveHome(values, io);
   const steps: BotCreateStep[] = [{ name: 'validate', status: 'ok' }];
   const { owner, registry } = openRegistry(dshHome);

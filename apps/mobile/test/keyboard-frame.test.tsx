@@ -10,6 +10,7 @@ vi.mock('react-native-keyboard-controller', () => ({
   useKeyboardState: <T,>(select: (state: { isVisible: boolean }) => T) =>
     select({ isVisible: keyboard.visible }),
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 59, bottom: 34, left: 0, right: 0 }),
 }));

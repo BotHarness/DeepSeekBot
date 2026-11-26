@@ -5,12 +5,12 @@ import { CLI_EFFECTS, cliEffects } from '../src/bots/cli-effects.js';
 import { humanContext } from '../src/humans/context.js';
 import { authorizeTobHostCli } from '../src/tob/cli-host-commands.js';
 
-const TOB = 'tob-steward';
+const TOB = 'tob-manager';
 const deps = {
   registry: { getHistorical: () => undefined },
   channels: { get: () => undefined },
   human: humanContext('owner'),
-  isTob: (slug: string) => slug === TOB,
+  holdsManagementGrant: (slug: string) => slug === TOB,
 };
 const known = Object.keys(CLI_EFFECTS);
 const word = fc.stringMatching(/^[a-z][a-z0-9-]{0,15}$/u).filter((value) => value !== TOB);

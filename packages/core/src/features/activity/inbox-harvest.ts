@@ -1,11 +1,11 @@
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelRecord, SessionFailureProgress } from '../../channels/channel.js';
-import type { createChannelAdmission } from '../../channels/runtime-admission.js';
+import type { createChannelAdmission } from '../../runtime/runtime-admission.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { EngineLimitError } from '../../engines/engine-session.js';
-import { sourceSenderAllowed } from '../../messaging/sender-access.js';
+import { sourceAdmission } from '../../messaging/permissions/index.js';
 import type { PromptLimits } from '../../prompts/prompt-limits.js';
 import type { PromptText } from '../../prompts/prompt-parts.js';
 import type {
@@ -642,7 +642,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
     const bodyLimit = ports.promptLimits(botSlug)['context-message-chars'];
     const rows: DigestRow[] = [];
     for (const row of candidates) {
-      if (!sourceSenderAllowed(database, botSlug, row.source_event_id, true)) continue;
+      if (sourceAdmission(database, botSlug, row.source_event_id) === 'refused') continue;
       if (alreadyIncluded + rows.length >= GROUP_PROMPT_CHANNEL_LIMIT) break;
       const candidateContext = {
         channelId,

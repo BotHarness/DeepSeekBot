@@ -1,8 +1,10 @@
 # Private relay standard
 
-The private relay standard lets one outbound-only service carry the encrypted phone channel for several computers that have no inbound reachability. Anyone can implement a compatible relay; the bundled Docker relay in `deploy/private-relay` is the reference implementation. A relay is a dumb carrier: it never sees plaintext, and it never decides who controls a computer. The computer's pinned Noise key and its exact-device approval still decide that.
+The private relay standard lets one outbound-only service carry the encrypted phone channel for several computers that have no inbound reachability. Anyone can implement a compatible relay. The bundled Go relay (`tobs-relay` in `deploy/private-relay`) is the reference implementation. The relay forwards ciphertext. The computer's pinned Noise key and exact-device approval determine who can control it.
 
 This page describes `botharness-private-v2`. A v2 relay also accepts every v1 request, so a single-computer v1 setup keeps working.
+
+The legacy Node and Caddy deployment and its Node server tests are retained for rollback until [real-device acceptance #3746](https://github.com/BotHarness/DeepSeekBot/issues/3746) passes. The conformance script below also runs against the Go reference relay.
 
 ## Roles and secrets
 
@@ -37,7 +39,7 @@ JSON text frames, `id` is 32 lowercase hex characters chosen by the relay per ph
 - relay → computer: `{"type":"open","id":"0123456789abcdef0123456789abcdef"}` when a phone connects; `{"type":"data","id":"0123456789abcdef0123456789abcdef","data":"<Noise ciphertext>"}` for each phone frame; `{"type":"close","id":"0123456789abcdef0123456789abcdef"}` when the phone leaves.
 - computer → relay: `{"type":"data","id":"0123456789abcdef0123456789abcdef","data":"<Noise ciphertext>"}` to send a frame to that phone; `{"type":"close","id":"0123456789abcdef0123456789abcdef"}` to close it.
 
-When the control socket closes, the relay closes all of that computer's phone channels and none of any other computer's. Any malformed control frame closes the control socket. The relay pings every 25 seconds and drops sockets that do not answer, and drops any socket whose send queue exceeds 2 MiB.
+A Host-requested phone close delivers already queued frames in order before closing the channel, subject to a bounded drain. When the control socket closes, the relay closes that computer's phone channels. Any malformed control frame closes the control socket. The relay pings every 25 seconds and drops sockets that do not answer, and drops any socket whose send queue exceeds 2 MiB. The Go reference relay allows up to 50 seconds for a frame write or a close drain.
 
 The ID above is an example; `<Noise ciphertext>` stands for the actual encrypted frame, not a literal message to send.
 

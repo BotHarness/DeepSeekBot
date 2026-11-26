@@ -133,6 +133,11 @@ function stubActions(): BridgeActions {
     marketplaceAvatarDetail: vi.fn(),
     marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),
+    marketplaceSkillList: vi.fn(),
+    marketplaceSkillDetail: vi.fn(),
+    marketplaceSkillAddCandidates: vi.fn(),
+    marketplaceSkillReview: vi.fn(),
+    marketplaceSkillAdd: vi.fn(),
     marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
     marketplaceAvatarSource: vi.fn(),
@@ -270,6 +275,7 @@ function stubActions(): BridgeActions {
     setModelPlan: vi.fn(async () => {
       throw new Error('unexpected Model Plan change');
     }),
+    createHostFolder: vi.fn(),
     listHostFolders: vi.fn(async () => ({
       path: '/',
       home: '/',
@@ -523,6 +529,7 @@ function stubActions(): BridgeActions {
     importBotZip: vi.fn(async () => BOT),
     importableSessions: vi.fn(async () => []),
     createBotFromSessions: vi.fn(async () => BOT),
+    addBotFromSessions: vi.fn(async () => BOT),
     botZipFiles: vi.fn(async () => ({ files: [], always: [] })),
     exportBotZip: vi.fn(async () => undefined),
     createGroup: vi.fn(async () => undefined),

@@ -21,3 +21,39 @@ describe('Channel message format', () => {
     expect(isChannelMessage({ ...base, format: null })).toBe(false);
   });
 });
+
+it('validates an App management grant marker even beside another system notice', () => {
+  const base = {
+    id: 'notice',
+    at: '2026-11-25T00:00:00.000Z',
+    author: { kind: 'system' },
+    body: 'x',
+  };
+  const turnStop = {
+    botSlug: 'ada',
+    botName: 'Ada',
+    humanName: 'Owner',
+    sessionId: 'session',
+  };
+  expect(
+    isChannelMessage({
+      ...base,
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'manage-app', enabled: true },
+    }),
+  ).toBe(true);
+  expect(isChannelMessage({ ...base, turnStop })).toBe(true);
+  expect(
+    isChannelMessage({
+      ...base,
+      turnStop,
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'admin', enabled: true },
+    }),
+  ).toBe(false);
+  expect(
+    isChannelMessage({
+      ...base,
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'manage-app', enabled: true },
+      modelSwitch: 7,
+    }),
+  ).toBe(false);
+});

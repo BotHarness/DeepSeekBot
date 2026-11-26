@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
+import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
@@ -11,10 +12,19 @@ import {
   type DesktopCallVisual,
 } from './desktop-call.js';
 import { askCallNotifications } from './call-presence.js';
+import { openSettingsSection } from './environment-settings-source.js';
 import { IconButton } from './ds/icon-button.js';
+import { color } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Tooltip } from './ds/tooltip.js';
 import { useVoiceRipple } from './voice-ripple.js';
+
+const styles = stylex.create({
+  on: {
+    color: { default: color.accent, ':hover': color.accent },
+    backgroundColor: { default: color.selected, ':hover': color.selected },
+  },
+});
 
 export function DmCallControl({
   slug,
@@ -55,7 +65,9 @@ export function DmCallControl({
   const view = mine ? desktopCallView(snapshot.state) : undefined;
   const elsewhere =
     !mine && (snapshot.state.status === 'opening' || snapshot.state.status === 'live');
-  const speaking = view !== undefined && snapshot.state.status === 'live' && !view.muted;
+  const micMuted =
+    view !== undefined && (snapshot.sound === 'on' ? snapshot.micMuted === true : view.muted);
+  const speaking = view !== undefined && snapshot.state.status === 'live' && !micMuted;
   const rippleMount = useVoiceRipple<HTMLSpanElement>(speaking, call.level);
 
   if (view !== undefined) {
@@ -63,6 +75,8 @@ export function DmCallControl({
     const camera = snapshot.visual.source === 'camera';
     const screen = snapshot.visual.source === 'screen';
     const sharing = snapshot.state.status !== 'live' || snapshot.visual.starting;
+    const hearing = snapshot.sound === 'on';
+    const soundLabel = hearing ? t('call.soundOff', { name }) : t('call.soundOn', { name });
     return (
       <span ref={anchor} className={wrap} data-variant={variant}>
         <div
@@ -94,19 +108,36 @@ export function DmCallControl({
           >
             <ChannelSidebarIcon name="monitor" />
           </IconButton>
+          <Tooltip
+            label={hearing ? soundLabel : t('call.soundTip', { name })}
+            side="bottom"
+            portal
+            delayMs={500}
+          >
+            <IconButton
+              aria-label={soundLabel}
+              aria-pressed={hearing}
+              xstyle={hearing ? styles.on : undefined}
+              aria-busy={snapshot.sound === 'starting'}
+              disabled={snapshot.state.status !== 'live' || snapshot.sound === 'starting'}
+              onClick={() => void call.computerSound(!hearing)}
+            >
+              <ChannelSidebarIcon name="ear" />
+            </IconButton>
+          </Tooltip>
           <span
             ref={rippleMount}
             className="bh-call-mic bh-voice-ripple"
             data-ripple={speaking ? 'on' : undefined}
           >
             <IconButton
-              aria-label={view.muted ? t('call.unmute') : t('call.mute')}
-              aria-pressed={view.muted}
-              data-muted={view.muted}
+              aria-label={micMuted ? t('call.unmute') : t('call.mute')}
+              aria-pressed={micMuted}
+              data-muted={micMuted}
               disabled={snapshot.state.status !== 'live'}
-              onClick={() => void call.mute(!view.muted)}
+              onClick={() => void call.mute(!micMuted)}
             >
-              <ChannelSidebarIcon name={view.muted ? 'mic-off' : 'mic'} />
+              <ChannelSidebarIcon name={micMuted ? 'mic-off' : 'mic'} />
             </IconButton>
           </span>
           <button
@@ -129,12 +160,31 @@ export function DmCallControl({
               document.body,
             )
           : null}
+        {snapshot.sound === 'missing'
+          ? createPortal(
+              <div className="bh-call-notice" role="alert" style={panelPlace(anchor.current)}>
+                <p>{t('call.soundMissing')}</p>
+                <span className="bh-call-notice-actions">
+                  <button type="button" onClick={() => void call.computerSound(true)}>
+                    {t('call.soundRetry')}
+                  </button>
+                  <button type="button" onClick={() => void call.computerSound(false)}>
+                    {t('call.close')}
+                  </button>
+                </span>
+              </div>,
+              document.body,
+            )
+          : null}
       </span>
     );
   }
 
   const notice = mine ? desktopCallNotice(snapshot) : undefined;
   const missing = mine && snapshot.block?.kind === 'missing';
+  const voiceSetup =
+    mine &&
+    snapshot.block?.notices.some((key) => key === 'missing.asr' || key === 'missing.tts') === true;
   return (
     <span ref={anchor} className={wrap} data-variant={variant}>
       <Tooltip label={t('call.start', { name })} side="bottom" portal delayMs={500}>
@@ -166,6 +216,16 @@ export function DmCallControl({
                 <p key={key}>{t(key)}</p>
               ))}
               <span className="bh-call-notice-actions">
+                {voiceSetup ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (openSettingsSection('voice')) call.dismiss();
+                    }}
+                  >
+                    {t('call.openVoiceSettings')}
+                  </button>
+                ) : null}
                 {missing ? null : (
                   <button type="button" onClick={dial}>
                     {t('call.again')}

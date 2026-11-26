@@ -1,4 +1,4 @@
-import { toRemoteError } from './rpc-result.js';
+import { toRemoteError } from '../kernel/rpc-result.js';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
 import { TeamError, type TeamService } from '../team/service.js';
 import { type HumanContext } from '../humans/context.js';
@@ -64,7 +64,9 @@ import {
   sessionOwnerRpc,
 } from '../features/sessions/rpc.js';
 import { promptInspectionRpc, promptPresetRpc } from '../features/prompts/rpc.js';
+import { connectorsRpc } from '../features/connectors/rpc.js';
 import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc.js';
+import { marketplaceSkillRpc } from '../features/marketplace/skill-rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
 import { computerServiceRpc } from '../features/computer/rpc.js';
 import { browserServiceRpc } from '../features/browser/rpc.js';
@@ -95,6 +97,8 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
   interface RemoteErrorDetailsMap {
     'all-bot-preview-changed': { preview: AllBotPreview };
     'invalid-input': Record<string, never>;
+    'connector-not-configured': Record<string, never>;
+    'connector-unavailable': Record<string, never>;
     'session-input-not-pending': Record<string, never>;
     'invalid-slug': Record<string, never>;
     duplicate: Record<string, never>;
@@ -173,11 +177,14 @@ const rpcMethods = {
   ...cloudServiceRpc,
   ...messagingConnectionRpc,
   tobHome: tobRpcMethods.tobHome,
+  managementGrants: tobRpcMethods.managementGrants,
+  managementGrantSet: tobRpcMethods.managementGrantSet,
   onboarding: personabotsRpcMethods.onboarding,
   ...acknowledgementRpc,
   onboardingModel: personabotsRpcMethods.onboardingModel,
   telemetryEvent: diagnosticsRpcMethods.telemetryEvent,
   modelPlanInherit: modelsRpcMethods.modelPlanInherit,
+  modelPlanReset: modelsRpcMethods.modelPlanReset,
   channelRetry: channelsRpcMethods.channelRetry,
   ...botSessionRpc,
   ...promptInspectionRpc,
@@ -195,6 +202,7 @@ const rpcMethods = {
   ...browserServiceRpc,
   ...approvalTemplateReadRpc,
   ...promptPresetRpc,
+  ...connectorsRpc,
   ...approvalTemplateWriteRpc,
   ...voiceProviderRpc,
   ...botModeRpc,
@@ -240,6 +248,7 @@ const rpcMethods = {
   ...rosterSettingsRpc,
   developerModeSet: diagnosticsRpcMethods.developerModeSet,
   ...marketplaceServiceRpc,
+  ...marketplaceSkillRpc,
   ...releaseRpc,
   ...hostDiagnosticsRpc,
   ...takeoverRpc,
@@ -265,6 +274,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'reachableBots',
   'botProactiveOptOut',
   'roleConflicts',
+  'memberPermissions',
   'speakerPolicy',
   'privateObjects',
   'privateContentOpen',
@@ -361,12 +371,15 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messagingConversation',
   'messagingSend',
   'tobHome',
+  'managementGrants',
+  'managementGrantSet',
   'onboarding',
   'acknowledgements',
   'acknowledge',
   'onboardingModel',
   'telemetryEvent',
   'modelPlanInherit',
+  'modelPlanReset',
   'channelRetry',
   'botNewSession',
   'botCompact',
@@ -425,6 +438,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botImportLookup',
   'createFromGit',
   'createFromSessions',
+  'externalSessions',
   'update',
   'dataResetPreview',
   'dataResetConfirm',
@@ -509,11 +523,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionSubagents',
   'sessionProgress',
   'sessionList',
+  'sessionListChanges',
   'sessionCreate',
   'sessionAnswerApproval',
   'sessionAnswerQuestion',
   'sessionNativeStop',
   'sessionNativeArchive',
+  'workspaceLook',
+  'workspaceLookSet',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',
@@ -592,6 +609,20 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'promptPresetCreate',
   'promptPresetUpdate',
   'promptPresetDelete',
+  'connectors',
+  'connectorKeySet',
+  'connectorKeyClear',
+  'connectorConnect',
+  'connectorReconnect',
+  'connectorRefresh',
+  'connectorSearch',
+  'connectorLogos',
+  'connectorMcpSearch',
+  'connectorMcpAdd',
+  'connectorMcpFinish',
+  'connectorGrantSet',
+  'connectorAccountRemove',
+  'botConnectors',
   'promptGlobalSet',
   'botPrompt',
   'botPromptSet',
@@ -676,6 +707,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'shareDraftDiscard',
   'shareDraftExport',
   'marketplaceInstall',
+  'marketplaceSkillList',
+  'marketplaceSkillDetail',
+  'marketplaceSkillAddCandidates',
+  'marketplaceSkillReview',
+  'marketplaceSkillAdd',
   'releaseInfo',
   'releaseUpdate',
   'releaseInstall',
@@ -706,6 +742,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelChanges',
   'channelChangeCursor',
   'channelListChanges',
+  'channelAccessState',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

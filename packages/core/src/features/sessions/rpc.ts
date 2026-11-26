@@ -1,7 +1,7 @@
 import type { BridgeMethods, OwnedSessionSummary } from '../../bridge/methods.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';
@@ -309,6 +309,14 @@ export const sessionDetailsRpc = {
     return unwrapAsync(this.methods.sessionNativeArchive({ sessionId }));
   },
 
+  workspaceLook(path: string) {
+    return unwrap(this.methods.workspaceLook({ path }));
+  },
+
+  workspaceLookSet(path: string, look: unknown) {
+    return unwrap(this.methods.workspaceLookSet({ path, look }));
+  },
+
   sessionTranscript(slug: string | null, sessionId: string) {
     return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
   },
@@ -337,10 +345,24 @@ export const sessionListRpc = {
     source?: string,
     queryVersion?: number,
     includeArchived?: boolean,
+    limit?: number,
+    cursor?: string,
   ) {
     return unwrapAsync(
-      this.methods.sessionList({ search, sort, source, queryVersion, includeArchived }),
+      this.methods.sessionList({
+        search,
+        sort,
+        source,
+        queryVersion,
+        includeArchived,
+        limit,
+        cursor,
+      }),
     );
+  },
+
+  sessionListChanges(sinceSeq?: number, epoch?: string) {
+    return unwrapAsync(this.methods.sessionListChanges({ sinceSeq, epoch }));
   },
 
   sessionCreate(

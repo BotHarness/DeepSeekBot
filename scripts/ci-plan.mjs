@@ -89,6 +89,7 @@ export const RULES = [
   full('patches/**', 'Dependency patches'),
   full('.node-version', 'Node version'),
   full('vitest.config.ts', 'Test runner config'),
+  full('apps/mobile/vitest.config.mts', 'Mobile test runner config'),
   full('tsconfig.json', 'Root TypeScript config'),
   full('*/*/tsconfig.json', 'Package TypeScript configs'),
   full('tsdown*.config.ts', 'Bundle configs'),
@@ -145,7 +146,7 @@ export const RULES = [
     AUTH,
   ),
   related(
-    'packages/core/src/messaging/{behavior-permissions,permission-groups}.ts',
+    'packages/core/src/messaging/permissions/*.ts',
     'Host Messaging authorization',
     true,
     AUTH,
@@ -188,8 +189,8 @@ export const RULES = [
     PROTOCOL,
   ),
   related(
-    'packages/computer/src/local-video-contract.ts',
-    'Local Computer media wire contract',
+    'packages/computer/src/{local-video-contract,unlock-contract}.ts',
+    'Local Computer media and unlock wire contracts',
     false,
     PROTOCOL,
   ),
@@ -221,9 +222,12 @@ export const RULES = [
   related('packages/*/profile-extension/**', 'Browser profile extension sources'),
   related('packages/*/assets/**', 'Package assets'),
   related(
-    'packages/computer/native/**',
-    'Windows Local Computer media helper source and protocol fixtures',
+    '{packages/computer/native/unlock,apps/mobile/modules/computer-unlock}/**',
+    'Signed Mac and iOS Computer unlock sources',
+    false,
+    AUTH,
   ),
+  related('packages/computer/native/**', 'Local Computer native helpers and protocol fixtures'),
   related(
     'packages/*/migrations/**',
     'D1 migrations read by worker test harnesses',
@@ -631,6 +635,17 @@ export function uiVisual(tests, changes) {
   );
 }
 
+const CONFINEMENT_INPUT =
+  /^packages\/core\/src\/execution\/|^packages\/core\/test\/(?:member-confinement|shell-reach)\.test\.ts$|^\.github\/workflows\/verify\.yml$/;
+export function memberConfinement(tests, changes) {
+  return (
+    tests === 'full' ||
+    changes.some((change) =>
+      [change.path, change.previous].some((path) => path && CONFINEMENT_INPUT.test(path)),
+    )
+  );
+}
+
 const MOBILE_PROSE = /^apps\/mobile\/(?:test\/|\.maestro\/|store\/)|^apps\/mobile\/[^/]+\.md$/;
 const require = createRequire(import.meta.url);
 function mobileSpecifiers(source, file) {
@@ -770,14 +785,26 @@ function githubPlan(changesFile) {
   const index = createIndex(files, (file) => readFileSync(join(ROOT, file), 'utf8'));
   const input = { event, labels, changes, truncated: changedCount > changes.length, index };
   const result = { ...plan(input), mobile: mobileVerification(input) };
+  const relay =
+    event !== 'pull_request' ||
+    input.truncated ||
+    labels.includes(FULL_LABEL) ||
+    changes.some(({ path, previous }) =>
+      [path, previous].some(
+        (file) =>
+          file?.startsWith('deploy/private-relay/') ||
+          file === WORKFLOW ||
+          file === 'scripts/ci-plan.mjs',
+      ),
+    );
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nperf=${result.tests !== 'none' && timelinePerf(result.tests, changes)}\nui-visual=${result.tests !== 'none' && uiVisual(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
+    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nperf=${result.tests !== 'none' && timelinePerf(result.tests, changes)}\nui-visual=${result.tests !== 'none' && uiVisual(result.tests, changes)}\nconfinement=${result.tests !== 'none' && memberConfinement(result.tests, changes)}\nprivate-relay=${relay}\nrelated=${JSON.stringify(result.related)}\n`,
   );
   const listed = result.related.map((file) => `- \`${file}\``).join('\n');
   appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
-    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\nTimeline performance budget: ${result.tests !== 'none' && timelinePerf(result.tests, changes) ? 'yes' : 'no'}\n\nUI visual checks: ${result.tests !== 'none' && uiVisual(result.tests, changes) ? 'yes' : 'no'}\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
+    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\nTimeline performance budget: ${result.tests !== 'none' && timelinePerf(result.tests, changes) ? 'yes' : 'no'}\n\nUI visual checks: ${result.tests !== 'none' && uiVisual(result.tests, changes) ? 'yes' : 'no'}\n\nMember Shell confinement: ${result.tests !== 'none' && memberConfinement(result.tests, changes) ? 'yes' : 'no'}\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
   );
   console.log(JSON.stringify(result, null, 2));
 }

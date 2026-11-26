@@ -1,8 +1,12 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { SessionBotCreated } from './session-bot-methods.js';
+import type { ExternalSessionSummary } from './external-sessions.js';
 
 export const sessionBotRpc = {
+  externalSessions(): Promise<{ sessions: ExternalSessionSummary[] }> {
+    return unwrapAsync(this.methods.externalSessions());
+  },
   createFromSessions(
     displayName: string,
     sessionIds: string[],
@@ -12,6 +16,7 @@ export const sessionBotRpc = {
     operationKey?: string,
     language?: 'zh' | 'en',
     workspacePaths?: string[],
+    addWorkspaces?: boolean,
   ): Promise<SessionBotCreated> {
     return unwrapAsync(
       this.methods.createFromSessions({
@@ -23,6 +28,7 @@ export const sessionBotRpc = {
         operationKey,
         language,
         workspacePaths,
+        addWorkspaces,
       }),
     );
   },
