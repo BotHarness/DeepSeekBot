@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import type {
+  SessionModelEffort,
   SessionModelFilter,
   SessionModelSectionId,
   SessionModelSkeletonSection,
@@ -29,6 +30,8 @@ export interface SessionModelSheetProps {
   filters: (SessionModelFilter & { accessible: string })[];
   filter: string | undefined;
   filterLabel: string;
+  effort?: SessionModelEffort | undefined;
+  effortLabel: string;
   current: string;
   saving?: string | undefined;
   savingLabel: string;
@@ -40,17 +43,10 @@ export interface SessionModelSheetProps {
   onRetry(): void;
   onRefresh(): void;
   onFilter(key: string | undefined): void;
+  onEffort(effort: string): void;
   onChoose(key: string): void;
   selected?: readonly string[] | undefined;
   confirm?: { label: string; disabled: boolean; onPress(): void } | undefined;
-  effort?: ModelSheetEffort | undefined;
-}
-
-export interface ModelSheetEffort {
-  title: string;
-  options: { id: string; label: string }[];
-  current: string;
-  onChoose(id: string): void;
 }
 
 export const NativeSessionModelSheet: ComponentType<SessionModelSheetProps> | undefined = undefined;

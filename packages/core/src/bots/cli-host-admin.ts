@@ -64,7 +64,7 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'bot-grants',
     description:
-      'list the Bots that may manage the App (manage-app) or other Bots (manage-bots) through the scoped CLI, and the built-in Tob id',
+      'list your Bots that may manage the App (manage-app) or other Bots (manage-bots) through the scoped CLI, and the built-in Tob id; --bot <id> also says whether you can switch that Bot',
   },
   {
     command: 'bot-grant',
@@ -357,7 +357,11 @@ function validate(
     usage('--tag only applies to marketplace-avatar-list.');
   if (command === 'marketplace-avatar-apply' && !values.bot?.trim())
     usage('marketplace-avatar-apply needs --bot <bot>.');
-  if (values.bot !== undefined && command !== 'marketplace-avatar-apply')
+  if (
+    values.bot !== undefined &&
+    command !== 'marketplace-avatar-apply' &&
+    command !== 'bot-grants'
+  )
     usage('--bot only applies to marketplace-avatar-apply.');
   if (values.version !== undefined && command !== 'acknowledge')
     usage('--version only applies to acknowledge release-notes-seen.');
@@ -518,7 +522,12 @@ function pairingSummary(value: unknown) {
 async function messagingSnapshot(rpc: Rpc, slug: string) {
   const snapshot = record(await rpc('messagingSnapshot', { slug }));
   const list = (key: string) => (Array.isArray(snapshot[key]) ? snapshot[key] : []).map(record);
-  return { pairings: list('pairings'), roles: list('roles'), blocks: list('senderBlocks') };
+  return {
+    pairings: list('pairings'),
+    roles: list('roles'),
+    blocks: list('senderBlocks'),
+    conversationBlocks: list('conversationBlocks'),
+  };
 }
 
 async function readResetToken(io: BotCreateCliIo): Promise<string> {
@@ -573,7 +582,7 @@ export async function runHostAdminCommand(
         ...(values.version === undefined ? {} : { value: values.version }),
       });
     case 'bot-grants':
-      return rpc('managementGrants', {});
+      return rpc('managementGrants', values.bot?.trim() ? { slug: values.bot.trim() } : {});
     case 'bot-grant':
       return rpc('managementGrantSet', {
         slug: target,
@@ -884,6 +893,14 @@ export async function runHostAdminCommand(
           actorName: block['actorName'],
           revision: block['revision'],
           blockedAt: block['blockedAt'],
+        })),
+        blockedConversations: snapshot.conversationBlocks.map((block) => ({
+          bindingId: block['bindingId'],
+          conversation: block['conversation'],
+          name: block['name'],
+          revision: block['revision'],
+          blockedAt: block['blockedAt'],
+          blockedBy: block['blockedBy'],
         })),
       };
     }

@@ -183,12 +183,9 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
     focused === undefined || effortOptions.length === 0
       ? undefined
       : {
-          title: slots.effort,
-          options: effortOptions,
+          key: sessionModelKey(focused),
           current: focused.effort ?? '',
-          onChoose: (id: string) => {
-            void pickMain(withEffort(focused, id), true);
-          },
+          options: effortOptions.map((option) => ({ id: option.id, name: option.label })),
         };
 
   async function pickPreset(id: string) {
@@ -271,6 +268,10 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
             }
           : {})}
         effort={effort}
+        effortLabel={slots.effort}
+        onEffort={(id) => {
+          if (focused !== undefined) void pickMain(withEffort(focused, id), true);
+        }}
         saving={saving}
         savingLabel={copy.saving}
         skeleton={[

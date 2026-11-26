@@ -24,7 +24,7 @@ export async function loadManagementGrants(
   host: HostCall,
   slug: string,
 ): Promise<ManagementGrants> {
-  const answer = record(await host.call('managementGrants', {}));
+  const answer = record(await host.call('managementGrants', { slug }));
   const holders = Array.isArray(answer?.['holders']) ? answer['holders'] : [];
   const parsed = holders.flatMap((holder: unknown) => {
     const row = record(holder);

@@ -3,14 +3,13 @@ import { SectionList, View } from 'react-native';
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
-import { Chip } from '../primitives/chip';
 import { HeaderButton } from '../primitives/drawer-header';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { PreferenceRow } from '../primitives/preference-row';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { RefreshIcon } from '../shell/icons';
 import { ModelBrandIcon } from './model-brand-icon';
-import { ModelPickerFilters } from './model-picker-filters';
 import { ModelFilterStrip, SessionModelSkeletonRows } from './session-model-filter-strip';
 import {
   NativeSessionModelSheet,
@@ -57,6 +56,8 @@ function FallbackModelPickerSheet({
   selected,
   confirm,
   effort,
+  effortLabel,
+  onEffort,
   subLabel,
   alert,
 }: ModelPickerSheetProps) {
@@ -96,22 +97,6 @@ function FallbackModelPickerSheet({
         <>
           {alert === undefined ? null : <SheetCallout tone="danger">{alert}</SheetCallout>}
           {note === undefined ? null : <SheetNote>{note}</SheetNote>}
-          {effort === undefined || effort.options.length === 0 ? null : (
-            <View>
-              <SheetHeading>{effort.title}</SheetHeading>
-              <ModelPickerFilters>
-                {effort.options.map((option) => (
-                  <Chip
-                    key={option.id || 'default'}
-                    testID={`model-effort-${option.id || 'default'}`}
-                    label={option.label}
-                    selected={option.id === effort.current}
-                    onPress={() => effort.onChoose(option.id)}
-                  />
-                ))}
-              </ModelPickerFilters>
-            </View>
-          )}
           <SectionList<SessionModelSheetRow, SheetSection>
             nestedScrollEnabled
             style={{ flex: 1 }}
@@ -184,6 +169,19 @@ function FallbackModelPickerSheet({
                     ? { tone: 'muted' }
                     : { onPress: () => onChoose(item.key) })}
                 />
+                {effort !== undefined && effort.key === item.key ? (
+                  <PreferenceRow
+                    on={SHEET_GROUP}
+                    testID="session-model-effort"
+                    title={effortLabel}
+                    value={effort.current}
+                    options={effort.options.map((option) => ({
+                      value: option.id,
+                      label: option.name,
+                    }))}
+                    onChange={onEffort}
+                  />
+                ) : null}
               </SettingsGroupItem>
             )}
           />

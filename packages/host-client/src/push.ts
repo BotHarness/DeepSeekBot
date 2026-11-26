@@ -1,4 +1,5 @@
 import { isConnectRoute } from '@botharness/host-protocol/route';
+import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 import { encryptedCarrier } from './encrypted-carrier';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import type { SavedHost } from './hosts';
@@ -42,6 +43,7 @@ export interface PushTarget {
   channelId?: string;
   messageId?: string;
   deviceId?: string;
+  sessionId?: string;
   test?: true;
 }
 
@@ -54,7 +56,15 @@ export function parsePushData(input: unknown): PushTarget | undefined {
   if (data['v'] !== 1 || typeof data['hostId'] !== 'string' || data['hostId'] === '')
     return undefined;
   const target: PushTarget = { hostId: data['hostId'] };
-  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId', 'deviceId'] as const) {
+  for (const key of [
+    'itemId',
+    'kind',
+    'botSlug',
+    'channelId',
+    'messageId',
+    'deviceId',
+    'sessionId',
+  ] as const) {
     const value = data[key];
     if (typeof value === 'string' && value !== '') target[key] = value;
   }
@@ -69,6 +79,7 @@ export type ChatHref =
 export type PushHref =
   | { pathname: '/inbox/[id]'; params: Record<string, string> }
   | ChatHref
+  | { pathname: '/session/[id]'; params: { id: string; source: 'native' } }
   | { pathname: '/activity' };
 
 const REPLIES = new Set(['channel-reply', 'channel-mention']);
@@ -127,6 +138,8 @@ export function pushHref(
   dmChannelOf: (slug: string) => string | undefined,
   isGroup: (channelId: string) => boolean = () => false,
 ): PushHref {
+  if (target.kind === NATIVE_SESSION_ATTENTION_KIND && target.sessionId !== undefined)
+    return { pathname: '/session/[id]', params: { id: target.sessionId, source: 'native' } };
   if (target.itemId === undefined || target.kind === undefined || target.botSlug === undefined)
     return { pathname: '/activity' };
   if (REPLIES.has(target.kind) && target.channelId !== undefined) {

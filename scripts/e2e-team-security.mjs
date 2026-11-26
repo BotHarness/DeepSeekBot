@@ -935,8 +935,21 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
       runVoiceProviderGate(s, { as: fx.users.bob }, check),
     );
-    await define('C8', 'App management grants belong to the Human Owner', (check) =>
-      runManagementGrantGate(s, { as: fx.users.bob, target: fx.vaultSlug }, check),
+    await define(
+      'C8',
+      'App management grants: the Owner, or a member the Owner authorized, for their own Bots',
+      (check) =>
+        runManagementGrantGate(
+          s,
+          {
+            as: fx.users.bob,
+            target: fx.vaultSlug,
+            ownBot: fx.bots.bob,
+            roleIds: ['member', fx.roles.creators.roleId],
+            tag,
+          },
+          check,
+        ),
     );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);

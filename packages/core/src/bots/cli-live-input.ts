@@ -68,6 +68,7 @@ export interface LiveValues
   'answer-stdin'?: boolean;
   'values-stdin'?: boolean;
   outcome?: string;
+  prefix?: string[];
   since?: string;
   hours?: string;
   offline?: boolean;

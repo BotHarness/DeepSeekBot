@@ -8,6 +8,7 @@ export const ENGINE_DEFINITIONS = {
 } satisfies Record<EngineId, { displayName: string }>;
 
 const ENGINE_EFFORT_NAMES = {
+  off: 'Off',
   none: 'None',
   minimal: 'Minimal',
   low: 'Low',

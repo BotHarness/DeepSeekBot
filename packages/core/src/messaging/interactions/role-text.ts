@@ -410,7 +410,7 @@ export function createRoleText(options: {
         reply(
           code === 'pairing-unauthorized'
             ? NOTICE.unauthorizedBlock
-            : code === 'pairing-delegation-denied'
+            : code === 'pairing-delegation-denied' || code === 'sender-block-owner'
               ? NOTICE.deniedBlock(label)
               : NOTICE.blockFailed,
         );

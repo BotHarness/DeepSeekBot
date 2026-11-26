@@ -7,8 +7,10 @@ import type {
   HostSessionListCursor,
   HostSessionListOptions,
   HostSessionListResult,
+  HostSessionAttention,
   HostSessionRow,
   HostSessionSourceOption,
+  HostSessionStatus,
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer, QuestionItem, QuestionOption } from '@botharness/host-protocol/wire';
 import { answerRecord, record, some, HostAnswerInvalid, type HostCall } from './host-answer';
@@ -18,6 +20,23 @@ function modelOf(value: Record<string, unknown> | undefined) {
   return typeof value?.['provider'] === 'string' && typeof value['model'] === 'string'
     ? { model: { provider: value['provider'], model: value['model'] } }
     : {};
+}
+
+const STATUSES: ReadonlySet<unknown> = new Set<HostSessionStatus>(['running', 'needs-you', 'idle']);
+const ATTENTIONS: ReadonlySet<unknown> = new Set<HostSessionAttention>([
+  'approval',
+  'question',
+  'failed',
+]);
+
+function statusOf(
+  status: unknown,
+  attention: unknown,
+): { status?: HostSessionStatus; attention?: HostSessionAttention } {
+  return {
+    ...(STATUSES.has(status) ? { status: status as HostSessionStatus } : {}),
+    ...(ATTENTIONS.has(attention) ? { attention: attention as HostSessionAttention } : {}),
+  };
 }
 
 function sessionRows(values: unknown[]): HostSessionRow[] {
@@ -41,6 +60,7 @@ function sessionRows(values: unknown[]): HostSessionRow[] {
       ...(typeof row['folderName'] === 'string' ? { folderName: row['folderName'] } : {}),
       ...(typeof row['cwd'] === 'string' ? { cwd: row['cwd'] } : {}),
       ...(row['waiting'] === true ? { waiting: true as const } : {}),
+      ...statusOf(row['status'], row['attention']),
       ...(row['archived'] === true ? { archived: true as const } : {}),
       ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
       ...(typeof row['createdAt'] === 'number' ? { createdAt: row['createdAt'] } : {}),
@@ -254,7 +274,7 @@ function questionItem(value: unknown): QuestionItem | undefined {
 function pendingInput(value: unknown): HostSessionPendingInput | undefined {
   const item = record(value);
   if (typeof item?.['requestId'] !== 'string') return undefined;
-  const { requestId, kind, toolName, callId, reason, continued } = item;
+  const { requestId, kind, toolName, callId, reason, preview, continued } = item;
   if (kind === 'approval' && typeof toolName === 'string')
     return {
       kind,
@@ -262,6 +282,7 @@ function pendingInput(value: unknown): HostSessionPendingInput | undefined {
       toolName,
       ...(typeof callId === 'string' ? { callId } : {}),
       ...(typeof reason === 'string' ? { reason } : {}),
+      ...(typeof preview === 'string' && preview !== '' ? { preview } : {}),
     };
   if (kind !== 'question' || !Array.isArray(item['questions'])) return undefined;
   const questions = some(item['questions'], questionItem);

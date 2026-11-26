@@ -122,6 +122,10 @@ export const LIVE_COMMANDS = [
     description: 'allow once, always allow a secret_cli kind, or reject an owned tool approval',
   },
   {
+    command: 'approval-rule-add',
+    description: 'approve a pending Shell call and save up to five --prefix patterns',
+  },
+  {
     command: 'user-question-status',
     description: 'inspect a formal Human question',
   },

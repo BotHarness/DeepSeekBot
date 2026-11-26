@@ -153,4 +153,39 @@ export async function runHostSessionGate(s, fx, check) {
     Array.isArray(hidden.sessions) &&
       !hidden.sessions.some((row) => row.sessionId === created.sessionId),
   );
+  await nativeAttentionGate(s, fx, check, member);
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function nativeAttentionGate(s, fx, check, member) {
+  const asking = s.cli([
+    'session-create',
+    '--cwd',
+    fx.sharedFinance,
+    '--message',
+    "Before anything else, use your ask-user-question tool to ask exactly one question, 'C6 native attention pick', with options Red and Blue. Wait for the answer.",
+  ]);
+  let owner;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    owner = s.cli(['activity', '--source', 'native']);
+    if (owner.items?.some((item) => item.nativeSession?.sessionId === asking.sessionId)) break;
+    await sleep(3_000);
+  }
+  const item = owner?.items?.find((row) => row.nativeSession?.sessionId === asking.sessionId);
+  check('Owner Activity lists the waiting native Session request', item !== undefined);
+  const row = s
+    .cli(['session-list', '--source', 'native'])
+    .sessions?.find((entry) => entry.sessionId === asking.sessionId);
+  check('The waiting native Session row needs you', row?.status === 'needs-you', row?.status);
+  for (const source of ['all', 'native']) {
+    const page = s.cli(['activity', '--source', source], member);
+    check(
+      `Member Activity --source ${source} has no native Session request`,
+      Array.isArray(page.items) && !page.items.some((entry) => entry.botSlug === ''),
+      page.error?.code,
+    );
+  }
+  if (item !== undefined)
+    s.cli(['session-stop', '--session', asking.sessionId], { allowFail: true });
 }

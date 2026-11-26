@@ -1,22 +1,23 @@
-import { posix, win32 } from 'node:path';
-import type {
-  HostSessionFilter,
-  HostSessionRow,
-  HostSessionSourceOption,
+import {
+  hostSessionStatus,
+  type HostSessionAttention,
+  type HostSessionFilter,
+  type HostSessionRow,
+  type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { HumanContext } from '../../humans/context.js';
+import type { AssignmentReport } from '@botharness/host-protocol/wire';
+import type { AssignmentSummary } from '../assignments/runtime-types.js';
+import { folderName } from './workspace-sessions.js';
 import {
   createSessionTitleCache,
   type SessionTitleCache,
   type SessionTitleReader,
 } from './session-title-cache.js';
 
-export function folderName(cwd: string): string {
-  const path = win32.isAbsolute(cwd) && !posix.isAbsolute(cwd) ? win32 : posix;
-  return path.basename(cwd) || path.parse(cwd).root;
-}
+export { folderName } from './workspace-sessions.js';
 
 const titleCaches = new WeakMap<SessionTitleReader, SessionTitleCache>();
 
@@ -78,6 +79,18 @@ export function mayKnowSession(
   return bot !== undefined && deps.team?.bots.privateSessions(human)?.has(bot.slug) !== true;
 }
 
+function currentReport(
+  assignment: Pick<AssignmentSummary, 'activity' | 'latestReport'> | undefined,
+  running: boolean,
+  lastPromptAt: number | null,
+): AssignmentReport['state'] | undefined {
+  const report = assignment?.latestReport;
+  if (report === undefined || running || assignment?.activity === 'working') return undefined;
+  const at = Date.parse(report.at);
+  if (lastPromptAt !== null && Number.isFinite(at) && at < lastPromptAt) return undefined;
+  return report.state;
+}
+
 export async function readVisibleSessionRows(
   { human, deps, globalRegistry, owner }: SessionRowScope,
   {
@@ -95,7 +108,10 @@ export async function readVisibleSessionRows(
   const sessions: HostSessionRow[] = [];
   const sources = new Map<string, HostSessionSourceOption>();
   if (owner) sources.set('native', { kind: 'native' });
-  const assignments = new Map<string, string>();
+  const assignments = new Map<
+    string,
+    Pick<AssignmentSummary, 'title' | 'activity' | 'latestReport' | 'openAsk'>
+  >();
   const seenBots = new Set<string>();
   const children = new Set<string>();
   const roots = new Set<string>();
@@ -122,8 +138,17 @@ export async function readVisibleSessionRows(
       ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
     };
     if (record === undefined) {
-      if (owner && (source === 'all' || source === 'native'))
-        sessions.push({ ...base, source: { kind: 'native' } });
+      if (owner && (source === 'all' || source === 'native')) {
+        const attention: HostSessionAttention | undefined =
+          row.pendingInput ??
+          (row.waiting === true ? 'question' : row.failed === true ? 'failed' : undefined);
+        sessions.push({
+          ...base,
+          status: hostSessionStatus({ running: row.running, attention }),
+          ...(attention === undefined ? {} : { attention }),
+          source: { kind: 'native' },
+        });
+      }
       continue;
     }
     const bot = (owner ? globalRegistry : deps.registry).getHistorical(record.botSlug);
@@ -144,17 +169,33 @@ export async function readVisibleSessionRows(
     if (!seenBots.has(bot.slug)) {
       seenBots.add(bot.slug);
       for (const assignment of deps.runtime?.listAssignments(bot.slug) ?? [])
-        assignments.set(assignment.sessionId, assignment.title);
+        assignments.set(assignment.sessionId, assignment);
     }
-    const assignedTitle = assignments.get(row.sessionId);
+    const assignment = assignments.get(row.sessionId);
+    const assignedTitle = assignment?.title;
     const engine = deps.describeEngineSession?.(row.sessionId);
+    const running = row.running || (engine !== undefined && engine.state !== 'idle');
+    const report = currentReport(assignment, running, row.lastPromptAt);
+    const attention: HostSessionAttention | undefined =
+      row.pendingInput === 'approval' || engine?.state === 'waiting-approval'
+        ? 'approval'
+        : row.waiting === true ||
+            assignment?.openAsk !== undefined ||
+            report === 'waiting-human' ||
+            report === 'blocked'
+          ? 'question'
+          : assignment?.activity === 'error' || report === 'failed'
+            ? 'failed'
+            : undefined;
     sessions.push({
       ...base,
       ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
-      running: row.running || (engine !== undefined && engine.state !== 'idle'),
+      running,
       ...(row.waiting === true || engine?.state === 'waiting-approval'
         ? { waiting: true as const }
         : {}),
+      status: hostSessionStatus({ running, attention }),
+      ...(attention === undefined ? {} : { attention }),
       source: identity,
     });
   }

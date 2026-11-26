@@ -177,7 +177,7 @@ describe('Folder request card', () => {
     expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('names the open folder it will authorize after backing out of a registered pick', async () => {
+  it('returns to the folder list after backing out of a registered pick', async () => {
     const fake = host();
     const view = await render(card(connect(fake)));
     await press(button(view, t.grantChoose));
@@ -187,8 +187,8 @@ describe('Folder request card', () => {
     await press(registered);
     expect(view.textContent).toContain(t.grantConfirm('Ada'));
     await press(button(view, t.back));
-    expect(view.textContent).toContain(t.authorizeTarget('/Users/qa'));
-    expect(view.textContent).not.toContain(t.authorizeTarget(PROJECT.path));
+    expect(view.textContent).not.toContain(t.grantConfirm('Ada'));
+    expect(button(view, t.authorizeHere)).toBeDefined();
     expect(approvals(fake)).toEqual([]);
   });
 

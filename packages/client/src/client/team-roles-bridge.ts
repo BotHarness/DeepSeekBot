@@ -292,6 +292,7 @@ export function canGrant(viewer: GrantingViewer, permission: string): boolean {
   return (
     permission !== 'privateContent.view' &&
     permission !== 'modelSources.manage' &&
+    permission !== 'bots.manageGrants' &&
     viewer.permissions.includes(permission)
   );
 }

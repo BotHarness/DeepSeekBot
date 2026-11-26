@@ -622,3 +622,114 @@ it('exposes live native requests and lets only the Owner answer the addressed re
     error: { code: 'session-input-not-pending' },
   });
 });
+
+it('applies one needs-you rule to native and Bot Session rows', async () => {
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [
+        {
+          sessionId: 'approve',
+          running: true,
+          waiting: true,
+          pendingInput: 'approval',
+          lastPromptAt: 9,
+          updatedAt: 9,
+        },
+        { sessionId: 'ask', running: true, waiting: true, lastPromptAt: 8, updatedAt: 8 },
+        { sessionId: 'broke', running: false, failed: true, lastPromptAt: 7, updatedAt: 7 },
+        { sessionId: 'busy', running: true, lastPromptAt: 6, updatedAt: 6 },
+        { sessionId: 'quiet', running: false, lastPromptAt: 5, updatedAt: 5 },
+        { sessionId: 'bot-approve', running: false, lastPromptAt: 4, updatedAt: 4 },
+        { sessionId: 'bot-ask', running: false, lastPromptAt: 3, updatedAt: 3 },
+        { sessionId: 'bot-error', running: false, lastPromptAt: 2, updatedAt: 2 },
+        { sessionId: 'bot-idle', running: false, lastPromptAt: 1, updatedAt: 1 },
+        {
+          sessionId: 'bot-blocked',
+          running: false,
+          lastPromptAt: Date.parse('2026-11-25T10:00:00Z'),
+          updatedAt: 0,
+        },
+        {
+          sessionId: 'bot-resumed',
+          running: false,
+          lastPromptAt: Date.parse('2026-11-25T10:10:00Z'),
+          updatedAt: 0,
+        },
+      ],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'unused' }),
+    },
+    describeEngineSession: (sessionId: string) =>
+      sessionId === 'bot-approve' ? { state: 'waiting-approval' } : undefined,
+    runtime: {
+      listAssignments: () => [
+        {
+          sessionId: 'bot-ask',
+          title: 'Pick a region',
+          activity: 'idle',
+          openAsk: { sourceEventId: 'e', summary: 'Which region?', at: '2026-11-25' },
+        },
+        { sessionId: 'bot-error', title: 'Build', activity: 'error' },
+        {
+          sessionId: 'bot-idle',
+          title: 'Done',
+          activity: 'idle',
+          latestReport: { state: 'completed', summary: 'Done', at: '2026-11-25' },
+        },
+        {
+          sessionId: 'bot-blocked',
+          title: 'Needs a key',
+          activity: 'idle',
+          latestReport: { state: 'blocked', summary: 'Key?', at: '2026-11-25T10:05:00Z' },
+        },
+        {
+          sessionId: 'bot-resumed',
+          title: 'Resumed after an answer',
+          activity: 'idle',
+          latestReport: { state: 'waiting-human', summary: 'Which?', at: '2026-11-25T10:05:00Z' },
+        },
+      ],
+    },
+  } as never);
+  for (const id of [
+    'bot-approve',
+    'bot-ask',
+    'bot-error',
+    'bot-idle',
+    'bot-blocked',
+    'bot-resumed',
+  ])
+    f.ownership.claim({
+      sessionId: id,
+      botSlug: 'owner-bot',
+      rootRole: 'orchestrator',
+      at: '2026-11-25',
+    });
+  const result = await f.bridge(OWNER_HUMAN_CONTEXT).sessionList({});
+  const rows = result.ok ? result.value.sessions : [];
+  expect(
+    rows
+      .filter((row) => row.sessionId === 'bot-blocked' || row.sessionId === 'bot-resumed')
+      .map((row) => [row.sessionId, row.status, row.attention])
+      .sort(([a], [b]) => String(a).localeCompare(String(b))),
+  ).toEqual([
+    ['bot-blocked', 'needs-you', 'question'],
+    ['bot-resumed', 'idle', undefined],
+  ]);
+  expect(
+    rows
+      .filter((row) => row.sessionId !== 'bot-blocked' && row.sessionId !== 'bot-resumed')
+      .map((row) => [row.sessionId, row.status, row.attention]),
+  ).toEqual([
+    ['approve', 'needs-you', 'approval'],
+    ['ask', 'needs-you', 'question'],
+    ['broke', 'needs-you', 'failed'],
+    ['busy', 'running', undefined],
+    ['quiet', 'idle', undefined],
+    ['bot-approve', 'needs-you', 'approval'],
+    ['bot-ask', 'needs-you', 'question'],
+    ['bot-error', 'needs-you', 'failed'],
+    ['bot-idle', 'idle', undefined],
+  ]);
+});

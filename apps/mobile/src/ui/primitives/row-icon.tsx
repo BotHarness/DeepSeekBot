@@ -50,6 +50,7 @@ const ROW_ICONS = {
   lan: { ios: 'wifi', android: 'wifi' },
   encrypted: { ios: 'lock', android: 'vpn_lock' },
   add: { ios: 'plus', android: 'add' },
+  newFolder: { ios: 'folder.badge.plus', android: 'create_new_folder' },
   voice: { ios: 'waveform', android: 'graphic_eq' },
 } as const;
 

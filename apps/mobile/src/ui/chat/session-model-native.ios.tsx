@@ -7,6 +7,7 @@ import {
   Image,
   List,
   NavigationStack,
+  Picker,
   ProgressView,
   RNHostView,
   ScrollView,
@@ -22,6 +23,7 @@ import {
   accessibilityElement,
   accessibilityHidden,
   accessibilityLabel,
+  accessibilityValue,
   buttonBorderShape,
   buttonStyle,
   disabled,
@@ -35,10 +37,13 @@ import {
   navigationBarTitleDisplayMode,
   navigationTitle,
   padding,
+  pickerStyle,
   presentationDetents,
   presentationDragIndicator,
   redacted,
   scrollContentBackground,
+  tag,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState } from 'react';
 import { Platform, PlatformColor, View } from 'react-native';
@@ -210,6 +215,8 @@ export function NativeSessionModelSheet({
   filters,
   filter,
   filterLabel,
+  effort,
+  effortLabel,
   current,
   saving,
   savingLabel,
@@ -221,10 +228,10 @@ export function NativeSessionModelSheet({
   onRetry,
   onRefresh,
   onFilter,
+  onEffort,
   onChoose,
   selected,
   confirm,
-  effort,
 }: SessionModelSheetProps) {
   const checked = (key: string) =>
     selected === undefined ? current === key : selected.includes(key);
@@ -310,44 +317,6 @@ export function NativeSessionModelSheet({
                     </Text>
                   </Section>
                 )}
-                {effort === undefined || loading || effort.options.length === 0 ? null : (
-                  <Section key="effort" title={effort.title}>
-                    <ScrollView
-                      axes="horizontal"
-                      showsIndicators={false}
-                      modifiers={[
-                        listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
-                        listRowBackground('transparent'),
-                        listRowSeparator('hidden'),
-                      ]}
-                    >
-                      <HStack spacing={space.x2} modifiers={[padding({ horizontal: space.x5 })]}>
-                        {effort.options.map((option) => (
-                          <Button
-                            key={option.id || 'default'}
-                            label={option.label}
-                            onPress={() => effort.onChoose(option.id)}
-                            modifiers={[
-                              buttonStyle(
-                                option.id === effort.current
-                                  ? Number(Platform.Version) >= 26
-                                    ? 'glassProminent'
-                                    : 'borderedProminent'
-                                  : Number(Platform.Version) >= 26
-                                    ? 'glass'
-                                    : 'bordered',
-                              ),
-                              disabled(saving !== undefined),
-                              accessibilityAddTraits(
-                                option.id === effort.current ? ['isSelected'] : [],
-                              ),
-                            ]}
-                          />
-                        ))}
-                      </HStack>
-                    </ScrollView>
-                  </Section>
-                )}
                 {loading && skeletonStripAfter === undefined ? skeletonStrip : null}
                 {!loading && stripAfter === undefined ? strip : null}
                 {loading
@@ -384,7 +353,7 @@ export function NativeSessionModelSheet({
                         key={section.id}
                         {...(section.title ? { title: section.title } : {})}
                       >
-                        {section.data.map((item) => (
+                        {section.data.flatMap((item) => [
                           <Button
                             key={item.key}
                             onPress={() => onChoose(item.key)}
@@ -407,8 +376,36 @@ export function NativeSessionModelSheet({
                                     : 'none'
                               }
                             />
-                          </Button>
-                        ))}
+                          </Button>,
+                          ...(effort !== undefined && effort.key === item.key
+                            ? [
+                                <Picker<string>
+                                  key={`${item.key}:effort`}
+                                  testID="session-model-effort"
+                                  label={effortLabel}
+                                  selection={effort.current}
+                                  onSelectionChange={onEffort}
+                                  modifiers={[
+                                    pickerStyle('menu'),
+                                    tint(theme.color.muted),
+                                    disabled(saving !== undefined),
+                                    accessibilityElement('combine'),
+                                    accessibilityLabel(effortLabel),
+                                    accessibilityValue(
+                                      effort.options.find((option) => option.id === effort.current)
+                                        ?.name ?? '',
+                                    ),
+                                  ]}
+                                >
+                                  {effort.options.map((option) => (
+                                    <Text key={option.id} modifiers={[tag(option.id)]}>
+                                      {option.name}
+                                    </Text>
+                                  ))}
+                                </Picker>,
+                              ]
+                            : []),
+                        ])}
                       </Section>,
                       ...(section.id === stripAfter && strip !== null ? [strip] : []),
                     ])}
