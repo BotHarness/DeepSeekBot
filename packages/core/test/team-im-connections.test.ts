@@ -9,6 +9,7 @@ import {
   type MessagingProvider,
 } from '../src/messaging/provider.js';
 import { createCore } from '../src/plugin.js';
+import { deferred } from './deferred.js';
 import { createTempRoot } from './helpers.js';
 
 it('lists active and offline App Bindings for the Host Owner within the existing Bot settings boundary', async () => {
@@ -145,8 +146,8 @@ it('lists active and offline App Bindings for the Host Owner within the existing
     error: { code: 'bot-not-found' },
   });
 
-  const inspectionStarted = Promise.withResolvers<void>();
-  const releaseInspection = Promise.withResolvers<void>();
+  const inspectionStarted = deferred<void>();
+  const releaseInspection = deferred<void>();
   inspectAccount.mockImplementation(async (ref) => {
     if (ref === offline.accountRef) {
       inspectionStarted.resolve();
