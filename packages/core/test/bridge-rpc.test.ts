@@ -147,6 +147,12 @@ describe('bridge typert service', () => {
     expect(parameterNames(function (alpha = 1, beta = 2) {})).toEqual(['alpha', 'beta']);
   });
 
+  it('returns a coded refusal when the Window Companion stream is unavailable', async () => {
+    const { service } = setup();
+    const stream = service.followCompanion('resume', 'last', new AbortController().signal);
+    await expect(stream.next()).rejects.toMatchObject({ code: 'unavailable' });
+  });
+
   it('keeps every method signature parseable by the gateway SRC resolver', () => {
     const { service } = setup();
 

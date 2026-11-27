@@ -38,7 +38,8 @@ import type { ActiveDay } from '../telemetry/active-day.js';
 import type { TelemetryService } from '../telemetry/service.js';
 import type * as models from '../features/models/plugin.js';
 import * as marketplace from '../features/marketplace/plugin.js';
-import type * as skillsFeature from '../features/skills/plugin.js';
+import type { SkillCatalog } from '../skills/catalog.js';
+import type { DeveloperMode } from '../features/skills/plugin.js';
 import type { BotHarnessCore } from '../plugin-types.js';
 import type * as sessionsFeature from '../features/sessions/plugin.js';
 import type * as appearanceFeature from '../features/appearance/plugin.js';
@@ -50,7 +51,7 @@ export function createHostBridgeDependencies(
     core: BotHarnessCore;
     featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
-    skills: ReturnType<typeof skillsFeature.apply>;
+    skills: { catalog: SkillCatalog; reconcileBotMode(): void };
     release: ReturnType<typeof releaseFeature.apply>['release'];
     diagnosticEvents: DiagnosticEvents;
     liveAgent: ReturnType<typeof sessionsFeature.mountIdleCompaction>['liveAgent'];
@@ -97,7 +98,7 @@ export function createHostBridgeDependencies(
     telemetry: Pick<TelemetryService, 'status' | 'setPreference' | 'capture'>;
     activeDay: ActiveDay;
     git: ReturnType<typeof createGitService>;
-    developerMode: ReturnType<typeof skillsFeature.createDeveloperMode>;
+    developerMode: Pick<DeveloperMode, 'set'>;
     readonly voiceCalls: VoiceCalls | undefined;
   },
 ): BridgeMethodsDeps {

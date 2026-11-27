@@ -52,7 +52,6 @@ import type { PersonaBotActivityEvent } from './state/bot-state.js';
 import type { BotSubagentPresetConfig } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import * as activityFeature from './features/activity/plugin.js';
-import * as avatars from './features/avatars/plugin.js';
 import { createCloudResources } from './cloud/host-resources.js';
 import * as environments from './features/environments/plugin.js';
 import * as models from './features/models/plugin.js';
@@ -60,6 +59,7 @@ import * as marketplace from './features/marketplace/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import * as skillsFeature from './features/skills/plugin.js';
+import { nativeSkillHost } from './runtime/native-agent-compat.js';
 import * as voice from './features/voice/plugin.js';
 import type { HostFetchConnection } from './plugin-types.js';
 import { createHostCoreOptions } from './host-core-options.js';
@@ -539,14 +539,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const developerMode = skillsFeature.createDeveloperMode(
     () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
   );
-  ctx.inject(['settings'], (settingsCtx) => {
-    const events = settingsCtx as unknown as {
-      on(event: 'settings/document-updated', listener: (namespace: string) => void): void;
-    };
-    developerMode.mountSettings(settingsCtx, (listener) =>
-      events.on('settings/document-updated', listener),
-    );
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeReleaseInstaller?.(ctx, developerMode),
+  );
   const { releaseInstaller, updateRuns, releaseRestarter } = releaseFeature.mountInstaller(
     ctx,
     updateLifecycle,
@@ -590,7 +585,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     account: () => connectAccount,
   });
-  const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const skills = skillsFeature.createSkillResources(ctx, core, {
+    botModeOf,
+    diagnosticEvents,
+    nativeHost: nativeSkillHost,
+  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeSessionChangeTracking?.(skills.mountWatch),
+  );
   const sessionListChanges = createSessionListChanges(() =>
     core.live.publishResourceChanged('sessions'),
   );
@@ -754,11 +756,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     featureContributions,
   );
 
-  skills.mountNative({
-    developerMode,
-    getRegistrar: (skillsCtx) => (skillsCtx as unknown as { skills: SkillRegistrar }).skills,
-    localVoiceSkill: voice.localVoiceSkill,
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeConnections?.(skills.mountNative, {
+      developerMode,
+      getRegistrar: (skillsCtx) => (skillsCtx as unknown as { skills: SkillRegistrar }).skills,
+      localVoiceSkill: voice.localVoiceSkill,
+    }),
+  );
 
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = (connectionCtx as unknown as { connection: HostFetchConnection }).connection;
@@ -772,18 +776,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return toolApproval;
       },
     });
-    appearanceFeature.mountDesktopRoutes(ctx, connectionCtx, connection, {
-      team,
-      presence,
-      dshHome,
-      profile,
-    });
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.beforeVoiceRoutes?.(ctx, connectionCtx, connection, {
+        team,
+        presence,
+        dshHome,
+        profile,
+      }),
+    );
     voice.mountFetch(connectionCtx, connection.fetch, () => voiceCalls);
     channelsFeature.mountLiveRoute(connectionCtx, connection, core);
-    appearanceFeature.mountCompanionRoute(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.afterLiveRoute?.(connectionCtx, connection, core),
+    );
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
     channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
-    avatars.mountRoutes(connectionCtx, () => connection.fetch, core.registry);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.beforeWorkspaceFavicon?.(connectionCtx, connection, core),
+    );
     const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
     connectionCtx.effect(
       () =>

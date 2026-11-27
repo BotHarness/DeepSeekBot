@@ -7,6 +7,9 @@ import { createPromptsContribution } from './features/prompts/contribution.js';
 import { createCloudContribution } from './features/cloud/contribution.js';
 import { createDiagnosticsContribution } from './features/diagnostics/contribution.js';
 import { createUsageContribution } from './features/usage/contribution.js';
+import { createAppearanceContribution } from './features/appearance/contribution.js';
+import { createAvatarsContribution } from './features/avatars/contribution.js';
+import { createSkillsContribution } from './features/skills/contribution.js';
 import {
   createGenuiContribution,
   type GenuiContributionOptions,
@@ -29,6 +32,9 @@ export function createFeatureContributions(options?: {
     createCloudContribution(),
     createDiagnosticsContribution(),
     createUsageContribution(),
+    createAppearanceContribution(),
+    createAvatarsContribution(),
+    createSkillsContribution(),
   ] as const;
 }
 

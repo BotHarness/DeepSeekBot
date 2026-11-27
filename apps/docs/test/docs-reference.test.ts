@@ -134,6 +134,7 @@ describe("generated developer reference", () => {
       { name: "session/event", direction: "consumes", operation: "on" },
       { name: "settings/document-updated", direction: "consumes", operation: "on" },
       { name: "settings/document-updated", direction: "consumes", operation: "on" },
+      { name: "settings/document-updated", direction: "consumes", operation: "on" },
       { name: "skills/change", direction: "consumes", operation: "on" },
       { name: "subagent/start", direction: "consumes", operation: "on" },
       { name: "system-prompt/assemble", direction: "consumes", operation: "on" },

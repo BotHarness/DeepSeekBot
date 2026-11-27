@@ -47,7 +47,7 @@ import { createBotStateTracker } from './state/bot-state.js';
 import type { UsageProjection } from './usage/usage.js';
 import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
 import * as activityFeature from './features/activity/plugin.js';
-import * as avatars from './features/avatars/plugin.js';
+import { createHostAvatarParts } from './bots/part-library.js';
 import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import { openPromptSettings } from './prompts/prompt-settings.js';
@@ -111,7 +111,7 @@ function initializeCore(
     );
   let usage: UsageProjection | undefined;
   startup.enter('avatar-part-library', 'initialize');
-  const { partLibrary, onAppearanceImported } = avatars.apply(operationalDatabase);
+  const { partLibrary, onAppearanceImported } = createHostAvatarParts(operationalDatabase);
   const workspaceLooks = createWorkspaceLooks({
     database: attachOperationalModule(operationalDatabase, 'workspace-looks'),
   });

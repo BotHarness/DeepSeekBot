@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { SkillCatalogEntry } from '../../skills/catalog.js';
 import type { BotSkill } from '../../skills/bot-skills.js';
@@ -62,4 +61,4 @@ export const skillRpc = {
   botSkillRemove(slug: string, name: string): Promise<{ name: string; removed: string }> {
     return botSkillRemove(() => this.methods, slug, name);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: SkillsBridgeMethods }>;

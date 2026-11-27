@@ -4,7 +4,7 @@ import { createTestRegistry } from './registry-fixture.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createBotModeSettings } from '../src/runtime/bot-mode-settings.js';
+import { createBotModeSettings } from '../src/appearance/bot-mode-settings.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';

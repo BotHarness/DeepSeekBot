@@ -7,5 +7,5 @@
   "packages/computer/src/client/index.tsx": 3,
   "packages/computer/src/index.ts": 4,
   "packages/core/src/diagnostics/diagnostic-log.ts": 1,
-  "packages/core/src/plugin.ts": 9
+  "packages/core/src/plugin.ts": 8
 }

@@ -15,7 +15,7 @@ import {
   createBotModeSettings,
   resolveBotMode,
   type BotModeOption,
-} from '../src/runtime/bot-mode-settings.js';
+} from '../src/appearance/bot-mode-settings.js';
 
 const dirs: string[] = [];
 afterEach(() => {

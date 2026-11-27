@@ -67,16 +67,6 @@ import {
   type MarketplaceBridgeDeps,
 } from '../features/marketplace/methods.js';
 import {
-  createAvatarsBridgeMethods,
-  type AvatarsBridgeMethods,
-  type AvatarsBridgeDeps,
-} from '../features/avatars/methods.js';
-import {
-  createSkillsBridgeMethods,
-  type SkillsBridgeMethods,
-  type SkillsBridgeDeps,
-} from '../features/skills/methods.js';
-import {
   contributedBridgeMethods,
   mergeFeatureMethods,
   type ContributedBridgeDeps,
@@ -203,11 +193,6 @@ import {
   type ChannelsAdapterMethods,
 } from '../features/channels/methods.js';
 import { createDmMemoryReader } from '../features/memory/methods.js';
-import {
-  createBotModeBridgeMethods,
-  type BotModeBridgeMethods,
-  type BotModesDeps,
-} from '../features/appearance/methods.js';
 
 export type {
   ActivityOverview,
@@ -340,8 +325,6 @@ export interface BridgeMethods
     ModelProviderBridgeMethods,
     EngineAccountBridgeMethods,
     EngineSelectionBridgeMethods,
-    SkillsBridgeMethods,
-    AvatarsBridgeMethods,
     MarketplaceBridgeMethods,
     ModelsBridgeMethods,
     VoiceBridgeMethods,
@@ -373,20 +356,11 @@ export interface BridgeMethods
       { sourceEventId: string; requestId?: never } | { requestId: string; sourceEventId?: never }
     >
   >;
-
-  botModes: BotModeBridgeMethods['botModes'];
-  botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
-  botModeSet: BotModeBridgeMethods['botModeSet'];
-  botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
-  botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
-  botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
 }
 
 export interface BridgeMethodsDeps
   extends
     ContributedBridgeDeps,
-    SkillsBridgeDeps,
-    AvatarsBridgeDeps,
     MarketplaceBridgeDeps,
     ModelsBridgeDeps,
     VoiceBridgeDeps,
@@ -400,7 +374,6 @@ export interface BridgeMethodsDeps
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
-  botModes?: BotModesDeps;
   composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
@@ -576,8 +549,6 @@ function buildBridgeMethods(
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
-  const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
   const { marketplaceZip, marketplaceReads, marketplaceSharing } = createMarketplaceBridgeMethods(
     human,
     deps,
@@ -663,11 +634,6 @@ function buildBridgeMethods(
       registry: deps.registry,
       isHostOwner,
       log: deps.voiceLog,
-    }),
-    ...createBotModeBridgeMethods({
-      modes: deps.botModes,
-      registry: deps.registry,
-      everyone: globalRegistry,
     }),
     channelBridges: messagingMethods.channelBridges,
     channelIngests: messagingMethods.channelIngests,
@@ -766,7 +732,6 @@ function buildBridgeMethods(
     idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
     compactionThresholdSet: sessionsMethods.compactionThresholdSet,
     standingLimitsSet: personabotsMethods.standingLimitsSet,
-    ...avatarsMethods,
     composerValidate: channelsAdapterMethods.composerValidate,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
@@ -806,7 +771,6 @@ function buildBridgeMethods(
     channelSearch: channelsAdapterMethods.channelSearch,
     messageSearch: channelsAdapterMethods.messageSearch,
     channelMarkAllRead: channelsAdapterMethods.channelMarkAllRead,
-    ...skillsMethods,
     channelAllBotPreview: channelsAdapterMethods.channelAllBotPreview,
     channelSendStatus: channelsAdapterMethods.channelSendStatus,
     channelSend: channelsSendAdapterMethods.channelSend,
@@ -915,6 +879,8 @@ function buildBridgeMethods(
         globalRegistry,
         isHostOwner,
         dmMemory,
+        channelSkillBots,
+        requireOwnedBot,
       }),
     ]),
     human,
