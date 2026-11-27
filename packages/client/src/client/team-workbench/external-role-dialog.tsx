@@ -79,6 +79,7 @@ export function ExternalRoleDialog({
         value={name}
         onChange={setName}
         maxLength={NAME_LIMIT}
+        disabled={busy}
         initialFocus
         data-external-role-name=""
       />
@@ -89,6 +90,7 @@ export function ExternalRoleDialog({
             id={scopeId}
             label={t('team.externalRoles.bots')}
             value={kind}
+            disabled={busy}
             options={[
               { value: 'only', label: t('team.externalRoles.scope.only') },
               { value: 'all', label: t('team.externalRoles.scope.all') },
@@ -104,6 +106,7 @@ export function ExternalRoleDialog({
                   key={bot.slug}
                   label={bot.name}
                   checked={picked.includes(bot.slug)}
+                  disabled={busy}
                   onChange={(checked) =>
                     setPicked((current) =>
                       checked

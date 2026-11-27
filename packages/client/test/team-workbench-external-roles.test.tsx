@@ -242,9 +242,52 @@ it('lists the contacts holding a role with the status the Host reports', async (
     ['Ada', 'paired'],
     ['Linus', 'blocked'],
   ]);
-  expect(call).not.toHaveBeenCalledWith(
+  expect(call).toHaveBeenCalledWith(
     'messagingSnapshot',
     { slug: 'sales', mode: 'saved' },
     expect.anything(),
   );
+});
+
+it('reloads the role and keeps the typed name when a rename lands on a stale revision', async () => {
+  let current = role();
+  const renames: unknown[] = [];
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    if (method === 'externalRoles') return { ok: true, value: { roles: [current] } };
+    if (method === 'list') return { ok: true, value: { bots } };
+    if (method === 'externalRoleChange') {
+      const input = args['input'] as { expectedRevision: number; name: string };
+      renames.push(input);
+      if (input.expectedRevision !== current.revision)
+        return { ok: false, error: { code: 'role-stale', message: 'role-stale', details: {} } };
+      current = { ...current, name: input.name, revision: current.revision + 1 };
+      return { ok: true, value: { role: current } };
+    }
+    return { ok: false, error: { code: 'unexpected', message: method, details: {} } };
+  });
+  await act(async () => root.render(<ExternalRolesSection call={call} t={zhTranslate} />));
+  await settle();
+  current = { ...current, behavior: '别处改过', revision: 2 };
+
+  await act(async () => find('[data-external-role-rename]').click());
+  const input = document.querySelector<HTMLInputElement>('[data-external-role-name]');
+  if (!input) throw new Error('Missing name field');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'VIP');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const submit = () =>
+    document.querySelector<HTMLButtonElement>('[data-external-role-submit]')?.click();
+  await act(async () => submit());
+  await settle();
+  expect(document.body.textContent).toContain('已载入最新版本');
+  expect(document.querySelector<HTMLInputElement>('[data-external-role-name]')?.value).toBe('VIP');
+
+  await act(async () => submit());
+  await settle();
+  expect(renames).toEqual([
+    expect.objectContaining({ expectedRevision: 1, name: 'VIP' }),
+    expect.objectContaining({ expectedRevision: 2, name: 'VIP' }),
+  ]);
+  expect(find('[data-external-role-detail="regulars"]').textContent).toContain('VIP');
 });

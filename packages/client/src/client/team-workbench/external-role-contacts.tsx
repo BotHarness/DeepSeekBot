@@ -15,7 +15,7 @@ import { Tag } from '../ds/tag.js';
 import { space } from '../ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from '../locale.js';
 import { useMountedResource } from '../mounted-resource.js';
-import { CONTACT_STATUS, coversBot } from './external-role-model.js';
+import { CONTACT_STATUS } from './external-role-model.js';
 import type { BotEntry } from './external-roles-section.js';
 
 const styles = stylex.create({
@@ -87,7 +87,7 @@ export function ExternalRoleContacts({
   const [contacts, setContacts] = useState<readonly Contact[]>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const slugs = bots.map((bot) => bot.slug).filter((slug) => coversBot(role.botScope, slug));
+  const slugs = bots.map((bot) => bot.slug);
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
     void loadContacts(call, role, slugs, controller.signal)

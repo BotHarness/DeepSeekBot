@@ -157,10 +157,23 @@ export function ExternalRolesSection({
           ? current.map((item) => (item.id === saved.id ? saved : item))
           : [...current, saved],
       );
+      setQuery('');
       setSelected(saved.id);
       setDialog(undefined);
     } catch (failure) {
-      setDialogError(externalRoleErrorText(t, failure));
+      if (refusalCode(failure) === STALE_EXTERNAL_ROLE && dialog.kind === 'rename') {
+        const latest = await readExternalRoles(bridgeHost(call)).catch(() => undefined);
+        const fresh = latest?.find((item) => item.id === dialog.role.id);
+        if (latest !== undefined) setRoles(latest);
+        if (fresh !== undefined) setDialog({ kind: 'rename', role: fresh });
+        setDialogError(
+          t(
+            fresh === undefined
+              ? 'team.externalRoles.error.stale'
+              : 'team.externalRoles.error.reloaded',
+          ),
+        );
+      } else setDialogError(externalRoleErrorText(t, failure));
     } finally {
       setBusy(false);
     }
@@ -175,6 +188,7 @@ export function ExternalRolesSection({
     <Note tone="warning">
       <span {...stylex.props(styles.notice)} data-external-role-conflict="">
         <span>{t('team.externalRoles.error.stale')}</span>
+        {error === undefined ? null : <span data-external-role-reload-error="">{error}</span>}
         <Button
           size="sm"
           variant="outline"

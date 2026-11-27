@@ -17,7 +17,8 @@ export const zh = {
   'team.externalRoles.tab.behavior': '行为规则',
   'team.externalRoles.tab.contacts': '联系人',
   'team.externalRoles.bots': '能访问的 Bot',
-  'team.externalRoles.botsHint': '配对时选了这个角色的联系人，可以和这里的每个 Bot 说话。',
+  'team.externalRoles.botsHint':
+    '以这个角色配对的联系人可以在这些 Bot 上使用它。跨 Bot 生效还要求同一个已验证的 IM 身份，例如同一个 Slack 工作区。',
   'team.externalRoles.botGone': '这个 Bot 已不在这台 Host 上。',
   'team.externalRoles.scope.title': '范围',
   'team.externalRoles.scope.all': '全部 Bot',
@@ -34,7 +35,7 @@ export const zh = {
   'team.externalRoles.instructions': '其他说明',
   'team.externalRoles.discard': '放弃修改',
   'team.externalRoles.contacts': '有这个角色的联系人',
-  'team.externalRoles.contactsHint': '按配对记录列出，状态由 Host 实时判断。',
+  'team.externalRoles.contactsHint': '按每个 Bot 的配对记录列出，状态由 Host 实时判断。',
   'team.externalRoles.noContacts': '还没有联系人以这个角色配对。',
   'team.externalRoles.contactOnBot': '{bot} · {status}',
   'team.externalRoles.status.paired': '已配对',
@@ -42,6 +43,7 @@ export const zh = {
   'team.externalRoles.status.unpaired': '未配对',
   'team.externalRoles.status.blocked': '已屏蔽',
   'team.externalRoles.status.unavailable': '不可用',
+  'team.externalRoles.error.reloaded': '这个角色刚被别处改过，已载入最新版本。确认后再保存一次。',
   'team.externalRoles.error.stale': '这个角色刚被别处改过，你的修改没有保存。',
   'team.externalRoles.error.botUnavailable': '选中的 Bot 已不在这台 Host 上。',
   'team.externalRoles.error.permission': '只有 Host 所有者能管理外部角色。',
@@ -67,7 +69,8 @@ export const en = {
   'team.externalRoles.tab.behavior': 'Behavior rules',
   'team.externalRoles.tab.contacts': 'Contacts',
   'team.externalRoles.bots': 'Bots this role can reach',
-  'team.externalRoles.botsHint': 'A contact paired with this role can talk to every Bot here.',
+  'team.externalRoles.botsHint':
+    'A contact paired with this role can use it on these Bots. On another Bot it also needs the same verified IM identity, such as one Slack workspace.',
   'team.externalRoles.botGone': 'This Bot is no longer on this Host.',
   'team.externalRoles.scope.title': 'Scope',
   'team.externalRoles.scope.all': 'All Bots',
@@ -85,7 +88,8 @@ export const en = {
   'team.externalRoles.instructions': 'Other instructions',
   'team.externalRoles.discard': 'Discard changes',
   'team.externalRoles.contacts': 'Contacts with this role',
-  'team.externalRoles.contactsHint': 'Listed from pairings. The Host checks each status live.',
+  'team.externalRoles.contactsHint':
+    "Listed from every Bot's pairings. The Host checks each status live.",
   'team.externalRoles.noContacts': 'No contact has paired with this role yet.',
   'team.externalRoles.contactOnBot': '{bot} · {status}',
   'team.externalRoles.status.paired': 'Paired',
@@ -93,6 +97,8 @@ export const en = {
   'team.externalRoles.status.unpaired': 'Not paired',
   'team.externalRoles.status.blocked': 'Blocked',
   'team.externalRoles.status.unavailable': 'Unavailable',
+  'team.externalRoles.error.reloaded':
+    'Someone else just changed this role. The latest version is loaded; check it and save again.',
   'team.externalRoles.error.stale':
     'Someone else just changed this role. Your change was not saved.',
   'team.externalRoles.error.botUnavailable': 'A selected Bot is no longer on this Host.',
