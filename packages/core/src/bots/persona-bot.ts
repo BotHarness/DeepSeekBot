@@ -15,13 +15,13 @@ import type { PromptLimitValues } from '../prompts/prompt-limits.js';
 import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 import { z } from 'zod';
 
-const protectionSchema = z.strictObject({
+export const personaBotProtectionSchema = z.strictObject({
   deletion: z.literal('deny').optional(),
   presentation: z.literal('retain-customizations').optional(),
   lifetime: z.literal('owner-tenure').optional(),
 });
 
-export type PersonaBotProtection = z.infer<typeof protectionSchema>;
+export type PersonaBotProtection = z.infer<typeof personaBotProtectionSchema>;
 
 export interface PersonaBotRecord {
   ownerHumanId?: string;
@@ -232,7 +232,7 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (typeof record['createdAt'] !== 'string') return false;
   if (
     record['protection'] !== undefined &&
-    !protectionSchema.safeParse(record['protection']).success
+    !personaBotProtectionSchema.safeParse(record['protection']).success
   )
     return false;
   for (const key of ['displayNameCustomized', 'avatarCustomized'])
