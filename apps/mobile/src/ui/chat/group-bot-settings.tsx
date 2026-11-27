@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import type { ViewInstance } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 import { channelBotSettings } from '@botharness/host-client/channel-bots';
 import type { HostClient } from '@botharness/host-client/client';
 import type {
@@ -10,9 +10,15 @@ import type {
 import { followConnection } from '../../host/follow-connection';
 import { useMounted } from '../mounted';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import {
+  SettingsFooter,
+  SettingsGroupItem,
+  SettingsHeading,
+  SettingsRow,
+} from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { space } from '../design/tokens';
 import type { ProfileRow, ProfileTabBody } from './profile-shell';
 
 const options = ['everyone', 'roles', 'admins'] as const;
@@ -94,27 +100,50 @@ export function useGroupBotSettings(
     ));
   if (!view && !readFailed) add('loading', () => <LoadingIndicator />);
   if (view?.bots.length === 0) add('empty', () => <Text tone="muted">{t.channelBots.empty}</Text>);
-  if (!bot && (view?.bots.length ?? 0) > 0)
-    add('bots', () => (
-      <SettingsSection title={t.profileSettingsBot} on={ON}>
-        {(view?.bots ?? []).map((entry) => (
-          <SettingsRow
-            key={entry.botSlug}
-            on={ON}
-            title={entry.name}
-            detail={t.channelBots[entry.audience.kind]}
-            control={{ kind: 'chevron' }}
-            testID={`channel-bot-${entry.botSlug}`}
-            onPress={() => chooseBot(entry.botSlug)}
-          />
-        ))}
-      </SettingsSection>
+  const heading = (key: string, title: string) =>
+    add(key, () => (
+      <View style={{ paddingTop: space.x4, paddingBottom: space.x2 }}>
+        <SettingsHeading>{title}</SettingsHeading>
+      </View>
     ));
+  const footer = (key: string, text: string) =>
+    add(key, () => (
+      <View style={{ paddingTop: space.x2 }}>
+        <SettingsFooter>{text}</SettingsFooter>
+      </View>
+    ));
+  const group = <T,>(items: readonly T[], key: (item: T) => string, row: (item: T) => ReactNode) =>
+    items.forEach((item, index) =>
+      add(key(item), () => (
+        <SettingsGroupItem first={index === 0} last={index === items.length - 1} on={ON}>
+          {row(item)}
+        </SettingsGroupItem>
+      )),
+    );
+  if (!bot && (view?.bots.length ?? 0) > 0) {
+    heading('bots:heading', t.profileSettingsBot);
+    group(
+      view?.bots ?? [],
+      (entry) => `bot:${entry.botSlug}`,
+      (entry) => (
+        <SettingsRow
+          on={ON}
+          title={entry.name}
+          detail={t.channelBots[entry.audience.kind]}
+          control={{ kind: 'chevron' }}
+          testID={`channel-bot-${entry.botSlug}`}
+          onPress={() => chooseBot(entry.botSlug)}
+        />
+      ),
+    );
+  }
   if (bot) {
     const audience = draft ?? bot.audience;
     const canSave = draft !== undefined && (draft.kind !== 'roles' || draft.roleIds.length > 0);
-    add('back', () => (
-      <SettingsSection on={ON}>
+    group(
+      ['back'],
+      () => 'back',
+      () => (
         <SettingsRow
           on={ON}
           title={t.back}
@@ -122,74 +151,83 @@ export function useGroupBotSettings(
           testID="channel-bot-back"
           onPress={() => chooseBot(undefined)}
         />
-      </SettingsSection>
-    ));
-    add('audience', () => (
-      <SettingsSection title={t.channelBots.audience} footer={t.channelBots.intersection} on={ON}>
-        {bot.canSetAudience ? (
-          options.map((kind) => (
-            <SettingsRow
-              key={kind}
-              on={ON}
-              title={t.channelBots[kind]}
-              selected={audience.kind === kind}
-              control={audience.kind === kind ? { kind: 'check' } : undefined}
-              testID={`channel-bot-audience-${kind}`}
-              onPress={
-                pending
-                  ? undefined
-                  : () =>
-                      setDraft(
-                        kind === 'roles'
-                          ? {
-                              kind,
-                              roleIds: bot.audience.kind === 'roles' ? bot.audience.roleIds : [],
-                            }
-                          : { kind },
-                      )
-              }
-            />
-          ))
-        ) : (
+      ),
+    );
+    heading('audience:heading', t.channelBots.audience);
+    if (bot.canSetAudience)
+      group(
+        options,
+        (kind) => `audience:${kind}`,
+        (kind) => (
+          <SettingsRow
+            on={ON}
+            title={t.channelBots[kind]}
+            selected={audience.kind === kind}
+            control={audience.kind === kind ? { kind: 'check' } : undefined}
+            testID={`channel-bot-audience-${kind}`}
+            onPress={
+              pending
+                ? undefined
+                : () =>
+                    setDraft(
+                      kind === 'roles'
+                        ? {
+                            kind,
+                            roleIds: bot.audience.kind === 'roles' ? bot.audience.roleIds : [],
+                          }
+                        : { kind },
+                    )
+            }
+          />
+        ),
+      );
+    else
+      group(
+        ['audience'],
+        () => 'audience',
+        () => (
           <SettingsRow
             on={ON}
             title={t.channelBots.audience}
             control={{ kind: 'value', text: t.channelBots[bot.audience.kind] }}
           />
-        )}
-      </SettingsSection>
-    ));
-    if (bot.canSetAudience && audience.kind === 'roles' && (view?.roles.length ?? 0) > 0)
-      add('roles', () => (
-        <SettingsSection title={t.channelBots.roles} on={ON}>
-          {(view?.roles ?? []).map((role) => {
-            const checked = audience.roleIds.includes(role.roleId);
-            return (
-              <SettingsRow
-                key={role.roleId}
-                on={ON}
-                title={role.name}
-                control={{
-                  kind: 'switch',
-                  value: checked,
-                  disabled: pending,
-                  testID: `channel-bot-role-${role.roleId}`,
-                  onChange: (next) =>
-                    setDraft({
-                      kind: 'roles',
-                      roleIds: next
-                        ? [...audience.roleIds, role.roleId]
-                        : audience.roleIds.filter((id) => id !== role.roleId),
-                    }),
-                }}
-              />
-            );
-          })}
-        </SettingsSection>
-      ));
+        ),
+      );
+    footer('audience:footer', t.channelBots.intersection);
+    if (bot.canSetAudience && audience.kind === 'roles' && (view?.roles.length ?? 0) > 0) {
+      heading('roles:heading', t.channelBots.roles);
+      group(
+        view?.roles ?? [],
+        (role) => `role:${role.roleId}`,
+        (role) => {
+          const checked = audience.roleIds.includes(role.roleId);
+          return (
+            <SettingsRow
+              on={ON}
+              title={role.name}
+              control={{
+                kind: 'switch',
+                value: checked,
+                disabled: pending,
+                testID: `channel-bot-role-${role.roleId}`,
+                onChange: (next) =>
+                  setDraft({
+                    kind: 'roles',
+                    roleIds: next
+                      ? [...audience.roleIds, role.roleId]
+                      : audience.roleIds.filter((id) => id !== role.roleId),
+                  }),
+              }}
+            />
+          );
+        },
+      );
+    }
     if (canSave)
-      add('save', () => (
-        <SettingsSection on={ON}>
+      group(
+        ['save'],
+        () => 'save',
+        () => (
           <SettingsRow
             on={ON}
             title={t.groupRenameSave}
@@ -203,33 +241,34 @@ export function useGroupBotSettings(
                   }
             }
           />
-        </SettingsSection>
-      ));
+        ),
+      );
     const people = new Map(
       (view?.members ?? []).map(({ humanId, displayName }) => [humanId, displayName]),
     );
     for (const id of bot.blockedHumanIds) if (!people.has(id)) people.set(id, id);
-    if (people.size > 0)
-      add('blocks', () => (
-        <SettingsSection title={t.channelBots.blocks} on={ON}>
-          {[...people].map(([humanId, displayName]) => (
-            <SettingsRow
-              key={humanId}
-              on={ON}
-              title={displayName}
-              control={{
-                kind: 'switch',
-                value: bot.blockedHumanIds.includes(humanId),
-                disabled: pending,
-                testID: `channel-bot-block-${humanId}`,
-                onChange: (next) => {
-                  void save({ kind: 'block', humanId, blocked: next });
-                },
-              }}
-            />
-          ))}
-        </SettingsSection>
-      ));
+    if (people.size > 0) {
+      heading('blocks:heading', t.channelBots.blocks);
+      group(
+        [...people],
+        ([humanId]) => `human:${humanId}`,
+        ([humanId, displayName]) => (
+          <SettingsRow
+            on={ON}
+            title={displayName}
+            control={{
+              kind: 'switch',
+              value: bot.blockedHumanIds.includes(humanId),
+              disabled: pending,
+              testID: `channel-bot-block-${humanId}`,
+              onChange: (next) => {
+                void save({ kind: 'block', humanId, blocked: next });
+              },
+            }}
+          />
+        ),
+      );
+    }
   }
   return { mount, body: { rows } };
 }

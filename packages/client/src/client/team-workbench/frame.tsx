@@ -1,7 +1,15 @@
-import { useId, useState, type ReactElement, type ReactNode, type RefCallback } from 'react';
+import {
+  useId,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+  type ReactNode,
+  type RefCallback,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { ChipTabs, type ChipTabOption } from '../ds/chip-tabs.js';
+import { ChipButton } from '../ds/chip-button.js';
+import { ChipTabs } from '../ds/chip-tabs.js';
 import { dimension } from '../ds/dimensions.stylex.js';
 import { PanelEmptyState } from '../ds/empty-state.js';
 import { SearchField } from '../ds/field.js';
@@ -74,6 +82,7 @@ const styles = stylex.create({
     listStyle: 'none',
   },
   tabs: { paddingBlockEnd: space.x3, paddingInline: space.x5 },
+  chips: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   status: { display: 'flex', flexDirection: 'column', paddingInline: space.x3 },
   body: {
     display: 'flex',
@@ -138,8 +147,48 @@ export function PanelGap(): ReactElement {
 export interface ListFilter<Value extends string> {
   readonly label: string;
   readonly value: Value;
-  readonly options: readonly ChipTabOption<Value>[];
+  readonly options: readonly { readonly value: Value; readonly label: string }[];
   onChange(value: Value): void;
+}
+
+function ChipFilter<Value extends string>({
+  id,
+  filter,
+}: {
+  id: string;
+  filter: ListFilter<Value>;
+}): ReactElement {
+  const index = filter.options.findIndex((option) => option.value === filter.value);
+  const move = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    const count = filter.options.length;
+    const next = filter.options[(index + step + count) % count];
+    if (next === undefined) return;
+    filter.onChange(next.value);
+    event.currentTarget.ownerDocument.getElementById(`${id}-${next.value}`)?.focus();
+  };
+  return (
+    <div role="radiogroup" aria-label={filter.label} {...stylex.props(styles.chips)}>
+      {filter.options.map((option) => {
+        const checked = option.value === filter.value;
+        return (
+          <ChipButton
+            key={option.value}
+            id={`${id}-${option.value}`}
+            role="radio"
+            aria-checked={checked}
+            tabIndex={checked ? 0 : -1}
+            filled={checked}
+            label={option.label}
+            onKeyDown={move}
+            onClick={() => filter.onChange(option.value)}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 export function ListColumn<Filter extends string = never>({
@@ -174,15 +223,7 @@ export function ListColumn<Filter extends string = never>({
           {search === undefined ? null : (
             <SearchField label={search.label} value={search.value} onChange={search.onChange} />
           )}
-          {filter === undefined ? null : (
-            <ChipTabs
-              id={filterId}
-              label={filter.label}
-              value={filter.value}
-              options={filter.options}
-              onChange={filter.onChange}
-            />
-          )}
+          {filter === undefined ? null : <ChipFilter id={filterId} filter={filter} />}
         </div>
       )}
       {status === undefined ? null : <div {...stylex.props(styles.status)}>{status}</div>}
@@ -248,6 +289,7 @@ export function DetailColumn<Tab extends string = never>({
           ? {}
           : {
               role: 'tabpanel',
+              tabIndex: 0,
               id: `${tabsId}-${current.id}-panel`,
               'aria-labelledby': `${tabsId}-${current.id}`,
             })}

@@ -67,6 +67,8 @@ export function TeamWorkbench({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState<RoleConflict>();
+  const [inspectError, setInspectError] = useState<string>();
+  const [pending, setPending] = useState<string>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const inspection = useRef(0);
@@ -106,17 +108,34 @@ export function TeamWorkbench({
     inspection.current++;
     inspecting.current = undefined;
     setInspected(undefined);
+    setInspectError(undefined);
+    setPending(undefined);
   };
 
   const inspect = async (member: TeamMember): Promise<void> => {
     const request = ++inspection.current;
     inspecting.current = member;
-    setError(undefined);
+    setInspectError(undefined);
+    setPending(member.humanId);
     try {
       const result = await loadMemberPermissions(call, member.humanId);
       if (request === inspection.current) setInspected({ member, result });
     } catch (failure) {
-      if (request === inspection.current) setError(teamErrorText(t, failure));
+      if (request === inspection.current) setInspectError(teamErrorText(t, failure));
+    } finally {
+      if (request === inspection.current) setPending(undefined);
+    }
+  };
+
+  const reinspect = async (): Promise<void> => {
+    const member = inspecting.current;
+    if (member === undefined) return;
+    const reload = ++inspection.current;
+    try {
+      const result = await loadMemberPermissions(call, member.humanId);
+      if (reload === inspection.current) setInspected({ member, result });
+    } catch (failure) {
+      if (reload === inspection.current) setInspectError(teamErrorText(t, failure));
     }
   };
 
@@ -133,19 +152,15 @@ export function TeamWorkbench({
       setRoles((current) =>
         current.map((item) => (item.roleId === updated.roleId ? updated : item)),
       );
-      const member = inspecting.current;
-      if (member !== undefined) {
-        const reload = ++inspection.current;
-        const result = await loadMemberPermissions(call, member.humanId);
-        if (reload === inspection.current) setInspected({ member, result });
-      }
     } catch (failure) {
       if (teamRefusal(failure) === STALE_HOST_ROLE)
         setConflict({ roleId: target.roleId, id, choice, reloaded: false });
       else setError(teamErrorText(t, failure));
-    } finally {
       setBusy(false);
+      return;
     }
+    await reinspect();
+    setBusy(false);
   };
 
   const reloadRoles = async (): Promise<void> => {
@@ -155,9 +170,9 @@ export function TeamWorkbench({
       setConflict((current) => (current === undefined ? current : { ...current, reloaded: true }));
     } catch (failure) {
       setError(teamErrorText(t, failure));
-    } finally {
-      setBusy(false);
     }
+    await reinspect();
+    setBusy(false);
   };
 
   const retry = async (): Promise<void> => {
@@ -182,6 +197,8 @@ export function TeamWorkbench({
           selected={selectedRole}
           busy={busy}
           error={error}
+          inspectError={inspectError}
+          pending={pending}
           inspected={inspected}
           notice={
             conflict === undefined ? undefined : (
@@ -209,7 +226,8 @@ export function TeamWorkbench({
         roles={roles}
         catalog={catalog}
         inspected={inspected}
-        error={error}
+        pending={pending}
+        error={inspectError}
         onInspect={(member) => void inspect(member)}
       />
     ),
@@ -228,6 +246,7 @@ export function TeamWorkbench({
           current={section?.id}
           compact={compact}
           onSelect={(id) => {
+            if (id === section?.id) return;
             setRequested(id);
             clearInspection();
           }}

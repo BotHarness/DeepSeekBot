@@ -48,6 +48,8 @@ export function RolesSection({
   selected,
   busy,
   error,
+  inspectError,
+  pending,
   notice,
   inspected,
   onSelect,
@@ -62,6 +64,8 @@ export function RolesSection({
   selected: string | undefined;
   busy: boolean;
   error: string | undefined;
+  inspectError?: string | undefined;
+  pending?: string | undefined;
   notice?: ReactNode;
   inspected: Inspection | undefined;
   onSelect(roleId: string): void;
@@ -153,6 +157,8 @@ export function RolesSection({
               onInspect={onInspect}
             />
           ) : null}
+          {inspectError === undefined ? null : <Note tone="danger">{inspectError}</Note>}
+          {pending === undefined ? null : <Note>{t('team.workbench.loading')}</Note>}
           {inspected === undefined ? null : (
             <EffectivePermissions
               t={t}

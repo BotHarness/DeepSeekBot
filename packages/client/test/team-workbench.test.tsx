@@ -389,7 +389,7 @@ it('derives visible sections from the viewer and defaults to the roles section',
 });
 
 it('opens a member from the members section and shows their effective permissions', async () => {
-  const call = vi.fn<BridgeCall>(async (method) => {
+  const call = vi.fn<BridgeCall>(async (method, args) => {
     if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
     if (method === 'roles') return { ok: true, value: [role()] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
@@ -406,7 +406,7 @@ it('opens a member from the members section and shows their effective permission
           },
         ],
       };
-    if (method === 'memberPermissions')
+    if (method === 'memberPermissions' && args['humanId'] === 'bob')
       return {
         ok: true,
         value: {
@@ -432,6 +432,8 @@ it('opens a member from the members section and shows their effective permission
       'state'
     ],
   ).toBe('granted');
+  await act(async () => nav!.click());
+  expect(host.querySelector('[data-team-effective-permission="channels.create"]')).not.toBeNull();
 });
 
 it('filters channels by visibility and shows the channel tabs with counts', async () => {
@@ -479,7 +481,7 @@ it('filters channels by visibility and shows the channel tabs with counts', asyn
   expect(tabs).toEqual(['成员 1', 'Bot 1', '权限']);
   expect(host.querySelector('[data-team-channel-bot="bot-a"]')?.textContent).toBe('Helper');
   const privateTab = [
-    ...host.querySelectorAll<HTMLButtonElement>('[data-team-list] [role="tab"]'),
+    ...host.querySelectorAll<HTMLButtonElement>('[data-team-list] [role="radio"]'),
   ].find((node) => node.textContent === '仅受邀者');
   await act(async () => privateTab!.click());
   expect(
@@ -499,7 +501,7 @@ it('shows the no-access state when the viewer cannot open any section', async ()
     throw new Error(method);
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
-  expect(host.textContent).toContain('只有能管理角色的人可以打开 Team');
+  expect(host.textContent).toContain('你在 Team 里没有可以打开的内容');
   expect(host.querySelector('[data-team-nav]')).toBeNull();
 });
 
