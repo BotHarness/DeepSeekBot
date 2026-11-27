@@ -32,7 +32,9 @@ import {
 import {
   changesApprovalPolicy,
   deletesMarketplaceBot,
+  deletesMarketplaceSkill,
   publishesBotMemory,
+  publishesMarketplaceSkill,
   createApprovalTemplateLibrary,
 } from '../../workspaces/approval-templates.js';
 import {
@@ -553,6 +555,7 @@ export function mount(
         };
       }
       try {
+        const approvalInput = JSON.stringify(execution.arguments) ?? '';
         const outcome = await requestRequiredToolApproval({
           approval,
           channelApproval: toolApproval,
@@ -573,16 +576,17 @@ export function mount(
                 ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
                 : execution.name === 'bot_create'
                   ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
-                  : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
-                    ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
-                    : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
-                      ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
-                      : changesApprovalPolicy(
-                            JSON.stringify(execution.arguments) ?? '',
-                            templateInUse,
-                          )
-                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                  : publishesMarketplaceSkill(approvalInput)
+                    ? 'This PersonaBot wants to publish or replace a Marketplace Skill. The selected Project Skill files will become public. Check them for secrets and private details first.'
+                    : deletesMarketplaceSkill(approvalInput)
+                      ? 'This PersonaBot wants to delete a Marketplace Skill listing. The listing will be removed. Copies already added to Bots or Hosts are kept.'
+                      : publishesBotMemory(approvalInput)
+                        ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
+                        : deletesMarketplaceBot(approvalInput)
+                          ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                          : changesApprovalPolicy(approvalInput, templateInUse)
+                            ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                            : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
             signal: execution.signal,
           },
         });

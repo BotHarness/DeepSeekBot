@@ -7,6 +7,7 @@ import type { TobCliWriteProposal } from './cli-broker.js';
 import { TobError } from '../../tob/service.js';
 import { toolApprovalRequired } from '../../workspaces/tool-effects.js';
 import { canonicalCliCommandName } from '../../kernel/cli-command-names.js';
+import { brokerCliEffects } from '../../kernel/cli-effects.js';
 
 export const ALWAYS_ASK_CLI_COMMANDS: ReadonlySet<string> = new Set([
   'release-install',
@@ -20,6 +21,9 @@ export const ALWAYS_ASK_CLI_COMMANDS: ReadonlySet<string> = new Set([
   'group-delete',
   'marketplace-delete',
   'marketplace-avatar-delete',
+  'skills-publish',
+  'skills-replace',
+  'skills-delete',
   'memory-save',
   'memory-restore',
   'memory-restore-commit',
@@ -66,7 +70,10 @@ export async function approveTobCliOperation(options: {
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
   const generic = 'via' in operation && operation.via === 'cli';
-  const requireExplicitApproval = alwaysAsksHuman(command);
+  const requireExplicitApproval =
+    alwaysAsksHuman(command) ||
+    (command === 'skills' &&
+      brokerCliEffects('deepseekbot skills', operation)?.authority === 'management');
   const scope =
     !generic &&
     'target' in operation &&

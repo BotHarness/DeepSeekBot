@@ -23,6 +23,23 @@ export interface SkillValues {
 
 export const SKILL_COMMANDS = [
   {
+    command: 'skills-publish',
+    description: 'publish a Bot Skill to the Marketplace: skills publish <name> --bot <slug>',
+  },
+  {
+    command: 'skills-replace',
+    description:
+      'replace a Marketplace Skill with files from a Bot: skills replace <id> <name> --bot <slug> --confirm',
+  },
+  {
+    command: 'skills-delete',
+    description: 'remove a Marketplace Skill listing: skills delete <id> --confirm',
+  },
+  {
+    command: 'skills-mine',
+    description: 'list the Skills published by the signed-in Marketplace author',
+  },
+  {
     command: 'skills-list',
     description:
       "list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository and Workspace Grant Project Skill, ranked by --query like the menu; with --bot and --session <id>, the Skills that Session's own composer offers: Host, that Bot's Memory and the Session's Workspace, one per name",
@@ -76,6 +93,23 @@ export async function runSkillCommand(
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
   const bot = values.bot?.trim();
+  if (command === 'skills-publish') {
+    if (rest.length !== 1 || !bot) usage('skills publish takes <name> --bot <slug>.');
+    return (await connect())('marketplaceSkillPublish', { name: rest[0], bot });
+  }
+  if (command === 'skills-replace') {
+    if (rest.length !== 2 || !bot || values.confirm !== true)
+      usage('skills replace takes <id> <name> --bot <slug> --confirm.');
+    return (await connect())('marketplaceSkillReplace', { id: rest[0], name: rest[1], bot });
+  }
+  if (command === 'skills-delete') {
+    if (rest.length !== 1 || values.confirm !== true) usage('skills delete takes <id> --confirm.');
+    return (await connect())('marketplaceSkillDelete', { id: rest[0] });
+  }
+  if (command === 'skills-mine') {
+    if (rest.length !== 0) usage('skills mine takes no positional arguments.');
+    return (await connect())('marketplaceSkillMine', {});
+  }
   if (command === 'marketplace-skill-list') {
     if (rest.length !== 0) usage('marketplace-skill-list takes --query and --cursor only.');
     return (await connect())('marketplaceSkillList', {

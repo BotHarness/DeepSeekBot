@@ -284,7 +284,7 @@ export function createMarketplaceSkillMethods(
             await commitMemoryPathsAsync(
               step.memoryDir,
               [relative],
-              `skills: add ${step.name} from Marketplace (${staged.skill.fullName})`,
+              `skills: add ${step.name} from Marketplace (${staged.skill.upload?.author.id ?? staged.skill.fullName})`,
             );
             deps.skills?.invalidateMemory(step.target);
             added.push({ target: step.target, name: step.name, path: relative });

@@ -305,7 +305,7 @@ describe('Uploaded Bots in the Market panel', () => {
               }),
             ),
           );
-          expect(settings.textContent).toContain('我上传的 Bot');
+          expect(settings.textContent).toContain('我的上传');
           await click(settings, '管理');
           expect(
             [...document.body.querySelectorAll('[data-market-mine-bot]')].map((row) =>

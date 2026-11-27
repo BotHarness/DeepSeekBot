@@ -66,8 +66,9 @@ import {
   readAvatarPublishBody,
 } from './avatars.js';
 import { logLine, logWorker } from './worker-log.js';
-import { handleSkillRoute, isSkillRoute } from './skill-routes.js';
-import { createMarketSkills, type MarketSkills } from './skills.js';
+import { createSkillUploads } from './skill-uploads.js';
+import { handleSkillRoute, isPublicSkillRead, isSkillRoute } from './skill-routes.js';
+import { createMarketSkills, SKILL_LIST_PATH, type MarketSkills } from './skills.js';
 
 export interface MarketEnv {
   MARKET_DB: D1Database;
@@ -94,6 +95,7 @@ export interface MarketHandlerDeps {
   uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
   avatars?: ReturnType<typeof createMarketAvatars> | undefined;
   skills?: MarketSkills | undefined;
+  skillUploads?: ReturnType<typeof createSkillUploads> | undefined;
 }
 
 export interface MarketOptions {
@@ -194,6 +196,13 @@ export function createMarketHandler(
     if (isSkillRoute(url.pathname))
       return handleSkillRoute(request, {
         skills: deps.skills,
+        uploads: deps.skillUploads,
+        account: async (incoming) => {
+          const token = bearer(incoming);
+          return token === undefined
+            ? undefined
+            : (await deps.uploads?.verifier.verify(token))?.account;
+        },
         protection,
         admin: async (incoming) => {
           const given = /^Bearer (.+)$/u.exec(incoming.headers.get('authorization') ?? '')?.[1];
@@ -519,11 +528,12 @@ export function createMarketHandler(
         ? json(202, { counted: recorded.counted, installs: recorded.installs })
         : failure(404, 'bot-not-found');
     }
-    const reportRoute = /^\/v1\/(bots|avatars)\/([^/]+)\/reports$/u.exec(url.pathname);
+    const reportRoute = /^\/v1\/(bots|avatars|skills)\/([^/]+)\/reports$/u.exec(url.pathname);
     if (reportRoute !== null) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
-      const kind = reportRoute[1] === 'avatars' ? 'avatar' : 'bot';
-      const notFound = kind === 'avatar' ? 'avatar-not-found' : 'bot-not-found';
+      const kind =
+        reportRoute[1] === 'skills' ? 'skill' : reportRoute[1] === 'avatars' ? 'avatar' : 'bot';
+      const notFound = `${kind}-not-found`;
       const id = decodePath(reportRoute[2]!);
       if (id === undefined) return failure(404, notFound);
       const body = await readBody(request);
@@ -650,7 +660,8 @@ export function createMarketHandler(
     const { pathname } = new URL(request.url);
     if (!isPublicRead(pathname)) return route(request);
     if (request.method === 'OPTIONS') return preflight(request);
-    if (pathname === '/v1/avatars' && request.method === 'POST') return route(request);
+    if (request.method === 'POST' && (pathname === '/v1/avatars' || pathname === SKILL_LIST_PATH))
+      return route(request);
     return publicResponse(
       request,
       await route(request),
@@ -658,7 +669,8 @@ export function createMarketHandler(
         ? 'no-store'
         : AVATAR_ROUTE.test(pathname) ||
             pathname === AVATAR_TAGS_PATH ||
-            AVATAR_RANKING_ROUTE.test(pathname)
+            AVATAR_RANKING_ROUTE.test(pathname) ||
+            isPublicSkillRead(pathname)
           ? 'no-cache'
           : undefined,
     );
@@ -715,6 +727,7 @@ export function handlerForEnv(
     digests: createDigests({ db }),
     avatars: bucket === undefined ? undefined : createMarketAvatars({ db, bucket, now }),
     skills: createMarketSkills({ db, github, now }),
+    skillUploads: bucket === undefined ? undefined : createSkillUploads(db, bucket, now),
     uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }

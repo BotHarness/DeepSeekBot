@@ -45,6 +45,13 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'skill-too-large': 'market.error.skillTooLarge',
   'skill-files-unavailable': 'market.error.skillFiles',
   'skill-write-failed': 'market.error.skillWrite',
+  'skill-secret-detected': 'market.error.skillSecret',
+  'skill-malicious-content': 'market.error.skillMalicious',
+  'invalid-skill-upload': 'market.error.skillUpload',
+  'invalid-skill-md': 'market.error.skillMd',
+  'skill-upload-limit': 'market.error.skillUploadLimit',
+  'skill-upload-changed': 'market.error.skillChanged',
+  'skill-files-changed': 'market.error.skillChanged',
 };
 
 export type Phase = 'idle' | 'verifying' | 'sending';

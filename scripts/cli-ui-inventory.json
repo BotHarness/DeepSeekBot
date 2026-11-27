@@ -495,10 +495,19 @@
     },
     {
       "id": "account-uploaded-bots",
-      "description": "Settings entry listing the signed-in account's uploaded Marketplace Bots, with update and delete.",
+      "description": "Settings entry listing the signed-in account's uploaded Marketplace Bots and Skills, with update, replace and delete; Skills publish from the Bot profile Skills card and are reported from the Skill detail.",
       "scope": "Host",
       "surfaces": ["setting:packages/client/src/client/market-mine.tsx:{t('market.mine.title')}"],
-      "commands": ["marketplace-mine", "marketplace-upload", "marketplace-delete"]
+      "commands": [
+        "marketplace-mine",
+        "marketplace-upload",
+        "marketplace-delete",
+        "skills-mine",
+        "skills-publish",
+        "skills-replace",
+        "skills-delete",
+        "marketplace-skill-report"
+      ]
     },
     {
       "id": "channel-history",

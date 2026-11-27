@@ -93,6 +93,10 @@ import {
   type MarketplaceSkillBridgeDeps,
   type MarketplaceSkillBridgeMethods,
 } from './skill-add.js';
+import {
+  createMarketplaceSkillUploadMethods,
+  type MarketplaceSkillUploadMethods,
+} from './skill-upload.js';
 
 function avatarManagementRefused(): BridgeResult<never> {
   return {
@@ -104,7 +108,10 @@ function avatarManagementRefused(): BridgeResult<never> {
   };
 }
 
-export type MarketplaceBridgeMethods = MarketplaceSkillBridgeMethods & {
+type MarketplaceSkillsMethods = MarketplaceSkillBridgeMethods & MarketplaceSkillUploadMethods;
+
+export type MarketplaceBridgeMethods = MarketplaceSkillsMethods & {
+  marketplaceSkillReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
@@ -366,7 +373,7 @@ export function createMarketplaceBridgeMethods({
       },
     };
   };
-  const report = (payload: unknown, kind: 'bot' | 'avatar') => {
+  const report = (payload: unknown, kind: 'bot' | 'avatar' | 'skill') => {
     const { id, altcha, reason } = asObject(payload);
     if (typeof id !== 'string' || id.trim().length === 0) {
       return Promise.resolve(invalidInput('id is required'));
@@ -569,6 +576,7 @@ export function createMarketplaceBridgeMethods({
         marketplaceCall,
       ),
       ...createMarketplaceSkillMethods(human, deps, isHostOwner),
+      ...createMarketplaceSkillUploadMethods(human, deps, isHostOwner),
       marketplaceAvatarList(payload) {
         const { cursor, q, tag, sort } = asObject(payload);
         if (
@@ -694,6 +702,7 @@ export function createMarketplaceBridgeMethods({
       },
       marketplaceReport: (payload) => report(payload, 'bot'),
       marketplaceAvatarReport: (payload) => report(payload, 'avatar'),
+      marketplaceSkillReport: (payload) => report(payload, 'skill'),
       async marketplaceAccount() {
         if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
         return uploadResult(await deps.marketplaceUploads.account());
@@ -956,6 +965,7 @@ export function createMarketplaceBridgeMethods({
       | 'marketplaceChallenge'
       | 'marketplaceReport'
       | 'marketplaceAvatarReport'
+      | 'marketplaceSkillReport'
       | 'marketplaceAccount'
       | 'marketplaceAuthorSave'
       | 'marketplaceAuthorAvatarSet'

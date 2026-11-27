@@ -1,3 +1,11 @@
+import { readBoundedJson } from './bounded-json.js';
+import {
+  MAX_SKILL_PUBLISH_BODY,
+  SKILL_FILES_ROUTE,
+  SKILL_MINE_PATH,
+  SKILL_MINE_ROUTE,
+  type createSkillUploads,
+} from './skill-uploads.js';
 import type { Protection } from './protection.js';
 import { SKILL_INSTALL_ROUTE, SKILL_LIST_PATH, SKILL_ROUTE, type MarketSkills } from './skills.js';
 
@@ -29,9 +37,12 @@ async function body(request: Request): Promise<Record<string, unknown> | undefin
 export function isSkillRoute(pathname: string): boolean {
   return (
     pathname === SKILL_LIST_PATH ||
+    SKILL_FILES_ROUTE.test(pathname) ||
     SKILL_ROUTE.test(pathname) ||
     SKILL_INSTALL_ROUTE.test(pathname) ||
-    pathname === ADMIN_SKILLS_PATH
+    pathname === ADMIN_SKILLS_PATH ||
+    pathname === SKILL_MINE_PATH ||
+    SKILL_MINE_ROUTE.test(pathname)
   );
 }
 
@@ -43,6 +54,8 @@ export async function handleSkillRoute(
   request: Request,
   deps: {
     skills: MarketSkills | undefined;
+    uploads: ReturnType<typeof createSkillUploads> | undefined;
+    account: (request: Request) => Promise<string | undefined>;
     protection: Protection | undefined;
     admin: (request: Request) => Promise<boolean>;
   },
@@ -84,6 +97,62 @@ export async function handleSkillRoute(
       return failure(429, 'rate-limited', { 'retry-after': '3600' });
     const result = await skills.receipt(installId, targetHash);
     return result === undefined ? failure(404, 'skill-not-found') : json(202, result);
+  }
+  const files = SKILL_FILES_ROUTE.exec(url.pathname);
+  if (files?.[1] !== undefined && files[2] !== undefined) {
+    if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+    const bundle = await deps.uploads?.files(files[1], files[2]);
+    return bundle === undefined
+      ? failure(404, 'skill-files-unavailable')
+      : new Response(bundle, {
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': 'no-store',
+            'x-content-type-options': 'nosniff',
+          },
+        });
+  }
+  const editing = SKILL_MINE_ROUTE.exec(url.pathname)?.[1];
+  const mine = url.pathname === SKILL_MINE_PATH;
+  const publishing = url.pathname === SKILL_LIST_PATH && request.method === 'POST';
+  if (mine || editing !== undefined || publishing) {
+    const reading = mine && request.method === 'GET';
+    const removing = editing !== undefined && request.method === 'DELETE';
+    const replacing = editing !== undefined && request.method === 'PUT';
+    if (!reading && !removing && !replacing && !publishing)
+      return failure(405, 'method-not-allowed');
+    const { uploads } = deps;
+    if (uploads === undefined) return failure(503, 'skills-unavailable');
+    const account = await deps.account(request);
+    if (account === undefined) return failure(401, 'unauthorized');
+    const headers = { 'cache-control': 'no-store' };
+    if (reading) return json(200, { skills: await skills.mine(account) }, headers);
+    if (removing) {
+      return (await uploads.remove(account, editing))
+        ? json(200, { deleted: true }, headers)
+        : failure(404, 'skill-not-found');
+    }
+    const input = await readBoundedJson(request, MAX_SKILL_PUBLISH_BODY);
+    if (input.kind === 'oversize') return failure(413, 'skill-too-large');
+    if (input.kind === 'invalid') return failure(400, 'invalid-skill-upload');
+    const result = await uploads.write(account, input.body, editing);
+    if (!result.ok) {
+      const status = {
+        'invalid-skill-upload': 400,
+        'invalid-skill-md': 422,
+        'skill-too-large': 413,
+        'skill-secret-detected': 422,
+        'skill-malicious-content': 422,
+        'skill-not-found': 404,
+        'skill-upload-limit': 409,
+        'skill-upload-changed': 409,
+        'author-required': 409,
+        'author-changed': 409,
+      }[result.code];
+      return failure(status, result.code);
+    }
+    const skill = await skills.uploaded(account, result.id);
+    return skill === undefined ? failure(404, 'skill-not-found') : json(200, { skill }, headers);
   }
   if (request.method !== 'GET') return failure(405, 'method-not-allowed');
   if (url.pathname === SKILL_LIST_PATH) {

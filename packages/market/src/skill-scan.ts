@@ -94,27 +94,42 @@ export function isScriptPath(path: string): boolean {
   return uploadFileKind(path) === 'script';
 }
 
-export function scanSkillFiles(files: readonly { path: string; text: string | null }[]): SkillScan {
+export function scanSkillFiles(
+  files: readonly { path: string; text: string | null; filename?: true }[],
+  options: { rejectSecrets?: boolean } = {},
+): SkillScan {
   const findings: SkillFinding[] = [];
   const scripts: string[] = [];
   let malicious = false;
   for (const file of files) {
-    if (isScriptPath(file.path)) scripts.push(file.path);
+    if (!file.filename && isScriptPath(file.path)) scripts.push(file.path);
     if (file.text === null) continue;
     const lines = file.text.split(/\r?\n/u);
     for (const [index, line] of lines.entries()) {
       const next = lines[index + 1] ?? '';
       for (const rule of RULES) {
-        if (findings.length >= MAX_FINDINGS && (rule.severity === 'warning' || malicious)) continue;
+        const severity =
+          options.rejectSecrets === true && rule.kind === 'secret' ? 'malicious' : rule.severity;
+        if (findings.length >= MAX_FINDINGS && (severity === 'warning' || malicious)) continue;
         const own = rule.test(line);
         const across = !own && rule.test(`${line} ${next}`) && !rule.test(next);
         if (!own && !across) continue;
-        if (rule.severity === 'malicious') malicious = true;
+        if (
+          file.filename &&
+          findings.some(
+            (finding) =>
+              finding.path === file.path &&
+              finding.line === index + 1 &&
+              finding.kind === rule.kind,
+          )
+        )
+          continue;
+        if (severity === 'malicious') malicious = true;
         findings.push({
           kind: rule.kind,
           path: file.path,
           line: index + 1,
-          severity: rule.severity,
+          severity,
         });
       }
     }

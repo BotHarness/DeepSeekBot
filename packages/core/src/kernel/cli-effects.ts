@@ -329,6 +329,7 @@ export const CLI_EFFECTS = {
   'marketplace-avatar-list': { effects: externalRead, brokerRead: true },
   'marketplace-avatar-tags': { effects: externalRead, brokerRead: true },
   'marketplace-avatar-detail': { effects: externalRead, brokerRead: true },
+  'marketplace-skill-report': { effects: external, brokerRead: false },
   'marketplace-avatar-report': { effects: external, brokerRead: false },
   'marketplace-blocklist': { effects: externalSecretManagement, brokerRead: false },
   'marketplace-avatar-apply': { effects: external, brokerRead: false },
@@ -551,6 +552,11 @@ export const CLI_EFFECTS = {
   'skills-list': { effects: read, brokerRead: true },
   'skills-memory': { effects: memoryRead, brokerRead: true },
   'skills-show': { effects: read, brokerRead: true },
+  skills: { effects: external, brokerRead: false },
+  'skills-publish': { effects: externalIrreversibleManagement, brokerRead: false },
+  'skills-replace': { effects: externalIrreversibleManagement, brokerRead: false },
+  'skills-delete': { effects: externalIrreversibleManagement, brokerRead: false },
+  'skills-mine': { effects: externalRead, brokerRead: false },
   'skills-add': { effects: externalWrite, brokerRead: false },
   'marketplace-skill-list': { effects: externalRead, brokerRead: true },
   'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
@@ -666,6 +672,10 @@ function familyEffects(
           return botAccessEffects(action, values);
       }
     }
+    case 'skills':
+      if (action === 'mine' || action === 'publish' || action === 'replace' || action === 'delete')
+        return declarations[`skills-${action}`]?.effects;
+      return undefined;
     case 'engine':
       if (action === 'quota') return values.refresh ? externalManagement : read;
       if (['list', 'status', 'approvals', 'tools', 'models', 'accounts'].includes(action ?? ''))

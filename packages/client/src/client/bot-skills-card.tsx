@@ -11,6 +11,7 @@ import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketplaceFileReader, markdownBody } from './market-files.js';
+import { MarketSkillPublishDialog, type SkillPublishActions } from './market-skill-publish.js';
 import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -19,6 +20,7 @@ export interface BotSkillsSource {
   read(name: string): Promise<SkillDetailView>;
   remove(name: string): Promise<void>;
   subscribe?(listener: () => void): () => void;
+  publish?: { bot: string; actions: SkillPublishActions };
 }
 
 function SkillRows({
@@ -87,6 +89,7 @@ function SkillDetail({
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | undefined>(undefined);
+  const [publishing, setPublishing] = useState(false);
   const section = useMountedResource<HTMLElement>(
     (node) => {
       node.scrollIntoView?.({ block: 'nearest' });
@@ -173,11 +176,30 @@ function SkillDetail({
             </div>
           ) : (
             <ActionGroup>
+              {source.publish === undefined ? null : (
+                <ActionButton
+                  icon="upload"
+                  aria-haspopup="dialog"
+                  data-skill-publish={name}
+                  onClick={() => setPublishing(true)}
+                >
+                  {t('market.skills.publish')}
+                </ActionButton>
+              )}
               <ActionButton icon="trash" onClick={() => setConfirming(true)}>
                 {t('skills.remove')}
               </ActionButton>
             </ActionGroup>
           )}
+          {publishing && source.publish !== undefined ? (
+            <MarketSkillPublishDialog
+              actions={source.publish.actions}
+              bot={source.publish.bot}
+              name={name}
+              t={t}
+              onClose={() => setPublishing(false)}
+            />
+          ) : null}
           {removeError === undefined ? null : <Note tone="danger">{removeError}</Note>}
         </>
       ) : null}

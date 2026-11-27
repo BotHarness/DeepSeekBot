@@ -124,6 +124,7 @@ export async function withPanel(
     createBot: vi.fn(async () => undefined),
     openBot: vi.fn(async () => undefined),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    marketplaceSkillMine: vi.fn(async () => ({ skills: [] })),
     telemetryEvent: vi.fn(),
     ...extra,
   };

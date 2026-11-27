@@ -12,6 +12,8 @@ import { createInstallReceipts } from '../src/marketplace/install-receipts.js';
 import { createMarketplaceClient } from '../src/marketplace/client.js';
 import { SkillStageError, stageSkill, writeSkill } from '../src/marketplace/skill-install.js';
 import { createMarketplaceSkillSource } from '../src/marketplace/skill-source.js';
+import { createShareDrafts } from '../src/marketplace/share-draft.js';
+import { createMarketplaceUploads } from '../src/marketplace/uploaded-bots.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 
@@ -25,6 +27,120 @@ afterEach(async () => {
 type Market = ReturnType<typeof createMarket>;
 
 const SKILL_MD = '---\nname: tidy-notes\ndescription: Keep meeting notes tidy.\n---\n\n# Tidy\n';
+
+it('publishes a folder named skills through the Host and CLI and preserves installed copies on replacement', async () => {
+  const market = createMarket();
+  const host = makeHost(market);
+  host.bot('author');
+  host.bot('old-copy');
+  host.bot('new-copy');
+  const source = join(host.core.registry.memoryDirFor('author')!, '.agents/skills/skills');
+  mkdirSync(source, { recursive: true });
+  writeFileSync(join(source, 'SKILL.md'), SKILL_MD);
+  const reference = join(source, 'reference.txt');
+  writeFileSync(reference, 'original');
+  const bridge = host.methods(owner);
+  expect(await bridge.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' })).toMatchObject(
+    { ok: false, error: { code: 'author-required' } },
+  );
+  const author = value(
+    await bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }),
+  );
+  const caller = host.methods({ ...owner, caller: 'bot' });
+  expect(await caller.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' })).toMatchObject(
+    { ok: false, error: { code: 'permission-required' } },
+  );
+  expect(await caller.marketplaceSkillReplace({ bot: 'author', name: 'tidy-notes' })).toMatchObject(
+    { ok: false, error: { code: 'permission-required' } },
+  );
+  expect(await caller.marketplaceSkillDelete({})).toMatchObject({
+    ok: false,
+    error: { code: 'permission-required' },
+  });
+  const connect = async () => async (method: string, payload: Record<string, unknown>) => {
+    if (method === 'marketplaceSkillPublish')
+      return value(await bridge.marketplaceSkillPublish(payload));
+    if (method === 'marketplaceSkillReplace')
+      return value(await bridge.marketplaceSkillReplace(payload));
+    if (method === 'marketplaceSkillDelete')
+      return value(await bridge.marketplaceSkillDelete(payload));
+    if (method === 'marketplaceSkillMine') return value(await bridge.marketplaceSkillMine(payload));
+    throw new Error(`Unexpected method ${method}`);
+  };
+  const listed = z
+    .object({ id: z.string() })
+    .parse(await runSkillCommand('skills-publish', ['tidy-notes'], { bot: 'author' }, connect));
+  const { id } = listed;
+  const detail = value(await bridge.marketplaceSkillDetail({ id }));
+  expect(detail.files.map((file) => file.path)).toEqual(['SKILL.md', 'reference.txt']);
+  const revision = detail.skill.upload?.revision;
+  expect(revision).toBeDefined();
+  const originalFiles = `/v1/skills/${id}/files/${revision}`;
+  expect((await market.request(originalFiles)).status).toBe(200);
+  expect(value(await bridge.marketplaceSkillList({ q: 'Alice' })).skills).toMatchObject([
+    { id, upload: { author: { name: 'Alice', id: author.id } } },
+  ]);
+  expect(await runSkillCommand('skills-mine', [], {}, connect)).toMatchObject({ skills: [{ id }] });
+
+  const add = async (bot: string) => {
+    const reviewed = value(await bridge.marketplaceSkillReview({ id }));
+    return value(
+      await bridge.marketplaceSkillAdd({ id, reviewId: reviewed.reviewId, bots: [bot] }),
+    );
+  };
+  const copy = (bot: string) =>
+    readFileSync(
+      join(host.core.registry.memoryDirFor(bot)!, '.agents/skills/tidy-notes/reference.txt'),
+      'utf8',
+    );
+  await add('old-copy');
+  writeFileSync(reference, `sk-${'b'.repeat(32)}`);
+  expect(
+    await bridge.marketplaceSkillReplace({ id, bot: 'author', name: 'tidy-notes' }),
+  ).toMatchObject({
+    ok: false,
+    error: { code: 'skill-secret-detected', message: expect.stringContaining('private key') },
+  });
+  expect(value(await bridge.marketplaceSkillDetail({ id })).skill.id).toBe(id);
+  writeFileSync(reference, 'revised');
+  expect(
+    await runSkillCommand(
+      'skills-replace',
+      [id, 'tidy-notes'],
+      { bot: 'author', confirm: true },
+      connect,
+    ),
+  ).toMatchObject({ id });
+  expect((await market.request(originalFiles)).status).toBe(404);
+  expect(copy('old-copy')).toBe('original');
+  await add('new-copy');
+  expect(copy('old-copy')).toBe('original');
+  expect(copy('new-copy')).toBe('revised');
+
+  expect(await runSkillCommand('skills-delete', [id], { confirm: true }, connect)).toEqual({
+    deleted: true,
+  });
+  expect(value(await bridge.marketplaceSkillList({ q: 'tidy-notes' })).skills).toEqual([]);
+  expect(copy('old-copy')).toBe('original');
+  expect(copy('new-copy')).toBe('revised');
+  await Promise.all(host.pending);
+});
+
+it('publishes a standalone SKILL.md without sibling files from the project Skill root', async () => {
+  const host = makeHost(createMarket());
+  host.bot('author');
+  const source = join(host.core.registry.memoryDirFor('author')!, '.dsh/skills');
+  mkdirSync(source, { recursive: true });
+  writeFileSync(join(source, 'SKILL.md'), SKILL_MD);
+  writeFileSync(join(source, 'reference.txt'), 'unrelated');
+  const bridge = host.methods(owner);
+  value(await bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }));
+  const uploaded = value(
+    await bridge.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' }),
+  );
+  const detail = value(await bridge.marketplaceSkillDetail({ id: uploaded.id }));
+  expect(detail.files.map((file) => file.path)).toEqual(['SKILL.md']);
+});
 
 function publishSkill(market: Market, files: Record<string, string>) {
   const repository = fakeRepository({
@@ -83,6 +199,17 @@ function makeHost(market: Market) {
   const methods = createBridgeMethodsForHumans({
     ...core,
     marketplace,
+    marketplaceUploads: createMarketplaceUploads({
+      client: marketplace,
+      account: () => ({
+        status: () => ({ state: 'signed-in' }),
+        accessToken: async () => 'token-alice',
+      }),
+      drafts: createShareDrafts({
+        root: join(dshHome, 'share'),
+        memoryDir: (slug) => core.registry.memoryDirFor(slug),
+      }),
+    }),
     marketplaceSkills: {
       source,
       hostSkillsDir,

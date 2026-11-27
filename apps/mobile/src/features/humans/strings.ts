@@ -29,7 +29,7 @@ export const en = {
     retry: 'Try again',
     uploads: 'My uploaded Bots',
     uploadsEmpty: 'You have not uploaded any Bots yet.',
-    uploadsFooter: 'To update a Bot, open My uploaded Bots in Tobs on your computer.',
+    uploadsFooter: 'To update a Bot, open My uploads in Tobs on your computer.',
     uploadsMeta: (files: number, size: string, date: string) =>
       `${files} files · ${size} · ${date}`,
     uploadsBlocked: 'Taken down',
@@ -109,7 +109,7 @@ export const zh: typeof en = {
     retry: '重试',
     uploads: '我上传的 Bot',
     uploadsEmpty: '还没有上传过 Bot',
-    uploadsFooter: '要更新 Bot，请在电脑上的 Tobs 里打开「我上传的 Bot」。',
+    uploadsFooter: '要更新 Bot，请在电脑上的 Tobs 里打开「我的上传」。',
     uploadsMeta: (files: number, size: string, date: string) =>
       `${files} 个文件 · ${size} · ${date}`,
     uploadsBlocked: '已下架',

@@ -1,3 +1,4 @@
+import type { MarketplaceSkillUploadInput } from '@botharness/host-protocol/marketplace-skill';
 import type {
   MarketplaceAvatarEdit,
   MarketplaceAvatarPublish,
@@ -167,6 +168,18 @@ export function createMarketplaceUploads(deps: {
           author: author.value,
         },
       };
+    },
+
+    writeSkill(input: MarketplaceSkillUploadInput, replacing?: string) {
+      return signed((token) => client.skillWrite(token, input, replacing));
+    },
+
+    mineSkills() {
+      return signed((token) => client.skillMine(token));
+    },
+
+    removeSkill(id: string) {
+      return signed((token) => client.skillDelete(token, id));
     },
 
     publishAvatar(input: MarketplaceAvatarPublish) {

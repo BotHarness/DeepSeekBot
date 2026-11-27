@@ -30,6 +30,8 @@ export type MarketSkillActions = Pick<
   | 'marketplaceSkillAddCandidates'
   | 'marketplaceSkillReview'
   | 'marketplaceSkillAdd'
+  | 'marketplaceSkillReport'
+  | 'marketplaceChallenge'
 >;
 
 type Page = { query: string; skills: MarketplaceSkill[]; next: string | null };
@@ -157,7 +159,11 @@ export function MarketSkills({
             <CatalogCard
               key={skill.id}
               title={skill.name}
-              subtitle={skill.fullName}
+              subtitle={
+                skill.upload === undefined
+                  ? skill.fullName
+                  : `${skill.upload.author.name} #${skill.upload.author.id}`
+              }
               summary={skill.description}
               meta={<SkillMeta skill={skill} t={t} />}
               leading={<SkillLogo />}

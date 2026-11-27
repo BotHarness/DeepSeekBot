@@ -95,6 +95,27 @@ export function ReportActions({
   );
 }
 
+const reportCopy = {
+  bot: {
+    done: 'market.report.done',
+    title: 'market.report.title',
+    hint: 'market.report.hint',
+    placeholder: 'market.report.placeholder',
+  },
+  avatar: {
+    done: 'market.avatar.report.done',
+    title: 'market.avatar.report.title',
+    hint: 'market.avatar.report.hint',
+    placeholder: 'market.avatar.report.placeholder',
+  },
+  skill: {
+    done: 'market.skills.report.done',
+    title: 'market.skills.report.title',
+    hint: 'market.skills.report.hint',
+    placeholder: 'market.skills.report.placeholder',
+  },
+} as const;
+
 export function ReportPanel({
   report: { state, setReason },
   t,
@@ -102,31 +123,28 @@ export function ReportPanel({
 }: {
   report: ReportControls;
   t: BotHarnessTranslate;
-  kind?: 'bot' | 'avatar';
+  kind?: keyof typeof reportCopy;
 }): ReactElement | null {
   if (state.status === 'closed') return null;
+  const copy = reportCopy[kind];
   if (state.status === 'done') {
     return (
       <div className="bh-market-report" role="status" data-market-report="done">
         <strong>{t('market.report.doneTitle')}</strong>
-        <span>{t(kind === 'bot' ? 'market.report.done' : 'market.avatar.report.done')}</span>
+        <span>{t(copy.done)}</span>
       </div>
     );
   }
   return (
     <div className="bh-market-report" data-market-report="open">
-      <strong>{t(kind === 'bot' ? 'market.report.title' : 'market.avatar.report.title')}</strong>
-      <span className="bh-market-hint">
-        {t(kind === 'bot' ? 'market.report.hint' : 'market.avatar.report.hint')}
-      </span>
+      <strong>{t(copy.title)}</strong>
+      <span className="bh-market-hint">{t(copy.hint)}</span>
       <label>
         <span>{t('market.report.reason')}</span>
         <textarea
           rows={3}
           maxLength={MAX_REPORT_REASON_LENGTH}
-          placeholder={t(
-            kind === 'bot' ? 'market.report.placeholder' : 'market.avatar.report.placeholder',
-          )}
+          placeholder={t(copy.placeholder)}
           value={state.reason}
           disabled={state.phase !== 'idle'}
           onChange={(event) => setReason(event.currentTarget.value)}
