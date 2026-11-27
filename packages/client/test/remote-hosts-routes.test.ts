@@ -135,13 +135,23 @@ describe('remote hosts', () => {
       const pending = sources.pair(link(), 'Cancelled browser', undefined, {
         signal: abort.signal,
       });
-      await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/pair'))).toBe(true));
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      const newerChoice = { ...choice, generation: 'newer-forget' };
-      if (mode === 'cancel') abort.abort();
-      else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([newerChoice]));
-      release();
-      await held;
+      let newerChoice = choice;
+      const settleGate = async () => {
+        release();
+        await held;
+      };
+      try {
+        await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/pair'))).toBe(true));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        newerChoice = { ...choice, generation: 'newer-forget' };
+        if (mode === 'cancel') abort.abort();
+        else storage.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify([newerChoice]));
+        await settleGate();
+      } catch (error) {
+        abort.abort();
+        await settleGate();
+        throw error;
+      }
       expect((await pending).ok).toBe(false);
       expect(sources.getSnapshot().hosts).toEqual([]);
       expect(JSON.parse(storage.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
@@ -315,6 +325,7 @@ describe('remote hosts', () => {
     const sources = createRemoteHosts({ storage, carrier });
     let dirty = true;
     let choose: (value: HostDraftChoice) => void = () => {};
+    let chosen = false;
     const releaseDraft = hostSettingsDrafts.register('host-b', {
       dirty: () => dirty,
       save: async () => false,
@@ -329,18 +340,22 @@ describe('remote hosts', () => {
           choose = resolve;
         }),
     );
+    let pending: Promise<unknown> = Promise.resolve();
     try {
       sources.select('host-b');
-      const pending = sources.remove('host-b');
+      pending = sources.remove('host-b');
       await Promise.resolve();
       await sources.retireRelationship(relationshipId);
       expect(sources.getSnapshot().tab).toBe(ALL_HOSTS);
       expect(storage.values.get(HOST_TAB_STORAGE_KEY)).toBe(ALL_HOSTS);
       expect((await sources.pair(link(), 'New browser')).ok).toBe(true);
       choose('discard');
+      chosen = true;
       await pending;
       expect(sources.getSnapshot().hosts[0]?.host.deviceId).toBe('device-1');
     } finally {
+      if (!chosen) choose('cancel');
+      await pending.catch(() => {});
       releasePrompt();
       releaseDraft();
     }
@@ -475,27 +490,30 @@ describe('remote hosts', () => {
     expect(persisted).not.toHaveProperty('connectionOwnerChanged');
     expect(persisted).not.toHaveProperty('connectionOperationUnavailable');
     const release = sources.subscribe(() => {});
-    const changedRoute = 'http://127.0.0.1:47002';
-    const updated = JSON.stringify([
-      serializeSavedHost({
-        ...host,
-        routes: [changedRoute],
-        routePreference: changedRoute,
-      }),
-    ]);
-    storage.setItem(REMOTE_HOSTS_STORAGE_KEY, updated);
-    const write = vi.spyOn(storage, 'setItem');
-    const changed = new Event('storage');
-    Object.defineProperties(changed, {
-      key: { value: REMOTE_HOSTS_STORAGE_KEY },
-      storageArea: { value: storage },
-    });
-    events.dispatchEvent(changed);
-    expect(sources.client(host.hostId)?.getSnapshot().routePreference).toBe(changedRoute);
-    expect(sources.getSnapshot().hosts[0]?.host.pendingConnection).toEqual(pending);
-    expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBe(updated);
-    expect(write).not.toHaveBeenCalled();
-    release();
+    try {
+      const changedRoute = 'http://127.0.0.1:47002';
+      const updated = JSON.stringify([
+        serializeSavedHost({
+          ...host,
+          routes: [changedRoute],
+          routePreference: changedRoute,
+        }),
+      ]);
+      storage.setItem(REMOTE_HOSTS_STORAGE_KEY, updated);
+      const write = vi.spyOn(storage, 'setItem');
+      const changed = new Event('storage');
+      Object.defineProperties(changed, {
+        key: { value: REMOTE_HOSTS_STORAGE_KEY },
+        storageArea: { value: storage },
+      });
+      events.dispatchEvent(changed);
+      expect(sources.client(host.hostId)?.getSnapshot().routePreference).toBe(changedRoute);
+      expect(sources.getSnapshot().hosts[0]?.host.pendingConnection).toEqual(pending);
+      expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBe(updated);
+      expect(write).not.toHaveBeenCalled();
+    } finally {
+      release();
+    }
     sources.close();
   });
 });

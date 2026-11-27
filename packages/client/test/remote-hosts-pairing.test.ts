@@ -224,7 +224,7 @@ afterEach(() => {
 });
 
 describe('Host Feed lifecycle', () => {
-  it('retains legacy pairings when browser storage refuses the migration write', () => {
+  it('retains legacy pairings when browser storage refuses the tab migration write', () => {
     const { host, saved } = liveHost();
     const storage = memoryStorage({
       'botharness.computers.v1': JSON.stringify(saved),
@@ -237,6 +237,7 @@ describe('Host Feed lifecycle', () => {
     expect(sources.getSnapshot().hosts[0]?.host).toEqual(saved[0]);
     expect(sources.getSnapshot().tab).toBe(host.hostId);
     expect(storage.values.has('botharness.computers.v1')).toBe(true);
+    expect(storage.values.has('botharness.computers.tab.v1')).toBe(true);
   });
 
   it('migrates the existing pairing and selected tab once without resurrecting a removed Host', async () => {
