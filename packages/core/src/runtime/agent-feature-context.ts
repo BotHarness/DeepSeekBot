@@ -21,6 +21,7 @@ export interface AgentFeatureContext {
   readonly assignmentTool?: CreateAssignmentToolOptions;
   readonly assignmentModelTool?: AssignmentModelToolOptions;
   readonly workspaceSessionsAvailable?: boolean;
+  readonly speakerPolicyAvailable?: boolean;
 }
 
 export interface AssignmentAgentHooks {

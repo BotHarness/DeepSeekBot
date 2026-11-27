@@ -29,7 +29,11 @@ export function setup(
   sourcePolicy?: BotSourcePolicyStore,
   extras: Pick<
     BridgeMethodsDeps,
-    'channelManagement' | 'tob' | 'modelCatalog' | 'routingGroupEngineOptions'
+    | 'channelManagement'
+    | 'tob'
+    | 'modelCatalog'
+    | 'routingGroupEngineOptions'
+    | 'featureContributions'
   > = {},
   operational = false,
 ): BridgeRpcFixture {
@@ -53,7 +57,14 @@ export function setup(
   });
   const methods = methodsForHuman(OWNER_HUMAN_CONTEXT);
   const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
-  const service = registerBridge(ctx, methodsForHuman);
+  const service = registerBridge(
+    ctx,
+    methodsForHuman,
+    undefined,
+    undefined,
+    undefined,
+    extras.featureContributions,
+  );
   return { root, registry, channels, methods, methodsForHuman, service };
 }
 
