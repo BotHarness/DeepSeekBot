@@ -6,6 +6,9 @@
 - `packages/core/src/team/**`
 - `packages/core/src/team-policy/**`
 - `packages/client/src/client/team-*`
+- `packages/client/src/client/channel-bot-settings.tsx`
+- `packages/host-client/src/channel-bots.ts`
+- `apps/mobile/src/ui/chat/group-bot-settings.tsx`
 - `packages/client/src/client/owner-password-dialog.tsx`
 - `packages/host-client/src/team-*.ts`
 - `packages/host-client/src/sign-in-discovery.ts`
@@ -41,6 +44,8 @@
 - S11: After a member's first sign-in, the Web Client and the phone ask once for a chat name (prefilled with the admin-set name) and photo. Done saves both on the Host; Later or closing skips. Either answer ends the prompt on every device (`human-identity --as <member>` no longer shows `profileSetup: "pending"`). The Owner, and a member who already has a photo, are never asked. Drive it with `node scripts/e2e-team-profile-setup.mjs --name <instance>` on a fresh instance; it captures the prompt in light and dark under `.humanlayer/verify/<instance>/team-profile-setup/`. The phone screen has a source test only until native QA (#4446).
 
 - S10 (M14 Host/CLI): `channels member-candidates <id> [--query <name>]` and `channels add-member <id> <username>` enforce `addMembers` as the explicit calling Human. An invitation opens private/roles/public Channels immediately in list, stream and search. A role-based join exits on role revoke; a named invitation remains. Bots in the Channel do not cause invitation refusal. The Add people picker UI is verified separately by its UI owner.
+
+- S12 (#5491): In Team → Channels → Permissions, set who has the Wake a Bot with @mention action. Open the Bots tab and set a Bot's audience or no-response list, then reopen it to verify the saved settings. Mobile exposes the per-Bot controls in Group profile → Bots. `node scripts/e2e-team-security.mjs --launch --scenario C9` uses the authenticated CLI to test mentions and plain messages in all-message wake mode. A denied message stays visible without a Bot delivery. An allowed message completes a Turn. The same member can still wake the Bot in a second Channel where they are eligible.
 
 ## How to get to it (user POV)
 
@@ -102,6 +107,8 @@ C5 checks subscription selection with an explicit account grant and after revoca
 C6 checks the phone’s Host Session authority through the CLI. Run the suite with `--scenario C6` on a fresh isolated Host. Confirm the Owner can list, read and continue a DSH-native Session, and a member sees their Bot’s Session while native read, follow, send, Model Choice, approval and question answers, Stop, and Archive are refused. On the assigned phone, open Settings → Interface, enable Show Sessions tab, and open the native row. Send a unique follow-up and confirm the reply appears in the same Session. Search for a Session title and a Human message, then search for a marker found only in its model reply. Use Filter and sort to change the source while a query is active, and relaunch the app to check that the sort survives. The C6 CLI gate also checks that a member can find their Bot’s prompt and gets no matches for native Sessions and another Bot. Turn the switch off and confirm the tab disappears.
 
 B2 checks fixed synthetic paths, the secret environment count and the local test Host socket. Verify that the Shell trace and the own-file marker establish the positive control. Retry `inconclusive` results on an isolated Host. They exit nonzero and leave the M15 gate unsatisfied.
+
+On WSL, keep the Host's inherited Windows PATH entries for the B2 transport check. Use an isolated Linux Profile with filesystem and network confinement available. The member CLI must receive the committed reply, and the Shell trace must show the own-file marker, foreign paths refused, zero secret environment names and the Host API socket refused.
 
 B4 and B5 in `scripts/e2e-team-security-engines.mjs` use Claude Code and Codex on disposable folders. B4 checks that native file and shell tools leave both in-Grant and outside fixtures unchanged. B5 checks that both native tools complete and update their outside fixtures without approval when Full access was acknowledged for new Assignments. Sign the isolated Host into test subscriptions with `deepseekbot engine login claude` and `deepseekbot engine login codex`, confirm with `deepseekbot engine status`, and run `node scripts/e2e-team-security.mjs --name <instance> --scenario B4 --scenario B5`. With no test subscriptions, `--no-subscriptions` records those cases as blocked and still runs the rest of M15.
 

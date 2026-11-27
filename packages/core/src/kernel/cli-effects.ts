@@ -681,9 +681,15 @@ function familyEffects(
       if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
+      if (action === 'bots')
+        return values.audience !== undefined ||
+          values['block-human'] !== undefined ||
+          values['unblock-human'] !== undefined
+          ? management
+          : read;
       if (action === 'policy')
         return values['policy-stdin'] ||
-          ['post', 'add-members', 'mention-all', 'add-bots', 'edit-details'].some(
+          ['post', 'add-members', 'mention-all', 'wake-bot', 'add-bots', 'edit-details'].some(
             (flag) => flag in values,
           )
           ? management

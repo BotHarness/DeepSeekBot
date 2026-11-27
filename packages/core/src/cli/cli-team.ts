@@ -6,6 +6,7 @@ import { botVisibilitySchema, rolePolicySchema } from '../team-policy/bot-contra
 import { privateKindSchema } from '../team-policy/private-content.js';
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import {
+  channelBotAudienceSchema,
   channelPolicySchema,
   channelVisibilitySchema,
   channelPolicyRevisionSchema,
@@ -78,6 +79,9 @@ type TeamValues = {
   'add-members'?: string;
   'mention-all'?: string;
   'add-bots'?: string;
+  'wake-bot'?: string;
+  'block-human'?: string;
+  'unblock-human'?: string;
   'edit-details'?: string;
   to?: string;
   preview?: boolean;
@@ -97,6 +101,8 @@ type TeamValues = {
   'password-stdin'?: boolean;
   confirm?: boolean;
   'body-stdin'?: boolean;
+  'mention-bot'?: string;
+  'mention-label'?: string;
 };
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 const usage = (): never => {
@@ -520,10 +526,48 @@ export async function runTeamCommand(
     if (action === 'send' && argument && rest.length === 2 && values['body-stdin']) {
       const body = await io.readStdin?.();
       if (!body?.trim()) return usage();
+      const botSlug = values['mention-bot'];
+      const label = values['mention-label'];
+      if (botSlug !== undefined || label !== undefined) {
+        if (!botSlug || !label?.trim()) return usage();
+        return rpc('channelSend', {
+          channelId: argument,
+          body: `@${label} ${body}`,
+          mentions: [{ botSlug, label, start: 0, end: label.length + 1 }],
+        });
+      }
       return rpc('channelSend', { channelId: argument, body });
     }
     if (action === 'roles' && argument && rest.length === 2)
       return rpc('channelRoleDirectory', { channelId: argument });
+    if (action === 'bots' && argument) {
+      const botSlug = rest[2];
+      const { audience, 'block-human': block, 'unblock-human': unblock } = values;
+      const updates = [audience, block, unblock].filter((value) => value !== undefined);
+      if (rest.length === 2 && updates.length === 0)
+        return rpc('channelBotSettings', { channelId: argument });
+      if (!botSlug || rest.length !== 3 || updates.length !== 1) return usage();
+      if (audience !== undefined) {
+        const parsed = channelBotAudienceSchema.safeParse(
+          audience.startsWith('roles:')
+            ? { kind: 'roles', roleIds: ids(audience.slice(6)) }
+            : { kind: audience },
+        );
+        if (!parsed.success) return usage();
+        return rpc('channelBotSettings', {
+          channelId: argument,
+          botSlug,
+          change: { kind: 'audience', audience: parsed.data },
+        });
+      }
+      const humanId = block ?? unblock;
+      if (!humanId) return usage();
+      return rpc('channelBotSettings', {
+        channelId: argument,
+        botSlug,
+        change: { kind: 'block', humanId, blocked: block !== undefined },
+      });
+    }
     if (action === 'get' && argument && rest.length === 2)
       return rpc('channelGet', { channelId: argument });
     if (action === 'access' && argument && rest.length === 2)
@@ -560,6 +604,7 @@ export async function runTeamCommand(
         ...(values['add-members'] === undefined ? {} : { addMembers: values['add-members'] }),
         ...(values.post === undefined ? {} : { post: values.post }),
         ...(values['mention-all'] === undefined ? {} : { mentionAll: values['mention-all'] }),
+        ...(values['wake-bot'] === undefined ? {} : { wakeBot: values['wake-bot'] }),
         ...(values['add-bots'] === undefined ? {} : { addBots: values['add-bots'] }),
         ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
       };

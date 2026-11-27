@@ -8,7 +8,11 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createConnectorStore } from '../src/connectors/store.js';
 import { ConnectorService } from '../src/connectors/service.js';
 import type { ComposioClient } from '../src/connectors/composio.js';
-import { remoteMcpUrl, type RemoteMcpClient } from '../src/connectors/remote-mcp.js';
+import {
+  createRemoteMcpClient,
+  remoteMcpUrl,
+  type RemoteMcpClient,
+} from '../src/connectors/remote-mcp.js';
 import {
   LEGACY_READ_REFUSAL,
   remoteMcpServerNames,
@@ -84,6 +88,7 @@ function fakeMcp(overrides: Partial<RemoteMcpClient> = {}) {
       issued += 1;
       return { access_token: `access-${issued}`, token_type: 'Bearer', expires_in: 3600 };
     },
+    revoke: async () => undefined,
     inspect: async (url, token) => {
       calls.push(['inspect', url, token]);
       return {
@@ -124,22 +129,187 @@ function setup(client: RemoteMcpClient) {
   const store = createConnectorStore(attachOperationalModule(owner, 'connectors'));
   const credentials = vault();
   const changes: string[] = [];
+  const diagnostics: Array<{ phase: string; fields?: Record<string, string | number> }> = [];
   const service = new ConnectorService({
     store,
     credentials: () => credentials.provider as never,
     client: {} as ComposioClient,
     mcpClient: client,
     redirectUri: () => 'http://127.0.0.1:7777/botharness/connectors/oauth/callback',
+    log: (phase, fields) =>
+      diagnostics.push({ phase, ...(fields === undefined ? {} : { fields }) }),
   });
   service.onChange(() => changes.push('changed'));
-  return { owner, store, service, credentials, changes };
+  return { owner, store, service, credentials, changes, diagnostics };
 }
 
 function stateOf(url: string): string {
   return new URL(url).searchParams.get('state')!;
 }
 
+const TOKEN_ENDPOINT = 'https://oauth.posthog.com/oauth/token/';
+const REVOCATION_ENDPOINT = 'https://oauth.posthog.com/oauth/revoke/';
+const RESOURCE_METADATA = 'https://mcp.posthog.com/.well-known/oauth-protected-resource/mcp';
+const SERVER_METADATA = 'https://oauth.posthog.com/.well-known/oauth-authorization-server';
+
+function revocationMcp(
+  options: { endpoint?: boolean; rejectRefresh?: boolean; reuseAccess?: boolean } = {},
+) {
+  const requests: Request[] = [];
+  const http = createRemoteMcpClient({
+    fetch: async (input, init) => {
+      const request = new Request(input, init);
+      if (request.url === POSTHOG)
+        return new Response(null, {
+          status: 401,
+          headers: { 'WWW-Authenticate': `Bearer resource_metadata="${RESOURCE_METADATA}"` },
+        });
+      if (request.url === RESOURCE_METADATA)
+        return Response.json({
+          resource: POSTHOG,
+          authorization_servers: [OAUTH.authorizationServer],
+        });
+      if (request.url === SERVER_METADATA)
+        return Response.json({
+          issuer: OAUTH.authorizationServer,
+          authorization_endpoint: 'https://oauth.posthog.com/oauth/authorize/',
+          token_endpoint: TOKEN_ENDPOINT,
+          response_types_supported: ['code'],
+          ...(options.endpoint === false ? {} : { revocation_endpoint: REVOCATION_ENDPOINT }),
+        });
+      requests.push(request);
+      if (request.url === TOKEN_ENDPOINT) {
+        const code = (await request.clone().formData()).get('code');
+        return Response.json({
+          access_token: options.reuseAccess ? 'access-shared' : `access-${code}`,
+          refresh_token: `refresh-${code}`,
+          token_type: 'Bearer',
+        });
+      }
+      if (request.url === REVOCATION_ENDPOINT) {
+        const token = (await request.clone().formData()).get('token');
+        if (options.rejectRefresh && token === 'refresh-old')
+          return new Response(`Rejected credential ${token}`, { status: 503 });
+        return new Response(null, { status: 200 });
+      }
+      throw new Error(`Unexpected request to ${request.url}`);
+    },
+  });
+  const { client } = fakeMcp({
+    discover: http.discover,
+    register: async (_oauth, redirectUri) => ({
+      client_id: 'private-client',
+      client_secret: 'client-secret',
+      token_endpoint_auth_method: 'client_secret_basic',
+      redirect_uris: [redirectUri],
+    }),
+    exchange: http.exchange,
+    revoke: http.revoke,
+  });
+  return { client, requests };
+}
+
 describe('remote MCP App connections', () => {
+  it('revokes each replaced token once using the same client authentication as exchange', async () => {
+    const { client, requests } = revocationMcp();
+    const { owner, service } = setup(client);
+    try {
+      const first = await service.remote.add({ url: POSTHOG, label: 'Work' });
+      const { accountId } = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(first.url!), code: 'old' }),
+      );
+      expect(requests.map((request) => request.url)).toEqual([TOKEN_ENDPOINT]);
+
+      const again = await service.reconnect(accountId);
+      await expect(
+        service.remote.finish(new URLSearchParams({ state: stateOf(again.url!), code: 'new' })),
+      ).resolves.toMatchObject({ status: 'active' });
+      expect(requests.map((request) => request.url)).toEqual([
+        TOKEN_ENDPOINT,
+        TOKEN_ENDPOINT,
+        REVOCATION_ENDPOINT,
+        REVOCATION_ENDPOINT,
+      ]);
+      const revocations = requests.slice(2);
+      for (const request of revocations) {
+        expect(request.method).toBe('POST');
+        expect(request.headers.get('authorization')).toBe(
+          'Basic cHJpdmF0ZS1jbGllbnQ6Y2xpZW50LXNlY3JldA==',
+        );
+        expect(request.headers.get('authorization')).toBe(
+          requests[1]?.headers.get('authorization'),
+        );
+      }
+      const forms = await Promise.all(
+        revocations.map(async (request) => Object.fromEntries(await request.formData())),
+      );
+      expect(forms).toEqual([
+        { token: 'refresh-old', token_type_hint: 'refresh_token' },
+        { token: 'access-old', token_type_hint: 'access_token' },
+      ]);
+      expect(await service.remote.connection(accountId)).toMatchObject({
+        headers: { Authorization: 'Bearer access-new' },
+      });
+    } finally {
+      owner.close();
+    }
+  });
+
+  it.each([
+    {
+      label: 'sends no revocation without a published endpoint',
+      options: { endpoint: false },
+      requested: [],
+      failed: [],
+    },
+    {
+      label: 'keeps the new sign-in when refresh token revocation fails',
+      options: { rejectRefresh: true },
+      requested: ['refresh-old', 'access-old'],
+      failed: ['refresh_token'],
+    },
+    {
+      label: 'revokes only the old refresh token when the access token is reissued',
+      options: { reuseAccess: true },
+      requested: ['refresh-old'],
+      failed: [],
+    },
+  ])('$label', async ({ options, requested, failed }) => {
+    const { client, requests } = revocationMcp(options);
+    const { owner, service, diagnostics } = setup(client);
+    try {
+      const first = await service.remote.add({ url: POSTHOG, label: 'Work' });
+      const { accountId } = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(first.url!), code: 'old' }),
+      );
+      const again = await service.reconnect(accountId);
+      await expect(
+        service.remote.finish(new URLSearchParams({ state: stateOf(again.url!), code: 'new' })),
+      ).resolves.toMatchObject({ status: 'active' });
+      expect(requests.map((request) => request.url)).toEqual([
+        TOKEN_ENDPOINT,
+        TOKEN_ENDPOINT,
+        ...requested.map(() => REVOCATION_ENDPOINT),
+      ]);
+      const revoked = await Promise.all(
+        requests.slice(2).map(async (request) => (await request.formData()).get('token')),
+      );
+      expect(revoked).toEqual(requested);
+      expect(diagnostics.filter(({ phase }) => phase === 'mcp-revocation-failed')).toEqual(
+        failed.map((tokenType) => ({ phase: 'mcp-revocation-failed', fields: { tokenType } })),
+      );
+      expect(JSON.stringify(diagnostics)).not.toContain('refresh-old');
+      expect(JSON.stringify(diagnostics)).not.toContain('access-old');
+      expect(await service.remote.connection(accountId)).toMatchObject({
+        headers: {
+          Authorization: options.reuseAccess ? 'Bearer access-shared' : 'Bearer access-new',
+        },
+      });
+    } finally {
+      owner.close();
+    }
+  });
+
   it('signs in to PostHog with OAuth, stores the token outside the database and mounts it', async () => {
     const { client, calls } = fakeMcp();
     const { owner, store, service, credentials } = setup(client);

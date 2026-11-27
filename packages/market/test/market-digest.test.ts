@@ -9,6 +9,7 @@ import {
   type DigestCandidate,
 } from '../src/digest.js';
 import { parseMarketplaceDigests } from '../../core/src/marketplace/client.js';
+import { avatarDataUrl } from './avatar-fixtures.js';
 import { admin, createMarket, fakeRepository, submit } from './market-harness.js';
 
 type Market = ReturnType<typeof createMarket>;
@@ -164,6 +165,44 @@ const candidate: DigestCandidate = {
 };
 
 describe('Marketplace Digest', () => {
+  it('finishes both rankings and a bilingual digest in the 100 requests reserved after discovery', async () => {
+    const { writer, calls } = stubModel(article);
+    const market = createMarket({ digestWriter: writer });
+    for (const index of [1, 2, 3, 4, 5, 6]) {
+      const id = await upload(market, {
+        'README.md': `# Bot ${index}`,
+        'SOUL.md': `# Soul ${index}`,
+        'AGENTS.md': `# Agents ${index}`,
+      });
+      seed(market, id, index + 3);
+    }
+    const avatar = await market.request('/v1/avatars', {
+      method: 'POST',
+      headers: { authorization: 'Bearer token-alice', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Otter',
+        image: avatarDataUrl('png'),
+        requestKey: 'otter',
+        confirm: true,
+      }),
+    });
+    expect(avatar.status).toBe(201);
+
+    const before = market.queries.requests;
+    const logs = await market.daily(100);
+    expect(market.queries.requests - before).toBeLessThanOrEqual(100);
+    expect(logs).toEqual([
+      expect.objectContaining({ phase: 'rankings', day: '2026-10-05', hot: 6 }),
+      expect.objectContaining({ phase: 'avatar-rankings', day: '2026-10-05' }),
+      expect.objectContaining({ phase: 'digest', outcome: 'written', written: ['zh', 'en'] }),
+    ]);
+    expect(calls.map((call) => ids(call).length)).toEqual([6, 6]);
+    expect(calls[0]?.user.match(/\[AGENTS\.md\]/gu)).toHaveLength(6);
+    expect(await (await market.request('/v1/avatars/sections/new')).json()).toMatchObject({
+      avatars: [{ name: 'Otter' }],
+    });
+  });
+
   it('writes both languages from the latest snapshot and serves them by date', async () => {
     const { writer, calls } = stubModel(article);
     const market = createMarket({ digestWriter: writer });

@@ -14,7 +14,7 @@ import {
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import { asObject, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { MarketplaceBridgeDeps } from './methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { commitMemoryPathsAsync } from '../../memory/git.js';
 import type { MarketplaceResult } from '../../marketplace/client.js';
@@ -46,13 +46,13 @@ export interface MarketplaceSkillBridgeDeps {
   marketplaceSkills?: MarketplaceSkillsHost;
 }
 
-export interface MarketplaceSkillBridgeMethods {
+export type MarketplaceSkillBridgeMethods = {
   marketplaceSkillList(payload: unknown): Promise<BridgeResult<MarketplaceSkillPage>>;
   marketplaceSkillDetail(payload: unknown): Promise<BridgeResult<MarketplaceSkillDetail>>;
   marketplaceSkillAddCandidates(payload: unknown): BridgeResult<MarketplaceSkillAddCandidates>;
   marketplaceSkillReview(payload: unknown): Promise<BridgeResult<MarketplaceSkillReview>>;
   marketplaceSkillAdd(payload: unknown): Promise<BridgeResult<MarketplaceSkillAddResult>>;
-}
+};
 
 const failure = (code: string, message = code): BridgeResult<never> => ({
   ok: false,
@@ -61,8 +61,7 @@ const failure = (code: string, message = code): BridgeResult<never> => ({
 
 export function createMarketplaceSkillMethods(
   human: HumanContext,
-  deps: MarketplaceSkillBridgeDeps &
-    Pick<BridgeMethodsDeps, 'team' | 'registry' | 'skills' | 'warn'>,
+  deps: Pick<MarketplaceBridgeDeps, 'marketplaceSkills' | 'team' | 'registry' | 'skills' | 'warn'>,
   isHostOwner: () => boolean,
 ): MarketplaceSkillBridgeMethods {
   const { registry, team } = deps;

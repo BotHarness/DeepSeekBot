@@ -7,6 +7,9 @@ import { createPromptsContribution } from './features/prompts/contribution.js';
 import { createCloudContribution } from './features/cloud/contribution.js';
 import { createDiagnosticsContribution } from './features/diagnostics/contribution.js';
 import { createUsageContribution } from './features/usage/contribution.js';
+import { createProfileStorageContribution } from './features/profile-storage/contribution.js';
+import { createReleaseContribution } from './features/release/contribution.js';
+import { createMarketplaceContribution } from './features/marketplace/contribution.js';
 import { createAppearanceContribution } from './features/appearance/contribution.js';
 import { createAvatarsContribution } from './features/avatars/contribution.js';
 import { createSkillsContribution } from './features/skills/contribution.js';
@@ -30,11 +33,14 @@ export function createFeatureContributions(options?: {
     createHumansContribution(),
     createPromptsContribution(),
     createCloudContribution(),
+    createProfileStorageContribution(),
     createDiagnosticsContribution(),
     createUsageContribution(),
     createAppearanceContribution(),
     createAvatarsContribution(),
     createSkillsContribution(),
+    createReleaseContribution(),
+    createMarketplaceContribution(),
   ] as const;
 }
 

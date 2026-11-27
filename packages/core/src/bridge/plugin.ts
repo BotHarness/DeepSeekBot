@@ -1,6 +1,8 @@
 import { sessionModelChoices } from '../runtime/session-model-choices.js';
-import type * as profileStorage from '../features/profile-storage/plugin.js';
-import type * as releaseFeature from '../features/release/plugin.js';
+import type { MarketplaceClient } from '../marketplace/client.js';
+import type { MarketplaceUploads } from '../marketplace/uploaded-bots.js';
+import type { ShareDrafts } from '../marketplace/share-draft.js';
+import type { MarketplaceSkillSource } from '../marketplace/skill-source.js';
 import type * as approvalsFeature from '../features/approvals/plugin.js';
 import type * as workspacesFeature from '../features/workspaces/plugin.js';
 import { readSessionTitles } from '../runtime/session-transcript.js';
@@ -52,7 +54,7 @@ export function createHostBridgeDependencies(
     featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
     skills: { catalog: SkillCatalog; reconcileBotMode(): void };
-    release: ReturnType<typeof releaseFeature.apply>['release'];
+    release: { version(): string };
     diagnosticEvents: DiagnosticEvents;
     liveAgent: ReturnType<typeof sessionsFeature.mountIdleCompaction>['liveAgent'];
     defaultModel: ReturnType<typeof models.createCatalog>['defaultModel'];
@@ -69,8 +71,8 @@ export function createHostBridgeDependencies(
       typeof sessionsFeature.mountIdleCompaction
     >['compactReservedSession'];
     approvalTemplates: ReturnType<typeof approvalsFeature.apply>['approvalTemplates'];
-    storage: ReturnType<typeof profileStorage.mountStorage>;
-    dataReset: ReturnType<typeof profileStorage.createReset>;
+    storage: NonNullable<BridgeMethodsDeps['storage']>;
+    dataReset: NonNullable<BridgeMethodsDeps['dataReset']>;
     modelProviders: ReturnType<typeof models.mountProviders>;
     engineHost: ReturnType<typeof models.mountEngines>['engineHost'];
     localEngines: boolean;
@@ -84,17 +86,17 @@ export function createHostBridgeDependencies(
     folders: ReturnType<typeof workspacesFeature.mountFolders>;
     mountedToolApproval: ReturnType<typeof approvalsFeature.mount>['toolApproval'];
     mountedQuestions: ReturnType<typeof approvalsFeature.mount>['userQuestions'];
-    marketplaceClient: ReturnType<typeof marketplace.apply>['marketplaceClient'];
-    marketplaceUploads: ReturnType<typeof marketplace.apply>['marketplaceUploads'];
-    shareDrafts: ReturnType<typeof marketplace.apply>['shareDrafts'];
-    marketplaceSkillSource: ReturnType<typeof marketplace.apply>['marketplaceSkillSource'];
+    marketplaceClient: MarketplaceClient;
+    marketplaceUploads: MarketplaceUploads;
+    shareDrafts: ShareDrafts;
+    marketplaceSkillSource: MarketplaceSkillSource;
     hostSkillsDir: string;
     dshHome: string;
     reviewing: Set<string>;
     telemetryDir: string;
-    releaseService: ReturnType<typeof releaseFeature.mountServices>['releaseService'];
-    pluginUpdates: ReturnType<typeof releaseFeature.mountServices>['pluginUpdates'];
-    updateRuns: ReturnType<typeof releaseFeature.mountInstaller>['updateRuns'];
+    releaseService: NonNullable<BridgeMethodsDeps['release']>;
+    pluginUpdates: NonNullable<BridgeMethodsDeps['plugins']>;
+    updateRuns: NonNullable<BridgeMethodsDeps['updates']>;
     telemetry: Pick<TelemetryService, 'status' | 'setPreference' | 'capture'>;
     activeDay: ActiveDay;
     git: ReturnType<typeof createGitService>;

@@ -50,12 +50,15 @@ export const SEARCH_PAGE_SIZE = 100;
 export interface GitHubClient {
   repository(locator: RepositoryLocator): Promise<GitHubLookup<GitHubRepository>>;
   headCommit(locator: RepositoryLocator, ref: string): Promise<GitHubLookup<GitHubCommit>>;
-  searchTopic(range: CreatedRange, page: number): Promise<GitHubLookup<TopicSearchPage>>;
+  searchTopic(
+    topic: string,
+    range: CreatedRange,
+    page: number,
+  ): Promise<GitHubLookup<TopicSearchPage>>;
   nodes(ids: readonly string[]): Promise<GitHubLookup<(RepositoryNode | null)[]>>;
   readme(locator: RepositoryLocator): Promise<GitHubLookup<string | null>>;
   file(locator: RepositoryLocator, path: string): Promise<GitHubLookup<string | null>>;
   rootFiles(locator: RepositoryLocator): Promise<GitHubLookup<string[]>>;
-  searchTopicPage(topic: string, page: number): Promise<GitHubLookup<TopicSearchPage>>;
   tree(locator: RepositoryLocator, sha: string): Promise<GitHubLookup<GitHubTree>>;
   fileAt(
     locator: RepositoryLocator,
@@ -323,8 +326,8 @@ export function createGitHubClient(options: {
     repository: (locator) => get(repoPath(locator), parseRepository),
     headCommit: (locator, ref) =>
       get(`${repoPath(locator)}/commits/${encodeURIComponent(ref)}`, parseCommit),
-    searchTopic: (range, page) => {
-      const query = `topic:${BOT_TOPIC} created:${range.from}..${range.to}`;
+    searchTopic: (topic, range, page) => {
+      const query = `topic:${topic} created:${range.from}..${range.to}`;
       return get(
         `/search/repositories?q=${encodeURIComponent(query)}&sort=updated&order=desc&per_page=${SEARCH_PAGE_SIZE}&page=${page}`,
         parseSearchPage,
@@ -346,11 +349,6 @@ export function createGitHubClient(options: {
     file: (locator, path) => raw(contentsPath(locator, path)),
     fileAt: (locator, path, ref) =>
       raw(`${contentsPath(locator, path)}?ref=${encodeURIComponent(ref)}`),
-    searchTopicPage: (topic, page) =>
-      get(
-        `/search/repositories?q=${encodeURIComponent(`topic:${topic}`)}&sort=updated&order=desc&per_page=${SEARCH_PAGE_SIZE}&page=${page}`,
-        parseSearchPage,
-      ),
     tree: (locator, sha) =>
       get(`${repoPath(locator)}/git/trees/${encodeURIComponent(sha)}?recursive=1`, parseTree),
   };

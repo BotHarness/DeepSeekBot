@@ -61,6 +61,24 @@ export function featureRpcMethodsFrom(read, registryPath) {
     node?.type === 'TSAsExpression' || node?.type === 'TSSatisfiesExpression'
       ? expression(node.expression)
       : node;
+  const methodsFromTable = (path, node) => {
+    const table = expression(node);
+    if (table?.type === 'Identifier') {
+      const declaration = binding(path, table.name);
+      return methodsFromTable(declaration.path, declaration.node);
+    }
+    if (table?.type !== 'ObjectExpression') throw new Error(`Expected an RPC table in ${path}`);
+    return table.properties.flatMap((property) => {
+      if (property.type === 'SpreadElement') return methodsFromTable(path, property.argument);
+      if (
+        property.type !== 'ObjectMethod' ||
+        property.computed ||
+        property.key.type !== 'Identifier'
+      )
+        throw new Error(`Expected a named RPC method in ${path}`);
+      return [property.key.name];
+    });
+  };
   const featureList = expression(binding(registryPath, 'createFeatureContributions').node);
   if (featureList?.type !== 'ArrayExpression') throw new Error('Expected a static feature list');
   return featureList.elements.flatMap((entry) => {
@@ -77,19 +95,7 @@ export function featureRpcMethodsFrom(read, registryPath) {
         property.key.type === 'Identifier' &&
         property.key.name === 'rpc',
     )?.value;
-    if (!rpc) return [];
-    const table = expression(rpc.type === 'Identifier' ? binding(featurePath, rpc.name).node : rpc);
-    if (table?.type !== 'ObjectExpression')
-      throw new Error(`Expected an RPC table in ${featurePath}`);
-    return table.properties.map((property) => {
-      if (
-        property.type !== 'ObjectMethod' ||
-        property.computed ||
-        property.key.type !== 'Identifier'
-      )
-        throw new Error(`Expected a named RPC method in ${featurePath}`);
-      return property.key.name;
-    });
+    return rpc ? methodsFromTable(featurePath, rpc) : [];
   });
 }
 

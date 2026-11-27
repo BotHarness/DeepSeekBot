@@ -35,6 +35,8 @@ All setters return `null`. IDs come from the caller's scoped views, never from a
 
 CLI forms: `channels visibility <id> public|private|roles:<ids>`, `channels admins <id> --set <humanIds>`, `channels policy <id> [--policy-stdin | --post allow|deny|inherit]`, `channels get <id>`, `channels roles <id>`, `channels add-member <id> <humanId>`, `channels description <id> --body-stdin`, `team-directory`, `dm <username>` or `dm --human-id <id>`. Every form supports `--as`; partial CLI policy edits first read the current full policy under that same identity.
 
+Use `channels policy <id> --wake-bot allow|deny|inherit` to change the All members default. The default on upgrade and on new Channels is allow. Use `channels bots <id>` to inspect the Bots you can manage and `channels bots <id> <botSlug> --audience everyone|admins|roles:<roleIds>` to set a Bot's mention audience. Add or remove one Human from the no-response list with `--block-human <humanId>` or `--unblock-human <humanId>` in place of `--audience`. To send a structured mention, use `channels send <id> --body-stdin --mention-bot <botSlug> --mention-label <displayName>` with the rest of the message on stdin.
+
 ## Performance and verification boundary
 
 Audience admission, the bulk visible-ID set and browsable Channel discovery each use one database read; the 1,000-Channel regression asserts these budgets. Lists and unread filtering use one bulk set instead of querying permissions per Channel. SQL search applies audience filters before pagination. There are no new dependencies, workers, timers or model calls. Existing message append adds current policy checks only for Human writes; Bot causation/admission remains unchanged.

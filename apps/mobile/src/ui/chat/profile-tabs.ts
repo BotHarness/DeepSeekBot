@@ -1,4 +1,12 @@
-const PROFILE_TABS = ['work', 'memory', 'files', 'routines', 'settings', 'members'] as const;
+const PROFILE_TABS = [
+  'work',
+  'memory',
+  'files',
+  'routines',
+  'settings',
+  'members',
+  'bots',
+] as const;
 export type ProfileTab = (typeof PROFILE_TABS)[number];
 
 export const BOT_PROFILE_TABS: readonly ProfileTab[] = [

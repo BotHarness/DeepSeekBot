@@ -135,6 +135,16 @@ export class TeamChannels {
   requireManage(human: HumanContext, channelId: string): void {
     requireChannelAccess('manage', this.accessFacts(human, channelId));
   }
+  canManageBotSettings(human: HumanContext, channelId: string): boolean {
+    if (!this.active(human)) return false;
+    const { owner, visibility } = this.settings(channelId);
+    return (
+      (visibility.kind !== 'private' &&
+        this.roles.permissions(human).includes('channels.manageAll')) ||
+      (this.canRead(human, channelId, true) &&
+        this.roleForOwner(human, channelId, owner) !== 'member')
+    );
+  }
   requirePolicy(human: HumanContext, channelId: string, key: ChannelAction): void {
     requireChannelAccess(key, this.accessFacts(human, channelId));
   }

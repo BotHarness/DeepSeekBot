@@ -184,7 +184,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   if (!config.enabled) return;
   const { profile, releaseAnchors } = releaseFeature.resolveProfile(ctx, installedPackage);
   const dshHome = resolveDshHome();
-  profileStorage.apply(ctx, dshHome);
   const featureContributions = createFeatureContributions({
     genui: {
       browserPath: config.genuiPreviewBrowserPath,
@@ -387,7 +386,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       workspaceCtx.logger.warn('Could not initialize the built-in Tob');
     });
   });
-  const storage = profileStorage.mountStorage(ctx, core, dshHome);
+  const storage = profileStorage.createStorage(core, dshHome);
+  forEachHostFeature(featureContributions, (hooks) => hooks.profileStorageMaintenance?.(ctx, core));
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
   const presence = createPresence();
@@ -542,17 +542,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeReleaseInstaller?.(ctx, developerMode),
   );
-  const { releaseInstaller, updateRuns, releaseRestarter } = releaseFeature.mountInstaller(
-    ctx,
-    updateLifecycle,
-    {
+  const installer = releaseFeature.createInstaller(updateLifecycle);
+  const { releaseInstaller, updateRuns, releaseRestarter } = installer;
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.releaseInstaller?.(ctx, installer, updateLifecycle, {
       installer: (managerCtx) =>
         (managerCtx as unknown as { pluginManager: ReleaseInstaller }).pluginManager,
       events: ctx as unknown as {
         on(event: string, listener: (value: unknown) => void): () => void;
       },
       appExit: (exitCtx) => (exitCtx as unknown as { appExit: (code: number) => void }).appExit,
-    },
+    }),
   );
   const dataReset = profileStorage.createReset(ctx, core, dshHome, releaseRestarter);
   const { releaseService, pluginUpdates } = releaseFeature.mountServices(ctx, {
@@ -809,11 +809,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       registry: core.registry,
       detail: (slug) => bridgeMethods.get({ slug }),
     });
-    profileStorage.mountFetch(ctx, connectionCtx, connection.fetch, core, {
-      dshHome,
-      runningRelease,
-      modelCatalog,
-    });
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.beforeConnectionRoutes?.(ctx, connectionCtx, connection.fetch, core, {
+        dshHome,
+        runningRelease,
+        modelCatalog,
+      }),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.connectionRoutes?.(ctx, connectionCtx, connection.fetch, core, {
         dshHome,
@@ -821,7 +823,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         runningRelease,
       }),
     );
-    marketplace.mountZipRoutes(connectionCtx, () => connection.fetch, botZipHttp);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.afterConnectionRoutes?.(connectionCtx, () => connection.fetch, botZipHttp),
+    );
   });
   const activity = activityFeature.apply(
     ctx,

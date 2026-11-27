@@ -1,4 +1,5 @@
 import { botVisibilitySchema, rolePolicySchema } from '../../team-policy/bot-contract.js';
+import { channelBotChangeSchema } from '../../team-policy/channel-contract.js';
 import { spaceAudienceSchema } from '../../workspaces/spaces.js';
 import { roleModelsSchema, PERMISSION_CATALOG } from '../../team-policy/permissions.js';
 import {
@@ -346,6 +347,22 @@ export function createTeamBridge(
           z.object({ channelId: z.string().min(1) }).parse(payload).channelId,
         ),
       ),
+    channelBotSettings: (payload: unknown) =>
+      call((service) => {
+        const p = z
+          .union([
+            z.strictObject({ channelId: z.string().min(1) }),
+            z.strictObject({
+              channelId: z.string().min(1),
+              botSlug: z.string().min(1),
+              change: channelBotChangeSchema,
+            }),
+          ])
+          .parse(payload);
+        return 'change' in p
+          ? service.channelBots.change(human, p.channelId, p.botSlug, p.change)
+          : service.channelBots.view(human, p.channelId);
+      }),
     channelVisibilitySet: (payload: unknown) =>
       call((service) => {
         const { channelId, visibility } = z

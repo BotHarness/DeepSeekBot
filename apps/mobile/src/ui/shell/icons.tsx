@@ -44,6 +44,12 @@ export function ChatsIcon(props: IconProps) {
   );
 }
 
+export function MentionIcon(props: IconProps) {
+  return (
+    <Glyph {...props} d="M16 8v6a2 2 0 0 0 4 0v-2a8 8 0 1 0-4 7m0-7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
+  );
+}
+
 export function ActivityIcon(props: IconProps) {
   return <Glyph {...props} d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4a2 2 0 0 0 4 0" />;
 }

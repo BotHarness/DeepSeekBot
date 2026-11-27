@@ -47,7 +47,8 @@ import type { SessionStopper } from '../../host/session-stop';
 import { useSessionStops } from './session-stops';
 import { InviteSheet } from './invite-sheet';
 import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
-import { profileTabs, type ProfileTabMemory } from './profile-tabs';
+import { GROUP_PROFILE_TABS, type ProfileTab, type ProfileTabMemory } from './profile-tabs';
+import { useGroupBotSettings } from './group-bot-settings';
 import { ProfileHero } from './profile-hero';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
@@ -247,6 +248,8 @@ export interface GroupNickname {
   save(nickname: string | null): Promise<void>;
 }
 
+const GROUP_PROFILE_BOT_TABS: readonly ProfileTab[] = [...GROUP_PROFILE_TABS, 'bots'];
+
 export function GroupProfilePage({
   info,
   actions,
@@ -298,9 +301,10 @@ export function GroupProfilePage({
         ? t.groupDetailsRefused
         : `${t.avatarSaveFailed} ${errorText(failure)}`,
   );
-  const tabs = profileTabs('group');
+  const tabs = client === undefined ? GROUP_PROFILE_TABS : GROUP_PROFILE_BOT_TABS;
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs, 'group');
   const { channel } = info;
+  const botSettings = useGroupBotSettings(client, channel.id, tab === 'bots');
   const memberBots = info.members.flatMap((member) =>
     member.bot === undefined ? [] : [member.bot],
   );
@@ -549,7 +553,8 @@ export function GroupProfilePage({
         ]),
   ];
 
-  const bodies: Record<'members' | 'work' | 'settings', ProfileTabBody> = {
+  const bodies: Record<'members' | 'work' | 'settings' | 'bots', ProfileTabBody> = {
+    bots: botSettings.body,
     members: { rows: [...callout, ...members] },
     work: {
       rows: [
@@ -586,7 +591,9 @@ export function GroupProfilePage({
       tab={tab}
       onTab={setTab}
       body={(page) =>
-        page === 'members' || page === 'work' || page === 'settings' ? bodies[page] : filesBody
+        page === 'members' || page === 'work' || page === 'settings' || page === 'bots'
+          ? bodies[page]
+          : filesBody
       }
       onClose={onClose}
     />
@@ -594,7 +601,7 @@ export function GroupProfilePage({
 
   return (
     <>
-      <View style={{ flex: 1 }}>
+      <View ref={botSettings.mount} style={{ flex: 1 }}>
         {files === undefined
           ? shell({
               rows: [

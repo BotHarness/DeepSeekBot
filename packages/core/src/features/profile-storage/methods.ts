@@ -6,6 +6,7 @@ import {
 } from '../../kernel/method-utils.js';
 import {
   ContentPurgeError,
+  type ContentPurge,
   type PurgePreview,
   type TextCleanupPreview,
   type TextCleanupResult,
@@ -15,15 +16,16 @@ import {
   StorageCleanupError,
   type MediaCleanupPreview,
   type MediaCleanupResult,
+  type StorageCleanup,
   type StorageUsage,
 } from '../../storage/media-cleanup.js';
 import { z } from 'zod';
 import {
   DataResetError,
+  type DataReset,
   type DataResetPreview,
   type DataResetResult,
 } from '../../data-reset/reset.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 
 const storageCleanupScope = z
@@ -82,7 +84,7 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
   };
 }
 
-export interface ProfileStorageAdapterMethods {
+export type ProfileStorageAdapterMethods = {
   dataResetPreview(): BridgeResult<{ preview: DataResetPreview }>;
   dataResetConfirm(payload: unknown): BridgeResult<{ reset: DataResetResult }>;
   channelPurgePreview(payload: unknown): BridgeResult<PurgePreview>;
@@ -94,11 +96,18 @@ export interface ProfileStorageAdapterMethods {
   channelPurgeConfirm(
     payload: unknown,
   ): BridgeResult<{ accepted: number; cleanupPending?: number }>;
+};
+
+export interface ProfileStorageBridgeDeps {
+  contentPurge?: ContentPurge;
+  storage?: Pick<StorageCleanup, 'usage' | 'preview' | 'confirm'>;
+  dataReset?: Pick<DataReset, 'preview' | 'confirm'>;
+  warn?: (message: string) => void;
 }
 
 export function createProfileStorageAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: ProfileStorageBridgeDeps,
 ): ProfileStorageAdapterMethods {
   return {
     dataResetPreview() {

@@ -1,4 +1,5 @@
 import { resolveGrants } from '../kernel/grants.js';
+import type { ChannelBotAudience } from '@botharness/host-protocol/channel-bots';
 import { CHANNEL_ACTIONS, type ChannelAction, type ChannelPolicy } from './channel-contract.js';
 import { TeamError } from './error.js';
 
@@ -41,6 +42,17 @@ export function allowsGroupAction(
   settings: ChannelSettings,
   joined?: boolean,
 ): boolean {
+  if (action === 'wakeBot') {
+    return (
+      (joined ?? facts.joined()) &&
+      allowsBotMention(
+        settings.policy,
+        { kind: 'everyone' },
+        settings.policy.overrides.length ? facts.roleIds() : new Set(),
+        facts.role(settings.owner) !== 'member',
+      )
+    );
+  }
   const manages = facts.managesAll();
   if (action === 'addMembers' && manages) return true;
   if (!(joined ?? facts.joined())) return false;
@@ -51,6 +63,22 @@ export function allowsGroupAction(
       ? policy.everyone[action] === 'allow'
       : mergeChannelAction(policy, facts.roleIds(), action)) ||
     facts.role(owner) !== 'member'
+  );
+}
+
+export function allowsBotMention(
+  policy: ChannelPolicy,
+  audience: ChannelBotAudience,
+  roleIds: ReadonlySet<string>,
+  admin: boolean,
+): boolean {
+  return (
+    (admin ||
+      (roleIds.size === 0
+        ? policy.everyone.wakeBot === 'allow'
+        : mergeChannelAction(policy, roleIds, 'wakeBot'))) &&
+    (audience.kind === 'everyone' ||
+      (audience.kind === 'admins' ? admin : audience.roleIds.some((id) => roleIds.has(id))))
   );
 }
 

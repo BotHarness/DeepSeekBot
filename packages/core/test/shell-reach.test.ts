@@ -180,4 +180,45 @@ describe('Shell reach', () => {
     expect(reach.env.set['NODE_PATH']).toBe(modules);
     expect(reach.tools).toContain(modules);
   });
+
+  it('keeps Windows drive mounts out of inherited tool discovery on WSL', () => {
+    const windowsTools = '/mnt/c/Windows/System32';
+    const windowsModules = '/srv/Windows Drive/node_modules';
+    const linuxTools = '/mnt/linux/bin';
+    const grantedFolder = '/mnt/c/project';
+    const host = fakeHost({
+      env: { PATH: windowsTools + ':' + linuxTools, NODE_PATH: windowsModules },
+      dirs: [...dirs, '/mnt', windowsTools, windowsModules, linuxTools, grantedFolder],
+    });
+    const probed: string[] = [];
+    const reach = shellReach(
+      { ...request, readable: [...request.readable, grantedFolder] },
+      {
+        ...host,
+        linuxMountInfo: [
+          '161 78 0:86 / /mnt/c rw - 9p C:\\134 rw,aname=drvfs;path=C:\\;',
+          '162 78 0:87 / /srv/Windows\\040Drive rw - drvfs Z:\\134 rw',
+          '163 78 0:88 / /mnt/linux rw - 9p shared rw,trans=virtio',
+        ].join('\n'),
+        exists(path) {
+          probed.push(path);
+          return host.exists(path);
+        },
+        realpath(path) {
+          probed.push(path);
+          return host.realpath(path);
+        },
+        links(path) {
+          probed.push(path);
+          return host.links(path);
+        },
+      },
+    );
+    expect(probed).not.toContain(windowsTools);
+    expect(probed).not.toContain(windowsModules);
+    expect(reach.tools).toEqual([linuxTools]);
+    expect(reach.env.set['PATH']).toBe(linuxTools + ':/opt/node/bin');
+    expect(reach.env.set['NODE_PATH']).toBe('');
+    expect(reach.readable).toContain(grantedFolder);
+  });
 });

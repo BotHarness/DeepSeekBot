@@ -494,10 +494,14 @@ export class RemoteMcpConnectors {
     if (!current()) throw stale();
     const access = grantedAccess(tokens.scope);
     const auth = this.#stored(login.oauth, login.client, tokens);
-    await this.#native().modifyRecord(authKey(login.accountId), async () => ({
-      kind: 'grant',
-      payload: auth as unknown as Record<string, unknown>,
-    }));
+    let replaced: z.infer<typeof storedAuthSchema> | undefined;
+    await this.#native().modifyRecord(authKey(login.accountId), async (record) => {
+      if (!current()) throw stale();
+      const stored =
+        record?.kind === 'grant' ? storedAuthSchema.safeParse(record.payload) : undefined;
+      replaced = stored?.success === true ? stored.data : undefined;
+      return { kind: 'grant', payload: auth as unknown as Record<string, unknown> };
+    });
     const server = this.#requireServer(account.service);
     let tools: RemoteMcpTool[] | undefined;
     try {
@@ -516,7 +520,34 @@ export class RemoteMcpConnectors {
       tools: tools?.length ?? 0,
     });
     this.#changed();
+    if (replaced !== undefined) await this.#revokeReplaced(login.oauth, replaced, auth);
     return active;
+  }
+
+  async #revokeReplaced(
+    oauth: RemoteMcpOAuth,
+    replaced: z.infer<typeof storedAuthSchema>,
+    active: StoredAuth,
+  ): Promise<void> {
+    if (replaced.oauth?.authorizationServer !== oauth.authorizationServer) return;
+    const client = parseClient(replaced.client);
+    if (client === undefined) return;
+    const currentTokens = new Set([active.refreshToken, active.accessToken]);
+    const replacedTokens = [
+      { value: replaced.refreshToken, type: 'refresh_token' },
+      { value: replaced.accessToken, type: 'access_token' },
+    ] as const;
+    await Promise.all(
+      replacedTokens.map(async ({ value, type }) => {
+        if (value === undefined || currentTokens.has(value)) return;
+        currentTokens.add(value);
+        try {
+          await this.#client.revoke(oauth, client, { value, type });
+        } catch {
+          this.#log('mcp-revocation-failed', { tokenType: type });
+        }
+      }),
+    );
   }
 
   async remove(accountId: string): Promise<void> {
