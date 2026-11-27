@@ -21,6 +21,7 @@ export const bridgeMethodInventory = [
   'modelsAllowed',
   'usageByMember',
   'teamModeSet',
+  'teamMemberSettingsSet',
   'ownerPasswordSignIn',
   'ownerPasswordSignInSet',
   'teamOwnerPasswordSet',
