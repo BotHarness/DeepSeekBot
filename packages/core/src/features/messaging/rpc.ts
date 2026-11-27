@@ -1,3 +1,7 @@
+import type {
+  ExternalContactQuery,
+  HostExternalRoleChange,
+} from '@botharness/host-protocol/external-roles';
 import type { ExternalSource } from '../../messaging/inbound.js';
 import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
@@ -403,6 +407,18 @@ export const channelMessagingRpc = {
 } satisfies ThisType<{ readonly methods: MessagingBridgeMethods }>;
 
 export const messagingPolicyRpc = {
+  externalRoles() {
+    return unwrapAsync(this.methods.externalRoles());
+  },
+
+  externalRoleChange(input: HostExternalRoleChange) {
+    return unwrapAsync(this.methods.externalRoleChange(input));
+  },
+
+  externalContactAccess(input: ExternalContactQuery) {
+    return unwrapAsync(this.methods.externalContactAccess(input));
+  },
+
   failureAlertsSet(
     slug: string,
     enabled: boolean,
