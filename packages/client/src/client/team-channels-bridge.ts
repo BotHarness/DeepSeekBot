@@ -1,4 +1,11 @@
+import { writeChannelPolicy } from '@botharness/host-client/channel-approvals';
 import { readChannel } from '@botharness/host-client/channel-management';
+import {
+  CHANNEL_ACTIONS,
+  CHANNEL_APPROVAL_ACTIONS,
+  DEFAULT_CHANNEL_POLICY,
+  type ChannelAction,
+} from '@botharness/host-protocol/channel-policy';
 import {
   openHumanDm as openHumanDmChannel,
   readTeamDirectory,
@@ -11,16 +18,12 @@ export type ChannelVisibility =
   | { readonly kind: 'roles'; readonly roleIds: readonly string[] }
   | { readonly kind: 'private' };
 
-export type PolicyKey =
-  | 'addMembers'
-  | 'post'
-  | 'mentionAll'
-  | 'wakeBot'
-  | 'addBots'
-  | 'editDetails';
+export type PolicyKey = ChannelAction;
 export type PolicyValue = 'allow' | 'deny' | 'inherit';
+export type ApprovalKey = (typeof CHANNEL_APPROVAL_ACTIONS)[number];
 export interface ChannelPolicy {
   readonly version: 1;
+  readonly approvalMode?: 'legacy' | 'channel' | undefined;
   readonly everyone: Readonly<Record<PolicyKey, PolicyValue>>;
   readonly overrides: readonly {
     roleId: string;
@@ -28,27 +31,14 @@ export interface ChannelPolicy {
   }[];
 }
 
-export const POLICY_KEYS: readonly PolicyKey[] = [
-  'addMembers',
-  'post',
-  'mentionAll',
-  'wakeBot',
-  'addBots',
-  'editDetails',
-];
+export const POLICY_KEYS: readonly PolicyKey[] = CHANNEL_ACTIONS;
+export const APPROVAL_KEYS: readonly ApprovalKey[] = CHANNEL_APPROVAL_ACTIONS;
 
-export const DEFAULT_POLICY: ChannelPolicy = {
-  version: 1,
-  everyone: {
-    addMembers: 'allow',
-    post: 'allow',
-    mentionAll: 'allow',
-    wakeBot: 'allow',
-    addBots: 'deny',
-    editDetails: 'deny',
-  },
-  overrides: [],
-};
+export const DEFAULT_POLICY: ChannelPolicy = DEFAULT_CHANNEL_POLICY;
+
+export function isApprovalKey(key: PolicyKey): key is ApprovalKey {
+  return (APPROVAL_KEYS as readonly string[]).includes(key);
+}
 
 export interface ChannelAccess {
   readonly role: 'owner' | 'admin' | 'member';
@@ -80,14 +70,18 @@ export function parsePolicy(value: unknown): ChannelPolicy {
   const row = record(value);
   if (row?.version !== 1) return DEFAULT_POLICY;
   const everyone = record(row.everyone);
+  const mode = row.approvalMode;
   return {
     version: 1,
+    ...(mode === 'legacy' || mode === 'channel' ? { approvalMode: mode } : {}),
     everyone: {
       addMembers: effect(everyone?.addMembers),
       post: effect(everyone?.post),
       mentionAll: effect(everyone?.mentionAll),
       wakeBot: effect(everyone?.wakeBot ?? 'allow'),
       addBots: effect(everyone?.addBots),
+      seeApprovals: effect(everyone?.seeApprovals ?? 'allow'),
+      decideApprovals: effect(everyone?.decideApprovals ?? 'deny'),
       editDetails: effect(everyone?.editDetails),
     },
     overrides: list(row.overrides, (item) => {
@@ -168,11 +162,7 @@ export async function setChannelPolicy(
   policy: ChannelPolicy,
   expectedRevision?: string,
 ): Promise<void> {
-  await unwrap(call, 'channelPolicySet', {
-    channelId,
-    policy: { ...policy },
-    ...(expectedRevision === undefined ? {} : { expectedRevision }),
-  });
+  await writeChannelPolicy(bridgeHost(call), channelId, { ...policy }, expectedRevision);
 }
 
 export async function setChannelAdmins(

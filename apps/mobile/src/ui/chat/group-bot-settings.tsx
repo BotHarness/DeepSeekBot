@@ -7,7 +7,15 @@ import type {
   ChannelBotChange,
   ChannelBotsView,
 } from '@botharness/host-protocol/channel-bots';
+import {
+  readChannelApprovalRules,
+  setChannelApprovalRule,
+  type ChannelApprovalChoice,
+  type ChannelApprovalKey,
+  type ChannelApprovalRules,
+} from '@botharness/host-client/channel-approvals';
 import { followConnection } from '../../host/follow-connection';
+import { PreferenceRow } from '../primitives/preference-row';
 import { useMounted } from '../mounted';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import {
@@ -39,11 +47,22 @@ export function useGroupBotSettings(
   const [draft, setDraft] = useState<ChannelBotAudience>();
   const writing = useRef(false);
   const latestSave = useRef(0);
+  const [rules, setRules] = useState<ChannelApprovalRules>();
+  const [rulesBusy, setRulesBusy] = useState(false);
+  const [rulesFailed, setRulesFailed] = useState(false);
   const mount = useMounted<ViewInstance>(() => {
     if (!active || !client) return;
     let live = true;
     const unfollow = followConnection(client, async () => {
       const started = latestSave.current;
+      void readChannelApprovalRules(client, channelId).then(
+        (next) => {
+          if (live) setRules(next);
+        },
+        () => {
+          if (live) setRules(undefined);
+        },
+      );
       try {
         const value = await channelBotSettings(client, channelId);
         if (live && started === latestSave.current) {
@@ -120,6 +139,20 @@ export function useGroupBotSettings(
         </SettingsGroupItem>
       )),
     );
+  const saveRule = async (key: ChannelApprovalKey, value: ChannelApprovalChoice) => {
+    if (!client || rules === undefined || rulesBusy) return;
+    setRulesBusy(true);
+    setRulesFailed(false);
+    try {
+      await setChannelApprovalRule(client, channelId, rules, key, value);
+      setRules(await readChannelApprovalRules(client, channelId));
+    } catch {
+      setRulesFailed(true);
+      setRules(await readChannelApprovalRules(client, channelId).catch(() => rules));
+    } finally {
+      setRulesBusy(false);
+    }
+  };
   if (!bot && (view?.bots.length ?? 0) > 0) {
     heading('bots:heading', t.profileSettingsBot);
     group(
@@ -269,6 +302,57 @@ export function useGroupBotSettings(
         ),
       );
     }
+  }
+  if (!bot && rules !== undefined) {
+    const a = t.channelApprovals;
+    const labels = {
+      seeApprovals: { allow: a.everyone, deny: a.tableOnly },
+      decideApprovals: { allow: a.everyone, deny: a.ownersAndTable },
+    } as const;
+    heading('approvals:heading', a.title);
+    group(
+      [
+        ['seeApprovals', a.see, rules.see],
+        ['decideApprovals', a.decide, rules.decide],
+      ] as const,
+      ([key]) => `approvals:${key}`,
+      ([key, title, value]) =>
+        rules.manager ? (
+          <PreferenceRow
+            on={ON}
+            title={title}
+            testID={`channel-approvals-${key}`}
+            value={value}
+            options={[
+              { value: 'allow', label: labels[key].allow },
+              { value: 'deny', label: labels[key].deny },
+            ]}
+            onChange={(next) => void saveRule(key, next)}
+          />
+        ) : (
+          <SettingsRow
+            on={ON}
+            title={title}
+            control={{ kind: 'value', text: labels[key][value] }}
+          />
+        ),
+    );
+    group(
+      ['unhandled'],
+      () => 'approvals:unhandled',
+      () => (
+        <SettingsRow
+          on={ON}
+          title={a.unhandled}
+          control={{ kind: 'value', text: a.unhandledValue }}
+        />
+      ),
+    );
+    if (rulesFailed) add('approvals:error', () => <Text tone="danger">{a.saveFailed}</Text>);
+    footer(
+      'approvals:footer',
+      !rules.manager ? a.managersOnly : rules.mode === 'legacy' ? a.legacy : a.byRole,
+    );
   }
   return { mount, body: { rows } };
 }

@@ -239,7 +239,8 @@ function ApprovalCardContent({
         </ActionCard>
       </View>
     );
-  const actionable = phase.kind === 'pending' && resolution === undefined;
+  const viewOnly = phase.kind === 'pending' && phase.request.canDecide === false;
+  const actionable = phase.kind === 'pending' && resolution === undefined && !viewOnly;
   const busy = phase.kind === 'pending' ? phase.busy : undefined;
   const outcome =
     phase.kind === 'settled' && phase.mine
@@ -422,33 +423,40 @@ function ApprovalCardContent({
             />
           </CardButtons>
         )}
-        <CardButtons stack>
-          <Button
-            label={t.allowOnce}
-            testID="approval-allow-once"
-            variant="card-solid"
-            tone="primary"
-            disabled={!actionable || busy !== undefined}
-            selected={selected === 'allowed-once'}
-            busy={busy === 'allowed-once'}
-            onPress={() => void decide('allowed-once')}
-          />
-          {!alwaysAllow ? null : nativeContextMenu && scopeActions.length > 0 ? (
-            <ContextMenuArea actions={scopeActions}>{alwaysAllowButton}</ContextMenuArea>
-          ) : (
-            alwaysAllowButton
-          )}
-          <Button
-            label={t.reject}
-            testID="approval-deny"
-            variant="card-solid"
-            tone="danger"
-            disabled={!actionable || busy !== undefined}
-            selected={selected === 'rejected'}
-            busy={busy === 'rejected'}
-            onPress={() => void decide('rejected')}
-          />
-        </CardButtons>
+        {viewOnly ? (
+          <CardNote testID="approval-view-only" live>
+            {t.viewOnly}
+          </CardNote>
+        ) : null}
+        {viewOnly ? null : (
+          <CardButtons stack>
+            <Button
+              label={t.allowOnce}
+              testID="approval-allow-once"
+              variant="card-solid"
+              tone="primary"
+              disabled={!actionable || busy !== undefined}
+              selected={selected === 'allowed-once'}
+              busy={busy === 'allowed-once'}
+              onPress={() => void decide('allowed-once')}
+            />
+            {!alwaysAllow ? null : nativeContextMenu && scopeActions.length > 0 ? (
+              <ContextMenuArea actions={scopeActions}>{alwaysAllowButton}</ContextMenuArea>
+            ) : (
+              alwaysAllowButton
+            )}
+            <Button
+              label={t.reject}
+              testID="approval-deny"
+              variant="card-solid"
+              tone="danger"
+              disabled={!actionable || busy !== undefined}
+              selected={selected === 'rejected'}
+              busy={busy === 'rejected'}
+              onPress={() => void decide('rejected')}
+            />
+          </CardButtons>
+        )}
         {actionable && preset !== undefined ? (
           <CardEmbed>
             <ApprovalPresetRow port={preset} />

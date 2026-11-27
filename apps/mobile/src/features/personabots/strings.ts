@@ -210,6 +210,22 @@ export const en = {
     members: 'Members',
     bots: 'Bots',
   },
+  channelApprovals: {
+    title: 'Approvals',
+    see: 'Who can see the content',
+    decide: 'Who can decide',
+    everyone: 'All channel members',
+    tableOnly: 'Only roles allowed on the computer',
+    ownersAndTable: 'Only the Bot owner and allowed roles',
+    unhandled: 'When no one handles it',
+    unhandledValue: 'Bot owner’s Activity',
+    byRole:
+      'Everyone else only sees “A Bot is waiting for approval”. Set roles separately in Team on the computer.',
+    legacy:
+      'This channel still uses the earlier approval behavior; the first rule you change here takes over.',
+    managersOnly: 'Only channel admins can change approval rules.',
+    saveFailed: 'The approval rule was not saved.',
+  },
   channelBots: {
     audience: 'Who can @mention this Bot',
     intersection: 'Members also need the channel’s “Wake a Bot with @mention” permission.',
@@ -455,6 +471,20 @@ export const zh: typeof en = {
     settings: '设置',
     members: '成员',
     bots: 'Bot',
+  },
+  channelApprovals: {
+    title: '审批',
+    see: '谁能看到内容',
+    decide: '谁能做决定',
+    everyone: '频道所有成员',
+    tableOnly: '只有电脑上允许的角色',
+    ownersAndTable: '只有 Bot 负责人和允许的角色',
+    unhandled: '没人处理时',
+    unhandledValue: '发到 Bot 负责人的动态',
+    byRole: '其他人只看到「有 Bot 在等待审批」。要按角色设置，到电脑上的 Team 里改。',
+    legacy: '这个频道还在用旧的审批方式；在这里改第一条规则后，改为按这些规则生效。',
+    managersOnly: '只有频道管理员能修改审批规则。',
+    saveFailed: '审批规则没有保存。',
   },
   channelBots: {
     audience: '谁能 @ 它',

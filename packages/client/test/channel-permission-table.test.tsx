@@ -72,7 +72,7 @@ it('lays out actions as rows and roles as columns with named state cells', async
   expect(headers[0]).toBe('操作');
   expect(headers[1]).toBe('所有成员');
   expect(headers[2]).toBe('Support');
-  expect(host.querySelectorAll('tbody tr')).toHaveLength(6);
+  expect(host.querySelectorAll('tbody tr')).toHaveLength(8);
   expect(cell('post', 'everyone').getAttribute('aria-label')).toBe('谁能发消息 · 所有成员 · 允许');
   expect(cell('addBots', 'support').getAttribute('aria-label')).toBe(
     '谁能添加 Bot · Support · 允许',
@@ -131,4 +131,25 @@ it('shows a read-only table without role controls when editing is not allowed', 
   expect(host.querySelector('[data-permission-add-role]')).toBeNull();
   expect(host.querySelector('[data-permission-column="support"] button')).toBeNull();
   expect(cell('post', 'everyone').disabled).toBe(true);
+});
+
+it('locks the approval rows for someone who cannot change approval rules', async () => {
+  await act(async () =>
+    root.render(
+      <ChannelPermissionTable
+        t={zhTranslate}
+        policy={policy}
+        roles={roles}
+        disabled={false}
+        approvalLocked
+        onChange={() => undefined}
+      />,
+    ),
+  );
+  expect(cell('seeApprovals', 'everyone').disabled).toBe(true);
+  expect(cell('decideApprovals', 'support').disabled).toBe(true);
+  expect(cell('post', 'everyone').disabled).toBe(false);
+  expect(cell('decideApprovals', 'everyone').getAttribute('aria-label')).toBe(
+    '谁能在这里审批 · 所有成员 · 拒绝',
+  );
 });

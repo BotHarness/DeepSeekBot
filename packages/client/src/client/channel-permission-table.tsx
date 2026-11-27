@@ -12,6 +12,7 @@ import { ink, space, style, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
   POLICY_KEYS,
+  isApprovalKey,
   type ChannelPolicy,
   type PolicyKey,
   type PolicyValue,
@@ -97,12 +98,14 @@ export function ChannelPermissionTable({
   policy,
   roles,
   disabled,
+  approvalLocked = false,
   onChange,
 }: {
   t: BotHarnessTranslate;
   policy: ChannelPolicy;
   roles: readonly RoleChoice[];
   disabled: boolean;
+  approvalLocked?: boolean;
   onChange(policy: ChannelPolicy): void;
 }): ReactElement {
   const [menu, setMenu] = useState<string>();
@@ -279,7 +282,7 @@ export function ChannelPermissionTable({
                               display: <StateMark value={option} />,
                             }))}
                             value={value}
-                            disabled={disabled}
+                            disabled={disabled || (approvalLocked && isApprovalKey(key))}
                             onChange={(next) => set(column, key, next)}
                           />
                         </td>
