@@ -40,6 +40,7 @@ export function createFeatureContributions(options?: {
     createProfileStorageContribution(),
     createDiagnosticsContribution(),
     createUsageContribution(),
+    createChannelsContribution(),
     createAppearanceContribution(),
     createAvatarsContribution(),
     createSkillsContribution(),
@@ -50,7 +51,6 @@ export function createFeatureContributions(options?: {
     createEnvironmentsContribution(),
     createMessagingContribution(),
     createChannelFilesContribution(),
-    createChannelsContribution(),
   ] as const;
 }
 
