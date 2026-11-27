@@ -51,8 +51,7 @@ import { createModelLinkMethods } from './model-link-methods.js';
 import { RoutingGroupError, type RoutingGroup } from '../../models/routing-groups.js';
 import type { ModelCatalogEntry } from '../../models/catalog.js';
 import type { ModelPlanState } from '../../models/readiness.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
-import type { ModelsBridgeDeps } from './deps.js';
+import type { ModelInvocationDeps } from './deps.js';
 import {
   routingGroupFailure,
   type ModelCatalogGroup,
@@ -113,8 +112,7 @@ const presetClientOutdated: BridgeResult<never> = {
 
 export function createModelsBridgeMethods(
   human: HumanContext,
-  deps: ModelsBridgeDeps &
-    Pick<BridgeMethodsDeps, 'registry' | 'runtime' | 'team' | 'describeEngineSession'>,
+  deps: ModelInvocationDeps,
   globalRegistry: PersonaBotRegistry,
   isHostOwner: () => boolean,
   requireOwnedBot: (slug: string) => void,

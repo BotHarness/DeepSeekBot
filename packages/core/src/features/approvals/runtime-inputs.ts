@@ -11,7 +11,6 @@ import { requireSourceEffects } from '../../purge/fence.js';
 import { channelSql } from '../../runtime/attention.js';
 import type { BotRuntime, BotRuntimeOptions } from '../../runtime/bot-runtime.js';
 import type { InboxUnit } from '../../runtime/inbox-render.js';
-import type { createOrchestratorScheduling } from '../../runtime/orchestrator-scheduling.js';
 import type { SessionOwnership } from '../../sessions/ownership.js';
 import type { ToolApprovalOrigin } from '../../workspaces/tool-approval.js';
 import type { ActiveDirectTool } from '../sessions/direct-tools.js';
@@ -22,7 +21,7 @@ interface RuntimeInputPorts {
   channels: ChannelStore;
   closed: () => boolean;
   database: OperationalDatabaseModulePort;
-  enqueue: ReturnType<typeof createOrchestratorScheduling>['enqueue'];
+  enqueue(turnKey: string, task: () => Promise<void>): Promise<void>;
   externalMessaging: OutboundMessaging | undefined;
   markSideEffectStarted: (sourceEventId: string, database?: DatabaseSync) => void;
   nativeQuestionAvailable: NonNullable<BotRuntime['nativeQuestionAvailable']>;

@@ -35,10 +35,19 @@ function excludedPath(path: string): boolean {
   );
 }
 
-export function listBotFiles(memoryDir: string): string[] {
+export function listBotFiles(memoryDir: string, scope?: string): string[] {
   const output = execFileSync(
     'git',
-    ['-c', 'core.quotePath=false', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    [
+      '-c',
+      'core.quotePath=false',
+      'ls-files',
+      '-z',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      ...(scope === undefined ? [] : ['--', `:(literal)${scope}`]),
+    ],
     {
       cwd: memoryDir,
       encoding: 'utf8',

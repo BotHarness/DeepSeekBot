@@ -27,6 +27,7 @@ import { BOT_BUSY } from '../features/sessions/runtime-orchestrator-sessions.js'
 import { createBotRuntimeFeatures } from './bot-runtime-features.js';
 import { createBotRuntimeState } from './bot-runtime-state.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
+import type { RuntimeFeatureServices } from './feature-services.js';
 import type {
   BotHoldCause,
   BotStopOutcome,
@@ -68,19 +69,15 @@ export type {
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
 export { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
-export type { BotCreateInput } from '../features/personabots/runtime-creation.js';
-
-export type { BotCreateOutcome } from '../features/personabots/runtime-creation.js';
-
-export { NEW_BOT_ID_PLACEHOLDER } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_NAME_LENGTH } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_TAGS } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_TAG_LENGTH } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_BIO_LENGTH } from '../features/personabots/runtime-creation.js';
+export {
+  MAX_CREATED_BOT_BIO_LENGTH,
+  MAX_CREATED_BOT_NAME_LENGTH,
+  MAX_CREATED_BOT_TAG_LENGTH,
+  MAX_CREATED_BOT_TAGS,
+  NEW_BOT_ID_PLACEHOLDER,
+  type BotCreateInput,
+  type BotCreateOutcome,
+} from '../bots/create-contract.js';
 export { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/runtime-types.js';
 export type {
   AssignmentRequestMode,
@@ -129,11 +126,15 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly groupSendReview: GroupSendReview;
   readonly #features: ReturnType<typeof createBotRuntimeFeatures>;
 
-  constructor(options: BotRuntimeOptions) {
+  constructor(options: BotRuntimeOptions, services: RuntimeFeatureServices) {
     const state = createBotRuntimeState(options);
     this.groupSendReview = state.groupSendReview;
-    this.#features = createBotRuntimeFeatures(options, state, this, (...args) =>
-      this.#recordDirectToolSource(...args),
+    this.#features = createBotRuntimeFeatures(
+      options,
+      state,
+      this,
+      (...args) => this.#recordDirectToolSource(...args),
+      services,
     );
     for (const feature of options.runtimeFeatures ?? [])
       feature.runtime?.(this.#features.runtimeHost);
@@ -588,6 +589,9 @@ class BotRuntimeImplementation implements BotRuntime {
 
 export { callTimelineNote, callVisualNote } from '../features/voice/events.js';
 
-export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
-  return new BotRuntimeImplementation(options);
+export function createBotRuntime(
+  options: BotRuntimeOptions,
+  services: RuntimeFeatureServices,
+): BotRuntime {
+  return new BotRuntimeImplementation(options, services);
 }

@@ -29,6 +29,7 @@ export interface TeamRole {
   readonly memberCount: number;
   readonly policy: readonly PolicyItem[];
   readonly policyRevision: number;
+  readonly revision: number;
 }
 
 export interface PolicyItem {
@@ -101,6 +102,12 @@ export function parseRole(row: Record<string, unknown>): TeamRole | undefined {
     memberCount: typeof count === 'number' && count >= 0 ? count : 0,
     policy: parsePolicy(row['policy']),
     policyRevision: typeof row['policyRevision'] === 'number' ? row['policyRevision'] : 0,
+    revision:
+      typeof row['revision'] === 'number' &&
+      Number.isInteger(row['revision']) &&
+      row['revision'] > 0
+        ? row['revision']
+        : 0,
   };
 }
 
@@ -226,6 +233,7 @@ export async function updateRole(
   call: BridgeCall,
   input: {
     roleId: string;
+    expectedRevision?: number;
     name?: string;
     permissions?: readonly string[];
     denied?: readonly string[];
@@ -236,6 +244,9 @@ export async function updateRole(
   return roleOf(
     await unwrap(call, 'roleUpdate', {
       roleId: input.roleId,
+      ...(input.expectedRevision === undefined || input.expectedRevision === 0
+        ? {}
+        : { expectedRevision: input.expectedRevision }),
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.permissions === undefined ? {} : { permissions: [...input.permissions] }),
       ...(input.denied === undefined ? {} : { denied: [...input.denied] }),

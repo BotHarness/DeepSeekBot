@@ -52,6 +52,7 @@ describe('Team roles bridge', () => {
           builtin: 'admin',
           permissions: ['roles.manage'],
           memberCount: 2,
+          revision: 7,
         },
         { roleId: '', name: 'bad' },
       ],
@@ -67,6 +68,7 @@ describe('Team roles bridge', () => {
         memberCount: 2,
         policy: [],
         policyRevision: 0,
+        revision: 7,
       },
     ]);
   });

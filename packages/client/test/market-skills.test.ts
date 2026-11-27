@@ -84,6 +84,10 @@ function actionsFor() {
       global: true,
     })),
     marketplaceSkillReview: vi.fn(async () => review),
+    marketplaceSkillReport: vi.fn(async () => undefined),
+    marketplaceChallenge: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceSkillAdd: vi.fn(async () => ({
       name: 'tidy-notes',
       added: [

@@ -63,14 +63,58 @@ function pipesIntoExecutor(text: string): boolean {
 
 const matches = (pattern: RegExp) => (text: string) => pattern.test(text);
 
+const VENDOR_SECRET =
+  /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----|\b(?:sk-(?:ant-|proj-|or-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}|(?:sk|rk)_live_[0-9A-Za-z]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|glpat-[A-Za-z0-9_-]{20,}|(?:AKIA|ASIA)[0-9A-Z]{16}|xox[abposr]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|hf_[A-Za-z0-9]{30,}|gsk_[A-Za-z0-9]{40,}|xai-[A-Za-z0-9]{40,}|npm_[A-Za-z0-9]{36,}|pypi-[A-Za-z0-9_-]{50,}|cf(?:ut|at|k|oat)_[A-Za-z0-9_-]{40,})(?![A-Za-z0-9_-])/u;
+
+const SECRET_FIELD =
+  /(?<![A-Za-z0-9_.-])(["']?)([A-Za-z0-9_.-]*?(?:password|passwd|secret|token|api[_-]?key|apikey|private[_-]?key|access[_-]?key)[A-Za-z0-9_.-]*)\1[ \t]*(:=|[:=])[ \t]*["'`]?([^\s"'`,;]*)/giu;
+
+const SOURCE_FILE =
+  /\.(?:go|ts|tsx|js|jsx|mjs|py|rs|rb|java|kt|swift|c|h|cpp|cs|php|md|json|ya?ml|toml|txt|sh)$/iu;
+
+const DESCRIBED_FIELD =
+  /[_.-](?:name|type|id|path|file|dir|url|uri|count|length|limit|ttl|expiry|expires(?:_at)?|header|prefix|field|version)$/iu;
+
+function secretValue(value: string): boolean {
+  if (value.length < 8) return false;
+  if (/^[$<{%[(]|\.\.\.|…|^(?:your|my|example|placeholder|changeme|redacted|xxx)/iu.test(value))
+    return false;
+  if (/^(?:[~/\\]|\.{1,2}[/\\]|[A-Za-z]:[/\\])/u.test(value) || SOURCE_FILE.test(value))
+    return false;
+  if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(value)) return false;
+  if (/^L?\d+(?:-L?\d+)?\.?$/u.test(value)) return false;
+  if (/^[\^~<>=]*v?\d+(?:\.\d+)+[\w.+-]*$/u.test(value)) return false;
+  if (/^\d{4}-\d{2}-\d{2}(?:[T ]\d|$)/u.test(value)) return false;
+  const parts = value.split(/[._]/u);
+  if (parts.length > 1 && parts.every((part) => /^(?:[A-Za-z]+|[vV]\d+)$/u.test(part)))
+    return false;
+  if (/[(){}]/u.test(value)) return false;
+  const letters = /[A-Za-z]/u.test(value);
+  const digits = /\d/u.test(value);
+  return (
+    (letters && digits) || (value.length >= 20 && /[a-z]/u.test(value) && /[A-Z]/u.test(value))
+  );
+}
+
+export function hasSecretField(text: string): boolean {
+  for (const match of text.matchAll(SECRET_FIELD)) {
+    const [, , name = '', separator, value = ''] = match;
+    if (/^[A-Za-z_][\w.-]*[:=](?!=|$)/u.test(value)) {
+      if (hasSecretField(value)) return true;
+      continue;
+    }
+    if (separator === ':=' || SOURCE_FILE.test(name) || DESCRIBED_FIELD.test(name)) continue;
+    if (secretValue(value)) return true;
+  }
+  return false;
+}
+
 const RULES: readonly Rule[] = [
   { kind: 'download-exec', severity: 'malicious', test: pipesIntoExecutor },
   {
     kind: 'secret',
     severity: 'warning',
-    test: matches(
-      /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})\b/u,
-    ),
+    test: (text) => VENDOR_SECRET.test(text) || hasSecretField(text),
   },
   {
     kind: 'prompt-injection',
@@ -94,27 +138,42 @@ export function isScriptPath(path: string): boolean {
   return uploadFileKind(path) === 'script';
 }
 
-export function scanSkillFiles(files: readonly { path: string; text: string | null }[]): SkillScan {
+export function scanSkillFiles(
+  files: readonly { path: string; text: string | null; filename?: true }[],
+  options: { rejectSecrets?: boolean } = {},
+): SkillScan {
   const findings: SkillFinding[] = [];
   const scripts: string[] = [];
   let malicious = false;
   for (const file of files) {
-    if (isScriptPath(file.path)) scripts.push(file.path);
+    if (!file.filename && isScriptPath(file.path)) scripts.push(file.path);
     if (file.text === null) continue;
     const lines = file.text.split(/\r?\n/u);
     for (const [index, line] of lines.entries()) {
       const next = lines[index + 1] ?? '';
       for (const rule of RULES) {
-        if (findings.length >= MAX_FINDINGS && (rule.severity === 'warning' || malicious)) continue;
+        const severity =
+          options.rejectSecrets === true && rule.kind === 'secret' ? 'malicious' : rule.severity;
+        if (findings.length >= MAX_FINDINGS && (severity === 'warning' || malicious)) continue;
         const own = rule.test(line);
         const across = !own && rule.test(`${line} ${next}`) && !rule.test(next);
         if (!own && !across) continue;
-        if (rule.severity === 'malicious') malicious = true;
+        if (
+          file.filename &&
+          findings.some(
+            (finding) =>
+              finding.path === file.path &&
+              finding.line === index + 1 &&
+              finding.kind === rule.kind,
+          )
+        )
+          continue;
+        if (severity === 'malicious') malicious = true;
         findings.push({
           kind: rule.kind,
           path: file.path,
           line: index + 1,
-          severity: rule.severity,
+          severity,
         });
       }
     }
@@ -125,6 +184,34 @@ export function scanSkillFiles(files: readonly { path: string; text: string | nu
       ? 'warning'
       : 'clean';
   return { verdict, findings, scripts: scripts.sort() };
+}
+
+export type SkillUploadRefusal = 'skill-secret-detected' | 'skill-malicious-content';
+
+export type SkillUploadScan =
+  | { kind: 'accepted'; scan: SkillScan }
+  | { kind: 'refused'; code: SkillUploadRefusal; scan: SkillScan };
+
+export function scanSkillUpload(
+  files: readonly { path: string; text: string | null }[],
+): SkillUploadScan {
+  const scan = scanSkillFiles(
+    files.flatMap((file) => [
+      { path: file.path, text: file.text },
+      { path: file.path, text: file.path, filename: true as const },
+    ]),
+    { rejectSecrets: true },
+  );
+  if (scan.verdict !== 'blocked') return { kind: 'accepted', scan };
+  return {
+    kind: 'refused',
+    scan,
+    code: scan.findings.some(
+      (finding) => finding.kind === 'secret' && finding.severity === 'malicious',
+    )
+      ? 'skill-secret-detected'
+      : 'skill-malicious-content',
+  };
 }
 
 export function renameSkill(text: string, name: string): string {

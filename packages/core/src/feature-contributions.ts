@@ -16,6 +16,21 @@ import { createSkillsContribution } from './features/skills/contribution.js';
 import { createGenuiContribution } from './features/genui/contribution.js';
 import type { GenuiToolOptions } from './features/genui/tools.js';
 import { createSchedulesContribution } from './features/schedules/contribution.js';
+import { createVoiceContribution } from './features/voice/contribution.js';
+import { createTakeoverContribution } from './features/takeover/contribution.js';
+import { createEnvironmentsContribution } from './features/environments/contribution.js';
+import { createMessagingContribution } from './features/messaging/contribution.js';
+import { createChannelFilesContribution } from './features/channel-files/contribution.js';
+import { createChannelsContribution } from './features/channels/contribution.js';
+import { createMemoryContribution } from './features/memory/contribution.js';
+import { createWorkspacesContribution } from './features/workspaces/contribution.js';
+import { createApprovalsContribution } from './features/approvals/contribution.js';
+import { createModelsContribution } from './features/models/contribution.js';
+import { createPersonaBotsContribution } from './features/personabots/contribution.js';
+import { createActivityContribution } from './features/activity/contribution.js';
+import { createTobContribution } from './features/tob/contribution.js';
+import { createSessionsContribution } from './features/sessions/contribution.js';
+import { createAssignmentsContribution } from './features/assignments/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
 
 export function createFeatureContributions(options?: {
@@ -23,6 +38,8 @@ export function createFeatureContributions(options?: {
   scheduleWakeSource?: InboxWakeSource;
 }) {
   return [
+    createPersonaBotsContribution(),
+    createActivityContribution(),
     createSchedulesContribution(options?.scheduleWakeSource),
     createGenuiContribution(options?.genui),
     createBrowserContribution(),
@@ -34,11 +51,24 @@ export function createFeatureContributions(options?: {
     createProfileStorageContribution(),
     createDiagnosticsContribution(),
     createUsageContribution(),
+    createChannelsContribution(),
     createAppearanceContribution(),
     createAvatarsContribution(),
     createSkillsContribution(),
     createReleaseContribution(),
     createMarketplaceContribution(),
+    createVoiceContribution(),
+    createTakeoverContribution(),
+    createEnvironmentsContribution(),
+    createMessagingContribution(),
+    createChannelFilesContribution(),
+    createMemoryContribution(),
+    createWorkspacesContribution(),
+    createApprovalsContribution(),
+    createModelsContribution(),
+    createTobContribution(),
+    createSessionsContribution(),
+    createAssignmentsContribution(),
   ] as const;
 }
 
@@ -64,6 +94,22 @@ export function forEachHostFeature(
   }
 }
 
+export function requireHostFeatureHook<Name extends keyof HostHooks>(
+  features: RegisteredFeatures,
+  name: Name,
+): NonNullable<HostHooks[Name]> {
+  const hooks: NonNullable<HostHooks[Name]>[] = [];
+  forEachHostFeature(features, (feature) => {
+    const hook = feature[name];
+    if (hook !== undefined && hook !== null) hooks.push(hook);
+  });
+  const [hook] = hooks;
+  if (hooks.length !== 1 || hook === undefined) {
+    throw new Error(`Expected one Host feature hook for ${name}, found ${hooks.length}`);
+  }
+  return hook;
+}
+
 export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Intersection<T> {
   const methods = {};
   for (const table of tables) {
@@ -73,6 +119,12 @@ export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Int
     Object.assign(methods, table);
   }
   return methods as Intersection<T>;
+}
+
+export function contributedRuntimeServices(features: RegisteredFeatures) {
+  return mergeFeatureMethods(
+    features.flatMap((feature) => ('runtimeServices' in feature ? [feature.runtimeServices] : [])),
+  );
 }
 
 type RegisteredBridgeContext = Parameters<

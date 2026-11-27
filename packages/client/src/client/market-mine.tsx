@@ -7,17 +7,23 @@ import type {
   MarketplaceAuthoredBot,
   MarketplaceEntry,
 } from '../../../core/src/marketplace/client.js';
+import type { MarketplaceSkill } from '@botharness/host-protocol/marketplace-skill';
 import type { BridgeActions } from './actions.js';
+import { BridgeCallError } from './bridge.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import { EmptyState } from './ds/empty-state.js';
 import { FormDialog } from './ds/form-dialog.js';
+import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketUploadDialog } from './market-upload.js';
 import { fileSize } from './market-files.js';
+import { MarketSkillReplaceDialog, skillFilesLabel } from './market-skill-publish.js';
+import { installsLabel, SkillLogo } from './market-skills.js';
 import {
   marketplaceError,
   marketplaceLanguage,
@@ -135,10 +141,18 @@ type ListState =
   | { status: 'error'; cause: unknown }
   | { status: 'ready'; bots: MarketplaceAuthoredBot[] };
 
+type SkillListState =
+  | { status: 'loading' }
+  | { status: 'hidden' }
+  | { status: 'error'; cause: unknown }
+  | { status: 'ready'; skills: MarketplaceSkill[] };
+
 type Screen =
   | { kind: 'list' }
   | { kind: 'update'; item: MarketplaceAuthoredBot }
-  | { kind: 'delete'; item: MarketplaceAuthoredBot };
+  | { kind: 'delete'; item: MarketplaceAuthoredBot }
+  | { kind: 'skill-replace'; skill: MarketplaceSkill }
+  | { kind: 'skill-delete'; skill: MarketplaceSkill };
 
 export function MyUploadsDialog({
   actions,
@@ -156,6 +170,7 @@ export function MyUploadsDialog({
   onClose: () => void;
 }): ReactElement {
   const [list, setList] = useState<ListState>({ status: 'loading' });
+  const [skills, setSkills] = useState<SkillListState>({ status: 'loading' });
   const [screen, setScreen] = useState<Screen>({ kind: 'list' });
   const [busy, setBusy] = useState(false);
   const [cause, setCause] = useState<unknown>();
@@ -172,9 +187,26 @@ export function MyUploadsDialog({
     );
   };
 
+  const loadSkills = (): void => {
+    void actions.marketplaceSkillMine().then(
+      (loaded) => {
+        if (mounted.current) setSkills({ status: 'ready', skills: loaded.skills });
+      },
+      (failure: unknown) => {
+        if (!mounted.current) return;
+        setSkills(
+          failure instanceof BridgeCallError && failure.code === 'permission-required'
+            ? { status: 'hidden' }
+            : { status: 'error', cause: failure },
+        );
+      },
+    );
+  };
+
   const mount = useMountedResource<HTMLSpanElement>(() => {
     mounted.current = true;
     load();
+    loadSkills();
     return () => {
       mounted.current = false;
     };
@@ -205,7 +237,61 @@ export function MyUploadsDialog({
     }
   };
 
+  const removeSkill = async (skill: MarketplaceSkill): Promise<void> => {
+    setBusy(true);
+    setCause(undefined);
+    try {
+      await actions.marketplaceSkillDelete(skill.id);
+      if (!mounted.current) return;
+      setSkills((current) =>
+        current.status === 'ready'
+          ? { ...current, skills: current.skills.filter(({ id }) => id !== skill.id) }
+          : current,
+      );
+      setScreen({ kind: 'list' });
+    } catch (failure) {
+      if (mounted.current) setCause(failure);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  };
+
   const view = (): ReactElement => {
+    if (screen.kind === 'skill-replace')
+      return (
+        <MarketSkillReplaceDialog
+          actions={actions}
+          skill={screen.skill}
+          t={t}
+          onReplaced={(next) =>
+            setSkills((current) =>
+              current.status === 'ready'
+                ? {
+                    ...current,
+                    skills: current.skills.map((item) => (item.id === next.id ? next : item)),
+                  }
+                : current,
+            )
+          }
+          onClose={() => go({ kind: 'list' })}
+        />
+      );
+
+    if (screen.kind === 'skill-delete') {
+      const { skill } = screen;
+      return (
+        <UploadDeleteDialog
+          name={skill.name}
+          body={t('market.skills.mine.deleteBody')}
+          busy={busy}
+          cause={cause}
+          t={t}
+          onCancel={() => go({ kind: 'list' })}
+          onDelete={() => void removeSkill(skill)}
+        />
+      );
+    }
+
     if (screen.kind === 'update')
       return (
         <MarketUploadDialog
@@ -245,6 +331,14 @@ export function MyUploadsDialog({
         scroll
         data={{ 'data-market-mine': 'list' }}
       >
+        {skills.status === 'hidden' ? null : (
+          <GroupHeading
+            label={t('market.mine.bots')}
+            count={list.status === 'ready' ? list.bots.length : ''}
+            quiet
+            flush
+          />
+        )}
         {list.status === 'loading' ? (
           <Note>{t('market.mine.loading')}</Note>
         ) : list.status === 'error' ? (
@@ -279,6 +373,60 @@ export function MyUploadsDialog({
               />
             ))}
           </MarketUploadList>
+        )}
+        {skills.status === 'hidden' ? null : (
+          <>
+            <GroupHeading
+              label={t('market.mine.skills')}
+              count={skills.status === 'ready' ? skills.skills.length : ''}
+              quiet
+              flush
+            />
+            {skills.status === 'loading' ? (
+              <Note>{t('market.mine.loading')}</Note>
+            ) : skills.status === 'error' ? (
+              <ReadFailure
+                retryLabel={t('market.retry')}
+                onRetry={() => {
+                  setSkills({ status: 'loading' });
+                  loadSkills();
+                }}
+              >
+                {marketplaceError(skills.cause, t)}
+              </ReadFailure>
+            ) : skills.skills.length === 0 ? (
+              <EmptyState title={t('market.skills.mine.empty')} />
+            ) : (
+              <MarketUploadList label={t('market.mine.skills')}>
+                {skills.skills.map((skill) => (
+                  <MarketUploadItem
+                    key={skill.id}
+                    data={{ 'data-market-mine-skill': skill.id }}
+                    image={<SkillLogo />}
+                    name={skill.name}
+                    meta={
+                      <>
+                        {skill.scan === 'warning' ? (
+                          <Tag tone="warning">{t('market.skills.warning')}</Tag>
+                        ) : null}
+                        {skill.scripts.length > 0 ? (
+                          <Tag tone="neutral">{t('market.skills.hasScripts')}</Tag>
+                        ) : null}
+                        <span>
+                          {skillFilesLabel(skill.fileCount, t)} · {installsLabel(skill.installs, t)}
+                        </span>
+                      </>
+                    }
+                    changeLabel={t('market.skills.mine.replace')}
+                    changeAriaLabel={t('market.skills.mine.replaceLabel', { name: skill.name })}
+                    onChange={() => go({ kind: 'skill-replace', skill })}
+                    onDelete={() => go({ kind: 'skill-delete', skill })}
+                    t={t}
+                  />
+                ))}
+              </MarketUploadList>
+            )}
+          </>
         )}
       </PanelDialog>
     );

@@ -4,27 +4,7 @@ import { executeNativeTool } from './native-agent-compat.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
 import { agentFeatureContext } from './agent-feature-context.js';
-import type { FeatureToolRegistrar } from '../kernel/feature-contribution.js';
-import { registerInboxTools, registerSourceAttentionTools } from '../features/activity/tools.js';
-import {
-  createAssignmentTool,
-  registerAssignmentTools,
-  type AssignmentToolOptions,
-} from '../features/assignments/tools.js';
-import {
-  createBotContactsTool,
-  createChannelListTool,
-  createChannelReadTool,
-  createGroupCreateTool,
-  createGroupLeaveTool,
-  registerGroupChannelTools,
-} from '../features/channels/tools.js';
-import { registerExternalMessagingTools } from '../features/messaging/tools.js';
-import { createListAssignmentModelsTool } from '../features/models/tools.js';
-import {
-  createBridgeAttachmentSaveTool,
-  registerChannelFileTools,
-} from '../features/channel-files/tools.js';
+import type { FeatureToolPlacement, FeatureToolRegistrar } from '../kernel/feature-contribution.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { AttachmentId } from '@deepseek-ai/dsh-attachment';
 import { isBotSubagentModelTool } from './subagent-model-tools.js';
@@ -93,13 +73,45 @@ export function orchestratorTools(
     return active?.role === 'orchestrator' ? active : undefined;
   };
   const currentRun = () => currentOrchestrator()?.run;
-  const featureContext = agentFeatureContext(adapter, run, agentCtx);
-  const lateFeatureTools: ToolDefinition[] = [];
+  const resolveModelPlan = () => adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+  const loadAssignmentModes = () => adapter.assignmentModes?.(run.bot.slug);
+  const featureContext = {
+    ...agentFeatureContext(adapter, run, agentCtx),
+    engineChannel: () => adapter.engineChannels.get(run.sessionId),
+    assignmentTool: {
+      currentRun: currentOrchestrator,
+      run,
+      resolveModelPlan,
+      openAssignmentRoutes: adapter.openAssignmentRoutes,
+      assignmentGroups: adapter.assignmentGroups,
+      modeChoices: adapter.orchestratorModeChoices.get(run.sessionId),
+      loadAssignmentModes,
+    },
+    assignmentModelTool: {
+      run,
+      isRunActive: () => currentRun() !== undefined,
+      resolveModelPlan,
+      loadAssignmentModes,
+      groups: adapter.assignmentGroups,
+      modelFilter: () => adapter.modelFilter?.(run.bot.slug),
+      openAssignmentRoutes: adapter.openAssignmentRoutes,
+    },
+    workspaceSessionsAvailable: run === CATALOG_RUN || Boolean(run.workspaceSessions),
+  };
+  const placedFeatureTools = new Map<FeatureToolPlacement, ToolDefinition[]>();
+  const registerPlacedFeatureTools = (placement: FeatureToolPlacement) => {
+    const register = placement === 'bridge' ? registerBridgeTool : registerTool;
+    for (const tool of placedFeatureTools.get(placement) ?? []) register(tool);
+  };
   for (const feature of adapter.featureContributions) {
     feature.tools?.(featureContext, {
       register(tool, placement) {
-        if (placement === 'after-channel-tools') lateFeatureTools.push(tool);
-        else registerTool(tool);
+        if (placement === undefined) registerTool(tool);
+        else {
+          const tools = placedFeatureTools.get(placement) ?? [];
+          tools.push(tool);
+          placedFeatureTools.set(placement, tools);
+        }
       },
       guard: guardFeatureTool,
     });
@@ -131,107 +143,11 @@ export function orchestratorTools(
       },
     ),
   );
-  const resolveModelPlan = () => adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-  const loadAssignmentModes = () => adapter.assignmentModes?.(run.bot.slug);
-  const assignmentOptions: AssignmentToolOptions = {
-    currentRun: currentOrchestrator,
-    run,
-    resolveModelPlan,
-    openAssignmentRoutes: adapter.openAssignmentRoutes,
-  };
-  registerTool(
-    createListAssignmentModelsTool({
-      run,
-      isRunActive: () => currentRun() !== undefined,
-      resolveModelPlan,
-      loadAssignmentModes,
-      groups: adapter.assignmentGroups,
-      modelFilter: () => adapter.modelFilter?.(run.bot.slug),
-      openAssignmentRoutes: adapter.openAssignmentRoutes,
-    }),
-  );
-  registerTool(
-    createAssignmentTool({
-      ...assignmentOptions,
-      assignmentGroups: adapter.assignmentGroups,
-      modeChoices: adapter.orchestratorModeChoices.get(run.sessionId),
-      loadAssignmentModes,
-    }),
-  );
-  registerTool(
-    defineTool({
-      name: 'request_workspace_grant',
-      description:
-        'Ask the Human to authorize a folder so the current task can continue. The request card appears in the current inbound Channel, a Group or your Human DM. Use when no active writable Workspace Grant fits, including a read-only directory that needs write access; this does not create an Assignment.',
-      parameters: {
-        channel_id: {
-          type: 'string',
-          description:
-            'Explicit joined Channel; required when called by the direct CLI outside a turn.',
-        },
-        reason: {
-          type: 'string',
-          required: true,
-          description: 'Briefly explain which work needs folder access.',
-        },
-      },
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
-      execute: async (args) => {
-        const active = adapter.runs.get(run.sessionId);
-        if (active?.role !== 'orchestrator') {
-          throw new Error('request_workspace_grant: Orchestrator run is unavailable');
-        }
-        const message = await active.run.channels.requestGrant(args.reason, args.channel_id);
-        return `Sent Workspace Grant request card ${message.id}; wait for Human authorization.`;
-      },
-    }),
-  );
-  registerTool(
-    defineTool({
-      name: 'list_workspace_grants',
-      description:
-        'List Human-authorized Workspace Grants for this PersonaBot. Only active Grant ids can be passed to create_assignment.',
-      parameters: {},
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
-      execute: async () => {
-        const active = adapter.runs.get(run.sessionId);
-        if (active?.role !== 'orchestrator') {
-          throw new Error('list_workspace_grants: Orchestrator run is unavailable');
-        }
-        return JSON.stringify(active.run.assignments.grants());
-      },
-    }),
-  );
-  if (run === CATALOG_RUN || run.workspaceSessions)
-    registerTool(
-      defineTool({
-        name: 'workspace_sessions',
-        description:
-          "Read the Human's own DeepSeek Sessions that worked inside one of your active Workspace Grants. Omit session_id to list them newest first (id, title, folder, last activity); pass a session_id to read that Session as Markdown: Human requests, assistant replies and one line per tool call. Read-only; a Session outside your Grants is refused.",
-        parameters: { session_id: { type: 'string' } },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = adapter.runs.get(run.sessionId);
-          const sessions =
-            active?.role === 'orchestrator' ? active.run.workspaceSessions : undefined;
-          if (sessions === undefined) throw new Error('workspace-sessions-unavailable');
-          const id = typeof args.session_id === 'string' ? args.session_id.trim() : '';
-          if (id === '') return JSON.stringify({ sessions: await sessions.list() });
-          return sessions.read(id);
-        },
-      }),
-    );
-  registerAssignmentTools(assignmentOptions, registerTool);
-  registerTool(createChannelListTool(currentRun));
+  registerPlacedFeatureTools('before-assignment-tools');
+  registerPlacedFeatureTools('create-assignment');
+  registerPlacedFeatureTools('workspace-tools');
+  registerPlacedFeatureTools('assignment-tools');
+  registerPlacedFeatureTools('after-assignment-tools');
   if (run === CATALOG_RUN || run.speakerPolicy)
     registerTool(
       defineTool({
@@ -251,12 +167,11 @@ export function orchestratorTools(
         },
       }),
     );
-  registerExternalMessagingTools(currentRun, registerBridgeTool);
-  registerBridgeTool(createBridgeAttachmentSaveTool(currentRun));
+  registerPlacedFeatureTools('bridge');
 
-  registerTool(createChannelReadTool(currentRun));
-  registerInboxTools(currentRun, registerTool, () => adapter.engineChannels.get(run.sessionId));
-  registerChannelFileTools(currentRun, agentCtx, registerTool);
+  registerPlacedFeatureTools('before-inbox-tools');
+  registerPlacedFeatureTools('inbox-tools');
+  registerPlacedFeatureTools('after-inbox-tools');
   registerTool(
     defineTool({
       name: 'call_frame',
@@ -383,12 +298,10 @@ export function orchestratorTools(
       },
     }),
   );
-  registerTool(createBotContactsTool(currentRun));
-  registerTool(createGroupCreateTool(currentRun));
-  registerGroupChannelTools(currentRun, registerTool);
-  registerSourceAttentionTools(currentRun, registerTool);
-  for (const tool of lateFeatureTools) registerTool(tool);
-  registerTool(createGroupLeaveTool(currentRun));
+  registerPlacedFeatureTools('before-source-attention-tools');
+  registerPlacedFeatureTools('source-attention-tools');
+  registerPlacedFeatureTools('after-channel-tools');
+  registerPlacedFeatureTools('after-schedule-tools');
 }
 
 export function directTools(adapter: DirectToolsContext): DirectBotToolSpec[] {

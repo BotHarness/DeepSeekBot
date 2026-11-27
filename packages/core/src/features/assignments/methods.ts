@@ -30,9 +30,23 @@ import type {
   AssignmentSummary,
   ChannelAssignmentSummary,
 } from '../../runtime/bot-runtime.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { ChannelStore } from '../../channels/store.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { UsageProjection } from '../../usage/usage.js';
+import type { BotRuntime } from '../../runtime/bot-runtime-types.js';
+import type { PublicToolCall } from '../../runtime/assignment-timeline.js';
+import type { HumanAttentionQuery } from '../../runtime/human-attention.js';
+import type { ModelsBridgeDeps } from '../models/deps.js';
 
-export interface AssignmentsBridgeDeps {
+export interface AssignmentsBridgeDeps extends Pick<ModelsBridgeDeps, 'defaultModel'> {
+  channels: ChannelStore;
+  ownership: SessionOwnership;
+  registry: PersonaBotRegistry;
+  runtime?: BotRuntime;
+  humanAttention?: HumanAttentionQuery;
+  describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
+  readUsageSessionLog?: DshUsageSessionLogReader;
+  usage?: UsageProjection;
   assignmentAccess?: AssignmentAccessStore;
 }
 
@@ -102,19 +116,7 @@ async function subagentSessionsOf(
 
 export function createAssignmentsBridgeMethods(
   human: HumanContext,
-  deps: AssignmentsBridgeDeps &
-    Pick<
-      BridgeMethodsDeps,
-      | 'channels'
-      | 'defaultModel'
-      | 'describeToolCall'
-      | 'humanAttention'
-      | 'ownership'
-      | 'readUsageSessionLog'
-      | 'registry'
-      | 'runtime'
-      | 'usage'
-    >,
+  deps: AssignmentsBridgeDeps,
 ): AssignmentsBridgeMethods {
   return {
     humanAssignmentContext(payload) {

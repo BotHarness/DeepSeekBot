@@ -12,7 +12,7 @@ import type { RestingRoute } from '../../models/route-rest.js';
 import type { RoutingTarget } from '../../models/routing-groups.js';
 import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
 
-interface AssignmentModelToolOptions {
+export interface AssignmentModelToolOptions {
   run: Pick<OrchestratorAgentRun, 'bot'>;
   isRunActive: () => boolean;
   resolveModelPlan: () => PersonaBotModelPlan | undefined;

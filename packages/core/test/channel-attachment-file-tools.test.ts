@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 import type { ChannelAttachmentRef } from '../src/attachments/ref.js';

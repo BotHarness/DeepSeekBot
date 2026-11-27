@@ -1,5 +1,5 @@
 import { realpath, rm } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, relative, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 
 import { commitMemoryPathsAsync, ignoredMemoryPathsAsync } from '../memory/git.js';
 import { readWorkspaceSkills } from './workspace.js';
@@ -47,6 +47,19 @@ async function canonicalRoot(memoryDir: string): Promise<string | undefined> {
   }
 }
 
+async function removalTarget(root: string, absolute: string): Promise<string | undefined> {
+  for (const parent of ['.dsh', '.agents']) {
+    const skillsRoot = await canonicalRoot(join(root, parent, 'skills'));
+    if (skillsRoot === undefined || !inside(root, skillsRoot) || !inside(skillsRoot, absolute))
+      continue;
+    const parts = relative(skillsRoot, absolute).split(sep);
+    if (parts.length === 1) return absolute;
+    if (parts.length === 2 && parts[1] === 'SKILL.md') return dirname(absolute);
+    return undefined;
+  }
+  return undefined;
+}
+
 async function readBotSkills(
   memoryDir: string,
 ): Promise<{ root: string; skills: BotSkillDetail[] }> {
@@ -84,11 +97,8 @@ export async function removeBotSkill(
   const skill = skills.find((entry) => entry.name === name);
   if (skill === undefined) throw new BotSkillNotFoundError(name);
   const absolute = `${root}${sep}${skill.path.split('/').join(sep)}`;
-  const folder = basename(absolute) === 'SKILL.md' && basename(dirname(absolute)) !== 'skills';
-  const target = folder ? dirname(absolute) : absolute;
-  const skillsRoot = dirname(target);
-  if (!inside(root, target) || basename(skillsRoot) !== 'skills')
-    throw new BotSkillNotFoundError(name);
+  const target = await removalTarget(root, absolute);
+  if (target === undefined) throw new BotSkillNotFoundError(name);
   const removed = relative(root, target).split(sep).join('/');
   const ignored = await ignoredMemoryPathsAsync(root, [removed]);
   if (ignored.length > 0) throw new BotSkillIgnoredFilesError(name, ignored);

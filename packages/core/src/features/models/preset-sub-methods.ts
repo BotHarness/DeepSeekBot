@@ -7,7 +7,6 @@ import {
   type BridgeResult,
 } from '../../kernel/method-utils.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import {
   effectiveSubForMain,
@@ -33,7 +32,7 @@ import { modelFailure } from '../../models/provider-bridge.js';
 import { RoutingGroupError } from '../../models/routing-groups.js';
 import { TeamError } from '../../team-policy/error.js';
 import { presetEnginesInput } from './inputs.js';
-import type { ModelsBridgeDeps } from './deps.js';
+import type { ModelInvocationDeps, ModelsBridgeDeps } from './deps.js';
 import { routingGroupFailure, type createModelRoutingHelpers } from './routing.js';
 
 export interface ModelPresetSubView {
@@ -76,7 +75,7 @@ type MainChoice = Pick<
 
 export function createSubChecks(
   human: HumanContext,
-  deps: Pick<BridgeMethodsDeps, 'team'>,
+  deps: Pick<ModelInvocationDeps, 'team'>,
   isHostOwner: () => boolean,
   routing: ReturnType<typeof createModelRoutingHelpers>,
 ) {
@@ -132,7 +131,7 @@ export function createSubChecks(
 
 export function createPresetSubMethods(
   human: HumanContext,
-  deps: ModelsBridgeDeps & Pick<BridgeMethodsDeps, 'registry' | 'team'>,
+  deps: ModelInvocationDeps,
   isHostOwner: () => boolean,
   requireOwnedBot: (slug: string) => void,
   {
@@ -278,7 +277,7 @@ export function createPresetSubMethods(
 
 export function createSubWriters(
   human: HumanContext,
-  deps: ModelsBridgeDeps & Pick<BridgeMethodsDeps, 'registry' | 'team'>,
+  deps: ModelInvocationDeps,
   isHostOwner: () => boolean,
   {
     requireRoutes,

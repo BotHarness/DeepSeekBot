@@ -2603,6 +2603,7 @@ deepseekbot roles list
 deepseekbot roles create --name reviewers --permissions audit.view,usage.view
 deepseekbot roles update <roleId> --permissions usage.view
 deepseekbot roles update <roleId> --deny channels.create
+deepseekbot roles update <roleId> --expected-revision <revision> --deny channels.create [--as <username>]
 deepseekbot roles effective bob
 deepseekbot roles delete <roleId> --confirm
 deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
@@ -2611,6 +2612,10 @@ deepseekbot --as bob devices --member bob
 deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
+
+When editing a role from an earlier `roles list`, pass its `revision` as `--expected-revision`.
+If the Host returns `stale-role`, read the role again and review the latest grants before retrying.
+Without the flag, `roles update` reads the current revision using the same caller as the update.
 
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 

@@ -1,5 +1,4 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import type { BridgeLive } from '../../bridge/rpc.js';
+import type { BridgeLive } from '../../bridge/rpc-types.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { TeamService } from '../../team/service.js';
 import { toRemoteError } from '../../kernel/rpc-result.js';
@@ -53,4 +52,9 @@ export const channelFilesRpcMethods = {
   ): { target: MemoryFileTarget } {
     return messageAttachmentTarget(this.methods, channelId, messageId, fileId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{
+  readonly methods: ChannelFilesAdapterMethods;
+  readonly live?: BridgeLive;
+  readonly team?: TeamService;
+  invocationHuman(): HumanContext;
+}>;

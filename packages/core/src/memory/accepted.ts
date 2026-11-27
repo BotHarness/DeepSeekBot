@@ -48,8 +48,9 @@ export function createMemoryAcceptance(options: {
   const now = options.now ?? (() => new Date());
   const warn = options.warn;
   const operations = new Set<string>();
+  const isObserving = (botSlug: string): boolean => operations.has(botSlug);
   const assertIdle = (botSlug: string): void => {
-    if (operations.has(botSlug))
+    if (isObserving(botSlug))
       throw new MemoryAcceptError('memory-conflict', 'Memory observation is in progress');
   };
   const runAsync = async <T>(botSlug: string, steps: GitSteps<T>): Promise<T> => {
@@ -101,7 +102,7 @@ export function createMemoryAcceptance(options: {
     accept,
     bootstrapSteps,
     methods: ledger,
-  } = createAcceptedLedger({ database, now, assertIdle, readRepository, registry });
+  } = createAcceptedLedger({ database, now, assertIdle, isObserving, readRepository, registry });
   const {
     requireOwned,
     pendingCommits,

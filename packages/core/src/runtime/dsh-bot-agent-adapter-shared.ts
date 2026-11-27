@@ -1,6 +1,4 @@
 import type { SessionLinkKind } from './bot-message-tool.js';
-import { externalImPrompt } from '../features/messaging/prompt.js';
-import { EXTERNAL_ATTACHMENT_PROMPT } from '../features/channel-files/prompt.js';
 import type { Agent, AgentHandle, ModelSelection } from '@deepseek-ai/dsh-agent';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -22,8 +20,6 @@ export interface ModelFreeTobTurn {
 }
 
 export const ROLE_PROMPT_ORDER = 10_350;
-
-export const EXTERNAL_IM_PROMPT = externalImPrompt(EXTERNAL_ATTACHMENT_PROMPT);
 
 export function appendSkillInstallation(prompt: string, text: PromptText): string {
   const guidance = text('skill-installation');

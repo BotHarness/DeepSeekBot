@@ -61,7 +61,7 @@
       "push -> runtime": 1
     },
     "packages/core/src/runtime/bot-runtime-features.ts": {
-      "runtime -> features": 28
+      "runtime -> features": 2
     },
     "packages/core/src/runtime/bot-runtime-lifecycle.ts": {
       "runtime -> features": 1
@@ -73,25 +73,13 @@
       "runtime -> features": 3
     },
     "packages/core/src/runtime/bot-runtime.ts": {
-      "runtime -> features": 12
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-assignment.ts": {
-      "runtime -> features": 3
+      "runtime -> features": 7
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-engine.ts": {
-      "runtime -> features": 4
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.ts": {
-      "runtime -> features": 6
+      "runtime -> features": 1
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator.ts": {
       "runtime -> features": 1
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-shared.ts": {
-      "runtime -> features": 2
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-tools.ts": {
-      "runtime -> features": 6
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter.ts": {
       "runtime -> features": 3
@@ -182,7 +170,6 @@
     "packages/core/src/channels/channel-message-validation.ts": {
       "channels -> bots": 1,
       "channels -> credentials": 2,
-      "channels -> takeover": 1,
       "channels -> workspaces": 1
     },
     "packages/core/src/channels/channel-record.ts": {
@@ -305,9 +292,6 @@
     },
     "packages/core/src/purge/scopes.ts": {
       "purge -> channels": 1
-    },
-    "packages/core/src/takeover/mount.ts": {
-      "takeover -> channels": 1
     },
     "packages/core/src/telemetry/bot-turn.ts": {
       "telemetry -> usage": 1

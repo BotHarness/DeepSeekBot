@@ -14,7 +14,32 @@ export interface MarketplaceSkillFinding {
   severity: 'warning' | 'malicious';
 }
 
+export const MARKETPLACE_SKILL_REVISION = /^[0-9a-f]{32}$/u;
+
+export interface MarketplaceSkillUpload {
+  author: { id: string; name: string };
+  revision: string;
+}
+
+export interface MarketplaceSkillUploadInput {
+  requestKey?: string;
+  expectedAuthorId?: string;
+  files: { path: string; data: string }[];
+}
+
+export interface MarketplaceSkillPublication {
+  bot: string;
+  name: string;
+  expectedAuthorId?: string;
+  requestKey?: string;
+}
+
+export type MarketplaceSkillReplacement = Omit<MarketplaceSkillPublication, 'requestKey'> & {
+  id: string;
+};
+
 export interface MarketplaceSkill {
+  upload?: MarketplaceSkillUpload;
   id: string;
   name: string;
   description: string;
@@ -116,6 +141,17 @@ export function parseMarketplaceSkill(value: unknown): MarketplaceSkill | undefi
   if (source === undefined) return undefined;
   const text = (key: string) => (typeof source[key] === 'string' ? source[key] : undefined);
   const count = (key: string) => (typeof source[key] === 'number' ? source[key] : undefined);
+  const uploadValue = source['upload'];
+  const uploaded = record(uploadValue);
+  const author = record(uploaded?.['author']);
+  const revision = uploaded?.['revision'];
+  const upload =
+    typeof author?.['id'] === 'string' &&
+    typeof author['name'] === 'string' &&
+    typeof revision === 'string' &&
+    MARKETPLACE_SKILL_REVISION.test(revision)
+      ? { author: { id: author['id'], name: author['name'] }, revision }
+      : undefined;
   const id = text('id');
   const name = text('name');
   const description = text('description');
@@ -145,9 +181,10 @@ export function parseMarketplaceSkill(value: unknown): MarketplaceSkill | undefi
     fullName === undefined ||
     path === undefined ||
     htmlUrl === undefined ||
-    !htmlUrl.startsWith('https://github.com/') ||
+    (upload === undefined ? !htmlUrl.startsWith('https://github.com/') : htmlUrl !== '') ||
+    (uploadValue !== undefined && upload === undefined) ||
     commitSha === undefined ||
-    !/^[0-9a-f]{40}$/u.test(commitSha) ||
+    (upload === undefined ? !/^[0-9a-f]{40}$/u.test(commitSha) : commitSha !== '') ||
     pushedAt === undefined ||
     stars === undefined ||
     installs === undefined ||
@@ -160,6 +197,7 @@ export function parseMarketplaceSkill(value: unknown): MarketplaceSkill | undefi
   )
     return undefined;
   return {
+    ...(upload === undefined ? {} : { upload }),
     id,
     name,
     description,

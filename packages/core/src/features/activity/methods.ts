@@ -35,7 +35,7 @@ import {
   type HumanAttentionItem,
 } from '../../runtime/human-attention.js';
 import type { AggregatedState } from '../../state/bot-state.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { ActivityBridgeDeps } from './bridge-deps.js';
 import { localDay } from '../../usage/overview.js';
 
 export interface ActivityOverview {
@@ -201,7 +201,7 @@ export interface ActivityBridgeMethods {
 
 export function createActivityBridgeMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: ActivityBridgeDeps,
   dmMemory: (payload: unknown, historical?: boolean) => { botSlug: string } | BridgeResult<never>,
 ): ActivityBridgeMethods {
   return {

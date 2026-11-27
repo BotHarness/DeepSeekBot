@@ -1,5 +1,6 @@
 import { type RosterLiveFrame } from '../../channels/live.js';
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
+import type { BridgeLive } from '../../bridge/rpc-types.js';
+import type { HumanContext } from '../../humans/context.js';
 import {
   toRemoteError,
   unwrap,
@@ -355,7 +356,7 @@ export function rosterBatch(
   return unwrapAsync(methods.rosterBatch({ action, channelIds, sectionId }));
 }
 
-export const personabotsRpcMethods = {
+export const personabotStreams = {
   followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame> {
     if (this.live === undefined)
       throw toRemoteError({
@@ -364,7 +365,12 @@ export const personabotsRpcMethods = {
       });
     return this.live.followRoster(this.invocationHuman(), signal);
   },
+} satisfies ThisType<{
+  readonly live?: Pick<BridgeLive, 'followRoster'>;
+  invocationHuman(): HumanContext;
+}>;
 
+export const personabotsRpcMethods = {
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot> {
     return onboarding(this.methods, slug, action);
   },
@@ -406,7 +412,7 @@ export const personabotsRpcMethods = {
   ): AdminResult<{ bot: PersonaBotDetail }> {
     return standingLimitsSet(this.methods, slug, soul, coreMemory);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: PersonaBotsBridgeMethods }>;
 
 export const personaBotLifecycleRpc = {
   get(slug: string): AdminResult<{ bot: PersonaBotDetail; profileFingerprint: string }> {
@@ -499,7 +505,7 @@ export const personaBotLifecycleRpc = {
       description,
     );
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: PersonaBotsBridgeMethods }>;
 
 export const personaBotManagementRpc = {
   async createFromGit(
@@ -537,7 +543,7 @@ export const personaBotManagementRpc = {
   ): AdminResult<{ bot: PersonaBotDetail }> {
     return update(this.methods, slug, patch, expectedProfile);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: PersonaBotsBridgeMethods }>;
 
 export const personaBotDeletionRpc = {
   deletionPreview(
@@ -580,7 +586,7 @@ export const personaBotDeletionRpc = {
   resume(slug: string): AdminResult<{ bot: PersonaBotDetail }> {
     return resume(this.methods, slug);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: PersonaBotsBridgeMethods }>;
 
 export const rosterSettingsRpc = {
   rosterGet(): RosterSnapshot {
@@ -634,4 +640,4 @@ export const rosterSettingsRpc = {
   ): Promise<RosterSnapshot> {
     return rosterBatch(this.methods, action, channelIds, sectionId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: PersonaBotsBridgeMethods }>;

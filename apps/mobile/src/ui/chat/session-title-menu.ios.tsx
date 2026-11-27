@@ -7,8 +7,6 @@ import {
   accessibilityElement,
   accessibilityHint,
   animation,
-  background,
-  clipShape,
   contentTransition,
   accessibilityIdentifier,
   accessibilityLabel,
@@ -32,7 +30,8 @@ import { glassHeader } from './header-kind';
 import { headerControlHeight } from './native-header';
 import { titleMorphKey } from './session-header-title';
 import { sessionMenuHeader, sessionPlaceLabel, type SessionPlace } from './session-place';
-import { space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
+import { titleChipFill } from './header-chrome';
 import type { SessionTitleMenuProps } from './session-title-menu';
 
 export function SessionTitleMenu({
@@ -47,7 +46,13 @@ export function SessionTitleMenu({
   const height = headerControlHeight(theme);
   const capsule = glassHeader
     ? [glassEffect({ glass: { variant: 'regular', interactive: true }, shape: 'capsule' })]
-    : [background(theme.layer.raised.fill), clipShape('capsule')];
+    : [];
+  const hostStyle = {
+    width: '100%' as const,
+    height,
+    borderRadius: radius.round,
+    ...titleChipFill(theme, false),
+  };
   const label = (
     <HStack
       spacing={0}
@@ -76,7 +81,7 @@ export function SessionTitleMenu({
   );
   if (menu === undefined)
     return (
-      <Host colorScheme={theme.scheme} style={{ width: '100%', height }}>
+      <Host colorScheme={theme.scheme} style={hostStyle}>
         <HStack
           spacing={0}
           modifiers={[
@@ -92,7 +97,7 @@ export function SessionTitleMenu({
       </Host>
     );
   return (
-    <Host colorScheme={theme.scheme} style={{ width: '100%', height }}>
+    <Host colorScheme={theme.scheme} style={hostStyle}>
       <Menu
         label={label}
         modifiers={[

@@ -1,6 +1,6 @@
 import { type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { ASSIGNMENT, groupTools, reportRun } from './support/dsh-bot-agent-adapter.js';
 

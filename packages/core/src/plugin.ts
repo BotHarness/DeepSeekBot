@@ -1,7 +1,3 @@
-import {
-  WORKSPACE_FAVICON_PATH,
-  createWorkspaceFaviconHttp,
-} from './workspaces/workspace-looks.js';
 import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -10,8 +6,6 @@ import * as releaseFeature from './features/release/plugin.js';
 import * as personabotsFeature from './features/personabots/plugin.js';
 import * as tobFeature from './features/tob/plugin.js';
 import * as approvalsFeature from './features/approvals/plugin.js';
-import * as memoryFeature from './features/memory/plugin.js';
-import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
@@ -30,7 +24,7 @@ import { ProtectedExecution } from './credentials/protected-execution.js';
 import { privateInputLog } from './credentials/diagnostics.js';
 import { createBridgeMethodsForHumans } from './bridge/methods.js';
 import { registerBridge } from './bridge/rpc.js';
-import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
+import { createCoreTakeoverHandoffs } from './features/takeover/plugin.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import { installedRelease } from './release/service.js';
 import { stampReleaseComponent } from './release/component.js';
@@ -53,7 +47,6 @@ import type { BotSubagentPresetConfig } from './runtime/subagent-model-tools.js'
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import * as activityFeature from './features/activity/plugin.js';
 import { createCloudResources } from './cloud/host-resources.js';
-import * as environments from './features/environments/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as marketplace from './features/marketplace/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
@@ -64,16 +57,17 @@ import type { HostFetchConnection } from './plugin-types.js';
 import { createHostCoreOptions } from './host-core-options.js';
 import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
-import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
 import { createSessionListChanges } from './features/sessions/session-list-changes.js';
-import * as channelsFeature from './features/channels/plugin.js';
-import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
-import { createFeatureContributions, forEachHostFeature } from './feature-contributions.js';
+import {
+  createFeatureContributions,
+  forEachHostFeature,
+  requireHostFeatureHook,
+} from './feature-contributions.js';
 import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
@@ -252,7 +246,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = tobFeature.createCliInvocation();
   const sessionLive = new SessionLiveStreams();
-  const { engineHost, localEngines, followPresetEngines } = models.mountEngines(
+  const { engineHost, localEngines, followPresetEngines } = requireHostFeatureHook(
+    featureContributions,
+    'subscriptionEngines',
+  )(
     ctx,
     config,
     dshHome,
@@ -291,23 +288,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return routeRests;
     },
     allowedGroupTargets: (slug, id) => allowedGroupTargets(slug, id),
-    get agentAdapter() {
-      return agentAdapter;
-    },
-    get tobSettingsOperations() {
-      return tobSettingsOperations;
-    },
-
-    get tobOperations() {
-      return tobOperations;
-    },
-
-    get tobVoiceOperations() {
-      return tobVoiceOperations;
-    },
-    get toolApproval() {
-      return toolApproval;
-    },
+    agentHooks: requireHostFeatureHook(featureContributions, 'tobAgentHooks')(ctx, {
+      tobCliInvocation,
+      get core() {
+        return core;
+      },
+      get agentAdapter() {
+        return agentAdapter;
+      },
+      get tobSettingsOperations() {
+        return tobSettingsOperations;
+      },
+      get tobOperations() {
+        return tobOperations;
+      },
+      get tobVoiceOperations() {
+        return tobVoiceOperations;
+      },
+      get toolApproval() {
+        return toolApproval;
+      },
+    }),
   });
   let userQuestions: ChannelUserQuestions | undefined;
   let toolApproval: ChannelToolApproval | undefined;
@@ -358,7 +359,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ),
   );
   followPresetEngines();
-  const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
+  const modelProviders = requireHostFeatureHook(featureContributions, 'modelProviders')(
+    ctx,
+    core,
+    routeRests,
+    defaultModel,
+  );
   publishDraft = (event) => {
     core.live.publishDraft(event);
     try {
@@ -407,24 +413,26 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.provide('botharnessResourcePublisher', (resource) =>
     core.live.publishResourceChanged(resource),
   );
-  environments.apply(ctx, core, {
-    team,
-    calls: () => voiceCalls,
-    onNetwork: (port) => {
-      botNetwork = port;
-    },
-    telemetry,
-    onAccount: (account) => {
-      connectAccount = account;
-    },
-    dshHome,
-    packageAnchors: releaseAnchors,
-    push: activityFeature.createPush(core, presence),
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.mountEnvironments?.(ctx, core, {
+      team,
+      calls: () => voiceCalls,
+      onNetwork: (port) => {
+        botNetwork = port;
+      },
+      telemetry,
+      onAccount: (account) => {
+        connectAccount = account;
+      },
+      dshHome,
+      packageAnchors: releaseAnchors,
+      push: activityFeature.createPush(core, presence),
+    }),
+  );
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.afterEnvironments?.(ctx, core, { telemetry, telemetryDir, telemetryState, activeDay }),
   );
-  personabotsFeature.mountRosterCleanup(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.rosterCleanup?.(ctx, core));
   ctx.effect(() => {
     const controller = new AbortController();
     if (core.operationalDatabase.mode === 'ready')
@@ -470,26 +478,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   }
   teamFeature.mountConfinement(ctx, core, dshHome);
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
-  mountTakeoverTools(ctx, core, takeovers);
-  messaging.mountCleanup(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterConfinement?.(ctx, core, takeovers),
+  );
+  forEachHostFeature(featureContributions, (hooks) => hooks.messagingCleanup?.(ctx, core));
   const { cloudConnections, cloudWork } = createCloudResources(ctx, core);
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeEngineTools?.(ctx, core, cloudWork),
   );
-  memoryFeature.mountEngineTools(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.engineTools?.(ctx, core));
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeMessagingProviders?.(ctx, core, cloudConnections, cloudWork),
   );
-  messaging.mountProviders(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.messagingProviders?.(ctx, core));
 
   const { permissionDenial, recordOrchestratorPermission, appliedPermission } =
-    workspacesFeature.mountPermissionTracking(ctx, core);
+    requireHostFeatureHook(featureContributions, 'workspacePermissionTracking')(ctx, core);
   const reviewing = new Set<string>();
   const { idleCompactionSettings, compactionPolicy, applyCompactionPolicy } =
-    sessionsFeature.createCompactionPolicy(ctx, core, dshHome);
+    requireHostFeatureHook(featureContributions, 'sessionCompactionPolicy')(ctx, core, dshHome);
   installNativeSubagentWake(ctx, core.runtime);
   applyCompactionPolicy();
-  sessionsFeature.mountPreStep(ctx, {
+  requireHostFeatureHook(featureContributions, 'sessionPreStep')(ctx, {
     core,
     applyCompactionPolicy,
     compactionPolicy,
@@ -498,16 +508,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     recordOrchestratorPermission,
     agentAdapter,
   });
-  models.mountRetry(ctx, core, routeRests, routingDefaults.effectivePlan);
-  sessionsFeature.mountContextOverflowRecovery(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.modelRetry?.(ctx, core, routeRests, routingDefaults.effectivePlan),
+  );
+  requireHostFeatureHook(featureContributions, 'sessionOverflowRecovery')(ctx, core);
   const { approvalTemplates, approvalReviewer } = approvalsFeature.apply(dshHome);
-  const { liveAgent, idleCompaction, compactReservedSession, compactBot } =
-    sessionsFeature.mountIdleCompaction(ctx, { core, idleCompactionSettings, compactionPolicy });
+  const { liveAgent, idleCompaction, compactReservedSession, compactBot } = requireHostFeatureHook(
+    featureContributions,
+    'sessionIdleCompaction',
+  )(ctx, { core, idleCompactionSettings, compactionPolicy });
   const {
     toolApproval: mountedToolApproval,
     userQuestions: mountedQuestions,
     templateInUse,
-  } = approvalsFeature.mount(ctx, core, {
+  } = requireHostFeatureHook(featureContributions, 'approvalHandlers')(ctx, core, {
     dshHome,
     approvalTemplates,
     approvalReviewer,
@@ -566,14 +580,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     updateRuns,
     updateLifecycle,
   });
-  const tobSettingsOperations = tobFeature.mountSettingsOperations(ctx, core, {
+  const tobSettingsOperations = requireHostFeatureHook(
+    featureContributions,
+    'tobSettingsOperations',
+  )(ctx, core, {
     modelCatalog,
     developerMode,
     telemetry,
     git,
     releaseService,
   });
-  const folders = workspacesFeature.mountFolders(ctx);
+  const folders = requireHostFeatureHook(featureContributions, 'workspaceFolders')(ctx);
   const {
     marketplaceClient,
     marketplaceUploads,
@@ -709,7 +726,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     compactBot,
   );
-  const tobOperations = tobFeature.mountOperations(ctx, core, {
+  const tobOperations = requireHostFeatureHook(featureContributions, 'tobOperations')(ctx, core, {
     bridgeMethods,
     bridgeFor: invocationBridgeMethods,
     diagnosticEvents,
@@ -767,16 +784,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = (connectionCtx as unknown as { connection: HostFetchConnection }).connection;
-    models.mountSubscriptionEngineRoute(connectionCtx, connection, {
-      core,
-      team,
-      bridgeDeps,
-      engineHost,
-      agentAdapter,
-      get toolApproval() {
-        return toolApproval;
-      },
-    });
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.subscriptionEngineRoute?.(connectionCtx, connection, {
+        core,
+        team,
+        bridgeDeps,
+        engineHost,
+        agentAdapter,
+        get toolApproval() {
+          return toolApproval;
+        },
+      }),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.beforeVoiceRoutes?.(ctx, connectionCtx, connection, {
         team,
@@ -785,26 +804,26 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         profile,
       }),
     );
-    voice.mountFetch(connectionCtx, connection.fetch, () => voiceCalls);
-    channelsFeature.mountLiveRoute(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.voiceRoutes?.(connectionCtx, connection.fetch, () => voiceCalls),
+    );
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.channelLiveRoute?.(connectionCtx, connection, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.afterLiveRoute?.(connectionCtx, connection, core),
     );
-    memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
-    channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.memoryRoutes?.(connectionCtx, connection.fetch, core),
+    );
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.attachmentRoutes?.(connectionCtx, connection, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.beforeWorkspaceFavicon?.(connectionCtx, connection, core),
     );
-    const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
-    connectionCtx.effect(
-      () =>
-        connection.fetch.register({
-          path: WORKSPACE_FAVICON_PATH,
-          methods: ['GET'],
-          requestBody: 'buffered',
-          fetch: workspaceFaviconHttp,
-        }),
-      'botharness: Workspace favicon',
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.workspaceFavicon?.(connectionCtx, connection, core),
     );
     const botZipHttp = marketplace.createZipTransfer(ctx, {
       registry: core.registry,
@@ -828,7 +847,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       hooks.afterConnectionRoutes?.(connectionCtx, () => connection.fetch, botZipHttp),
     );
   });
-  const activity = activityFeature.apply(
+  const activity = requireHostFeatureHook(featureContributions, 'activityObservers')(
     ctx,
     core,
     dshSessions,
@@ -840,7 +859,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   const botTurnTelemetry = diagnosticsFeature.createTurnTelemetry(ctx, core, telemetry, liveAgent);
   const turnLog = diagnosticsFeature.createTurnDiagnostics(core, diagnosticEvents);
-  sessionsFeature.mountLifecycle(ctx, config, {
+  requireHostFeatureHook(featureContributions, 'sessionLifecycle')(ctx, config, {
     core,
     mountedQuestions,
     activity,

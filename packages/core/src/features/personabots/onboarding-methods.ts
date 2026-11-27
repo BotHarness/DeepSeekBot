@@ -1,4 +1,4 @@
-import { createModelRoutingHelpers, routingGroupFailure } from '../models/routing.js';
+import { routingGroupFailure } from '../models/routing.js';
 import {
   asObject,
   asSlug,
@@ -13,10 +13,16 @@ import { type HumanContext } from '../../humans/context.js';
 
 import type { OnboardingSnapshot, TutorialAction } from '../../onboarding/service.js';
 import { type TelemetryEventName } from '../../telemetry/events.js';
-import { DEFAULT_MODEL_PRESET_ID, ModelPresetError, isModelRoute } from '../../models/presets.js';
+import {
+  DEFAULT_MODEL_PRESET_ID,
+  ModelPresetError,
+  isModelRoute,
+  type ModelRoute,
+} from '../../models/presets.js';
 import { RoutingGroupError } from '../../models/routing-groups.js';
 import { groupMemberRoute } from '../../models/catalog.js';
-import type { BridgeMethods, BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { BridgeMethods } from '../../bridge/methods.js';
+import type { OnboardingBridgeDeps } from './bridge-deps.js';
 const TUTORIAL_EVENTS: Record<TutorialAction, TelemetryEventName> = {
   start: 'onboarding:tutorial_start',
   pause: 'onboarding:tutorial_pause',
@@ -33,11 +39,18 @@ export interface OnboardingBridgeMethods {
   ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
 }
 
+export interface OnboardingModelRouting {
+  firstUsableRoute(routes: readonly ModelRoute[]): Promise<ModelRoute>;
+  requireGroupEfforts(group: string, efforts: readonly string[]): Promise<void>;
+  requireGroupEngines(id: string, slug?: string): void;
+  requireRoutes(slug: string, routes: readonly ModelRoute[]): void;
+}
+
 export function createOnboardingBridgeMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: OnboardingBridgeDeps,
   isHostOwner: () => boolean,
-  modelRouting: ReturnType<typeof createModelRoutingHelpers>,
+  modelRouting: OnboardingModelRouting,
 ): OnboardingBridgeMethods {
   const { firstUsableRoute, requireGroupEfforts, requireGroupEngines, requireRoutes } =
     modelRouting;

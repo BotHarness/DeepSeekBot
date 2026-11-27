@@ -194,8 +194,12 @@ export function roleUpdate(
   permissions?: string[],
   models?: import('../../team-policy/permissions.js').RoleModels,
   policy?: import('../../team-policy/bot-contract.js').RolePolicy,
+  denied?: string[],
+  expectedRevision?: number,
 ) {
-  return unwrapAsync(methods.roleUpdate({ roleId, name, permissions, models, policy }));
+  return unwrapAsync(
+    methods.roleUpdate({ roleId, expectedRevision, name, permissions, models, policy, denied }),
+  );
 }
 
 export function roleDelete(methods: TeamBridgeMethods, roleId: string) {
@@ -506,8 +510,19 @@ export const teamServiceRpc = {
     permissions?: string[],
     models?: import('../../team-policy/permissions.js').RoleModels,
     policy?: import('../../team-policy/bot-contract.js').RolePolicy,
+    denied?: string[],
+    expectedRevision?: number,
   ) {
-    return roleUpdate(this.methods, roleId, name, permissions, models, policy);
+    return roleUpdate(
+      this.methods,
+      roleId,
+      name,
+      permissions,
+      models,
+      policy,
+      denied,
+      expectedRevision,
+    );
   },
 
   roleDelete(roleId: string) {

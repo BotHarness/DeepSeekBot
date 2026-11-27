@@ -333,6 +333,7 @@ export interface MemorySnapshot {
   head: string | null;
   files: string[];
   provisional: boolean;
+  observing?: true;
   standing: MemoryStanding[];
 }
 

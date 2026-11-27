@@ -545,6 +545,37 @@ describe('disruptive scoped CLI operations require Human review', () => {
 });
 
 describe('typed native Shell CLI effects under Full Access', () => {
+  it.each(
+    [
+      ['skills-publish', 'tidy-notes', '--bot', 'helper'],
+      ['skills', '--bot', 'helper', 'publish', 'tidy-notes'],
+      ['skills-replace', 'listing', 'tidy-notes', '--bot', 'helper', '--confirm'],
+      ['skills', 'replace', 'listing', 'tidy-notes', '--bot', 'helper', '--confirm'],
+      ['skills-delete', 'listing', '--confirm'],
+      ['skills', 'delete', 'listing', '--confirm'],
+    ].map((argv) => ({ argv })),
+  )('blocks the Bot CLI write $argv after Human rejection under Full Access', async ({ argv }) => {
+    const f = fixture();
+    f.setFullAccess(true);
+    const command = argv[0]!;
+    const pending = writeAfterApproval({
+      ...f.options,
+      operation: {
+        command,
+        target: command,
+        via: 'cli',
+        previousValue: null,
+        patch: { argv },
+      },
+    });
+    const card = await f.card();
+    expect(JSON.parse(card.toolApprovalRequest!.input)).toMatchObject({ patch: { argv } });
+    expect(pending.write).not.toHaveBeenCalled();
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'rejected');
+    expect(await pending.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
+    expect(pending.write).not.toHaveBeenCalled();
+  });
+
   const externalOperation = (command: string): TobCliWriteProposal => ({
     command,
     target: 'fixture',
@@ -552,17 +583,20 @@ describe('typed native Shell CLI effects under Full Access', () => {
     patch: {},
   });
 
-  it.each(['git-install', 'group-invite', 'voice-provider-test'])(
-    'lets Full Access run irreversible external %s without a card',
-    async (command) => {
-      const f = fixture();
-      f.setFullAccess(true);
-      const pending = writeAfterApproval({ ...f.options, operation: externalOperation(command) });
-      expect(await pending.result).toMatchObject({ ok: true });
-      expect(pending.write).toHaveBeenCalledTimes(1);
-      expect(f.channelApproval.requests('tob')).toEqual([]);
-    },
-  );
+  it.each([
+    'git-install',
+    'group-invite',
+    'voice-provider-test',
+    'marketplace-avatar-report',
+    'marketplace-skill-report',
+  ])('lets Full Access run irreversible external %s without a card', async (command) => {
+    const f = fixture();
+    f.setFullAccess(true);
+    const pending = writeAfterApproval({ ...f.options, operation: externalOperation(command) });
+    expect(await pending.result).toMatchObject({ ok: true });
+    expect(pending.write).toHaveBeenCalledTimes(1);
+    expect(f.channelApproval.requests('tob')).toEqual([]);
+  });
 });
 
 describe('declared CLI management keeps caller authority separate', () => {

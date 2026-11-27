@@ -1,8 +1,11 @@
 import { requireModelSources } from '../../models/provider-bridge.js';
 import { createEngineToolGate, type EngineDeviceTools } from '../../engines/engine-tool-gate.js';
 import { ENGINES_PATH, engineRouteFetch } from '../../engines/engine-route.js';
-import { createEngineSelectionBridge } from '../../engines/engine-selection-bridge.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import {
+  createEngineSelectionBridge,
+  type EngineSelectionBridgeDeps,
+} from '../../engines/engine-selection-bridge.js';
+import type { EngineBotTool } from '../../engines/engine-tools.js';
 import {
   requiresHumanToolApproval,
   sessionHasFullAccess,
@@ -573,9 +576,9 @@ export function mountSubscriptionEngineRoute(
   deps: {
     core: BotHarnessCore;
     team: BotHarnessCore['team'];
-    bridgeDeps: BridgeMethodsDeps;
-    engineHost: ReturnType<typeof mountEngines>['engineHost'];
-    agentAdapter: ReturnType<typeof createDshBotAgentAdapter>;
+    bridgeDeps: EngineSelectionBridgeDeps;
+    engineHost: EngineHost;
+    agentAdapter: { engineToolCatalog(botSlug: string): Promise<readonly EngineBotTool[]> };
     readonly toolApproval: ChannelToolApproval | undefined;
   },
 ) {

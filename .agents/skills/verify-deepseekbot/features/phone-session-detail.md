@@ -5,6 +5,7 @@
 - `apps/mobile/app/(tabs)/(home,sessions)/session/*.tsx`
 - `apps/mobile/src/ui/chat/{session-detail-screen,session-transcript-row,session-link-chips,session-model-composer}.tsx`
 - `apps/mobile/src/ui/chat/chat-timeline-chrome.tsx`
+- `apps/mobile/src/ui/chat/{chat-header-row,chat-header-actions.ios,conversation-top-bar.android,session-title-menu.ios}.tsx`
 - `apps/mobile/src/ui/chat/{session-model-label,use-session-transcript,session-navigation}.ts`
 - `apps/mobile/src/host/session-detail.ts`
 - `apps/mobile/src/features/sessions/native-session-input.ts`
@@ -34,7 +35,7 @@ Enable **Sessions** in Settings → Interface, then open the **Sessions** tab an
 
 ## Driving it with verify-app
 
-On Android, open a Session from the **Sessions** tab. Verify that the transcript opens and the Session top app bar shows Back, the Session title capsule, and the Session options button. Open the options menu, dismiss it, and use Back to return to **Sessions**.
+On each platform, open a group Channel and a Session on the same device at default, intermediate and maximum text sizes, in both themes. Compare the floating row, the round action sizes, and the title capsule over scrolled messages. The Session capsule shows the Computer and folder, and tapping it opens the full Session information and options. In Drawer style, ☰ opens the Sessions drawer and ✎ starts a new Session for the Host Owner. In Stacked style, Back returns to the list and ✎ starts a new Session. Open a Session from Chats and verify that Back returns there.
 
 Open a native DSH Session and send a prompt. Open **Model Choice**, select a route that uses a different model, and send a second prompt. On phone and in the desktop DSH Chat view, the second exchange shows one localized switch marker with the two brand icons and short model names. The internal DSH model-selection notice is absent from the timeline. Reopen the Session to check the same result in saved history. Use `deepseekbot session-transcript --session <id>` to confirm one typed `model-switch` item.
 

@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 
 import type { DshBotEngines } from '../src/runtime/dsh-bot-agent-adapter.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import type { EngineToolContext, EngineTurnRequest } from '../src/engines/engine-host.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';

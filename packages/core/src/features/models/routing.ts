@@ -24,8 +24,7 @@ import {
 import { type ModelFavorite } from '../../models/favorites.js';
 import { RoutingGroupError, type RoutingGroupMember } from '../../models/routing-groups.js';
 import { groupEfforts } from '../../models/catalog.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
-import type { ModelsBridgeDeps } from './deps.js';
+import type { ModelInvocationDeps } from './deps.js';
 
 export interface ModelCatalogGroup {
   id: string;
@@ -55,7 +54,7 @@ export function routingGroupFailure(error: unknown): BridgeResult<never> {
 
 export function createModelRoutingHelpers(
   human: HumanContext,
-  deps: ModelsBridgeDeps & Pick<BridgeMethodsDeps, 'registry' | 'team'>,
+  deps: ModelInvocationDeps,
   isHostOwner: () => boolean,
   requireOwnedBot: (slug: string) => void,
 ) {

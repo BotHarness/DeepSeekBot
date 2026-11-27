@@ -1,7 +1,8 @@
 import { ENGINE_IDS } from '@botharness/host-protocol/subscription-engine';
 import { z } from 'zod';
 
-import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
+import type { BridgeResult } from '../kernel/method-utils.js';
+import type { TeamService } from '../team/service.js';
 import type { HumanContext } from '../humans/context.js';
 import {
   canManageModelSources,
@@ -86,7 +87,7 @@ const submitCode = z.object({
 
 export function createEngineAccountBridge(
   human: HumanContext,
-  deps: Pick<BridgeMethodsDeps, 'team' | 'engineAccounts'>,
+  deps: { team?: TeamService; engineAccounts?: EngineAccountOperations },
 ): EngineAccountBridgeMethods {
   async function run<Input, T>(
     schema: z.ZodType<Input>,

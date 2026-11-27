@@ -1,7 +1,4 @@
 import { createChannelAccess } from './runtime-access.js';
-import { createRuntimeInputs } from '../features/approvals/runtime-inputs.js';
-import { createDirectTools } from '../features/sessions/direct-tools.js';
-import { createTobCliRuntime } from '../features/tob/cli-runtime.js';
 import { createGroupDigest } from './group-digest.js';
 import { createChannelAdmission } from './runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
@@ -9,11 +6,6 @@ import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import { createOrchestratorCancellation } from './orchestrator-cancellation.js';
 import { createOrchestratorContinuation } from './orchestrator-continuation.js';
 import { createMessagingEvents } from '../features/messaging/events.js';
-import { createActivityEvents } from '../features/activity/events.js';
-import { createAssignmentDelivery } from '../features/assignments/delivery.js';
-import { createAssignmentReporting } from '../features/assignments/reporting.js';
-import { createAssignmentEvents } from '../features/assignments/events.js';
-import { createMemoryEvents } from '../features/memory/events.js';
 import { randomUUID } from 'node:crypto';
 import { createInboxHistoryQuery } from './inbox-history.js';
 import { createInboxTriage } from './inbox-triage.js';
@@ -22,32 +14,11 @@ import { attachOperationalModule } from '../database/owner.js';
 import { createBotSourcePolicyStore } from './source-policy.js';
 import { DEFAULT_PROMPT_TEXT } from '../prompts/prompt-parts.js';
 import { DEFAULT_PROMPT_LIMITS } from '../prompts/prompt-limits.js';
-import { coalesceInbox, createInboxHarvest } from '../features/activity/inbox-harvest.js';
-import { createAssignmentExecution } from '../features/assignments/runtime-execution.js';
-import { createAssignmentIntake } from '../features/assignments/runtime-intake.js';
-import { createAssignmentRouting } from '../features/assignments/runtime-routing.js';
-import { createRuntimeAdmissions } from '../features/activity/runtime-admissions.js';
-import { createRuntimeAdmissionRecovery } from '../features/activity/runtime-admission-recovery.js';
-import { createOrchestratorTurns } from '../features/sessions/runtime-orchestrator-turns.js';
-import { createOrchestratorSessions } from '../features/sessions/runtime-orchestrator-sessions.js';
-import {
-  channelToolFeatures,
-  createOrchestratorServices,
-  voiceAdmissionNotes,
-} from '../features/sessions/runtime-orchestrator-services.js';
-import { createTurnFailures } from '../features/sessions/runtime-turn-failures.js';
-import { createRuntimeBotCreation } from '../features/personabots/runtime-creation.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
 import type { createBotRuntimeState } from './bot-runtime-state.js';
 import { createBotRuntimeLifecycle, createBotRuntimeRecovery } from './bot-runtime-lifecycle.js';
 import { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/runtime-types.js';
-import { interruptedDmNotice } from '../features/activity/runtime-admission-support.js';
-import { createRuntimeAssignmentAccess } from '../features/assignments/runtime-access.js';
-import { createRuntimeAssignmentLifecycle } from '../features/assignments/runtime-lifecycle.js';
-import { pickSessionGroup } from '../features/models/runtime-session-group.js';
-import { createRuntimeMemoryChanges } from '../features/memory/runtime-changes.js';
-import { createRuntimeBotContacts } from '../features/personabots/runtime-contacts.js';
-import { createNativeOrchestratorStep } from '../features/sessions/native-orchestrator-step.js';
+import type { RuntimeFeatureServices } from './feature-services.js';
 import { createRuntimeMembership } from './runtime-membership.js';
 import { createRuntimeQuotes } from './runtime-quotes.js';
 
@@ -69,7 +40,9 @@ type RuntimeInstancePorts = Pick<
   | 'directBotTools'
   | 'listAssignments'
 > & {
-  refreshAssignmentRoute: ReturnType<typeof createAssignmentRouting>['refreshAssignmentRoute'];
+  refreshAssignmentRoute: ReturnType<
+    RuntimeFeatureServices['createAssignmentRouting']
+  >['refreshAssignmentRoute'];
 };
 
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
@@ -79,7 +52,10 @@ export function createBotRuntimeFeatures(
   options: BotRuntimeOptions,
   state: ReturnType<typeof createBotRuntimeState>,
   runtime: RuntimeInstancePorts,
-  recordDirectToolSource: Parameters<typeof createDirectTools>[0]['recordDirectToolSource'],
+  recordDirectToolSource: Parameters<
+    RuntimeFeatureServices['createDirectTools']
+  >[0]['recordDirectToolSource'],
+  services: RuntimeFeatureServices,
 ) {
   const {
     activeSessionModels,
@@ -216,20 +192,20 @@ export function createBotRuntimeFeatures(
     channels,
     quoteBlocks,
   });
-  const { recordTurnCommits, insertMemoryChange } = createRuntimeMemoryChanges({
+  const { recordTurnCommits, insertMemoryChange } = services.createRuntimeMemoryChanges({
     channels,
     memory,
     now,
     warn,
   });
-  const memoryEvents = createMemoryEvents({
+  const memoryEvents = services.createMemoryEvents({
     database,
     registry,
     memory,
     now,
     createEventId,
     insertMemoryChange,
-    coalesceInbox,
+    coalesceInbox: services.coalesceInbox,
     promptText,
     setObserved: (eventIds, at) => admissions.setObserved(eventIds, at),
     trackSteer: (settlement) => channelAdmission.trackSteer(settlement),
@@ -237,27 +213,29 @@ export function createBotRuntimeFeatures(
   });
   const triageContinuation = options.triageContinuation === true;
 
-  const { approvalCapacity, setStopState, stopAssignment } = createRuntimeAssignmentLifecycle({
-    agents,
-    database,
-    ownership,
-    now,
-    createEventId,
-    warn,
-    pendingDeliveries,
-    typingAssignments,
-    assignmentRuns,
-    sourcePolicy,
-    assignmentExecutionAvailable: (...args) =>
-      assignmentExecution.assignmentExecutionAvailable(...args),
-    assignmentCapacityRefusal: (...args) => assignmentExecution.assignmentCapacityRefusal(...args),
-    assignmentRow: (...args) => assignmentExecution.assignmentRow(...args),
-    requireAssignmentSummary: (...args) => assignmentExecution.requireAssignmentSummary(...args),
-    beginSessionStop: (...args) => cancellation.beginSessionStop(...args),
-    settleStop: (...args) => cancellation.settleStop(...args),
-    scheduleHarvest: (...args) => scheduling.scheduleHarvest(...args),
-  });
-  const assignmentEvents = createAssignmentEvents({
+  const { approvalCapacity, setStopState, stopAssignment } =
+    services.createRuntimeAssignmentLifecycle({
+      agents,
+      database,
+      ownership,
+      now,
+      createEventId,
+      warn,
+      pendingDeliveries,
+      typingAssignments,
+      assignmentRuns,
+      sourcePolicy,
+      assignmentExecutionAvailable: (...args) =>
+        assignmentExecution.assignmentExecutionAvailable(...args),
+      assignmentCapacityRefusal: (...args) =>
+        assignmentExecution.assignmentCapacityRefusal(...args),
+      assignmentRow: (...args) => assignmentExecution.assignmentRow(...args),
+      requireAssignmentSummary: (...args) => assignmentExecution.requireAssignmentSummary(...args),
+      beginSessionStop: (...args) => cancellation.beginSessionStop(...args),
+      settleStop: (...args) => cancellation.settleStop(...args),
+      scheduleHarvest: (...args) => scheduling.scheduleHarvest(...args),
+    });
+  const assignmentEvents = services.createAssignmentEvents({
     database,
     scheduleHarvest: (...args) => scheduling.scheduleHarvest(...args),
     completionDigestTimers,
@@ -268,7 +246,7 @@ export function createBotRuntimeFeatures(
     setObserved: (...args) => admissions.setObserved(...args),
     markReportsHandled: (...args) => admissions.markReportsHandled(...args),
   });
-  const assignmentReporting = createAssignmentReporting({
+  const assignmentReporting = services.createAssignmentReporting({
     createEventId,
     now,
     database,
@@ -283,7 +261,7 @@ export function createBotRuntimeFeatures(
     readAssignmentReportPage: options.readAssignmentReportPage,
     scheduleReportHarvest: (...args) => assignmentEvents.scheduleReportHarvest(...args),
   });
-  const assignmentDelivery = createAssignmentDelivery({
+  const assignmentDelivery = services.createAssignmentDelivery({
     assignmentCapacityRefusal: (...args) => assignmentExecution.assignmentCapacityRefusal(...args),
     requireAssignmentSummary: (...args) => assignmentExecution.requireAssignmentSummary(...args),
     setStopState,
@@ -297,7 +275,7 @@ export function createBotRuntimeFeatures(
     assignmentAcceptances,
     trackAssignmentRun: (...args) => assignmentExecution.trackAssignmentRun(...args),
   });
-  const activityEvents = createActivityEvents({
+  const activityEvents = services.createActivityEvents({
     snoozeTimers,
     registry,
     closed,
@@ -449,7 +427,7 @@ export function createBotRuntimeFeatures(
     scheduling,
   });
   const channelAdmission = createChannelAdmission({
-    voiceNotes: voiceAdmissionNotes,
+    voiceNotes: services.voiceAdmissionNotes,
     acceptTurnSources: (...args) => admissions.acceptTurnSources(...args),
     activeMemoryEvents,
     activeTurns,
@@ -517,7 +495,7 @@ export function createBotRuntimeFeatures(
     warn,
   });
   const channelAccess = createChannelAccess({
-    channelToolFeatures,
+    channelToolFeatures: services.channelToolFeatures,
     admitGroupInvitation: (...args) => runtime.admitGroupInvitation(...args),
     admitGroupJoinDecision: (...args) => runtime.admitGroupJoinDecision(...args),
     admitGroupJoinRequest: (...args) => runtime.admitGroupJoinRequest(...args),
@@ -546,7 +524,7 @@ export function createBotRuntimeFeatures(
     turnSources,
     voiceMessages,
   });
-  const runtimeInputs = createRuntimeInputs({
+  const runtimeInputs = services.createRuntimeInputs({
     activeDirectTools,
     bindPrivateInputOrigin: (...args) => runtime.bindPrivateInputOrigin(...args),
     channels,
@@ -564,7 +542,7 @@ export function createBotRuntimeFeatures(
     turnSources,
     warn,
   });
-  const directTools = createDirectTools({
+  const directTools = services.createDirectTools({
     activeDirectTools,
     agents,
     channels,
@@ -586,7 +564,7 @@ export function createBotRuntimeFeatures(
     tobCliRequests,
     warn,
   });
-  const tobCliRuntime = createTobCliRuntime({
+  const tobCliRuntime = services.createTobCliRuntime({
     activeDirectTools,
     admitDmMessage: (...args) => channelAdmission.admitDmMessage(...args),
     channels,
@@ -603,7 +581,7 @@ export function createBotRuntimeFeatures(
     tobCliRequests,
     turnSources,
   });
-  const assignmentIntake = createAssignmentIntake({
+  const assignmentIntake = services.createAssignmentIntake({
     agents,
     assignmentAcceptances,
     assignmentAccessPresetStore,
@@ -638,7 +616,7 @@ export function createBotRuntimeFeatures(
     trackAssignmentRun: (...args) => assignmentExecution.trackAssignmentRun(...args),
     turnSources,
   });
-  const assignmentExecution = createAssignmentExecution({
+  const assignmentExecution = services.createAssignmentExecution({
     agents,
     approvalCapacity,
     assignmentAcceptances,
@@ -672,7 +650,7 @@ export function createBotRuntimeFeatures(
     waitOptions,
     warn,
   });
-  const assignmentRouting = createAssignmentRouting({
+  const assignmentRouting = services.createAssignmentRouting({
     activeSessionModels,
     appendModelSwitch: (...args) => turnFailures.appendModelSwitch(...args),
     assignmentDmChannel: (...args) => assignmentExecution.assignmentDmChannel(...args),
@@ -686,7 +664,7 @@ export function createBotRuntimeFeatures(
     groupFallback,
     inheritedModelPlan: inheritedModelPlanForRuntime,
     now,
-    pickSessionGroup: (...args) => pickSessionGroup(groupFallback, ...args),
+    pickSessionGroup: (...args) => services.pickSessionGroup(groupFallback, ...args),
     publishSessionFailure: (...args) => turnFailures.publishSessionFailure(...args),
     refreshAssignmentRoute: (...args) => runtime.refreshAssignmentRoute(...args),
     registry,
@@ -698,7 +676,7 @@ export function createBotRuntimeFeatures(
     setActivity: (...args) => assignmentExecution.setActivity(...args),
     warn,
   });
-  const inboxHarvest = createInboxHarvest({
+  const inboxHarvest = services.createInboxHarvest({
     assignmentEvents,
     channelAdmission,
     channels,
@@ -732,7 +710,7 @@ export function createBotRuntimeFeatures(
     warn,
   });
 
-  const admissions = createRuntimeAdmissions({
+  const admissions = services.createRuntimeAdmissions({
     channels,
     closed,
     continuation,
@@ -746,7 +724,7 @@ export function createBotRuntimeFeatures(
     tails,
     turnSources,
   });
-  const admissionRecovery = createRuntimeAdmissionRecovery({
+  const admissionRecovery = services.createRuntimeAdmissionRecovery({
     botNetwork,
     channels,
     closed,
@@ -756,7 +734,7 @@ export function createBotRuntimeFeatures(
     now,
     sourcePolicy,
   });
-  const orchestratorTurns = createOrchestratorTurns({
+  const orchestratorTurns = services.createOrchestratorTurns({
     activeMemoryEvents,
     activeSessionModels,
     activityEvents,
@@ -781,7 +759,7 @@ export function createBotRuntimeFeatures(
     holdForRestingRoute: (...args) => turnFailures.holdForRestingRoute(...args),
     inboxHarvest,
     inboxTriage,
-    interruptedDmNotice: (...args) => interruptedDmNotice(database, ...args),
+    interruptedDmNotice: (...args) => services.interruptedDmNotice(database, ...args),
     isMember,
     markReportsHandled: (...args) => admissions.markReportsHandled(...args),
     markReportSideEffects: (...args) => admissions.markReportSideEffects(...args),
@@ -797,7 +775,7 @@ export function createBotRuntimeFeatures(
     observeAdmission: (...args) => admissions.observeAdmission(...args),
     orchestratorServices: (...args) => orchestratorServices.orchestratorServices(...args),
     originalAttachments,
-    pickSessionGroup: (...args) => pickSessionGroup(groupFallback, ...args),
+    pickSessionGroup: (...args) => services.pickSessionGroup(groupFallback, ...args),
     preparedOrchestrators,
     promptText,
     publishSessionFailure: (...args) => turnFailures.publishSessionFailure(...args),
@@ -822,7 +800,7 @@ export function createBotRuntimeFeatures(
     typingTurns,
     warn,
   });
-  const orchestratorSessions = createOrchestratorSessions({
+  const orchestratorSessions = services.createOrchestratorSessions({
     agents,
     closed,
     createSessionId,
@@ -837,7 +815,7 @@ export function createBotRuntimeFeatures(
     warn,
     workspaceRoot,
   });
-  const { assignmentAccess } = createRuntimeAssignmentAccess({
+  const { assignmentAccess } = services.createRuntimeAssignmentAccess({
     database,
     stoppedTurns,
     pendingDeliveries,
@@ -853,7 +831,7 @@ export function createBotRuntimeFeatures(
     markSideEffectStarted: (...args) => admissions.markSideEffectStarted(...args),
     stopAssignment,
   });
-  const orchestratorServices = createOrchestratorServices({
+  const orchestratorServices = services.createOrchestratorServices({
     activityEvents,
     assignmentAccess,
     attachments,
@@ -873,7 +851,7 @@ export function createBotRuntimeFeatures(
     sourcePolicy,
     team,
   });
-  const turnFailures = createTurnFailures({
+  const turnFailures = services.createTurnFailures({
     channels,
     continuation,
     currentOrchestratorSessionId: (...args) => runtime.currentOrchestratorSessionId(...args),
@@ -890,7 +868,7 @@ export function createBotRuntimeFeatures(
     triageQueued,
     warn,
   });
-  const botCreation = createRuntimeBotCreation({
+  const botCreation = services.createRuntimeBotCreation({
     channels,
     closed,
     createBotId,
@@ -900,7 +878,7 @@ export function createBotRuntimeFeatures(
     warn,
   });
 
-  const { prepareNativeOrchestratorStep } = createNativeOrchestratorStep({
+  const { prepareNativeOrchestratorStep } = services.createNativeOrchestratorStep({
     prepareNativeAssignmentStep: (...args) =>
       assignmentExecution.prepareNativeAssignmentStep(...args),
     enqueue: (...args) => scheduling.enqueue(...args),
@@ -914,7 +892,7 @@ export function createBotRuntimeFeatures(
     waitLifetime,
     nativeStepReady,
   });
-  const contacts = createRuntimeBotContacts({ botNetwork, registry, team });
+  const contacts = services.createRuntimeBotContacts({ botNetwork, registry, team });
   const lifecycle = createBotRuntimeLifecycle({
     closed,
     markClosed,

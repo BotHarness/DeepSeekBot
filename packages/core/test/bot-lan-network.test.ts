@@ -9,7 +9,7 @@ import { createDeviceLan } from '../src/devices/lan.js';
 import { createBotNetworkRoutes } from '../src/devices/bot-network-routes.js';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { receiveNetworkBotDm } from '../src/runtime/bot-network.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 

@@ -449,3 +449,12 @@ export const ROLE_DENIED_PERMISSIONS_MIGRATION: SchemaMigration = {
     );
   },
 };
+
+export const HOST_ROLE_REVISION_MIGRATION: SchemaMigration = {
+  id: 'host-role-revision',
+  module: 'team',
+  description: 'Host Role revisions protect snapshot-based edits',
+  migrate(database) {
+    database.exec('ALTER TABLE host_roles ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
+  },
+};

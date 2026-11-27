@@ -50,6 +50,7 @@ export interface MemoryAcceptedSnapshot {
   head: string | null;
   files: string[];
   provisional: boolean;
+  observing?: true;
   standing: StandingUsage[];
 }
 

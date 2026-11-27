@@ -90,8 +90,10 @@ describe('CLI parity check', () => {
 
   it('extracts the surfaces from the Host sources', () => {
     expect(
-      bridgeMethodsFrom(`const BRIDGE_METHODS = [\n  'sessions',\n  'botToolTrace',\n] as const;`),
-    ).toEqual(['sessions', 'botToolTrace']);
+      bridgeMethodsFrom(
+        `const legacyRemoteMethods = [\n  'teamMode',\n  'memberTransfer',\n] as const;`,
+      ),
+    ).toEqual(['teamMode', 'memberTransfer']);
     expect(
       routePathsFrom(["path: '/api/browser/open',", "      path: '/api/computer/status',"]),
     ).toEqual(['/api/browser/open', '/api/computer/status']);
@@ -150,12 +152,15 @@ it('counts RPC methods only from registered descriptors', () => {
     `,
     'rpc.ts': `
       import { reads } from './reads.js';
-      export const reporting = { ...reads, reportSave(payload: unknown) {} };
+      export const reporting = {
+        ...reads, reportSave(payload: unknown) {}, reportList: Reports.prototype.list
+      };
     `,
     'reads.ts': `export const reads = { reportGet(id: string) {} } satisfies ThisType<Receiver>;`,
   };
   expect(featureRpcMethodsFrom((path) => files[path], 'registry.ts')).toEqual([
     'reportGet',
     'reportSave',
+    'reportList',
   ]);
 });

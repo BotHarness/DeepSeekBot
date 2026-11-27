@@ -21,10 +21,8 @@ import { ownerEngineSelection } from './engine-route-fixture.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import {
-  createDshBotAgentAdapter,
-  type DshBotEngines,
-} from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
+import { type DshBotEngines } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
 import { requireBotEngineAccount } from '../src/team/models.js';
 import { teamModelFixture } from './team-model-fixture.js';

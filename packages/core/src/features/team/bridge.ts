@@ -1,7 +1,11 @@
 import { botVisibilitySchema, rolePolicySchema } from '../../team-policy/bot-contract.js';
 import { channelBotChangeSchema } from '../../team-policy/channel-contract.js';
 import { spaceAudienceSchema } from '../../workspaces/spaces.js';
-import { roleModelsSchema, PERMISSION_CATALOG } from '../../team-policy/permissions.js';
+import {
+  roleModelsSchema,
+  roleRevisionSchema,
+  PERMISSION_CATALOG,
+} from '../../team-policy/permissions.js';
 import {
   channelVisibilitySchema,
   channelPolicyWriteSchema,
@@ -221,6 +225,7 @@ export function createTeamBridge(
         const { roleId, ...patch } = z
           .object({
             roleId: z.string(),
+            expectedRevision: roleRevisionSchema.optional(),
             name: z.string().optional(),
             permissions: z.array(z.string()).optional(),
             denied: z.array(z.string()).optional(),
@@ -229,6 +234,9 @@ export function createTeamBridge(
           })
           .parse(payload);
         return service.roles.update(human, roleId, {
+          ...(patch.expectedRevision === undefined
+            ? {}
+            : { expectedRevision: patch.expectedRevision }),
           ...(patch.denied === undefined ? {} : { denied: patch.denied }),
           ...(patch.policy === undefined ? {} : { policy: patch.policy }),
           ...(patch.models === undefined ? {} : { models: patch.models }),

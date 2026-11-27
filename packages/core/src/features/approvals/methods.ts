@@ -42,9 +42,24 @@ import {
   type ApprovalTemplateWriteResult,
 } from '../../workspaces/approval-templates.js';
 import type { ApprovalReviewerSettings } from '../../workspaces/approval-reviewer-settings.js';
-import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { ChannelStore } from '../../channels/store.js';
+import type { ModelCatalog } from '../../models/catalog.js';
+import type { BotRuntime } from '../../runtime/bot-runtime.js';
+import type { HumanAttentionQuery } from '../../runtime/human-attention.js';
+import type { TeamService } from '../../team/service.js';
+import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
 
 export interface ApprovalsBridgeDeps {
+  channels: ChannelStore;
+  registry: PersonaBotRegistry;
+  externalMessaging?: OutboundMessaging;
+  humanAttention?: HumanAttentionQuery;
+  modelCatalog?: ModelCatalog;
+  runtime?: BotRuntime;
+  team?: TeamService;
+  toolApproval?: ChannelToolApproval;
   approvalReviewer?: ApprovalReviewerSettings;
   approvalTemplates?: ApprovalTemplateLibrary;
   userQuestions?: ChannelUserQuestions;
@@ -193,20 +208,8 @@ function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefine
 
 export function createApprovalsBridgeMethods(
   human: HumanContext,
-  deps: ApprovalsBridgeDeps &
-    Pick<
-      BridgeMethodsDeps,
-      | 'channels'
-      | 'externalMessaging'
-      | 'humanAttention'
-      | 'idleCompaction'
-      | 'modelCatalog'
-      | 'registry'
-      | 'runtime'
-      | 'toolApproval'
-      | 'team'
-    >,
-  globalRegistry: BridgeMethodsDeps['registry'],
+  deps: ApprovalsBridgeDeps,
+  globalRegistry: PersonaBotRegistry,
   detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
   messagingCall: <T>(
     operation: (service: OutboundMessaging) => Promise<T>,

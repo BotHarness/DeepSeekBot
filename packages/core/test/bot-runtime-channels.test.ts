@@ -8,7 +8,7 @@ import { createChannelStore, MAX_MESSAGE_PAGE } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createBotRuntime } from '../src/core.js';
 import { deferred } from './deferred.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';

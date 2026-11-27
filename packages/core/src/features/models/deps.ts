@@ -8,6 +8,9 @@ import type { ModelPresetStore, ModelRoute } from '../../models/presets.js';
 import type { ModelProviders } from '../../models/providers.js';
 import type { ModelRouteReadiness } from '../../models/readiness.js';
 import type { RoutingGroupStore } from '../../models/routing-groups.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { TeamService } from '../../team/service.js';
+import type { BotRuntime } from '../../runtime/bot-runtime-types.js';
 
 export interface ModelsBridgeDeps {
   modelPresets?: ModelPresetStore;
@@ -30,4 +33,13 @@ export interface ModelsBridgeDeps {
   defaultModel?: {
     currentSelection(role?: 'assignment' | 'orchestrator'): ModelRoute;
   };
+}
+
+export interface ModelInvocationDeps extends ModelsBridgeDeps {
+  registry: PersonaBotRegistry;
+  team?: TeamService;
+  runtime?: Pick<BotRuntime, 'currentOrchestratorSessionId' | 'currentTurnTarget'>;
+  describeEngineSession?(
+    sessionId: string,
+  ): { engine: string; account?: string; state: string } | undefined;
 }

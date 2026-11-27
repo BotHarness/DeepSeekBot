@@ -114,6 +114,11 @@ Usage:
   tobs marketplace-avatar-delete <id> --confirm  Delete a Marketplace Avatar / 删除市场头像
   tobs marketplace-avatar-detail <id>  Read a Marketplace Avatar / 查看市场头像详情
   tobs marketplace-avatar-report <id> [--reason <text>]  Report a Marketplace Avatar / 举报市场头像
+  tobs skills publish <name> --bot <slug>  Publish a Project Skill / 发布 Bot 的 Project Skill
+  tobs skills replace <id> <name> --bot <slug> --confirm  Replace a Marketplace Skill's files / 替换市场 Skill 的文件
+  tobs skills delete <id> --confirm  Delete a Marketplace Skill / 删除市场 Skill
+  tobs skills mine  List your Skill uploads / 列出我发布的 Skill
+  tobs marketplace-skill-report <id> [--reason <text>]  Report a Marketplace Skill / 举报市场 Skill
   tobs marketplace-blocklist <block|restore> <bot|avatar> <id-or-url>  Moderate a Marketplace entry / 封禁或恢复市场条目
   tobs marketplace-avatar-apply <id> --bot <bot> [--operation-key <key>]  Apply to a Bot / 应用到 Bot
   tobs marketplace-avatar-apply-candidates  List eligible Bots / 列出可应用头像的 Bot

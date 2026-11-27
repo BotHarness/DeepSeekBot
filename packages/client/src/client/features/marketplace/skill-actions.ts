@@ -1,9 +1,14 @@
+import { marketplaceSkillUploadActions } from '@botharness/host-client/marketplace-skills';
+import type { HostCall } from '@botharness/host-client/host-answer';
 import type {
+  MarketplaceSkill,
   MarketplaceSkillAddCandidates,
   MarketplaceSkillAddResult,
   MarketplaceSkillConflictChoice,
   MarketplaceSkillDetail,
   MarketplaceSkillPage,
+  MarketplaceSkillPublication,
+  MarketplaceSkillReplacement,
   MarketplaceSkillReview,
   MarketplaceSkillTargets,
 } from '@botharness/host-protocol/marketplace-skill';
@@ -20,10 +25,19 @@ export interface MarketplaceSkillActions {
     targets: MarketplaceSkillTargets,
     onConflict?: MarketplaceSkillConflictChoice,
   ): Promise<MarketplaceSkillAddResult>;
+  marketplaceSkillPublish(input: MarketplaceSkillPublication): Promise<MarketplaceSkill>;
+  marketplaceSkillReplace(input: MarketplaceSkillReplacement): Promise<MarketplaceSkill>;
+  marketplaceSkillMine(): Promise<{ skills: MarketplaceSkill[] }>;
+  marketplaceSkillDelete(id: string): Promise<{ deleted: true }>;
+  marketplaceSkillReport(id: string, altcha: string, reason?: string): Promise<void>;
 }
 
-export function createMarketplaceSkillActions(invoke: InvokeAction): MarketplaceSkillActions {
+export function createMarketplaceSkillActions(
+  invoke: InvokeAction,
+  host: HostCall,
+): MarketplaceSkillActions {
   return {
+    ...marketplaceSkillUploadActions(host),
     marketplaceSkillList: (query = {}) =>
       invoke('marketplaceSkillList', {
         ...(query.q === undefined || query.q === '' ? {} : { q: query.q }),

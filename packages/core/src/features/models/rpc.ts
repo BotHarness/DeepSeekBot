@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { BotMetadataResult } from '../team/bot-administration.js';
 import {
   unwrap,
@@ -29,10 +28,17 @@ import type {
   ModelsBridgeMethods,
   ModelProviderBridgeMethods,
   EngineAccountBridgeMethods,
+  EngineSelectionBridgeMethods,
 } from './methods.js';
 import type { ModelPlanSubView, ModelPresetSubView } from './preset-sub-methods.js';
 
 type AdminResult<T> = KernelAdminResult<T, BotMetadataResult>;
+type ModelRpcReceiver = {
+  readonly methods: ModelsBridgeMethods &
+    ModelProviderBridgeMethods &
+    EngineAccountBridgeMethods &
+    EngineSelectionBridgeMethods;
+};
 
 function presetGroupArgs(
   orchestratorGroupId: string | null | undefined,
@@ -485,7 +491,7 @@ export const modelsRpcMethods = {
   ): AdminResult<{ revision: number; overrides: ('main' | 'sub')[] }> {
     return modelPlanReset(this.methods, slug, slots, expectedRevision);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ModelRpcReceiver>;
 
 export const modelConfigurationRpc = {
   modelProviders(): Promise<ModelProvidersView> {
@@ -788,4 +794,4 @@ export const modelConfigurationRpc = {
       sub,
     );
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ModelRpcReceiver>;

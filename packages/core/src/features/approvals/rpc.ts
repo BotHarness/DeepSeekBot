@@ -8,17 +8,21 @@ import { type HumanContext } from '../../humans/context.js';
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol';
 import type { PrivateInputs } from '../../credentials/private-inputs.js';
 import type { PrivateAccountSummary, PrivateInputStatus } from '../../credentials/contracts.js';
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
+import type { Context } from '@deepseek-ai/cordis';
+import type { TeamService } from '../../team/service.js';
 import { resolveInvocationHuman } from '../../bridge/invocation-human.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { ApprovalTemplateDeletionPreview } from '../../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../../team/approval-contract.js';
-import type { ApprovalReviewerModelView } from '../../bridge/methods.js';
 import type { ModelRoute } from '../../models/presets.js';
-import type { PersonaBotDetail, ApprovalTemplateEntry } from '../../bridge/methods.js';
+import type { PersonaBotDetail } from '../../bridge/methods.js';
 import type { ToolApprovalRule } from '../../workspaces/tool-approval-rules.js';
 import type { ToolApprovalHistoryEntry } from '../../channels/approval-history.js';
-import type { ApprovalsBridgeMethods } from './methods.js';
+import type {
+  ApprovalsBridgeMethods,
+  ApprovalReviewerModelView,
+  ApprovalTemplateEntry,
+} from './methods.js';
 
 export function approvalRoute(
   methods: ApprovalsBridgeMethods,
@@ -217,29 +221,49 @@ export function userQuestionAnswer(
   return unwrapAsync(methods.userQuestionAnswer({ channelId, messageId, answer }));
 }
 
-export const privateInputRpc = {
-  requireApproval(channelId: string, messageId: string): HumanContext {
-    if (!this.team) this.requirePrivateOwner();
-    const human = this.invocationHuman();
-    try {
-      this.team?.approvals.requireRequest(human, channelId, messageId);
-    } catch (error) {
-      if (error instanceof TeamError)
-        throw toRemoteError({
-          code: error.code,
-          message: error.code,
-          ...(error.details ? { details: error.details } : {}),
-        });
-      throw error;
-    }
-    return human;
-  },
+interface PrivateInputReceiver {
+  readonly ctx: Context;
+  readonly team?: TeamService;
+  readonly privateInputs?: PrivateInputs;
+  invocationHuman(): HumanContext;
+}
 
+function requirePrivateOwner({ ctx }: PrivateInputReceiver): void {
+  if (resolveInvocationHuman(ctx.invocation?.peer, ctx.get('connection')) === undefined)
+    throw new RemoteError(
+      'forbidden' as RemoteError['code'],
+      'Private input requires the authenticated Owner',
+      {},
+    );
+}
+
+function requireApproval(
+  receiver: PrivateInputReceiver,
+  channelId: string,
+  messageId: string,
+): HumanContext {
+  if (!receiver.team) requirePrivateOwner(receiver);
+  const human = receiver.invocationHuman();
+  try {
+    receiver.team?.approvals.requireRequest(human, channelId, messageId);
+  } catch (error) {
+    if (error instanceof TeamError)
+      throw toRemoteError({
+        code: error.code,
+        message: error.code,
+        ...(error.details ? { details: error.details } : {}),
+      });
+    throw error;
+  }
+  return human;
+}
+
+export const privateInputRpc = {
   privateInputStatus(
     channelId: string,
     messageId: string,
   ): { status: PrivateInputStatus; approval?: ApprovalCard } {
-    if (!this.team) this.requirePrivateOwner();
+    if (!this.team) requirePrivateOwner(this);
     const human = this.invocationHuman();
     if (
       this.team &&
@@ -260,20 +284,20 @@ export const privateInputRpc = {
     messageId: string,
     values: Record<string, string>,
   ): Promise<{ accepted: boolean; reason?: string }> {
-    const human = this.requireApproval(channelId, messageId);
+    const human = requireApproval(this, channelId, messageId);
     if (this.privateInputs === undefined) return { accepted: false, reason: 'store-unavailable' };
     return await this.privateInputs.submission(true, { channelId, messageId, values }, human);
   },
 
   async privateInputCancel(channelId: string, messageId: string): Promise<{ accepted: boolean }> {
-    const human = this.requireApproval(channelId, messageId);
+    const human = requireApproval(this, channelId, messageId);
     return {
       accepted: (await this.privateInputs?.cancel(true, channelId, messageId, human)) ?? false,
     };
   },
 
   async privateAccountStatus(channelId: string, messageId: string) {
-    this.requirePrivateOwner();
+    requirePrivateOwner(this);
     return (
       this.privateInputs?.accountStatus(true, channelId, messageId) ?? {
         status: 'unavailable',
@@ -283,7 +307,7 @@ export const privateInputRpc = {
   },
 
   async privateInputReplace(channelId: string, messageId: string): Promise<{ messageId?: string }> {
-    this.requirePrivateOwner();
+    requirePrivateOwner(this);
     const replacement = await this.privateInputs?.replace(true, channelId, messageId);
     return replacement === undefined ? {} : { messageId: replacement };
   },
@@ -294,7 +318,7 @@ export const privateInputRpc = {
     replaceable: boolean;
     mcpServers: ReturnType<NonNullable<PrivateInputs['mcpServers']>['list']>;
   }> {
-    this.requirePrivateOwner();
+    requirePrivateOwner(this);
     const accounts =
       typeof slug === 'string' ? await this.privateInputs?.accounts(true, slug) : undefined;
     const replaceable = (await this.privateInputs?.replaceable().catch(() => false)) ?? false;
@@ -310,7 +334,7 @@ export const privateInputRpc = {
     serverName: string,
     enabled: boolean,
   ): Promise<{ accepted: boolean }> {
-    this.requirePrivateOwner();
+    requirePrivateOwner(this);
     return {
       accepted:
         typeof slug === 'string' && typeof serverName === 'string' && typeof enabled === 'boolean'
@@ -320,7 +344,7 @@ export const privateInputRpc = {
   },
 
   async privateMcpServerRemove(slug: string, serverName: string): Promise<{ removed: boolean }> {
-    this.requirePrivateOwner();
+    requirePrivateOwner(this);
     return {
       removed:
         typeof slug === 'string' && typeof serverName === 'string'
@@ -330,7 +354,7 @@ export const privateInputRpc = {
   },
 
   async privateAccountRevoke(channelId: string, messageId: string) {
-    this.requirePrivateOwner();
+    requirePrivateOwner(this);
     return (
       this.privateInputs?.revoke(true, channelId, messageId, this.invocationHuman()) ?? {
         accepted: false,
@@ -340,12 +364,7 @@ export const privateInputRpc = {
       }
     );
   },
-
-  requirePrivateOwner(message = 'Private input requires the authenticated Owner'): void {
-    if (resolveInvocationHuman(this.ctx.invocation?.peer, this.ctx.get('connection')) === undefined)
-      throw new RemoteError('forbidden' as RemoteError['code'], message, {});
-  },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<PrivateInputReceiver>;
 
 export const externalApprovalRpc = {
   approvalRoute(
@@ -374,7 +393,7 @@ export const externalApprovalRpc = {
   }> {
     return approvalRetry(this.methods, slug, id);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ApprovalsBridgeMethods }>;
 
 export const approvalTemplateReadRpc = {
   approvalTemplates(slug?: string): {
@@ -398,7 +417,7 @@ export const approvalTemplateReadRpc = {
   approvalTemplateUpdate(name: string, text: string): { template: ApprovalTemplateEntry } {
     return approvalTemplateUpdate(this.methods, name, text);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ApprovalsBridgeMethods }>;
 
 export const approvalTemplateWriteRpc = {
   approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
@@ -425,7 +444,7 @@ export const approvalTemplateWriteRpc = {
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
     return botApprovalTemplateSet(this.methods, slug, template);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ApprovalsBridgeMethods }>;
 
 export const approvalReviewerRpc = {
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
@@ -435,7 +454,7 @@ export const approvalReviewerRpc = {
   approvalReviewerModelSet(model: ModelRoute | null): Promise<ApprovalReviewerModelView> {
     return approvalReviewerModelSet(this.methods, model);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ApprovalsBridgeMethods }>;
 
 export const toolApprovalRpc = {
   toolApprovalRules(slug: string): { rules: ToolApprovalRule[] } {
@@ -500,4 +519,4 @@ export const toolApprovalRpc = {
   ): Promise<{ accepted: boolean }> {
     return userQuestionAnswer(this.methods, channelId, messageId, answer);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ApprovalsBridgeMethods }>;

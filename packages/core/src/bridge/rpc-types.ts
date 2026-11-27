@@ -61,6 +61,4 @@ export interface BridgeRpcReceiver {
   readonly live?: BridgeLive;
   readonly team?: TeamService;
   invocationHuman(): HumanContext;
-  requireApproval(channelId: string, messageId: string): HumanContext;
-  requirePrivateOwner(message?: string): void;
 }

@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { ENGINE_REPORT_TOOL, isReportState } from '../features/assignments/tools.js';
-import { ASSIGNMENT_REPORT_CONTRACT } from '../features/assignments/prompt.js';
 import { replyReminderText } from '../features/messaging/prompt.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { SessionId } from '@deepseek-ai/dsh-session';
@@ -23,8 +21,8 @@ import {
 } from '../engines/engine-tools.js';
 import { type ActiveRun, untilAborted } from './dsh-bot-agent-adapter-shared.js';
 import { directToolDefinitions, orchestratorTools } from './dsh-bot-agent-adapter-tools.js';
-import { UNREPORTED_FINAL_PREFIX } from '../features/assignments/prompt.js';
 import { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
+import { agentFeatureContext, requireAssignmentAgentHooks } from './agent-feature-context.js';
 import type { DshBotEngines } from './dsh-bot-agent-adapter.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 
@@ -63,7 +61,12 @@ type EngineToolCatalogContext = EngineCatalogContext;
 
 type RunEngineAssignmentContext = Pick<
   DshBotAgentAdapterState,
-  'engineStops' | 'engineWorkspaceMode' | 'runs' | 'stoppedBots' | 'stopping'
+  | 'engineStops'
+  | 'engineWorkspaceMode'
+  | 'featureContributions'
+  | 'runs'
+  | 'stoppedBots'
+  | 'stopping'
 > &
   ReleaseNativeSessionContext;
 
@@ -112,6 +115,10 @@ export async function runEngineTurn(
     ].filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name));
     const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
     const promptText = adapter.promptText(run.sessionId);
+    const featureContext = agentFeatureContext(adapter, run);
+    const featurePrompts = adapter.featureContributions.flatMap(
+      (feature) => feature.promptSections?.(featureContext) ?? [],
+    );
     const persona = adapter.enginePersona?.(run.bot) ?? {};
     const sessionCwd = adapter.orchestratorCwd?.(run.bot);
     const pendingReplies = new Set<string>();
@@ -153,7 +160,7 @@ export async function runEngineTurn(
       instructions: engineInstructions({
         name: run.bot.displayName,
         ...persona,
-        replyDelivery: orchestratorPromptSections(promptText).replyDelivery,
+        replyDelivery: orchestratorPromptSections(promptText, false, featurePrompts).replyDelivery,
       }),
       tools,
       execute: async (name, args, signal, context) => {
@@ -302,6 +309,7 @@ export async function runEngineAssignment(
   abandoned: Promise<'abandoned'>,
   accepted: (() => void) | undefined,
 ): Promise<void> {
+  const assignment = requireAssignmentAgentHooks(adapter.featureContributions);
   const stop = new AbortController();
   adapter.engineStops.set(run.sessionId, stop);
   void abandoned.then(() => stop.abort());
@@ -342,7 +350,7 @@ export async function runEngineAssignment(
           adapter.engineWorkspaceMode?.(run.bot.slug, run.permission) ?? 'read-only',
         sessionId: run.sessionId,
         channelId: undefined,
-        input: `${run.text}\n\n[Host Assignment report transport] ${ASSIGNMENT_REPORT_CONTRACT}`,
+        input: `${run.text}\n\n[Host Assignment report transport] ${assignment.reportContract}`,
         readRecoveryContext: () => {
           const entry = run.recoveryEntry?.();
           return entry === undefined
@@ -355,19 +363,19 @@ export async function runEngineAssignment(
               ];
         },
         instructions: [
-          ASSIGNMENT_REPORT_CONTRACT,
+          assignment.reportContract,
           engineAssignmentInstructions({
             name: run.bot.displayName,
             cwd: run.permission.primaryCwd,
             fullAccess: run.permission.mode === 'danger-full-access',
           }),
         ].join('\n\n'),
-        tools: [ENGINE_REPORT_TOOL],
+        tools: [assignment.engineReportTool],
         execute: async (name, args, signal, context) => {
-          if (name !== ENGINE_REPORT_TOOL.name)
+          if (name !== assignment.engineReportTool.name)
             throw new Error(`refused: ${name} is not available to this Assignment`);
           const state = typeof args['state'] === 'string' ? args['state'] : '';
-          if (!isReportState(state))
+          if (!assignment.isReportState(state))
             throw new Error(
               'report_to_orchestrator: state must be progress, completed, blocked, waiting-human, or failed',
             );
@@ -428,7 +436,7 @@ export async function runEngineAssignment(
     const text = outcome.text?.trim();
     if (!text) throw new Error('Assignment finished without report_to_orchestrator');
     await run.report(
-      { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+      { state: 'completed', summary: `${assignment.unreportedFinalPrefix}\n\n${text}` },
       ...(outcome.turn === undefined ? [] : [{ turn: outcome.turn }]),
     );
   } catch (error) {

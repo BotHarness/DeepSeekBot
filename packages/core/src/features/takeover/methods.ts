@@ -7,8 +7,9 @@ import {
 } from '../../kernel/method-utils.js';
 import { TakeoverError, type TakeoverHandoff } from '../../takeover/contracts.js';
 import { dmChannelId } from '../../channels/channel.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { TakeoverHandoffs } from '../../takeover/handoffs.js';
 
 function takeoverFailure(error: unknown): BridgeResult<never> {
   if (error instanceof TakeoverError)
@@ -20,17 +21,22 @@ function takeoverSurface(value: unknown): string {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{0,31}$/u.test(value) ? value : 'client';
 }
 
-export interface TakeoverAdapterMethods {
+export type TakeoverAdapterMethods = {
   takeoverList(payload: unknown): BridgeResult<{ takeovers: TakeoverHandoff[] }>;
   takeoverStatus(payload: unknown): BridgeResult<{ takeover: TakeoverHandoff }>;
   takeoverRequest(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverComplete(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverCancel(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
+};
+
+export interface TakeoverBridgeDeps {
+  registry: Pick<PersonaBotRegistry, 'get'>;
+  takeovers?: Pick<TakeoverHandoffs, 'list' | 'get' | 'request' | 'complete' | 'cancel'>;
 }
 
 export function createTakeoverAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: TakeoverBridgeDeps,
 ): TakeoverAdapterMethods {
   return {
     takeoverList(payload) {

@@ -18,9 +18,16 @@ import {
   type WorkspaceGrant,
   type WorkspaceGrantStore,
 } from '../../workspaces/grants.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { ChannelStore } from '../../channels/store.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { TeamService } from '../../team/service.js';
+import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
 import { join } from 'node:path';
-import { FolderBrowseError, type FolderListing } from '../../workspaces/folder-browse.js';
+import {
+  FolderBrowseError,
+  type FolderBrowser,
+  type FolderListing,
+} from '../../workspaces/folder-browse.js';
 import {
   createFolderWorkspace,
   type CreatedFolderWorkspace,
@@ -28,6 +35,11 @@ import {
 } from '../../workspaces/folder-create.js';
 
 export interface WorkspacesBridgeDeps {
+  channels: ChannelStore;
+  registry: PersonaBotRegistry;
+  team?: TeamService;
+  folders?: FolderBrowser;
+  toolApproval?: ChannelToolApproval;
   grants?: WorkspaceGrantStore;
   registerWorkspace?: RegisterFolderWorkspace;
 }
@@ -44,7 +56,7 @@ export interface WorkspacesBridgeMethods {
 
 export function createWorkspacesBridgeMethods(
   human: HumanContext,
-  deps: WorkspacesBridgeDeps & Pick<BridgeMethodsDeps, 'channels' | 'registry' | 'toolApproval'>,
+  deps: WorkspacesBridgeDeps,
 ): WorkspacesBridgeMethods {
   return {
     grants(payload) {
@@ -286,7 +298,7 @@ export interface WorkspacesAdapterMethods {
 
 export function createWorkspacesAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: WorkspacesBridgeDeps,
   isHostOwner: () => boolean,
 ): WorkspacesAdapterMethods {
   return {

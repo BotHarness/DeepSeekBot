@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createMemoryBridgeMethods } from '../src/features/memory/methods.js';
 import { createCore } from '../src/plugin.js';
 import { createMemoryService } from '../src/memory/service.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
@@ -185,7 +186,6 @@ describe('Memory turn Host responsiveness', () => {
     await expect(memory.prepareTurnAsync('atlas', 'session-atlas')).rejects.toMatchObject({
       code: 'memory-conflict',
     });
-    expect(() => memory.snapshot('atlas')).toThrow('in progress');
     expect(() => memory.scanChanges('atlas')).toThrow('in progress');
     expect(() => memory.nameVersionHuman({ botSlug: 'atlas', sha, name: 'Busy' })).toThrow(
       'in progress',
@@ -212,6 +212,87 @@ describe('Memory turn Host responsiveness', () => {
     expect(memory.preparedObservation('atlas', 'session-atlas')).toBeDefined();
     await memory.abortTurnAsync('atlas', 'session-atlas', true);
   });
+
+  it('reads the Memory snapshot after restart during asynchronous turn preparation', async () => {
+    const dshHome = createTempRoot('memory-snapshot-restart-');
+    const core = createCore({ dshHome });
+    let before;
+    try {
+      expect(core.registry.create({ slug: 'atlas', displayName: 'Atlas' }).ok).toBe(true);
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'atlas', 'Atlas');
+      if (dm === undefined) throw new Error('Missing DM');
+      core.ownership.claim({
+        sessionId: 'session-atlas',
+        botSlug: 'atlas',
+        rootRole: 'orchestrator',
+        at: FIXED_NOW().toISOString(),
+      });
+      before = { channelId: dm.id, snapshot: core.memory.snapshot('atlas') };
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+
+    const reopened = createCore({ dshHome });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, reopened);
+    const preparing = reopened.memory.prepareTurnAsync('atlas', 'session-atlas');
+    try {
+      expect(methods.memorySnapshot({ channelId: before.channelId })).toEqual({
+        ok: true,
+        value: { snapshot: { ...before.snapshot, observing: true } },
+      });
+      await preparing;
+      expect(methods.memorySnapshot({ channelId: before.channelId })).toEqual({
+        ok: true,
+        value: { snapshot: before.snapshot },
+      });
+    } finally {
+      try {
+        await preparing;
+        await reopened.memory.abortTurnAsync('atlas', 'session-atlas');
+      } finally {
+        await reopened.runtime.close();
+        reopened.operationalDatabase.close();
+      }
+    }
+  }, 60_000);
+
+  it('reads seeded Memory before ledger bootstrap and initializes it on the first idle snapshot', async () => {
+    const { database, memory, registry, root } = fixture();
+    const head = git(root, 'rev-parse', 'HEAD');
+    writeFileSync(join(root, 'note.md'), 'Visible before the first accepted commit');
+    const db = attachOperationalModule(database, 'memory-test');
+    const accepted = () =>
+      db.read((connection) =>
+        connection
+          .prepare('SELECT sha, cause_kind FROM memory_accepted_commits WHERE bot_slug = ?')
+          .all('atlas'),
+      );
+    const bridge = createMemoryBridgeMethods(OWNER_HUMAN_CONTEXT, { registry, memory }, () => ({
+      botSlug: 'atlas',
+    }));
+    const read = () => bridge.memorySnapshot({ channelId: 'dm-atlas' });
+    const snapshot = { head, files: expect.arrayContaining(['note.md']), provisional: false };
+    expect(accepted()).toEqual([]);
+    const observing = memory.pendingCommitsAsync('atlas');
+    let duringObservation;
+    try {
+      duringObservation = read();
+      expect(accepted()).toEqual([]);
+    } finally {
+      await observing;
+    }
+
+    const idle = read();
+    expect(idle).toMatchObject({ ok: true, value: { snapshot } });
+    expect(idle).not.toHaveProperty('value.snapshot.observing');
+    expect(read()).toEqual(idle);
+    expect(accepted()).toEqual([{ sha: head, cause_kind: 'repository-init' }]);
+    expect(duringObservation).toMatchObject({
+      ok: true,
+      value: { snapshot: { ...snapshot, observing: true } },
+    });
+  }, 60_000);
 
   it('releases a failed preparation and preserves source authorization', async () => {
     const { memory } = fixture();

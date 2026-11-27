@@ -1,11 +1,86 @@
 import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { join } from 'node:path';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { createTeamBridge } from '../src/features/team/bridge.js';
+import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createTempRoot } from './helpers.js';
 import { host, run } from './cli-team-fixtures.js';
+import { actors, cleanup } from './team-mode-fixtures.js';
+
+afterEach(cleanup);
 
 describe('Team CLI', () => {
+  it('carries a stale Host Role revision through --as and leaves the winning denial intact', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    const { role } = f.team.roles.create(owner, 'Dispatchers', []);
+    const bridge = createTeamBridge(f.human, f.team);
+    const endpoint = await host(undefined, undefined, undefined, undefined, async (input) => {
+      try {
+        const value = await f.team.asMember(input.username, (peer) =>
+          f.gateway.invoke({ ...input, peer }),
+        );
+        return { ok: true, value };
+      } catch (error) {
+        return { ok: false, error: f.gateway.wireStream.failure(error) };
+      }
+    });
+    const list = await run(endpoint.url, ['--as', 'bob', 'roles', 'list']);
+    expect(list.status).toBe(0);
+    const snapshot = z
+      .array(z.object({ roleId: z.string(), revision: z.number() }))
+      .parse(list.output)
+      .find((item) => item.roleId === role.roleId);
+    if (!snapshot) throw new Error('Role missing from CLI snapshot');
+    expect(
+      await bridge.roleUpdate({
+        roleId: role.roleId,
+        expectedRevision: snapshot.revision,
+        denied: ['channels.create'],
+      }),
+    ).toMatchObject({ ok: true });
+
+    const stale = await run(endpoint.url, [
+      '--as',
+      'bob',
+      'roles',
+      'update',
+      role.roleId,
+      '--expected-revision',
+      String(snapshot.revision),
+      '--deny',
+      '',
+    ]);
+    expect(stale.status).not.toBe(0);
+    expect(stale.output).toMatchObject({ error: { code: 'stale-role' } });
+    expect(endpoint.calls.map(({ input }) => [input.username, input.method])).toEqual([
+      ['bob', 'roles'],
+      ['bob', 'roleUpdate'],
+    ]);
+    expect(f.team.roles.list(owner).find((item) => item.roleId === role.roleId)?.denied).toEqual([
+      'channels.create',
+    ]);
+    const renamed = await run(endpoint.url, [
+      '--as',
+      'bob',
+      'roles',
+      'update',
+      role.roleId,
+      '--name',
+      'Updated',
+    ]);
+    expect(renamed.status).toBe(0);
+    expect(renamed.output).toMatchObject({
+      role: { name: 'Updated', denied: ['channels.create'] },
+    });
+    expect(endpoint.calls.slice(2).map(({ input }) => [input.username, input.method])).toEqual([
+      ['bob', 'roles'],
+      ['bob', 'roleUpdate'],
+    ]);
+  });
+
   it.each([
     { command: 'bot-zip-upload', method: 'zipUploadBegin' },
     { command: 'bot-zip-preview', method: 'zipUploadPreview' },
@@ -164,17 +239,26 @@ describe('Team CLI', () => {
       payload: { name: 'Unrestricted', permissions: [], models: { kind: 'all' } },
     },
     {
-      args: ['roles', 'update', 'member', '--models', 'provider/one,provider/two'],
+      args: [
+        'roles',
+        'update',
+        'member',
+        '--expected-revision',
+        '1',
+        '--models',
+        'provider/one,provider/two',
+      ],
       method: 'roleUpdate',
       payload: {
         roleId: 'member',
+        expectedRevision: 1,
         models: { kind: 'only', routes: ['provider/one', 'provider/two'] },
       },
     },
     {
-      args: ['roles', 'update', 'member', '--models', 'all'],
+      args: ['roles', 'update', 'member', '--expected-revision', '1', '--models', 'all'],
       method: 'roleUpdate',
-      payload: { roleId: 'member', models: { kind: 'all' } },
+      payload: { roleId: 'member', expectedRevision: 1, models: { kind: 'all' } },
     },
     {
       args: [
@@ -197,15 +281,30 @@ describe('Team CLI', () => {
       },
     },
     {
-      args: ['roles', 'update', 'member', '--engine-accounts', ''],
-      method: 'roleUpdate',
-      payload: { roleId: 'member', models: { kind: 'only', routes: [], engineAccounts: [] } },
-    },
-    {
-      args: ['roles', 'update', 'member', '--model-providers', 'go', '--models', 'exact/model'],
+      args: ['roles', 'update', 'member', '--expected-revision', '1', '--engine-accounts', ''],
       method: 'roleUpdate',
       payload: {
         roleId: 'member',
+        expectedRevision: 1,
+        models: { kind: 'only', routes: [], engineAccounts: [] },
+      },
+    },
+    {
+      args: [
+        'roles',
+        'update',
+        'member',
+        '--expected-revision',
+        '1',
+        '--model-providers',
+        'go',
+        '--models',
+        'exact/model',
+      ],
+      method: 'roleUpdate',
+      payload: {
+        roleId: 'member',
+        expectedRevision: 1,
         models: { kind: 'only', providers: ['go'], routes: ['exact/model'] },
       },
     },
@@ -321,14 +420,14 @@ describe('Team CLI', () => {
       { name: 'Reviewers', permissions: ['audit.view', 'usage.view'] },
     ],
     [
-      ['roles', 'update', 'reviewers', '--permissions', ''],
+      ['roles', 'update', 'reviewers', '--expected-revision', '1', '--permissions', ''],
       'roleUpdate',
-      { roleId: 'reviewers', permissions: [] },
+      { roleId: 'reviewers', expectedRevision: 1, permissions: [] },
     ],
     [
-      ['roles', 'update', 'reviewers', '--name', 'Operators'],
+      ['roles', 'update', 'reviewers', '--expected-revision', '1', '--name', 'Operators'],
       'roleUpdate',
-      { roleId: 'reviewers', name: 'Operators' },
+      { roleId: 'reviewers', expectedRevision: 1, name: 'Operators' },
     ],
     [['roles', 'delete', 'reviewers', '--confirm'], 'roleDelete', { roleId: 'reviewers' }],
     [

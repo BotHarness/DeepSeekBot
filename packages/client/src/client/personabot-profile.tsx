@@ -13,6 +13,7 @@ import type {
   ProfileCardRegistry,
 } from './profile-cards.js';
 import { MessagingHelp } from './messaging-help.js';
+import { useTeamMode } from './team-state.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 
 function ProfileCardLabel({
@@ -53,6 +54,8 @@ export function ProfileView({
   const visibleCards =
     bot.sharedBy === undefined ? cards.list().filter((card) => card.visible?.(bot) ?? true) : [];
   const { botSkills, skillDetail, botSkillRemove, subscribeSkillCatalog } = actions;
+  const owner =
+    useTeamMode(bot.sharedBy === undefined ? actions.teamCall : undefined)?.viewer.kind === 'owner';
   const skills = useMemo<BotSkillsSource | undefined>(
     () =>
       botSkills === undefined || skillDetail === undefined || botSkillRemove === undefined
@@ -64,8 +67,18 @@ export function ProfileView({
             ...(subscribeSkillCatalog === undefined
               ? {}
               : { subscribe: (listener) => subscribeSkillCatalog(channel.id, listener) }),
+            ...(owner ? { publish: { bot: bot.slug, actions } } : {}),
           },
-    [botSkills, skillDetail, botSkillRemove, subscribeSkillCatalog, bot.slug, channel.id],
+    [
+      botSkills,
+      skillDetail,
+      botSkillRemove,
+      subscribeSkillCatalog,
+      bot.slug,
+      channel.id,
+      owner,
+      actions,
+    ],
   );
   return (
     <ProfilePanel backLabel={t('profile.close')} onClose={onClose}>

@@ -69,7 +69,7 @@ export interface VoiceBridgeDeps {
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
 }
 
-export interface VoiceBridgeMethods {
+export type VoiceBridgeMethods = {
   voiceProviders(payload?: unknown): BridgeResult<VoiceProvidersView>;
   voiceCatalog(payload: unknown): Promise<BridgeResult<VoiceCatalogPage>>;
   voiceCatalogImport(payload: unknown): Promise<BridgeResult<{ voice: VoiceCatalogItem }>>;
@@ -96,7 +96,7 @@ export interface VoiceBridgeMethods {
   ): Promise<
     BridgeResult<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }>
   >;
-}
+};
 
 function record(payload: unknown): Record<string, unknown> {
   return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
@@ -120,7 +120,7 @@ function optionalText(value: unknown): string | undefined {
 
 export function createVoiceBridgeMethods(deps: {
   providers: VoiceProviders | undefined;
-  registry: PersonaBotRegistry;
+  registry: Pick<PersonaBotRegistry, 'get' | 'list' | 'setAsr' | 'setVoice'>;
   isHostOwner?: () => boolean;
   dictations?: VoiceDictations | undefined;
   log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;

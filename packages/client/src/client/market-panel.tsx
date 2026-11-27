@@ -121,7 +121,8 @@ function MarketHeaderAction({
 }): ReactElement {
   const { section } = useSyncExternalStore(navigation.subscribe, navigation.read, navigation.read);
   const owner =
-    useTeamMode(section === 'avatars' ? actions.teamCall : undefined)?.viewer.kind === 'owner';
+    useTeamMode(section === 'avatars' || section === 'skills' ? actions.teamCall : undefined)
+      ?.viewer.kind === 'owner';
   const uploadLabel = t(section === 'bots' ? 'market.panel.upload' : 'market.avatar.publish');
   return (
     <>
@@ -138,7 +139,7 @@ function MarketHeaderAction({
           </IconButton>
         </Tooltip>
       )}
-      {(section === 'bots' || owner) && (
+      {(section === 'bots' || (owner && section === 'avatars')) && (
         <Tooltip label={uploadLabel} side="bottom" delayMs={500}>
           <IconButton
             size="row"
@@ -433,7 +434,7 @@ function MarketPanelView({
           onInstalled={installed}
         />
       )}
-      {section === 'bots' && dialog === 'mine' ? (
+      {(section === 'bots' || section === 'skills') && dialog === 'mine' ? (
         <MyUploadsDialog
           actions={actions}
           registry={registry}

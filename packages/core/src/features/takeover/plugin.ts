@@ -1,11 +1,11 @@
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
-import { dmChannelId, isDisbandedGroup } from '../channels/channel.js';
-import { attachOperationalModule } from '../database/owner.js';
-import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
-import type { BotHarnessCore } from '../plugin.js';
+import { dmChannelId, isDisbandedGroup } from '../../channels/channel.js';
+import { attachOperationalModule } from '../../database/owner.js';
+import type { DiagnosticEvents } from '../../diagnostics/diagnostic-log.js';
+import type { BotHarnessCore } from '../../plugin-types.js';
 import {
   TAKEOVER_DEFAULT_MINUTES,
   TAKEOVER_MAX_MINUTES,
@@ -14,8 +14,8 @@ import {
   TakeoverError,
   type TakeoverHandoff,
   type TakeoverTarget,
-} from './contracts.js';
-import { createTakeoverHandoffs, type TakeoverHandoffs } from './handoffs.js';
+} from '../../takeover/contracts.js';
+import { createTakeoverHandoffs, type TakeoverHandoffs } from '../../takeover/handoffs.js';
 
 export const TAKEOVER_TOOL_GUIDANCE = `When a step on your Computer or Bot Browser needs the Human (signing in, a password, a captcha, a payment or verification, anything you must not type yourself), call takeover_request with target computer or browser, a short title and one sentence saying exactly what you need them to do. A card with a Take over button appears in the conversation and your turn ends there: do not wait, poll or repeat the request in text. The Human may keep chatting meanwhile; answer them normally. If they say it is no longer needed, call takeover_cancel and tell them in one line that you stopped. When they finish, cannot finish or cancel, or the request expires, a [Bot Inbox: Takeover Handoff ended] item wakes you: observe the screen or page again before you act. Never ask for credentials in chat; they are typed only in the live view.`;
 
@@ -46,10 +46,10 @@ export function takeoverCanPost(
 
 export function createCoreTakeoverHandoffs(
   ctx: Context,
-  core: BotHarnessCore,
+  core: Pick<BotHarnessCore, 'operationalDatabase' | 'channels' | 'registry' | 'runtime'>,
   events?: DiagnosticEvents,
 ): TakeoverHandoffs {
-  const handoffs = createTakeoverHandoffs({
+  return createTakeoverHandoffs({
     database: attachOperationalModule(core.operationalDatabase, 'takeover'),
     channels: core.channels,
     targetDenial: (botSlug, target) => takeoverTargetDenial(core, botSlug, target),
@@ -62,6 +62,13 @@ export function createCoreTakeoverHandoffs(
     ...(events === undefined ? {} : { events }),
     info: (format, value) => ctx.logger.info(format, value),
   });
+}
+
+export function mountTakeover(
+  ctx: Context,
+  core: Pick<BotHarnessCore, 'operationalDatabase' | 'runtime' | 'contributeBotAgentSetup'>,
+  handoffs: TakeoverHandoffs,
+): void {
   ctx.effect(() => () => handoffs.close(), 'botharness: takeover handoffs');
   queueMicrotask(() => {
     if (core.operationalDatabase.mode !== 'ready') return;
@@ -69,7 +76,7 @@ export function createCoreTakeoverHandoffs(
       .recover()
       .catch((error: unknown) => ctx.logger.warn('takeover recovery failed: %s', String(error)));
   });
-  return handoffs;
+  mountTakeoverTools(ctx, core, handoffs);
 }
 
 function toolView(handoff: TakeoverHandoff): Record<string, unknown> {
@@ -94,7 +101,11 @@ async function toolResult(work: () => Promise<unknown> | unknown): Promise<strin
   }
 }
 
-export function mountTakeoverTools(ctx: Context, core: BotHarnessCore, handoffs: TakeoverHandoffs) {
+function mountTakeoverTools(
+  ctx: Context,
+  core: Pick<BotHarnessCore, 'runtime' | 'contributeBotAgentSetup'>,
+  handoffs: TakeoverHandoffs,
+) {
   ctx.effect(
     () =>
       core.contributeBotAgentSetup((agentCtx, agent, info) => {

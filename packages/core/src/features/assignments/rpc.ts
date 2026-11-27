@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { AssignmentTimelineLane } from '../../runtime/assignment-timeline.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
@@ -120,7 +119,7 @@ export const assignmentsRpcMethods = {
   ): { context: HumanAssignmentContext } {
     return humanAssignmentContext(this.methods, slug, sessionId, sourceEventId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: AssignmentsBridgeMethods }>;
 
 export const assignmentRpc = {
   assignments(
@@ -173,7 +172,7 @@ export const assignmentRpc = {
   ): Promise<{ sessions: SessionProgressEntry[] }> {
     return sessionProgress(this.methods, slug, sessionIds);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: AssignmentsBridgeMethods }>;
 
 export const assignmentAccessRpc = {
   assignmentAccessGet(slug: string): { preset: AssignmentAccessPreset } {
@@ -188,4 +187,4 @@ export const assignmentAccessRpc = {
   ): { preset: AssignmentAccessPreset } {
     return assignmentAccessSet(this.methods, slug, mode, acknowledgeRisk, scope);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: AssignmentsBridgeMethods }>;

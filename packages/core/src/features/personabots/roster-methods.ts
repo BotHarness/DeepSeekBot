@@ -14,7 +14,7 @@ import {
   type RosterSnapshot,
 } from '../../roster/store.js';
 import type { TopOrderEntry } from '../../roster/spec.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { RosterBridgeDeps } from './bridge-deps.js';
 function unknownSection(sectionId: string): BridgeResult<never> {
   return {
     ok: false,
@@ -81,7 +81,7 @@ export interface RosterBridgeMethods {
 
 export function createRosterBridgeMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: RosterBridgeDeps,
 ): RosterBridgeMethods {
   const rosterWrite = async <T>(operation: () => Promise<T>): Promise<BridgeResult<T>> => {
     try {

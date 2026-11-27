@@ -2480,6 +2480,7 @@ deepseekbot roles list
 deepseekbot roles create --name reviewers --permissions audit.view,usage.view
 deepseekbot roles update <roleId> --permissions usage.view
 deepseekbot roles update <roleId> --deny channels.create
+deepseekbot roles update <roleId> --expected-revision <revision> --deny channels.create [--as <username>]
 deepseekbot roles effective bob
 deepseekbot roles delete <roleId> --confirm
 deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
@@ -2488,6 +2489,10 @@ deepseekbot --as bob devices --member bob
 deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
+
+根据先前的 `roles list` 结果修改角色时，请用 `--expected-revision` 传入该角色的 `revision`。
+若 Host 返回 `stale-role`，请重新读取角色，确认最新权限后再试。
+省略此选项时，`roles update` 会以执行更新的同一身份读取当前版本。
 
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 

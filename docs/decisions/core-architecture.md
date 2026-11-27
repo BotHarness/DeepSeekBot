@@ -28,6 +28,16 @@ Host plugin hooks run at the existing Cordis lifecycle stages. Cloud registers i
 
 Appearance contributes the Window Companion live stream in a separate descriptor table. Typert marks these entries as streams and still injects the abort signal after the positional request arguments.
 
+Environments mounts device pairing before the after-Environments hooks. Takeover registers Handoff recovery, disposal, and Orchestrator Tools after Team confinement. Voice registers its Call route between the desktop routes and Channel live route.
+
+Channels contributes the live stream and its authorization projection while Channel Files contributes the attachment routes. Messaging contributes startup and provider hooks and binds connection-specific Tools and guidance at the existing connection boundary. The Agent composition uses named positions for these Tools and prompt fragments so their registration order and rendered text stay stable.
+
+Memory contributes its Engine tools, routes and Orchestrator prompt fragments. Workspaces contributes startup relocation, folder browsing, permission tracking and the favicon route. Approvals contributes Host handlers and the private-input RPCs. Runtime receives the Memory event and Approval input factories from the registered descriptors, creates them at their existing points in startup and supplies the callbacks they use to coordinate Inbox work.
+
+Models, PersonaBots and Tob contribute bridge handlers, Runtime services and Host hooks. Models installs the Engine route and retry handler and provides the Assignment model tool. Tob owns the Agent shell setup and supplies its hooks to the PersonaBot Agent adapter. Workspaces contributes the Grant and Session tools at their existing positions. PersonaBots and Activity register their streams before the Channel and Window Companion streams.
+
+Sessions, Activity and Assignments contribute bridge methods and Runtime services. Sessions keeps the routing between native and PersonaBot Sessions inside its bridge adapter. Activity and Assignments supply Inbox tools, coordination prompts and Assignment Agent reporting at their existing positions.
+
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
 ## CLI adapters and PersonaBot protection

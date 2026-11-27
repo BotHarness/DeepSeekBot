@@ -80,16 +80,11 @@ export function ConversationTopBar({
   const mark = materialIconButton.container;
   const status = connectionLabel ?? subtitle;
   const showStatus = status !== undefined && !theme.largeText;
-  const identityHeight = (scale: number, withStatus: boolean) =>
-    Math.max(
-      theme.touch,
-      Math.ceil(
-        (theme.type.title.line + (withStatus ? theme.type.meta.line : 0)) * scale + space.x2 * 2,
-      ),
-    );
-  const islandHeight = identityHeight(
-    Math.min(theme.fontScale, headerLabelScaleCeiling),
-    showStatus || place !== undefined,
+  const labelScale = Math.min(theme.fontScale, headerLabelScaleCeiling);
+  const metaLine = showStatus || place !== undefined ? theme.type.meta.line : 0;
+  const islandHeight = Math.max(
+    theme.touch,
+    Math.ceil((theme.type.title.line + metaLine) * labelScale + space.x2 * 2),
   );
   const glyph = clampScaledIconSize(
     theme.type.meta.size,
@@ -140,7 +135,7 @@ export function ConversationTopBar({
       </Row>
     );
   const titleLabel = variant === 'session' ? sessionPlaceLabel(title, place) : title;
-  const actionSize = Math.min(islandHeight, identityHeight(1, true));
+  const actionSize = theme.touch;
   const titleStyle = {
     typography: 'titleMedium',
     fontWeight: 'bold',
@@ -168,7 +163,92 @@ export function ConversationTopBar({
     </IconButton>
   );
   const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
-  const { modifiers: actionLook } = composeIsland(theme, actionSize);
+  const { surface: actionIsland, modifiers: actionLook } = composeIsland(theme, actionSize);
+  const identity = (widthModifier: ReturnType<typeof weight>, onClick?: () => void) => (
+    <Surface
+      {...island}
+      {...(onClick === undefined ? {} : { onClick })}
+      modifiers={[
+        widthModifier,
+        ...islandLook,
+        testID('chat-identity'),
+        semantics({
+          contentDescription: [
+            titleLabel,
+            status,
+            titleMenu === undefined ? undefined : t.sessionDetail.options,
+          ]
+            .filter(Boolean)
+            .join(', '),
+        }),
+      ]}
+    >
+      <Row
+        verticalAlignment="center"
+        horizontalArrangement={{ spacedBy: space.x3 }}
+        modifiers={[
+          nativeHeight(islandHeight),
+          padding(variant === 'session' ? space.x4 : space.x2, space.x2, space.x4, space.x2),
+        ]}
+      >
+        {variant === 'session' ? null : (
+          <RNHostView modifiers={[size(mark, mark)]}>
+            <View accessible={false} importantForAccessibility="no-hide-descendants">
+              {bot === undefined ? (
+                <GroupMark
+                  avatar={avatar}
+                  {...(initial === undefined ? {} : { initial })}
+                  size={mark}
+                  corner={radius.round}
+                />
+              ) : (
+                <BotAvatar bot={bot} size={mark} ring={false} />
+              )}
+            </View>
+          </RNHostView>
+        )}
+        <Column modifiers={[weight(1)]}>
+          <MorphTitle title={title} pending={titlePending} style={titleStyle} />
+          {placeRow}
+          {!showStatus ? null : (
+            <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
+              {activeBots.length === 0 ? null : (
+                <RNHostView
+                  modifiers={[
+                    size(
+                      theme.type.meta.line * Math.min(3, activeBots.length) -
+                        space.x2 * (Math.min(3, activeBots.length) - 1),
+                      theme.type.meta.line,
+                    ),
+                  ]}
+                >
+                  <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                </RNHostView>
+              )}
+              <Text
+                modifiers={[weight(1)]}
+                color={theme.color.muted}
+                style={{ typography: 'bodySmall' }}
+                maxLines={1}
+                overflow="ellipsis"
+              >
+                {status}
+              </Text>
+            </Row>
+          )}
+        </Column>
+        {connectionLabel === undefined ? null : (
+          <CircularProgressIndicator
+            color={theme.color.accent}
+            modifiers={[
+              size(materialIconButton.iconSize, materialIconButton.iconSize),
+              semantics({ contentDescription: connectionLabel }),
+            ]}
+          />
+        )}
+      </Row>
+    </Surface>
+  );
   return (
     <View
       testID="android-chat-header"
@@ -209,7 +289,7 @@ export function ConversationTopBar({
               horizontalArrangement={{ spacedBy: space.x2 }}
               modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
             >
-              <Surface {...island} modifiers={actionLook}>
+              <Surface {...actionIsland} modifiers={actionLook}>
                 {action(
                   'chat-selection-close',
                   t.messageSelection.close,
@@ -228,7 +308,10 @@ export function ConversationTopBar({
                 </Row>
               </Surface>
               <Spacer modifiers={[weight(1)]} />
-              <Surface {...island} modifiers={[...actionLook, testID('chat-selection-actions')]}>
+              <Surface
+                {...actionIsland}
+                modifiers={[...actionLook, testID('chat-selection-actions')]}
+              >
                 <Row verticalAlignment="center">
                   {action(
                     'chat-selection-copy',
@@ -254,7 +337,7 @@ export function ConversationTopBar({
               modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
             >
               {leading === 'none' ? null : (
-                <Surface {...island} modifiers={actionLook}>
+                <Surface {...actionIsland} modifiers={actionLook}>
                   {leading === 'drawer'
                     ? action(
                         'session-drawer-button',
@@ -271,101 +354,7 @@ export function ConversationTopBar({
                 </Surface>
               )}
               {titleMenu === undefined ? (
-                <Surface
-                  {...island}
-                  {...(titleMenu !== undefined
-                    ? { onClick: () => setTitleMenuOpen(true) }
-                    : onProfile === undefined
-                      ? {}
-                      : { onClick: onProfile })}
-                  modifiers={[
-                    weight(1),
-                    ...islandLook,
-                    testID('chat-identity'),
-                    semantics({
-                      contentDescription: [
-                        titleLabel,
-                        status,
-                        titleMenu === undefined ? undefined : t.sessionDetail.options,
-                      ]
-                        .filter(Boolean)
-                        .join(', '),
-                    }),
-                  ]}
-                >
-                  <Row
-                    verticalAlignment="center"
-                    horizontalArrangement={{ spacedBy: space.x3 }}
-                    modifiers={[
-                      nativeHeight(islandHeight),
-                      padding(
-                        variant === 'session' ? space.x4 : space.x2,
-                        space.x2,
-                        space.x4,
-                        space.x2,
-                      ),
-                    ]}
-                  >
-                    {variant === 'session' ? null : (
-                      <RNHostView modifiers={[size(mark, mark)]}>
-                        <View accessible={false} importantForAccessibility="no-hide-descendants">
-                          {bot === undefined ? (
-                            <GroupMark
-                              avatar={avatar}
-                              {...(initial === undefined ? {} : { initial })}
-                              size={mark}
-                              corner={radius.round}
-                            />
-                          ) : (
-                            <BotAvatar bot={bot} size={mark} ring={false} />
-                          )}
-                        </View>
-                      </RNHostView>
-                    )}
-                    <Column modifiers={[weight(1)]}>
-                      <MorphTitle title={title} pending={titlePending} style={titleStyle} />
-                      {placeRow}
-                      {!showStatus ? null : (
-                        <Row
-                          verticalAlignment="center"
-                          horizontalArrangement={{ spacedBy: space.x2 }}
-                        >
-                          {activeBots.length === 0 ? null : (
-                            <RNHostView
-                              modifiers={[
-                                size(
-                                  theme.type.meta.line * Math.min(3, activeBots.length) -
-                                    space.x2 * (Math.min(3, activeBots.length) - 1),
-                                  theme.type.meta.line,
-                                ),
-                              ]}
-                            >
-                              <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
-                            </RNHostView>
-                          )}
-                          <Text
-                            modifiers={[weight(1)]}
-                            color={theme.color.muted}
-                            style={{ typography: 'bodySmall' }}
-                            maxLines={1}
-                            overflow="ellipsis"
-                          >
-                            {status}
-                          </Text>
-                        </Row>
-                      )}
-                    </Column>
-                    {connectionLabel === undefined ? null : (
-                      <CircularProgressIndicator
-                        color={theme.color.accent}
-                        modifiers={[
-                          size(materialIconButton.iconSize, materialIconButton.iconSize),
-                          semantics({ contentDescription: connectionLabel }),
-                        ]}
-                      />
-                    )}
-                  </Row>
-                </Surface>
+                identity(weight(1), onProfile)
               ) : (
                 <DropdownMenu
                   expanded={titleMenuOpen}
@@ -375,104 +364,7 @@ export function ConversationTopBar({
                   modifiers={[weight(1)]}
                 >
                   <DropdownMenu.Trigger>
-                    <Surface
-                      {...island}
-                      {...(titleMenu !== undefined
-                        ? { onClick: () => setTitleMenuOpen(true) }
-                        : onProfile === undefined
-                          ? {}
-                          : { onClick: onProfile })}
-                      modifiers={[
-                        fillMaxWidth(),
-                        ...islandLook,
-                        testID('chat-identity'),
-                        semantics({
-                          contentDescription: [
-                            titleLabel,
-                            status,
-                            titleMenu === undefined ? undefined : t.sessionDetail.options,
-                          ]
-                            .filter(Boolean)
-                            .join(', '),
-                        }),
-                      ]}
-                    >
-                      <Row
-                        verticalAlignment="center"
-                        horizontalArrangement={{ spacedBy: space.x3 }}
-                        modifiers={[
-                          nativeHeight(islandHeight),
-                          padding(
-                            variant === 'session' ? space.x4 : space.x2,
-                            space.x2,
-                            space.x4,
-                            space.x2,
-                          ),
-                        ]}
-                      >
-                        {variant === 'session' ? null : (
-                          <RNHostView modifiers={[size(mark, mark)]}>
-                            <View
-                              accessible={false}
-                              importantForAccessibility="no-hide-descendants"
-                            >
-                              {bot === undefined ? (
-                                <GroupMark
-                                  avatar={avatar}
-                                  {...(initial === undefined ? {} : { initial })}
-                                  size={mark}
-                                  corner={radius.round}
-                                />
-                              ) : (
-                                <BotAvatar bot={bot} size={mark} ring={false} />
-                              )}
-                            </View>
-                          </RNHostView>
-                        )}
-                        <Column modifiers={[weight(1)]}>
-                          <MorphTitle title={title} pending={titlePending} style={titleStyle} />
-                          {placeRow}
-                          {!showStatus ? null : (
-                            <Row
-                              verticalAlignment="center"
-                              horizontalArrangement={{ spacedBy: space.x2 }}
-                            >
-                              {activeBots.length === 0 ? null : (
-                                <RNHostView
-                                  modifiers={[
-                                    size(
-                                      theme.type.meta.line * Math.min(3, activeBots.length) -
-                                        space.x2 * (Math.min(3, activeBots.length) - 1),
-                                      theme.type.meta.line,
-                                    ),
-                                  ]}
-                                >
-                                  <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
-                                </RNHostView>
-                              )}
-                              <Text
-                                modifiers={[weight(1)]}
-                                color={theme.color.muted}
-                                style={{ typography: 'bodySmall' }}
-                                maxLines={1}
-                                overflow="ellipsis"
-                              >
-                                {status}
-                              </Text>
-                            </Row>
-                          )}
-                        </Column>
-                        {connectionLabel === undefined ? null : (
-                          <CircularProgressIndicator
-                            color={theme.color.accent}
-                            modifiers={[
-                              size(materialIconButton.iconSize, materialIconButton.iconSize),
-                              semantics({ contentDescription: connectionLabel }),
-                            ]}
-                          />
-                        )}
-                      </Row>
-                    </Surface>
+                    {identity(fillMaxWidth(), () => setTitleMenuOpen(true))}
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Items>
                     <Column modifiers={[width(materialMenu.width)]}>
@@ -502,7 +394,7 @@ export function ConversationTopBar({
                 </DropdownMenu>
               )}
               {onCompose === undefined ? null : (
-                <Surface {...island} modifiers={actionLook}>
+                <Surface {...actionIsland} modifiers={actionLook}>
                   {action(
                     'session-new',
                     t.hostSessions.create,
@@ -519,7 +411,7 @@ export function ConversationTopBar({
                   shadowElevation={0}
                 >
                   <DropdownMenu.Trigger>
-                    <Surface {...island} modifiers={actionLook}>
+                    <Surface {...actionIsland} modifiers={actionLook}>
                       {action(
                         menu.testID,
                         menu.label,
@@ -554,7 +446,10 @@ export function ConversationTopBar({
                   </DropdownMenu.Items>
                 </DropdownMenu>
               ) : onCall === undefined && onProfile === undefined ? null : (
-                <Surface {...island} modifiers={[...actionLook, testID('chat-action-island')]}>
+                <Surface
+                  {...actionIsland}
+                  modifiers={[...actionLook, testID('chat-action-island')]}
+                >
                   <Row verticalAlignment="center">
                     {onCall === undefined
                       ? null

@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
 import { type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { randomUUID } from 'node:crypto';
-import { createHostModelCatalog } from '../../models/host-models.js';
+import type { ModelCatalog } from '../../models/catalog.js';
 import { openLogDatabase, type LogDatabase } from '../../logs/log-db.js';
 import { attachOperationalModule } from '../../database/owner.js';
 import { resolveDshHome } from '../../im/config-store.js';
@@ -32,14 +32,20 @@ import {
 import {
   changesApprovalPolicy,
   deletesMarketplaceBot,
+  deletesMarketplaceSkill,
   publishesBotMemory,
+  publishesMarketplaceSkill,
   createApprovalTemplateLibrary,
+  type ApprovalTemplateLibrary,
 } from '../../workspaces/approval-templates.js';
 import {
   APPROVAL_REVIEW_SESSION_PREFIX,
   createApprovalReviewRunner,
 } from '../../workspaces/approval-reviewer.js';
-import { createApprovalReviewerSettings } from '../../workspaces/approval-reviewer-settings.js';
+import {
+  createApprovalReviewerSettings,
+  type ApprovalReviewerSettings,
+} from '../../workspaces/approval-reviewer-settings.js';
 import {
   ChannelUserQuestions,
   registerChannelUserQuestions,
@@ -100,10 +106,10 @@ export function mount(
     permissionDenial,
   }: {
     dshHome: string;
-    approvalTemplates: ReturnType<typeof createApprovalTemplateLibrary>;
-    approvalReviewer: ReturnType<typeof createApprovalReviewerSettings>;
+    approvalTemplates: ApprovalTemplateLibrary;
+    approvalReviewer: ApprovalReviewerSettings;
     defaultModel: DshDefaultModelHost;
-    modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'];
+    modelCatalog: ModelCatalog;
     reviewing: Set<string>;
     privateInputs: () => PrivateInputs | undefined;
     sessions: () => DshSessionStore;
@@ -553,6 +559,7 @@ export function mount(
         };
       }
       try {
+        const approvalInput = JSON.stringify(execution.arguments) ?? '';
         const outcome = await requestRequiredToolApproval({
           approval,
           channelApproval: toolApproval,
@@ -573,16 +580,17 @@ export function mount(
                 ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
                 : execution.name === 'bot_create'
                   ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
-                  : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
-                    ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
-                    : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
-                      ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
-                      : changesApprovalPolicy(
-                            JSON.stringify(execution.arguments) ?? '',
-                            templateInUse,
-                          )
-                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                  : publishesMarketplaceSkill(approvalInput)
+                    ? 'This PersonaBot wants to publish or replace a Marketplace Skill. The selected Project Skill files will become public. Check them for secrets and private details first.'
+                    : deletesMarketplaceSkill(approvalInput)
+                      ? 'This PersonaBot wants to delete a Marketplace Skill listing. The listing will be removed. Copies already added to Bots or Hosts are kept.'
+                      : publishesBotMemory(approvalInput)
+                        ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
+                        : deletesMarketplaceBot(approvalInput)
+                          ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                          : changesApprovalPolicy(approvalInput, templateInUse)
+                            ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                            : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
             signal: execution.signal,
           },
         });

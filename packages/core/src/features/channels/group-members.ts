@@ -7,7 +7,7 @@ import {
   type GroupMembersAddResult,
 } from '@botharness/host-protocol/group-members';
 import { invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { ChannelsBridgeDeps } from './bridge-deps.js';
 import type { HumanContext } from '../../humans/context.js';
 import { isValidSlug } from '../../bots/slug.js';
 import { TeamError } from '../../team-policy/error.js';
@@ -29,10 +29,10 @@ const missingGroup = (): BridgeResult<never> => ({
   error: { code: 'channel-not-found', message: 'Group Channel unavailable' },
 });
 
-export interface GroupMemberMethods {
+export type GroupMemberMethods = {
   channelGroupMemberPicker(payload: unknown): BridgeResult<GroupMemberPickerResult>;
   channelGroupMembersAdd(payload: unknown): BridgeResult<GroupMembersAddResult>;
-}
+};
 
 export function createGroupMemberMethods({
   human,
@@ -40,7 +40,7 @@ export function createGroupMemberMethods({
   invite,
 }: {
   human: HumanContext;
-  deps: Pick<BridgeMethodsDeps, 'channels' | 'registry' | 'team' | 'warn'>;
+  deps: Pick<ChannelsBridgeDeps, 'channels' | 'registry' | 'team' | 'warn'>;
   invite: ChannelsManagementAdapterMethods['channelGroupInvite'];
 }): GroupMemberMethods {
   const can = (channelId: string, policy: 'addBots' | 'addMembers') => {

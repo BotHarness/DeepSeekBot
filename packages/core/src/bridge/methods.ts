@@ -1,74 +1,22 @@
 import type { WorkspaceLooks } from '../workspaces/workspace-looks.js';
-import {
-  createHostSessionsMethods,
-  type HostSessionBridgeMethods,
-  type NativeSessions,
-} from '../features/sessions/host-sessions.js';
-import { createSessionBotMethods } from '../features/sessions/session-bot-methods.js';
-import {
-  createPersonaBotsBridgeMethods,
-  type PersonaBotsBridgeMethods,
-} from '../features/personabots/methods.js';
 import { createBotDetails } from '../features/personabots/bot-details.js';
 import {
   createTeamBridgeMethods,
   type TeamBridgeMethods,
   createTeamBridge,
 } from '../features/team/methods.js';
-import {
-  createActivityBridgeMethods,
-  type ActivityBridgeMethods,
-} from '../features/activity/methods.js';
-import {
-  createMessagingBridgeMethods,
-  type MessagingBridgeMethods,
-  createMessagingCall,
-} from '../features/messaging/methods.js';
-import {
-  createSessionsBridgeMethods,
-  type SessionsBridgeMethods,
-} from '../features/sessions/methods.js';
+import { createMessagingCall } from '../features/messaging/methods.js';
 import type { IdleCompactionDeps, SessionEngineQuota } from '../features/sessions/methods.js';
-import {
-  createAssignmentsBridgeMethods,
-  type AssignmentsBridgeMethods,
-  type AssignmentsBridgeDeps,
-} from '../features/assignments/methods.js';
-import {
-  createMemoryBridgeMethods,
-  type MemoryBridgeMethods,
-  type MemoryBridgeDeps,
-} from '../features/memory/methods.js';
-import {
-  createApprovalsBridgeMethods,
-  type ApprovalsBridgeMethods,
-  type ApprovalsBridgeDeps,
-} from '../features/approvals/methods.js';
-import {
-  createWorkspacesBridgeMethods,
-  type WorkspacesBridgeMethods,
-  type WorkspacesBridgeDeps,
-} from '../features/workspaces/methods.js';
-import {
-  createEngineAccountBridge,
-  type EngineAccountBridgeMethods,
-  createEngineSelectionBridge,
-  type EngineSelectionBridgeMethods,
-  createModelProviderBridge,
-  type ModelProviderBridgeMethods,
-  createModelsBridgeMethods,
-  type ModelsBridgeMethods,
-} from '../features/models/methods.js';
-import type { ModelsBridgeDeps } from '../features/models/deps.js';
 import { createModelRoutingHelpers } from '../features/models/routing.js';
 import {
   contributedBridgeMethods,
   mergeFeatureMethods,
   type ContributedBridgeDeps,
 } from '../feature-contributions.js';
-import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
+import { invalidInput } from '../kernel/method-utils.js';
+import type { NativeSessions } from '../features/sessions/host-sessions.js';
+import type { ChannelsSendAdapterMethods } from '../features/channels/send-methods.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
-import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team-policy/error.js';
 import { guardHumanBridge } from '../features/team/bridge-access.js';
 import { botOwner } from '../team-policy/bot-access.js';
@@ -77,11 +25,6 @@ import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext, type HumanId } from '../humans/context.js';
-import {
-  createVoiceBridgeMethods,
-  type VoiceBridgeMethods,
-  type VoiceBridgeDeps,
-} from '../features/voice/methods.js';
 import type { BotContact } from '../runtime/bot-contact-discovery.js';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
@@ -101,8 +44,6 @@ import type { SessionLiveStreams } from '../runtime/session-live.js';
 import { type PresentToolResult } from '../runtime/session-tool-detail.js';
 import { type PublicToolCall } from '../runtime/assignment-timeline.js';
 import type { AttachmentStore } from '../attachments/store.js';
-import { randomUUID } from 'node:crypto';
-import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import { type ChannelMessage, type ChannelRecord } from '../channels/channel.js';
 import { type BotBannerSummary } from '../bots/banner-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
@@ -134,44 +75,7 @@ import {
 } from '../runtime/human-attention.js';
 import type { BotRuntime } from '../runtime/bot-runtime.js';
 import type { AggregatedState, BotStateTracker, SessionState } from '../state/bot-state.js';
-import {
-  botInChannel,
-  createChannelViews,
-  authorizeChannelBridgeMethods,
-} from '../features/channels/methods.js';
-import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
-import {
-  createTakeoverAdapterMethods,
-  type TakeoverAdapterMethods,
-} from '../features/takeover/methods.js';
-import {
-  createWorkspacesAdapterMethods,
-  type WorkspacesAdapterMethods,
-} from '../features/workspaces/methods.js';
-import {
-  createSessionsAdapterMethods,
-  type SessionsAdapterMethods,
-} from '../features/sessions/methods.js';
-import {
-  createChannelFilesAdapterMethods,
-  type ChannelFilesAdapterMethods,
-} from '../features/channel-files/methods.js';
-import {
-  createChannelsSendAdapterMethods,
-  type ChannelsSendAdapterMethods,
-} from '../features/channels/send-methods.js';
-import {
-  createGroupMemberMethods,
-  type GroupMemberMethods,
-} from '../features/channels/group-members.js';
-import {
-  createChannelsManagementAdapterMethods,
-  type ChannelsManagementAdapterMethods,
-} from '../features/channels/management-methods.js';
-import {
-  createChannelsAdapterMethods,
-  type ChannelsAdapterMethods,
-} from '../features/channels/methods.js';
+import { createChannelViews, authorizeChannelBridgeMethods } from '../features/channels/methods.js';
 import { createDmMemoryReader } from '../features/memory/methods.js';
 
 export type {
@@ -299,51 +203,9 @@ export type ChannelListChanges =
     };
 
 export interface BridgeMethods
-  extends
-    ReturnType<typeof contributedBridgeMethods>,
-    TeamBridgeMethods,
-    ModelProviderBridgeMethods,
-    EngineAccountBridgeMethods,
-    EngineSelectionBridgeMethods,
-    ModelsBridgeMethods,
-    VoiceBridgeMethods,
-    ApprovalsBridgeMethods,
-    WorkspacesBridgeMethods,
-    SessionsBridgeMethods,
-    AssignmentsBridgeMethods,
-    MemoryBridgeMethods,
-    MessagingBridgeMethods,
-    ActivityBridgeMethods,
-    PersonaBotsBridgeMethods,
-    ChannelsAdapterMethods,
-    ChannelsManagementAdapterMethods,
-    GroupMemberMethods,
-    ChannelsSendAdapterMethods,
-    ChannelFilesAdapterMethods,
-    Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
-    HostSessionBridgeMethods,
-    ReturnType<typeof createSessionBotMethods>,
-    WorkspacesAdapterMethods,
-    TakeoverAdapterMethods,
-    TobAdapterMethods {
-  sessionMessageSend(
-    payload: unknown,
-  ): Promise<
-    BridgeResult<
-      { sourceEventId: string; requestId?: never } | { requestId: string; sourceEventId?: never }
-    >
-  >;
-}
+  extends ReturnType<typeof contributedBridgeMethods>, TeamBridgeMethods {}
 
-export interface BridgeMethodsDeps
-  extends
-    ContributedBridgeDeps,
-    ModelsBridgeDeps,
-    VoiceBridgeDeps,
-    ApprovalsBridgeDeps,
-    WorkspacesBridgeDeps,
-    AssignmentsBridgeDeps,
-    MemoryBridgeDeps {
+export interface BridgeMethodsDeps extends ContributedBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   botContext?(slug: string): Promise<BotContextWindow>;
@@ -391,7 +253,6 @@ export interface BridgeMethodsDeps
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
   sourcePolicy?: BotSourcePolicyStore;
-  takeovers?: TakeoverHandoffs;
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
   folders?: FolderBrowser;
@@ -497,12 +358,6 @@ function buildBridgeMethods(
   };
   const modelRouting = createModelRoutingHelpers(human, deps, isHostOwner, requireOwnedBot);
   const { requireRoutes } = modelRouting;
-  const allowed = (record: PersonaBotRecord): boolean =>
-    botModelAllowed(
-      deps.team,
-      record,
-      deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.(),
-    );
   const { channelView, listedChannels, listItem } = createChannelViews(
     human,
     deps,
@@ -513,315 +368,35 @@ function buildBridgeMethods(
     void deps.marketplaceReceipts?.send(listingId).catch(() => undefined);
   };
   const messagingCall = createMessagingCall(deps);
-  const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
   const { runnerOf, detailOf } = createBotDetails(human, deps);
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const { modelInheritance, modelSettings, modelPlan } = createModelsBridgeMethods(
-    human,
-    deps,
-    globalRegistry,
-    isHostOwner,
-    requireOwnedBot,
-    modelRouting,
-  );
-  const approvalsMethods = createApprovalsBridgeMethods(
-    human,
-    deps,
-    globalRegistry,
-    detailOf,
-    messagingCall,
-  );
-  const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
-  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
-  const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
-  const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
-  const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
-  const messagingMethods = createMessagingBridgeMethods(deps, messagingCall);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
-  const personabotsMethods = createPersonaBotsBridgeMethods(
+  const contributions = contributedBridgeMethods(deps, {
+    channelSend: (payload): ReturnType<ChannelsSendAdapterMethods['channelSend']> =>
+      contributions.channelSend(payload),
     human,
-    deps,
-    isHostOwner,
-    runnerOf,
-    allowed,
-    requireOwnedBot,
-    detailOf,
-    createBotId,
-    sendReceipt,
     modelRouting,
-  );
-  const tobAdapterMethods = createTobAdapterMethods(human, deps, isHostOwner);
-  const takeoverAdapterMethods = createTakeoverAdapterMethods(human, deps);
-  const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
-  const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
-  const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
-  const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
-  const channelFilesAdapterMethods = createChannelFilesAdapterMethods(deps);
-  const channelsSendAdapterMethods = createChannelsSendAdapterMethods(
-    human,
-    deps,
-    globalRegistry,
-    channelSkillBots,
-  );
-  const sessionBots = createSessionBotMethods(human, deps, isHostOwner, detailOf, (payload) =>
-    channelsSendAdapterMethods.channelSend(payload),
-  );
-  const channelsManagementAdapterMethods = createChannelsManagementAdapterMethods(
-    human,
-    deps,
-    globalRegistry,
-    channelView,
+    runnerOf,
     detailOf,
-  );
-  const channelsAdapterMethods = createChannelsAdapterMethods(
-    human,
-    deps,
-    isHostOwner,
     channelView,
+    globalRegistry,
+    isHostOwner,
+    dmMemory,
+    channelSkillBots,
+    requireOwnedBot,
+    sendReceipt,
+    messagingCall,
     listedChannels,
     listItem,
-  );
+  });
   const methods: Omit<BridgeMethods, keyof ReturnType<typeof contributedBridgeMethods>> = {
     ...createTeamBridge(human, deps.team),
-    ...createModelProviderBridge(human, deps),
-    ...createEngineAccountBridge(human, deps),
-    ...createEngineSelectionBridge(human, { ...deps, registry: globalRegistry }),
-    ...createVoiceBridgeMethods({
-      providers: deps.voiceProviders,
-      registry: deps.registry,
-      isHostOwner,
-      log: deps.voiceLog,
-    }),
-    channelBridges: messagingMethods.channelBridges,
-    channelIngests: messagingMethods.channelIngests,
-    channelIngest: messagingMethods.channelIngest,
-    channelBridge: messagingMethods.channelBridge,
-    messagingChannelTarget: messagingMethods.messagingChannelTarget,
-    messagingThreadPolicy: messagingMethods.messagingThreadPolicy,
-    messagingGroupPolicy: messagingMethods.messagingGroupPolicy,
-    messagingReceive: messagingMethods.messagingReceive,
-    messagingSource: messagingMethods.messagingSource,
-    failureAlertsSet: messagingMethods.failureAlertsSet,
-    failureAlertsTest: messagingMethods.failureAlertsTest,
-    failureAlertsRetry: messagingMethods.failureAlertsRetry,
-    approvalRoute: approvalsMethods.approvalRoute,
-    approvalTest: approvalsMethods.approvalTest,
-    questionRetry: approvalsMethods.questionRetry,
-    approvalRetry: approvalsMethods.approvalRetry,
-    senderAccess: messagingMethods.senderAccess,
-    pairingReview: messagingMethods.pairingReview,
-    messagingIdentity: messagingMethods.messagingIdentity,
-    messagingDefaults: messagingMethods.messagingDefaults,
-    messagingDefaultsSet: messagingMethods.messagingDefaultsSet,
-    messagingApps: messagingMethods.messagingApps,
-    messagingSnapshot: messagingMethods.messagingSnapshot,
-    messagingReachable: messagingMethods.messagingReachable,
-    messagingPostRequest: messagingMethods.messagingPostRequest,
-    messagingPostConversation: messagingMethods.messagingPostConversation,
-    messagingPostLimit: messagingMethods.messagingPostLimit,
-    messagingGroupInteractions: messagingMethods.messagingGroupInteractions,
-    messagingTargets: messagingMethods.messagingTargets,
-    messagingAuthorize: messagingMethods.messagingAuthorize,
-    messagingRevoke: messagingMethods.messagingRevoke,
-    messagingConversation: messagingMethods.messagingConversation,
-    messagingSend: messagingMethods.messagingSend,
-    ...tobAdapterMethods,
-    onboarding: personabotsMethods.onboarding,
-    ...modelInheritance,
-    onboardingModel: personabotsMethods.onboardingModel,
-    channelRetry: channelsAdapterMethods.channelRetry,
-    botNewSession: sessionsMethods.botNewSession,
-    botCompact: sessionsMethods.botCompact,
-    botContext: sessionsMethods.botContext,
-    channelBotStop: sessionsMethods.channelBotStop,
-    botStop: sessionsMethods.botStop,
-    sessionMessageSend: (payload) =>
-      asObject(payload)['botSlug'] === null
-        ? sessionSend(payload)
-        : sessionsAdapterMethods.sessionMessageSend(payload),
-    sessionStop: sessionsMethods.sessionStop,
-    ...modelSettings,
-    deletionPreview: personabotsMethods.deletionPreview,
-    deletionConfirm: personabotsMethods.deletionConfirm,
-    deletionRetry: personabotsMethods.deletionRetry,
-    deletionMemoryFolder: personabotsMethods.deletionMemoryFolder,
-    ...modelPlan,
-    list: personabotsMethods.list,
-    channelActivityToday: activityMethods.channelActivityToday,
-    activityOverview: activityMethods.activityOverview,
-    activitySnapshot: activityMethods.activitySnapshot,
-    get: personabotsMethods.get,
-    create: personabotsMethods.create,
-    createLookup: personabotsMethods.createLookup,
-    botImportLookup: personabotsMethods.botImportLookup,
-    botImportPreview: personabotsMethods.botImportPreview,
-    createFromGit: personabotsMethods.createFromGit,
-    createFromSessions: sessionBots.createFromSessions,
-    externalSessions: sessionBots.externalSessions,
-    update: personabotsMethods.update,
-    pause: personabotsMethods.pause,
-    resume: personabotsMethods.resume,
-    approvalTemplates: approvalsMethods.approvalTemplates,
-    approvalTemplateCreate: approvalsMethods.approvalTemplateCreate,
-    approvalTemplateUpdate: approvalsMethods.approvalTemplateUpdate,
-    approvalTemplateDeletePreview: approvalsMethods.approvalTemplateDeletePreview,
-    approvalTemplateDelete: approvalsMethods.approvalTemplateDelete,
-    approvalTemplateGlobalSet: approvalsMethods.approvalTemplateGlobalSet,
-    botApprovalTemplateSet: approvalsMethods.botApprovalTemplateSet,
-    approvalReviewerModel: approvalsMethods.approvalReviewerModel,
-    approvalReviewerModelSet: approvalsMethods.approvalReviewerModelSet,
-    idleCompaction: sessionsMethods.idleCompaction,
-    idleCompactionSet: sessionsMethods.idleCompactionSet,
-    idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
-    compactionThresholdSet: sessionsMethods.compactionThresholdSet,
-    standingLimitsSet: personabotsMethods.standingLimitsSet,
-    composerValidate: channelsAdapterMethods.composerValidate,
-    channels: channelsAdapterMethods.channels,
-    channelListChanges: channelsAdapterMethods.channelListChanges,
-    channelAccessState: channelsAdapterMethods.channelAccessState,
-    channelDm: channelsAdapterMethods.channelDm,
-    channelGet: channelsAdapterMethods.channelGet,
-    channelCreate: channelsManagementAdapterMethods.channelCreate,
-    channelRename: channelsManagementAdapterMethods.channelRename,
-    channelGroupAvatarSet: channelsManagementAdapterMethods.channelGroupAvatarSet,
-    channelGroupInvite: channelsManagementAdapterMethods.channelGroupInvite,
-    ...createGroupMemberMethods({
-      human,
-      deps: { ...deps, registry: globalRegistry },
-      invite: channelsManagementAdapterMethods.channelGroupInvite,
-    }),
-    channelGroupInviteCancel: channelsManagementAdapterMethods.channelGroupInviteCancel,
-    channelGroupJoinDecide: channelsManagementAdapterMethods.channelGroupJoinDecide,
-    channelGroupMemberRemove: channelsManagementAdapterMethods.channelGroupMemberRemove,
-    channelGroupSendReview: channelsManagementAdapterMethods.channelGroupSendReview,
-    channelGroupWakePolicies: channelsManagementAdapterMethods.channelGroupWakePolicies,
-    channelGroupWakeSet: channelsManagementAdapterMethods.channelGroupWakeSet,
-    channelHistory: channelsAdapterMethods.channelHistory,
-    channelHistorySources: channelsAdapterMethods.channelHistorySources,
-    channelGroupDelete: channelsManagementAdapterMethods.channelGroupDelete,
-    channelMessages: channelsAdapterMethods.channelMessages,
-    channelTimeline: channelsAdapterMethods.channelTimeline,
-    channelReadPosition: channelsAdapterMethods.channelReadPosition,
-    channelMarkRead: channelsAdapterMethods.channelMarkRead,
-    channelReact: channelsAdapterMethods.channelReact,
-    channelSearch: channelsAdapterMethods.channelSearch,
-    messageSearch: channelsAdapterMethods.messageSearch,
-    channelMarkAllRead: channelsAdapterMethods.channelMarkAllRead,
-    channelAllBotPreview: channelsAdapterMethods.channelAllBotPreview,
-    channelSendStatus: channelsAdapterMethods.channelSendStatus,
-    channelSend: channelsSendAdapterMethods.channelSend,
-    botAttention: activityMethods.botAttention,
-    takeoverList: takeoverAdapterMethods.takeoverList,
-    takeoverStatus: takeoverAdapterMethods.takeoverStatus,
-    takeoverRequest: takeoverAdapterMethods.takeoverRequest,
-    takeoverComplete: takeoverAdapterMethods.takeoverComplete,
-    takeoverCancel: takeoverAdapterMethods.takeoverCancel,
-    botSourcePolicies: activityMethods.botSourcePolicies,
-    botSourcePolicySet: activityMethods.botSourcePolicySet,
-    botSourcePolicyReset: activityMethods.botSourcePolicyReset,
-    humanAttention: activityMethods.humanAttention,
-    humanAttentionStatus: activityMethods.humanAttentionStatus,
-    channelUnreadCounts: activityMethods.channelUnreadCounts,
-    humanAssignmentContext: assignmentsMethods.humanAssignmentContext,
-    humanAttentionDismiss: activityMethods.humanAttentionDismiss,
-    humanAttentionDismissAll: activityMethods.humanAttentionDismissAll,
-    humanAttentionRestore: activityMethods.humanAttentionRestore,
-    humanAttentionSnooze: activityMethods.humanAttentionSnooze,
-    humanAttentionIgnore: activityMethods.humanAttentionIgnore,
-    assignments: assignmentsMethods.assignments,
-    channelAssignments: assignmentsMethods.channelAssignments,
-    assignment: assignmentsMethods.assignment,
-    assignmentTimeline: assignmentsMethods.assignmentTimeline,
-    sessionProgress: assignmentsMethods.sessionProgress,
-    ...hostSessionMethods,
-    sessionTranscript: (payload) =>
-      asObject(payload)['slug'] === null
-        ? sessionTranscript(payload)
-        : sessionsMethods.sessionTranscript(payload),
-    sessionModel: (payload) =>
-      asObject(payload)['slug'] === null
-        ? sessionModel(payload)
-        : sessionsMethods.sessionModel(payload),
-    sessionToolDetail: sessionsMethods.sessionToolDetail,
-    sessionSubagents: assignmentsMethods.sessionSubagents,
-    workspaceOptions: workspacesAdapterMethods.workspaceOptions,
-    channelMediaTarget: messagingMethods.channelMediaTarget,
-    messageAttachmentTarget: channelFilesAdapterMethods.messageAttachmentTarget,
-    folderBrowse: workspacesAdapterMethods.folderBrowse,
-    folderCreate: workspacesAdapterMethods.folderCreate,
-    workspaceFileTarget: workspacesAdapterMethods.workspaceFileTarget,
-    grants: workspacesMethods.grants,
-    grantCreate: workspacesMethods.grantCreate,
-    grantRevoke: workspacesMethods.grantRevoke,
-    grantRequestApprove: workspacesMethods.grantRequestApprove,
-    grantWriteSet: workspacesMethods.grantWriteSet,
-    assignmentAccessGet: assignmentsMethods.assignmentAccessGet,
-    assignmentAccessSet: assignmentsMethods.assignmentAccessSet,
-    toolApprovalRules: approvalsMethods.toolApprovalRules,
-    toolApprovalRuleRevoke: approvalsMethods.toolApprovalRuleRevoke,
-    toolApprovalHistory: approvalsMethods.toolApprovalHistory,
-    toolApprovalStatus: approvalsMethods.toolApprovalStatus,
-    toolApprovalDecide: approvalsMethods.toolApprovalDecide,
-    toolAutoRejectionOverride: approvalsMethods.toolAutoRejectionOverride,
-    userQuestionStatus: approvalsMethods.userQuestionStatus,
-    userQuestionAnswer: approvalsMethods.userQuestionAnswer,
-    botToolTrace: sessionsMethods.botToolTrace,
-    sessions: sessionsMethods.sessions,
-    sessionArchiveSet: sessionsMethods.sessionArchiveSet,
-    memoryMove: memoryMethods.memoryMove,
-    sessionOwner: sessionsMethods.sessionOwner,
-    botSessionIds: sessionsMethods.botSessionIds,
-    memoryFileTarget: memoryMethods.memoryFileTarget,
-    memoryImage: memoryMethods.memoryImage,
-    memorySnapshot: memoryMethods.memorySnapshot,
-    memoryFile: memoryMethods.memoryFile,
-    memoryHistory: memoryMethods.memoryHistory,
-    memoryDiff: memoryMethods.memoryDiff,
-    memoryGitGraph: memoryMethods.memoryGitGraph,
-    memoryGitCommitDiff: memoryMethods.memoryGitCommitDiff,
-    memoryWorkingChanges: memoryMethods.memoryWorkingChanges,
-    memoryWorkingDiff: memoryMethods.memoryWorkingDiff,
-    memoryRecoveryHistory: memoryMethods.memoryRecoveryHistory,
-    memoryRestore: memoryMethods.memoryRestore,
-    memorySave: memoryMethods.memorySave,
-    memoryRestoreCommit: memoryMethods.memoryRestoreCommit,
-    memoryVersions: memoryMethods.memoryVersions,
-    memoryNameVersion: memoryMethods.memoryNameVersion,
-    memoryRemoveVersionName: memoryMethods.memoryRemoveVersionName,
-    memoryRepair: memoryMethods.memoryRepair,
-    overviewMemory: memoryMethods.overviewMemory,
     usageByMember: teamMethods.usageByMember,
-    profileActivity: activityMethods.profileActivity,
-    groupProfileActivity: activityMethods.groupProfileActivity,
-    rosterGet: personabotsMethods.rosterGet,
-    sectionCreate: personabotsMethods.sectionCreate,
-    sectionRename: personabotsMethods.sectionRename,
-    sectionRemove: personabotsMethods.sectionRemove,
-    channelAssign: personabotsMethods.channelAssign,
-    sectionReorder: personabotsMethods.sectionReorder,
-    topReorder: personabotsMethods.topReorder,
-    pinsSet: personabotsMethods.pinsSet,
-    hiddenSet: personabotsMethods.hiddenSet,
-    channelMuteSet: personabotsMethods.channelMuteSet,
-    rosterBatch: personabotsMethods.rosterBatch,
   };
   return authorizeChannelBridgeMethods(
-    mergeFeatureMethods([
-      methods,
-      contributedBridgeMethods(deps, {
-        human,
-        detailOf,
-        channelView,
-        globalRegistry,
-        isHostOwner,
-        dmMemory,
-        channelSkillBots,
-        requireOwnedBot,
-        sendReceipt,
-      }),
-    ]),
+    mergeFeatureMethods([methods, contributions]),
     human,
     deps,
     globalRegistry,

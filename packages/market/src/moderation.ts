@@ -6,7 +6,7 @@ import { createRepositoryStore, type RepositoryRow, type Visibility } from './re
 export const MAX_REPORT_REASON_LENGTH = 500;
 export const DEFAULT_REPORT_THRESHOLD = 3;
 
-export type EntryKind = 'bot' | 'avatar';
+export type EntryKind = 'bot' | 'avatar' | 'skill';
 export type BlocklistTarget =
   | { kind: 'bot'; id: string }
   | { kind: 'bot'; url: string }
@@ -15,6 +15,7 @@ export type BlocklistTarget =
 const entries = {
   bot: { table: 'indexed_repositories', id: 'node_id' },
   avatar: { table: 'marketplace_avatars', id: 'id' },
+  skill: { table: 'marketplace_skills', id: 'id' },
 } satisfies Record<EntryKind, { table: string; id: string }>;
 
 export type BlocklistResult =
@@ -111,7 +112,7 @@ export function createModeration(deps: {
   return {
     async report({ kind, id, source, reason, threshold }) {
       const entry = entries[kind];
-      const reportKey = kind === 'bot' ? id : `avatar:${id}`;
+      const reportKey = kind === 'bot' ? id : `${kind}:${id}`;
       const listed = `FROM ${entry.table} WHERE ${entry.id} = ? AND visibility = 'listed'`;
       const [admission] = await db.batch([
         db.prepare(`SELECT 1 ${listed}`).bind(id),
@@ -124,7 +125,7 @@ export function createModeration(deps: {
           .bind(reportKey, source, reason ?? null, deps.now().toISOString(), id),
         db
           .prepare(`
-            UPDATE ${entry.table} SET visibility = 'hidden_reported'
+            UPDATE ${entry.table} SET visibility = '${kind === 'skill' ? 'blocked' : 'hidden_reported'}'
             WHERE ${entry.id} = ? AND visibility = 'listed'
               AND (SELECT COUNT(*) FROM reports WHERE node_id = ?) >= ?
           `)

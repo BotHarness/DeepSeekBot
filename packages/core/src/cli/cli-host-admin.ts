@@ -104,6 +104,10 @@ export const HOST_ADMIN_COMMANDS = [
     description: 'read a Marketplace Avatar / 查看市场头像详情',
   },
   {
+    command: 'marketplace-skill-report',
+    description: 'report a Marketplace Skill: marketplace-skill-report <id> [--reason <text>]',
+  },
+  {
     command: 'marketplace-avatar-report',
     description: 'report a Marketplace Avatar / 举报市场头像',
   },
@@ -253,6 +257,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-avatar-delete': 1,
   'marketplace-avatar-detail': 1,
   'marketplace-avatar-report': 1,
+  'marketplace-skill-report': 1,
   'marketplace-avatar-publish': 0,
   'marketplace-avatar-apply': 1,
   'marketplace-avatar-apply-candidates': 0,
@@ -345,7 +350,9 @@ function validate(
   )
     usage('--day must be a YYYY-MM-DD date, on marketplace-digest.');
   if (
-    (command === 'marketplace-report' || command === 'marketplace-avatar-report') &&
+    (command === 'marketplace-report' ||
+      command === 'marketplace-avatar-report' ||
+      command === 'marketplace-skill-report') &&
     values.reason !== undefined
   ) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
@@ -715,10 +722,15 @@ export async function runHostAdminCommand(
         altcha: await proveHuman(rpc, host.signal),
       });
     case 'marketplace-report':
-    case 'marketplace-avatar-report': {
+    case 'marketplace-avatar-report':
+    case 'marketplace-skill-report': {
       const reason = values.reason?.trim() ?? '';
       return rpc(
-        command === 'marketplace-report' ? 'marketplaceReport' : 'marketplaceAvatarReport',
+        command === 'marketplace-report'
+          ? 'marketplaceReport'
+          : command === 'marketplace-avatar-report'
+            ? 'marketplaceAvatarReport'
+            : 'marketplaceSkillReport',
         {
           id: target,
           altcha: await proveHuman(rpc, host.signal),

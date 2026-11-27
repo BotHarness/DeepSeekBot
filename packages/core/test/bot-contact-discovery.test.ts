@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { botDmChannelId } from '../src/channels/channel.js';
 import { createCore } from '../src/plugin.js';
 
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { discoverBotContacts } from '../src/runtime/bot-contact-discovery.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';

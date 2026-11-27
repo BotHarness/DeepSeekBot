@@ -1,5 +1,8 @@
-import type { Context } from '@deepseek-ai/cordis';
-import { AttachmentId, type ImageMediaType } from '@deepseek-ai/dsh-attachment';
+import {
+  AttachmentId,
+  type AttachmentStore,
+  type ImageMediaType,
+} from '@deepseek-ai/dsh-attachment';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
 
@@ -10,7 +13,7 @@ const CHANNEL_IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [
   'image/gif',
 ];
 
-type ChannelFileToolRun = Pick<OrchestratorAgentRun, 'inboundChannelId'> & {
+type ChannelFileToolRun = Pick<OrchestratorAgentRun, 'inboundChannelId' | 'externalMessaging'> & {
   channels: Pick<
     OrchestratorAgentRun['channels'],
     'openAttachment' | 'saveAttachment' | 'importAttachment' | 'readAttachment'
@@ -19,7 +22,7 @@ type ChannelFileToolRun = Pick<OrchestratorAgentRun, 'inboundChannelId'> & {
 
 export function registerChannelFileTools(
   currentRun: () => ChannelFileToolRun | undefined,
-  agentCtx: Pick<Context, 'get'>,
+  getAttachments: () => Pick<AttachmentStore, 'saveImage' | 'imageLimits'> | undefined,
   registerTool: (tool: ToolDefinition) => unknown,
 ): void {
   registerTool(
@@ -244,7 +247,7 @@ export function registerChannelFileTools(
         if (access === undefined) {
           throw new Error('channel_read_image: Channel attachment access is unavailable');
         }
-        const hostAttachments = agentCtx.get('attachments');
+        const hostAttachments = getAttachments();
         if (hostAttachments === undefined) {
           throw new Error('channel_read_image: DSH attachment service is unavailable');
         }

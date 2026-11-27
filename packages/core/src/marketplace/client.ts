@@ -11,6 +11,7 @@ import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-b
 
 import { canonicalRecipe, isAvatarRecipe, type AvatarRecipe } from '../bots/avatar-appearance.js';
 import { parseChallenge, type AltchaChallenge } from './altcha.js';
+import { createSkillUploadClient, type SkillUploadClient } from './client-skill-uploads.js';
 import { parseMarketplaceLanguage, type MarketplaceLanguage } from './language.js';
 
 export type MarketplaceBanner = { recipe: PixelBannerRecipe } | { image: string };
@@ -164,7 +165,7 @@ export type MarketplaceResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: string; path?: string };
 
-export interface MarketplaceClient {
+export interface MarketplaceClient extends SkillUploadClient {
   avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
   avatarTags(): Promise<MarketplaceResult<MarketplaceAvatarTag[]>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
@@ -195,7 +196,7 @@ export interface MarketplaceClient {
   report(
     id: string,
     options: { altcha: string; reason?: string },
-    kind?: 'bot' | 'avatar',
+    kind?: 'bot' | 'avatar' | 'skill',
   ): Promise<MarketplaceResult<{ received: true }>>;
   author(token: string): Promise<MarketplaceResult<MarketplaceAuthorAccount | null>>;
   saveAuthor(
@@ -710,6 +711,7 @@ export function createMarketplaceClient(options: {
   };
 
   return {
+    ...createSkillUploadClient(request, authorized),
     avatarList: ({ cursor, q, tag, sort }) => {
       const params = new URLSearchParams();
       if (cursor !== undefined) params.set('cursor', cursor);
@@ -857,7 +859,7 @@ export function createMarketplaceClient(options: {
       ),
     report: (id, options, kind = 'bot') =>
       request(
-        `/v1/${kind === 'bot' ? 'bots' : 'avatars'}/${encodeURIComponent(id)}/reports`,
+        `/v1/${kind === 'bot' ? 'bots' : kind === 'avatar' ? 'avatars' : 'skills'}/${encodeURIComponent(id)}/reports`,
         {
           method: 'POST',
           headers: { accept: 'application/json', 'content-type': 'application/json' },

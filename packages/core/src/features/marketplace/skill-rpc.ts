@@ -1,4 +1,5 @@
 import type {
+  MarketplaceSkill,
   MarketplaceSkillAddCandidates,
   MarketplaceSkillAddResult,
   MarketplaceSkillConflictChoice,
@@ -10,6 +11,37 @@ import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 
 export const marketplaceSkillRpc = {
+  async marketplaceSkillPublish(
+    bot: string,
+    name: string,
+    expectedAuthorId?: string,
+    requestKey?: string,
+  ): Promise<MarketplaceSkill> {
+    return unwrapAsync(
+      this.methods.marketplaceSkillPublish({ bot, name, expectedAuthorId, requestKey }),
+    );
+  },
+  async marketplaceSkillReplace(
+    id: string,
+    bot: string,
+    name: string,
+    expectedAuthorId?: string,
+  ): Promise<MarketplaceSkill> {
+    return unwrapAsync(this.methods.marketplaceSkillReplace({ id, bot, name, expectedAuthorId }));
+  },
+  async marketplaceSkillMine(): Promise<{ skills: MarketplaceSkill[] }> {
+    return unwrapAsync(this.methods.marketplaceSkillMine({}));
+  },
+  async marketplaceSkillDelete(id: string): Promise<{ deleted: true }> {
+    return unwrapAsync(this.methods.marketplaceSkillDelete({ id }));
+  },
+  async marketplaceSkillReport(
+    id: string,
+    altcha: string,
+    reason?: string,
+  ): Promise<{ received: true }> {
+    return unwrapAsync(this.methods.marketplaceSkillReport({ id, altcha, reason }));
+  },
   async marketplaceSkillList(q?: string, cursor?: string): Promise<MarketplaceSkillPage> {
     return unwrapAsync(this.methods.marketplaceSkillList({ q, cursor }));
   },

@@ -1,5 +1,6 @@
 import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
-import * as tobFeature from '../tob/plugin.js';
+import type { TobAgentHooks } from '../tob/plugin.js';
+import type { ModelFreeTobCliInvocation } from '../../runtime/tob-cli-invocation.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { defaultSpaceMemoryPath } from '../../workspaces/space-memory.js';
 import type { TeamError } from '../../team-policy/error.js';
@@ -31,7 +32,6 @@ import { initializeMemoryRepositoryAsync } from '../../memory/git.js';
 import { cloneMemoryRepository } from '../../memory/clone.js';
 import { migrateLegacySouls } from '../../memory/soul.js';
 import {
-  createBotRuntime,
   DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
   type BotAgentAdapter,
   type BotRuntime,
@@ -433,6 +433,7 @@ export function createRuntime(
     dshHome: string;
     assignmentLimits: { read: () => number }[];
     runtimeFeatures: NonNullable<BotRuntimeOptions['runtimeFeatures']>;
+    createRuntime(options: BotRuntimeOptions): BotRuntime;
     botHopLimit: () => number;
     orchestratorCwd: (bot: { slug: string }) => string | undefined;
     readonly runtime: BotRuntime | undefined;
@@ -466,7 +467,7 @@ export function createRuntime(
     dshHome,
     orchestratorCwd,
   } = deps;
-  return createBotRuntime({
+  return deps.createRuntime({
     ...(options.nativeSessions === undefined
       ? {}
       : {
@@ -557,19 +558,21 @@ export function createRuntime(
 export function createHostAgentAdapter(
   ctx: Context,
   config: BotHarnessConfig,
-  deps: tobFeature.TobShellDependencies &
-    Pick<
-      ReturnType<typeof models.createCatalog>,
-      | 'defaultModel'
-      | 'providerCredentials'
-      | 'routingDefaults'
-      | 'openAssignmentRoutes'
-      | 'modelReadiness'
-    > &
+  deps: Pick<
+    ReturnType<typeof models.createCatalog>,
+    | 'defaultModel'
+    | 'providerCredentials'
+    | 'routingDefaults'
+    | 'openAssignmentRoutes'
+    | 'modelReadiness'
+  > &
     Pick<
       ReturnType<typeof models.createFallback>,
       'groupFallback' | 'routeRests' | 'allowedGroupTargets'
     > & {
+      readonly core: BotHarnessCore;
+      tobCliInvocation: ModelFreeTobCliInvocation;
+      agentHooks: TobAgentHooks;
       engineHost: ReturnType<typeof models.mountEngines>['engineHost'];
       engineToolGate: ReturnType<typeof createEngineToolGate>;
       featureContributions: readonly AgentFeatureContribution[];
@@ -654,10 +657,7 @@ export function createHostAgentAdapter(
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => deps.publishDraft(event),
     onAgentSetup: (agentCtx, agent, info) => deps.core.runBotAgentSetups(agentCtx, agent, info),
-    onOrchestratorFileSetup: tobFeature.createOrchestratorFileSetup(ctx, deps),
-    onAssignmentShellSetup: tobFeature.createAssignmentShellSetup(ctx, deps),
-    assignmentReportFooter: (sessionId) =>
-      deps.tobOperations.tobMemoryLeases.reportFooter(sessionId),
+    ...deps.agentHooks,
     authorizeBorrow: (agent, role) => {
       const denial = borrowedAgentDenial(deps.core, agent.session, role);
       if (denial !== undefined) throw new Error(denial);

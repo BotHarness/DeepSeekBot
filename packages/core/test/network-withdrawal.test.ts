@@ -11,7 +11,7 @@ import type { AuthenticatedConnectBotPeer } from '../src/devices/connect-bot-net
 import type { TailnetChange } from '../src/devices/bot-tailnet-watch.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { receiveNetworkBotDm } from '../src/runtime/bot-network.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 import { loopbackAliasesAvailable } from './loopback-aliases.js';

@@ -5,11 +5,8 @@ import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
-import {
-  createBotRuntime,
-  type BotRuntime,
-  type BotAgentAdapter,
-} from '../src/runtime/bot-runtime.js';
+import { createBotRuntime } from '../src/core.js';
+import { type BotRuntime, type BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 

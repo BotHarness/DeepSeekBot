@@ -11,35 +11,16 @@ import type { TeamService } from '../../team/service.js';
 import { authorizedPathRoot } from '../../workspaces/grant-native-tools.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { BotCreatePreview } from '../../workspaces/tool-approval.js';
+import {
+  MAX_CREATED_BOT_BIO_LENGTH,
+  MAX_CREATED_BOT_NAME_LENGTH,
+  MAX_CREATED_BOT_TAG_LENGTH,
+  MAX_CREATED_BOT_TAGS,
+  NEW_BOT_ID_PLACEHOLDER,
+  type BotCreateInput,
+  type BotCreateOutcome,
+} from '../../bots/create-contract.js';
 import { DirectBotToolError } from '../sessions/direct-tools.js';
-
-export interface BotCreateInput {
-  displayName: string;
-  description?: string;
-  tags?: string[];
-  avatarPath?: string;
-  soul?: string;
-  coreMemory?: string;
-  memoryLocation?: string;
-}
-
-export interface BotCreateOutcome {
-  botId: string;
-  displayName: string;
-  dmChannelId: string;
-  memoryDir: string;
-  model: 'host-default' | 'set';
-}
-
-export const NEW_BOT_ID_PLACEHOLDER = '<new-bot-id>';
-
-export const MAX_CREATED_BOT_NAME_LENGTH = 60;
-
-export const MAX_CREATED_BOT_TAGS = 8;
-
-export const MAX_CREATED_BOT_TAG_LENGTH = 32;
-
-export const MAX_CREATED_BOT_BIO_LENGTH = 160;
 
 interface RuntimeBotCreationPorts {
   channels: ChannelStore;

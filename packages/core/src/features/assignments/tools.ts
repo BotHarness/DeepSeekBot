@@ -39,7 +39,7 @@ export interface AssignmentToolOptions {
   openAssignmentRoutes: Pick<OpenAssignmentRoutes, 'require'> | undefined;
 }
 
-interface CreateAssignmentToolOptions extends AssignmentToolOptions {
+export interface CreateAssignmentToolOptions extends AssignmentToolOptions {
   assignmentGroups:
     | (Partial<Pick<GroupFallback, 'inherited' | 'inheritedEffort'>> & {
         pick(
