@@ -1,4 +1,5 @@
 import type { FeatureContribution } from '../../kernel/feature-contribution.js';
+import { createMessagingEvents } from './events.js';
 import {
   createMessagingBridgeMethods,
   createMessagingCall,
@@ -29,6 +30,7 @@ export interface MessagingAgentContext {
 export function createMessagingContribution() {
   return {
     id: 'messaging',
+    runtimeServices: { createMessagingEvents },
     bridgeMethods: ({ deps, messagingCall }) => createMessagingBridgeMethods(deps, messagingCall),
     rpc: {
       ...messagingRpcMethods,

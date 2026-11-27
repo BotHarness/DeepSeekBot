@@ -4,8 +4,8 @@ import type { Context } from '@deepseek-ai/cordis';
 import { attachOperationalModule } from '../../database/owner.js';
 import { type BotRuntime } from '../../runtime/bot-runtime.js';
 import { installMemberConfinement, MemberConfinement } from '../../execution/member-confinement.js';
-import type { BotHarnessCore, createCore } from '../../plugin.js';
-type CoreOptions = NonNullable<Parameters<typeof createCore>[0]>;
+import type { BotHarnessCore } from '../../plugin.js';
+import type { CoreOptions } from '../../plugin-types.js';
 
 export function apply({
   operationalDatabase,
@@ -22,7 +22,7 @@ export function apply({
   contentPurge: BotHarnessCore['contentPurge'];
   registry: BotHarnessCore['registry'];
   spaces: () => BotHarnessCore['spaces'];
-  getRuntime: () => BotRuntime | undefined;
+  getRuntime: () => Pick<BotRuntime, 'replaceOrchestrator' | 'stopBot'> | undefined;
   tob: () => BotHarnessCore['tob'];
   options: Pick<CoreOptions, 'startupDiagnostic'>;
 }) {

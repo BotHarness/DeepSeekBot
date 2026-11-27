@@ -39,9 +39,6 @@
     "packages/core/src/engines/engine-log.ts": {
       "engines -> runtime": 1
     },
-    "packages/core/src/features/approvals/rpc.ts": {
-      "features -> bridge": 1
-    },
     "packages/core/src/messaging/defaults.ts": {
       "messaging -> runtime": 1
     },
@@ -61,7 +58,7 @@
       "push -> runtime": 1
     },
     "packages/core/src/runtime/bot-runtime-features.ts": {
-      "runtime -> features": 2
+      "runtime -> features": 1
     },
     "packages/core/src/runtime/bot-runtime-lifecycle.ts": {
       "runtime -> features": 1

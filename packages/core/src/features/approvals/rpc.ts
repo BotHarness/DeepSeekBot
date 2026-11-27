@@ -8,9 +8,7 @@ import { type HumanContext } from '../../humans/context.js';
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol';
 import type { PrivateInputs } from '../../credentials/private-inputs.js';
 import type { PrivateAccountSummary, PrivateInputStatus } from '../../credentials/contracts.js';
-import type { Context } from '@deepseek-ai/cordis';
 import type { TeamService } from '../../team/service.js';
-import { resolveInvocationHuman } from '../../bridge/invocation-human.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { ApprovalTemplateDeletionPreview } from '../../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../../team/approval-contract.js';
@@ -222,14 +220,14 @@ export function userQuestionAnswer(
 }
 
 interface PrivateInputReceiver {
-  readonly ctx: Context;
+  isAuthenticatedOwner(): boolean;
   readonly team?: TeamService;
   readonly privateInputs?: PrivateInputs;
   invocationHuman(): HumanContext;
 }
 
-function requirePrivateOwner({ ctx }: PrivateInputReceiver): void {
-  if (resolveInvocationHuman(ctx.invocation?.peer, ctx.get('connection')) === undefined)
+function requirePrivateOwner(receiver: PrivateInputReceiver): void {
+  if (!receiver.isAuthenticatedOwner())
     throw new RemoteError(
       'forbidden' as RemoteError['code'],
       'Private input requires the authenticated Owner',

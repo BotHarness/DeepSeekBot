@@ -12,11 +12,6 @@ import { checkUiInventory, INVENTORY_PATH, readUiSurfaces } from './cli-ui-inven
 const BASELINE = 'scripts/cli-parity-baseline.json';
 const LABELS = { bridge: 'bridge method', routes: 'Host route', tools: 'Bot tool' };
 
-export function bridgeMethodsFrom(rpcSource) {
-  const list = rpcSource.match(/\bconst legacyRemoteMethods\s*=\s*\[([^\]]*)\]/u)?.[1];
-  return list === undefined ? [] : [...list.matchAll(/'([A-Za-z]+)'/gu)].map((name) => name[1]);
-}
-
 export function featureRpcMethodsFrom(read, registryPath) {
   const modules = new Map();
   const statements = (path) => {
@@ -242,10 +237,7 @@ function main(root) {
     read(`packages/host-client/src/${module}.ts`),
   );
   const surfaces = {
-    bridge: [
-      ...bridgeMethodsFrom(read('packages/core/src/bridge/rpc.ts')),
-      ...featureRpcMethodsFrom(read, 'packages/core/src/feature-contributions.ts'),
-    ],
+    bridge: [...featureRpcMethodsFrom(read, 'packages/core/src/feature-contributions.ts')],
     routes: routePathsFrom(hostSources),
     tools: botToolNamesFrom(read('packages/core/src/workspaces/grant-execution.ts')),
   };

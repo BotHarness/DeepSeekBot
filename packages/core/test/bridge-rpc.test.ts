@@ -5,12 +5,23 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
+import { defineTool } from '@deepseek-ai/dsh-tools';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BRIDGE_NAMESPACE, BRIDGE_SERVICE_KEY } from '../src/bridge/rpc.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createBotSourcePolicyStore } from '../src/runtime/source-policy.js';
 import { roots, setup, parameterNames } from './support/bridge-rpc.js';
+import {
+  featureContributions,
+  type AdditionalFeature,
+  type RegisteredFeatures,
+} from '../src/feature-contributions.js';
+import { createBotRuntime } from '../src/core.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
+import { FakeAgentHost } from './dsh-agent-host-fixture.js';
+import { reportRun } from './support/dsh-bot-agent-adapter.js';
+import { DeterministicAgentAdapter } from './support/bot-runtime.js';
 
 afterEach(() => {
   for (const root of roots.splice(0)) {
@@ -20,6 +31,100 @@ afterEach(() => {
 });
 
 describe('bridge typert service', () => {
+  it('composes a synthetic feature by adding only its descriptor to the feature list', async () => {
+    const disposeWakeSource = vi.fn();
+    const subscribe = vi.fn(() => disposeWakeSource);
+    const tools: string[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async (_session, admitted) => {
+          tools.push(...admitted.map((tool) => tool.name));
+        },
+      },
+    );
+    const synthetic: AdditionalFeature = {
+      id: 'synthetic',
+      bridgeMethods: ({ human }) => ({
+        syntheticEcho: (payload) => ({ caller: human.humanId, payload }),
+      }),
+      rpc: {
+        syntheticEcho(
+          this: { methods: { syntheticEcho(payload: unknown): unknown } },
+          value: string,
+        ) {
+          return this.methods.syntheticEcho({ value });
+        },
+      },
+      runtime: (runtime) => runtime.registerInboxWakeSource({ hasPending: () => false, subscribe }),
+      promptSections: () => [
+        {
+          placement: 'system',
+          name: 'botharness:synthetic',
+          order: 10_499,
+          text: 'Synthetic feature guidance',
+        },
+      ],
+      tools: (_context, { register }) =>
+        register(
+          defineTool({
+            name: 'synthetic_echo',
+            description: 'Echo the synthetic value',
+            parameters: {},
+            output: {
+              schema: { type: 'string' },
+              render: (_args, value) => [{ type: 'text', text: value }],
+            },
+            execute: async () => 'synthetic',
+          }),
+        ),
+    };
+    const features: RegisteredFeatures = [...featureContributions, synthetic];
+    const { root, registry, channels, methods, service } = setup(undefined, {
+      featureContributions: features,
+    });
+    const runtime = createBotRuntime({
+      database: registryDatabase(root),
+      registry,
+      channels,
+      agents: new DeterministicAgentAdapter(),
+      runtimeFeatures: features,
+    });
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      featureContributions: features,
+    });
+    try {
+      const bridge: unknown = Reflect.get(methods, 'syntheticEcho');
+      const rpc: unknown = Reflect.get(service, 'syntheticEcho');
+      expect(typeof bridge).toBe('function');
+      expect(typeof rpc).toBe('function');
+      if (typeof bridge !== 'function' || typeof rpc !== 'function')
+        throw new Error('Synthetic method missing');
+      const caller = OWNER_HUMAN_CONTEXT.humanId;
+      expect(Reflect.apply(bridge, methods, [{ value: 'bridge' }])).toEqual({
+        caller,
+        payload: { value: 'bridge' },
+      });
+      expect(Reflect.apply(rpc, service, ['rpc'])).toEqual({ caller, payload: { value: 'rpc' } });
+      expect(remoteMethods(service).some((marker) => marker.method === 'syntheticEcho')).toBe(true);
+      expect(subscribe).toHaveBeenCalledOnce();
+      await adapter.runOrchestrator(reportRun);
+      expect(tools).toContain('synthetic_echo');
+      expect(host.scopes.get(reportRun.sessionId)?.sections).toContainEqual({
+        name: 'botharness:synthetic',
+        order: 10_499,
+        text: 'Synthetic feature guidance',
+      });
+    } finally {
+      await adapter.close();
+      await runtime.close();
+    }
+    expect(disposeWakeSource).toHaveBeenCalledOnce();
+  });
+
   it.each([true, false])(
     'forwards the Owner password sign-out choice %s',
     async (signOutOthers) => {

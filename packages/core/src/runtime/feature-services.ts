@@ -5,6 +5,7 @@ import type { pickSessionGroup } from '../features/models/runtime-session-group.
 import type { createRuntimeBotContacts } from '../features/personabots/runtime-contacts.js';
 import type { createRuntimeBotCreation } from '../features/personabots/runtime-creation.js';
 import type { createTobCliRuntime } from '../features/tob/cli-runtime.js';
+import type { createMessagingEvents } from '../features/messaging/events.js';
 
 import type { createDirectTools } from '../features/sessions/direct-tools.js';
 import type { createActivityEvents } from '../features/activity/events.js';
@@ -31,6 +32,7 @@ import type { createRuntimeAssignmentLifecycle } from '../features/assignments/r
 import type { createNativeOrchestratorStep } from '../features/sessions/native-orchestrator-step.js';
 
 export interface RuntimeFeatureServices {
+  createMessagingEvents: typeof createMessagingEvents;
   createDirectTools: typeof createDirectTools;
   createActivityEvents: typeof createActivityEvents;
   createAssignmentDelivery: typeof createAssignmentDelivery;

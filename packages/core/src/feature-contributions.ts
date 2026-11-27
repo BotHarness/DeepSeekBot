@@ -31,7 +31,9 @@ import { createActivityContribution } from './features/activity/contribution.js'
 import { createTobContribution } from './features/tob/contribution.js';
 import { createSessionsContribution } from './features/sessions/contribution.js';
 import { createAssignmentsContribution } from './features/assignments/contribution.js';
+import { createTeamContribution } from './features/team/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
+import type { AgentFeatureContext, AssignmentAgentHooks } from './runtime/agent-feature-context.js';
 
 export function createFeatureContributions(options?: {
   genui?: GenuiToolOptions;
@@ -69,11 +71,12 @@ export function createFeatureContributions(options?: {
     createTobContribution(),
     createSessionsContribution(),
     createAssignmentsContribution(),
+    createTeamContribution(),
   ] as const;
 }
 
 export const featureContributions = createFeatureContributions();
-export type RegisteredFeatures = typeof featureContributions;
+type BuiltInFeatures = typeof featureContributions;
 
 type Intersection<T> = (T extends unknown ? (value: T) => void : never) extends (
   value: infer Result,
@@ -81,16 +84,36 @@ type Intersection<T> = (T extends unknown ? (value: T) => void : never) extends 
   ? Result
   : never;
 
-type HostHooks = Partial<
-  Intersection<Extract<RegisteredFeatures[number], { host: object }>['host']>
+type HostHooks = Partial<ContributionTable<'host'>>;
+
+export type ContributionTable<Key extends keyof FeatureContribution> = Intersection<
+  Extract<BuiltInFeatures[number], Record<Key, object>>[Key]
 >;
+
+type BridgeFeature = Extract<
+  BuiltInFeatures[number],
+  { bridgeMethods: NonNullable<FeatureContribution['bridgeMethods']> }
+>;
+type RegisteredBridgeContext = Parameters<BridgeFeature['bridgeMethods']>[0];
+type InvocationContext<T> = T extends unknown ? Omit<T, 'deps'> : never;
+type BridgeInvocation = Intersection<InvocationContext<RegisteredBridgeContext>>;
+type BridgeDependencies = Intersection<RegisteredBridgeContext['deps']>;
+
+export type AdditionalFeature = FeatureContribution<
+  BridgeInvocation & { deps: BridgeDependencies },
+  AgentFeatureContext,
+  HostHooks,
+  AssignmentAgentHooks
+>;
+
+export type RegisteredFeatures = readonly [...BuiltInFeatures, ...AdditionalFeature[]];
 
 export function forEachHostFeature(
   features: RegisteredFeatures,
   visit: (hooks: HostHooks) => void,
 ) {
   for (const feature of features) {
-    if ('host' in feature) visit(feature.host);
+    if ('host' in feature && feature.host !== undefined) visit(feature.host);
   }
 }
 
@@ -121,30 +144,31 @@ export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Int
   return methods as Intersection<T>;
 }
 
-export function contributedRuntimeServices(features: RegisteredFeatures) {
-  return mergeFeatureMethods(
-    features.flatMap((feature) => ('runtimeServices' in feature ? [feature.runtimeServices] : [])),
-  );
+export function contributedRuntimeServices(
+  features: RegisteredFeatures,
+): ContributionTable<'runtimeServices'> {
+  return mergeFeatureMethods<object>(
+    features.flatMap((feature) =>
+      'runtimeServices' in feature && feature.runtimeServices !== undefined
+        ? [feature.runtimeServices]
+        : [],
+    ),
+  ) as ContributionTable<'runtimeServices'>;
 }
 
-type RegisteredBridgeContext = Parameters<
-  Extract<
-    (typeof featureContributions)[number],
-    { bridgeMethods: NonNullable<FeatureContribution['bridgeMethods']> }
-  >['bridgeMethods']
->[0];
-type InvocationContext<T> = T extends unknown ? Omit<T, 'deps'> : never;
-export type ContributedBridgeDeps = Intersection<RegisteredBridgeContext['deps']> & {
+export type ContributedBridgeDeps = BridgeDependencies & {
   featureContributions?: RegisteredFeatures;
 };
 
 export function contributedBridgeMethods(
   deps: ContributedBridgeDeps,
-  invocation: Intersection<InvocationContext<RegisteredBridgeContext>>,
-) {
-  return mergeFeatureMethods(
+  invocation: BridgeInvocation,
+): Intersection<ReturnType<BridgeFeature['bridgeMethods']>> {
+  return mergeFeatureMethods<object>(
     (deps.featureContributions ?? featureContributions).flatMap((feature) =>
-      'bridgeMethods' in feature ? [feature.bridgeMethods({ ...invocation, deps })] : [],
+      'bridgeMethods' in feature && feature.bridgeMethods !== undefined
+        ? [feature.bridgeMethods({ ...invocation, deps })]
+        : [],
     ),
-  );
+  ) as Intersection<ReturnType<BridgeFeature['bridgeMethods']>>;
 }

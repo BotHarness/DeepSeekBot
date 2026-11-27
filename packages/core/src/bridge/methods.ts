@@ -1,18 +1,9 @@
 import type { WorkspaceLooks } from '../workspaces/workspace-looks.js';
 import { createBotDetails } from '../features/personabots/bot-details.js';
-import {
-  createTeamBridgeMethods,
-  type TeamBridgeMethods,
-  createTeamBridge,
-} from '../features/team/methods.js';
 import { createMessagingCall } from '../features/messaging/methods.js';
 import type { IdleCompactionDeps, SessionEngineQuota } from '../features/sessions/methods.js';
 import { createModelRoutingHelpers } from '../features/models/routing.js';
-import {
-  contributedBridgeMethods,
-  mergeFeatureMethods,
-  type ContributedBridgeDeps,
-} from '../feature-contributions.js';
+import { contributedBridgeMethods, type ContributedBridgeDeps } from '../feature-contributions.js';
 import { invalidInput } from '../kernel/method-utils.js';
 import type { NativeSessions } from '../features/sessions/host-sessions.js';
 import type { ChannelsSendAdapterMethods } from '../features/channels/send-methods.js';
@@ -202,8 +193,7 @@ export type ChannelListChanges =
       cursor: ChannelChangeCursor;
     };
 
-export interface BridgeMethods
-  extends ReturnType<typeof contributedBridgeMethods>, TeamBridgeMethods {}
+export interface BridgeMethods extends ReturnType<typeof contributedBridgeMethods> {}
 
 export interface BridgeMethodsDeps extends ContributedBridgeDeps {
   team?: TeamService;
@@ -372,7 +362,6 @@ function buildBridgeMethods(
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
   const contributions = contributedBridgeMethods(deps, {
     channelSend: (payload): ReturnType<ChannelsSendAdapterMethods['channelSend']> =>
       contributions.channelSend(payload),
@@ -391,15 +380,5 @@ function buildBridgeMethods(
     listedChannels,
     listItem,
   });
-  const methods: Omit<BridgeMethods, keyof ReturnType<typeof contributedBridgeMethods>> = {
-    ...createTeamBridge(human, deps.team),
-    usageByMember: teamMethods.usageByMember,
-  };
-  return authorizeChannelBridgeMethods(
-    mergeFeatureMethods([methods, contributions]),
-    human,
-    deps,
-    globalRegistry,
-    isHostOwner,
-  );
+  return authorizeChannelBridgeMethods(contributions, human, deps, globalRegistry, isHostOwner);
 }

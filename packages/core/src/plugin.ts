@@ -6,7 +6,6 @@ import * as releaseFeature from './features/release/plugin.js';
 import * as personabotsFeature from './features/personabots/plugin.js';
 import * as tobFeature from './features/tob/plugin.js';
 import * as approvalsFeature from './features/approvals/plugin.js';
-import * as teamFeature from './features/team/plugin.js';
 import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { sessionToolInputPreview } from './runtime/session-tool-detail.js';
@@ -476,7 +475,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.connectors = connectors;
     mountConnectors(ctx, core, connectors, callback);
   }
-  teamFeature.mountConfinement(ctx, core, dshHome);
+  forEachHostFeature(featureContributions, (hooks) => hooks.teamConfinement?.(ctx, core, dshHome));
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.afterConfinement?.(ctx, core, takeovers),

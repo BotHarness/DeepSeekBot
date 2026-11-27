@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  bridgeMethodsFrom,
   bridgeMethodsFromSharedReaders,
   botToolNamesFrom,
   checkCliParity,
@@ -89,11 +88,6 @@ describe('CLI parity check', () => {
   });
 
   it('extracts the surfaces from the Host sources', () => {
-    expect(
-      bridgeMethodsFrom(
-        `const legacyRemoteMethods = [\n  'teamMode',\n  'memberTransfer',\n] as const;`,
-      ),
-    ).toEqual(['teamMode', 'memberTransfer']);
     expect(
       routePathsFrom(["path: '/api/browser/open',", "      path: '/api/computer/status',"]),
     ).toEqual(['/api/browser/open', '/api/computer/status']);
