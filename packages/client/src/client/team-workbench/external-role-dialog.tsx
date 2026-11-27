@@ -5,6 +5,7 @@ import type {
   ExternalRoleBotScope,
   HostExternalRole,
 } from '@botharness/host-client/external-roles';
+import { Button } from '../ds/button.js';
 import { Checkbox } from '../ds/checkbox.js';
 import { TextField } from '../ds/field.js';
 import { FormDialog } from '../ds/form-dialog.js';
@@ -39,6 +40,7 @@ export function ExternalRoleDialog({
   bots,
   busy,
   error,
+  onReload,
   onCancel,
   onSubmit,
 }: {
@@ -48,6 +50,7 @@ export function ExternalRoleDialog({
   busy: boolean;
   error: string | undefined;
   onCancel(): void;
+  onReload?: (() => void) | undefined;
   onSubmit(draft: ExternalRoleDraft): void;
 }): ReactElement {
   const scopeId = useId();
@@ -67,7 +70,19 @@ export function ExternalRoleDialog({
       size="medium"
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={role === undefined ? t('team.externalRoles.create') : t('team.save')}
-      submitDisabled={trimmed.length === 0 || trimmed === role?.name}
+      submitDisabled={trimmed.length === 0 || trimmed === role?.name || onReload !== undefined}
+      secondary={
+        onReload === undefined ? undefined : (
+          <Button
+            variant="outline"
+            disabled={busy}
+            data-external-role-dialog-reload=""
+            onClick={onReload}
+          >
+            {t('team.roles.reload')}
+          </Button>
+        )
+      }
       submitData={{ 'data-external-role-submit': '' }}
       busy={busy}
       error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}

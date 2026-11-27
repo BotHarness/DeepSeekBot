@@ -44,6 +44,8 @@ export const zh = {
   'team.externalRoles.status.blocked': '已屏蔽',
   'team.externalRoles.status.unavailable': '不可用',
   'team.externalRoles.error.reloaded': '这个角色刚被别处改过，已载入最新版本。确认后再保存一次。',
+  'team.externalRoles.error.reloadFailed':
+    '这个角色刚被别处改过，但最新版本没有载入。重新载入后再保存。',
   'team.externalRoles.error.stale': '这个角色刚被别处改过，你的修改没有保存。',
   'team.externalRoles.error.botUnavailable': '选中的 Bot 已不在这台 Host 上。',
   'team.externalRoles.error.permission': '只有 Host 所有者能管理外部角色。',
@@ -99,6 +101,8 @@ export const en = {
   'team.externalRoles.status.unavailable': 'Unavailable',
   'team.externalRoles.error.reloaded':
     'Someone else just changed this role. The latest version is loaded; check it and save again.',
+  'team.externalRoles.error.reloadFailed':
+    "Someone else just changed this role, but the latest version didn't load. Reload it, then save.",
   'team.externalRoles.error.stale':
     'Someone else just changed this role. Your change was not saved.',
   'team.externalRoles.error.botUnavailable': 'A selected Bot is no longer on this Host.',

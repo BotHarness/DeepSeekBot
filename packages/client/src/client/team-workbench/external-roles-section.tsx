@@ -40,7 +40,9 @@ export interface BotEntry {
   readonly name: string;
 }
 
-type Dialog = { kind: 'create' } | { kind: 'rename'; role: HostExternalRole };
+type Dialog =
+  | { kind: 'create' }
+  | { kind: 'rename'; role: HostExternalRole; stale?: boolean | undefined };
 
 export function ExternalRolesSection({
   call,
@@ -161,22 +163,37 @@ export function ExternalRolesSection({
       setSelected(saved.id);
       setDialog(undefined);
     } catch (failure) {
-      if (refusalCode(failure) === STALE_EXTERNAL_ROLE && dialog.kind === 'rename') {
-        const latest = await readExternalRoles(bridgeHost(call)).catch(() => undefined);
-        const fresh = latest?.find((item) => item.id === dialog.role.id);
-        if (latest !== undefined) setRoles(latest);
-        if (fresh !== undefined) setDialog({ kind: 'rename', role: fresh });
-        setDialogError(
-          t(
-            fresh === undefined
-              ? 'team.externalRoles.error.stale'
-              : 'team.externalRoles.error.reloaded',
-          ),
-        );
-      } else setDialogError(externalRoleErrorText(t, failure));
+      if (refusalCode(failure) === STALE_EXTERNAL_ROLE && dialog.kind === 'rename')
+        await reloadDialog(dialog.role);
+      else setDialogError(externalRoleErrorText(t, failure));
     } finally {
       setBusy(false);
     }
+  };
+
+  const reloadDialog = async (target: HostExternalRole): Promise<void> => {
+    const latest = await readExternalRoles(bridgeHost(call)).catch(() => undefined);
+    const fresh = latest?.find((item) => item.id === target.id);
+    if (latest !== undefined) setRoles(latest);
+    setDialog(
+      fresh === undefined
+        ? { kind: 'rename', role: target, stale: true }
+        : { kind: 'rename', role: fresh },
+    );
+    setDialogError(
+      t(
+        fresh === undefined
+          ? 'team.externalRoles.error.reloadFailed'
+          : 'team.externalRoles.error.reloaded',
+      ),
+    );
+  };
+
+  const retryDialogReload = async (): Promise<void> => {
+    if (dialog?.kind !== 'rename') return;
+    setBusy(true);
+    await reloadDialog(dialog.role);
+    setBusy(false);
   };
 
   const retry = (): void => {
@@ -315,6 +332,11 @@ export function ExternalRolesSection({
           bots={bots}
           busy={busy}
           error={dialogError}
+          onReload={
+            dialog.kind === 'rename' && dialog.stale === true
+              ? () => void retryDialogReload()
+              : undefined
+          }
           onCancel={() => setDialog(undefined)}
           onSubmit={(draft) => void submitDialog(draft)}
         />

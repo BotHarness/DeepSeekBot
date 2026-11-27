@@ -291,3 +291,57 @@ it('reloads the role and keeps the typed name when a rename lands on a stale rev
   ]);
   expect(find('[data-external-role-detail="regulars"]').textContent).toContain('VIP');
 });
+
+it('keeps Save off and offers a retry when the reload after a stale rename fails', async () => {
+  let current = role();
+  let readFails = false;
+  const renames: unknown[] = [];
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    if (method === 'externalRoles')
+      return readFails
+        ? { ok: false, error: { code: 'unavailable', message: 'down', details: {} } }
+        : { ok: true, value: { roles: [current] } };
+    if (method === 'list') return { ok: true, value: { bots } };
+    if (method === 'externalRoleChange') {
+      const input = args['input'] as { expectedRevision: number; name: string };
+      renames.push(input);
+      if (input.expectedRevision !== current.revision)
+        return { ok: false, error: { code: 'role-stale', message: 'role-stale', details: {} } };
+      current = { ...current, name: input.name, revision: current.revision + 1 };
+      return { ok: true, value: { role: current } };
+    }
+    return { ok: false, error: { code: 'unexpected', message: method, details: {} } };
+  });
+  await act(async () => root.render(<ExternalRolesSection call={call} t={zhTranslate} />));
+  await settle();
+  current = { ...current, revision: 2 };
+  readFails = true;
+
+  await act(async () => find('[data-external-role-rename]').click());
+  const input = document.querySelector<HTMLInputElement>('[data-external-role-name]');
+  if (!input) throw new Error('Missing name field');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'VIP');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const submit = () => document.querySelector<HTMLButtonElement>('[data-external-role-submit]');
+  await act(async () => submit()?.click());
+  await settle();
+  expect(document.body.textContent).toContain('最新版本没有载入');
+  expect(submit()?.disabled).toBe(true);
+  expect(document.querySelector<HTMLInputElement>('[data-external-role-name]')?.value).toBe('VIP');
+
+  readFails = false;
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[data-external-role-dialog-reload]')?.click(),
+  );
+  await settle();
+  expect(document.querySelector('[data-external-role-dialog-reload]')).toBeNull();
+  expect(submit()?.disabled).toBe(false);
+  await act(async () => submit()?.click());
+  await settle();
+  expect(renames).toEqual([
+    expect.objectContaining({ expectedRevision: 1, name: 'VIP' }),
+    expect.objectContaining({ expectedRevision: 2, name: 'VIP' }),
+  ]);
+});
