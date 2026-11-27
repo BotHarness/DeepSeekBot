@@ -7,7 +7,8 @@ import {
   type OperationalDatabaseOwner,
 } from '../../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../../src/database/schema-plan.js';
-import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../../src/devices/gateway.js';
+import { createDeviceGateway } from '../../src/features/environments/gateway.js';
+import { DEVICE_GATEWAY_PREFIX } from '../../src/devices/encrypted-gateway-path.js';
 import { createDevicePairing } from '../../src/devices/pairing.js';
 import { DEVICE_ROUTE_HEADER, isConnectRequest } from '../../src/devices/route-context.js';
 import { createTempRoot, trackTestOwner } from '../helpers.js';

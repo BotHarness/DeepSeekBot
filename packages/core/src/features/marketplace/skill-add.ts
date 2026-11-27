@@ -29,7 +29,7 @@ import {
 } from '../../marketplace/skill-install.js';
 import type { MarketplaceSkillSource } from '../../marketplace/skill-source.js';
 import { listBotSkills } from '../../skills/bot-skills.js';
-import { ownsBot } from '../../team/bot-access.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 
 const MAX_REVIEWS = 32;
 const REVIEW_TTL_MS = 30 * 60_000;

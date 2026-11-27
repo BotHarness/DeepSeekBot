@@ -1,4 +1,4 @@
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';

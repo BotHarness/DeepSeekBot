@@ -38,8 +38,8 @@ function readDefaults(port: ReturnType<typeof attachOperationalModule>) {
 }
 
 afterEach(() => {
-  vi.doUnmock('../src/team/permissions.js');
-  vi.doUnmock('../src/team/channel-contract.js');
+  vi.doUnmock('../src/team-policy/permissions.js');
+  vi.doUnmock('../src/team-policy/channel-contract.js');
   vi.resetModules();
 });
 
@@ -57,13 +57,13 @@ it('persists the same historical Role grants and Channel policy in fresh and upg
   withProfile(upgradedHome, prefix(channelAccess), () => undefined);
 
   vi.resetModules();
-  vi.doMock('../src/team/permissions.js', async (original) => ({
-    ...(await original<typeof import('../src/team/permissions.js')>()),
+  vi.doMock('../src/team-policy/permissions.js', async (original) => ({
+    ...(await original<typeof import('../src/team-policy/permissions.js')>()),
     ADMIN_PERMISSIONS: ['channels.create'],
     MEMBER_PERMISSIONS: [],
   }));
-  vi.doMock('../src/team/channel-contract.js', async (original) => {
-    const domain = await original<typeof import('../src/team/channel-contract.js')>();
+  vi.doMock('../src/team-policy/channel-contract.js', async (original) => {
+    const domain = await original<typeof import('../src/team-policy/channel-contract.js')>();
     return {
       ...domain,
       DEFAULT_CHANNEL_POLICY: {

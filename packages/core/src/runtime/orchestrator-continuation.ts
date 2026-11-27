@@ -1,6 +1,6 @@
 import type { TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import { TobError } from '../tob/service.js';

@@ -3,7 +3,7 @@ import type {
   WireShellApprovalSuggestions,
 } from '@botharness/host-protocol/wire';
 import { toRemoteError } from '../../kernel/rpc-result.js';
-import { TeamError } from '../../team/service.js';
+import { TeamError } from '../../team-policy/error.js';
 import { type HumanContext } from '../../humans/context.js';
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol';
 import type { PrivateInputs } from '../../credentials/private-inputs.js';

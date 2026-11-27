@@ -43,9 +43,6 @@
     "packages/core/src/devices/mount-push.ts": {
       "devices -> runtime": 1
     },
-    "packages/core/src/devices/mount.ts": {
-      "devices -> runtime": 2
-    },
     "packages/core/src/devices/rpc-policy.ts": {
       "devices -> bridge": 1
     },
@@ -221,7 +218,6 @@
       "bots -> skills": 1
     },
     "packages/core/src/bots/cli-team.ts": {
-      "bots -> team": 3,
       "bots -> workspaces": 1
     },
     "packages/core/src/bots/cli-tob.ts": {
@@ -231,7 +227,6 @@
       "bots -> channels": 1
     },
     "packages/core/src/bots/deletion.ts": {
-      "bots -> team": 1,
       "bots -> tob": 2
     },
     "packages/core/src/bots/registry.ts": {
@@ -246,21 +241,15 @@
     "packages/core/src/bots/zip-import.ts": {
       "bots -> marketplace": 1
     },
-    "packages/core/src/channels/activity-today.ts": {
-      "channels -> humans": 1
-    },
     "packages/core/src/channels/all-bot-mention.ts": {
       "channels -> bots": 1
     },
     "packages/core/src/channels/card-context-live.ts": {
-      "channels -> team": 2,
       "channels -> workspaces": 1
     },
     "packages/core/src/channels/causal-sending.ts": {
       "channels -> bots": 1,
-      "channels -> humans": 1,
       "channels -> purge": 1,
-      "channels -> team": 1,
       "channels -> tob": 2
     },
     "packages/core/src/channels/channel-message-types.ts": {
@@ -276,56 +265,29 @@
     "packages/core/src/channels/channel-record.ts": {
       "channels -> bots": 1
     },
-    "packages/core/src/channels/live.ts": {
-      "channels -> humans": 1
-    },
     "packages/core/src/channels/management.ts": {
-      "channels -> bots": 1,
-      "channels -> humans": 1
-    },
-    "packages/core/src/channels/mark-all-read.ts": {
-      "channels -> humans": 1
+      "channels -> bots": 1
     },
     "packages/core/src/channels/send-review.ts": {
       "channels -> purge": 1
     },
     "packages/core/src/channels/sqlite-store.activity.ts": {
-      "channels -> bots": 1,
-      "channels -> team": 1
+      "channels -> bots": 1
     },
     "packages/core/src/channels/sqlite-store.admissions.ts": {
       "channels -> bots": 1
     },
-    "packages/core/src/channels/sqlite-store.append.ts": {
-      "channels -> humans": 1,
-      "channels -> team": 1
-    },
     "packages/core/src/channels/sqlite-store.invitations.ts": {
       "channels -> bots": 1
-    },
-    "packages/core/src/channels/sqlite-store.legacy-import.ts": {
-      "channels -> humans": 1
     },
     "packages/core/src/channels/sqlite-store.message-payload.ts": {
       "channels -> messaging": 1
     },
-    "packages/core/src/channels/sqlite-store.output.ts": {
-      "channels -> team": 1
-    },
     "packages/core/src/channels/sqlite-store.records.ts": {
-      "channels -> bots": 1,
-      "channels -> team": 1
-    },
-    "packages/core/src/channels/sqlite-store.search.ts": {
-      "channels -> team": 1
+      "channels -> bots": 1
     },
     "packages/core/src/channels/store.ts": {
-      "channels -> bots": 1,
-      "channels -> humans": 1
-    },
-    "packages/core/src/channels/user-questions.ts": {
-      "channels -> humans": 1,
-      "channels -> team": 1
+      "channels -> bots": 1
     },
     "packages/core/src/channels/voice-call-record.ts": {
       "channels -> voice": 2
@@ -341,21 +303,6 @@
     },
     "packages/core/src/credentials/web-locator.ts": {
       "credentials -> bots": 1
-    },
-    "packages/core/src/devices/encrypted-gateway.ts": {
-      "devices -> team": 1
-    },
-    "packages/core/src/devices/gateway.ts": {
-      "devices -> team": 2
-    },
-    "packages/core/src/devices/mount-gateway.ts": {
-      "devices -> team": 1
-    },
-    "packages/core/src/devices/mount-push.ts": {
-      "devices -> team": 1
-    },
-    "packages/core/src/devices/mount.ts": {
-      "devices -> team": 3
     },
     "packages/core/src/diagnostics/bug-report.ts": {
       "diagnostics -> bots": 1
@@ -374,9 +321,6 @@
     },
     "packages/core/src/engines/engine-selection-bridge.ts": {
       "engines -> models": 1
-    },
-    "packages/core/src/humans/context.ts": {
-      "humans -> channels": 1
     },
     "packages/core/src/marketplace/client.ts": {
       "marketplace -> bots": 1
@@ -440,8 +384,7 @@
     },
     "packages/core/src/purge/owner.ts": {
       "purge -> attachments": 1,
-      "purge -> channels": 1,
-      "purge -> team": 1
+      "purge -> channels": 1
     },
     "packages/core/src/purge/references.ts": {
       "purge -> attachments": 1,
@@ -458,35 +401,6 @@
     },
     "packages/core/src/takeover/mount.ts": {
       "takeover -> channels": 1
-    },
-    "packages/core/src/team/approvals.ts": {
-      "team -> workspaces": 1
-    },
-    "packages/core/src/team/bot-contract.ts": {
-      "team -> workspaces": 1
-    },
-    "packages/core/src/team/bots.ts": {
-      "team -> bots": 3,
-      "team -> channels": 1
-    },
-    "packages/core/src/team/bridge.ts": {
-      "team -> purge": 1,
-      "team -> workspaces": 1
-    },
-    "packages/core/src/team/devices.ts": {
-      "team -> devices": 1
-    },
-    "packages/core/src/team/http.ts": {
-      "team -> devices": 1
-    },
-    "packages/core/src/team/member-lifecycle.ts": {
-      "team -> workspaces": 1
-    },
-    "packages/core/src/team/private-content.ts": {
-      "team -> bots": 1
-    },
-    "packages/core/src/team/rate-limit.ts": {
-      "team -> devices": 1
     },
     "packages/core/src/telemetry/bot-turn.ts": {
       "telemetry -> usage": 1
@@ -523,27 +437,14 @@
     "packages/core/src/voice/calls-command.ts": {
       "voice -> channels": 1
     },
-    "packages/core/src/workspaces/assignment-access.ts": {
-      "workspaces -> team": 1
-    },
-    "packages/core/src/workspaces/bot-memory-placement.ts": {
-      "workspaces -> team": 2
-    },
-    "packages/core/src/workspaces/grant-requests.ts": {
-      "workspaces -> team": 1
-    },
     "packages/core/src/workspaces/space-lifecycle.ts": {
-      "workspaces -> bots": 1,
-      "workspaces -> team": 1
+      "workspaces -> bots": 1
     },
     "packages/core/src/workspaces/space-memory-copy.ts": {
       "workspaces -> bots": 1
     },
     "packages/core/src/workspaces/space-memory.ts": {
       "workspaces -> bots": 1
-    },
-    "packages/core/src/workspaces/spaces.ts": {
-      "workspaces -> team": 1
     },
     "packages/core/src/workspaces/tool-approval.ts": {
       "workspaces -> channels": 1

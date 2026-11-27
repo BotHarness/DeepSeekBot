@@ -48,7 +48,7 @@ import {
   type sessionModelChoices,
 } from '../../runtime/session-model-choices.js';
 import { recordTurnTarget, type TurnTargetSegment } from '../../runtime/turn-targets.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import type { TobCliTurn } from '../../tob/cli-request.js';
 import { TobError } from '../../tob/service.js';
 import type { createActivityEvents } from '../activity/events.js';

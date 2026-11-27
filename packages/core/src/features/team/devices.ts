@@ -1,9 +1,12 @@
 import { z } from 'zod';
-import { memberUrls } from './member-urls.js';
-import { TeamError, type TeamService } from './service.js';
-import { pairingLink, qrPath } from '../devices/http.js';
-import type { DevicePairing, HostIdentity } from '../devices/pairing.js';
-import type { EncryptionIdentity } from '../devices/noise-identity.js';
+import { memberUrls } from '../../team-policy/member-urls.js';
+import type { RouteStatus } from '../../devices/routes.js';
+import { TeamError } from '../../team-policy/error.js';
+import type { MemberInvitation, MemberPairingOffer } from '../../team/device-contract.js';
+import type { TeamService } from '../../team/service.js';
+import { pairingLink, qrPath } from '../../devices/http.js';
+import type { DevicePairing, HostIdentity } from '../../devices/pairing.js';
+import type { EncryptionIdentity } from '../../devices/noise-identity.js';
 
 export const deviceSignInSchema = z.object({
   username: z.string().max(32),
@@ -11,17 +14,23 @@ export const deviceSignInSchema = z.object({
   deviceName: z.string().trim().min(1).max(60),
   fingerprint: z.string().max(128),
 });
-export interface MemberInvitation {
-  link: string;
-  qr: { size: number; path: string };
-  expiresAt: string;
-}
-export interface MemberPairingOffer extends MemberInvitation {
-  receipt: string;
-}
 export type MemberDeviceSignIn = ReturnType<TeamService['deviceGrantResult']> & {
   host: HostIdentity & { fingerprint: string };
 };
+
+export function memberRoutes(origin: string, status: RouteStatus): string[] {
+  return memberUrls([
+    ...(origin.startsWith('https:') ? [origin] : []),
+    ...status.routes
+      .filter(
+        (route) =>
+          route.ready &&
+          (route.kind === 'connect' ||
+            (route.kind === 'tailscale' && route.memberSignIn === 'managed-tls')),
+      )
+      .map((route) => route.url),
+  ]);
+}
 
 export function createMemberDevices(options: {
   team: TeamService;

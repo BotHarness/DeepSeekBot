@@ -1,4 +1,4 @@
-import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';

@@ -26,3 +26,33 @@ export interface WebServerLike {
     handler: (request: IncomingMessage, socket: Duplex, head: Buffer) => void;
   }): () => void;
 }
+
+export function isDeviceRouteConnection(value: unknown): value is ConnectionLike {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'authenticatedUrl' in value &&
+    typeof value.authenticatedUrl === 'function' &&
+    'fetch' in value &&
+    typeof value.fetch === 'object' &&
+    value.fetch !== null &&
+    'register' in value.fetch &&
+    typeof value.fetch.register === 'function'
+  );
+}
+
+export function isDeviceRouteWebServer(value: unknown): value is WebServerLike {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'port' in value &&
+    typeof value.port === 'number' &&
+    (!('getOrigin' in value) ||
+      value.getOrigin === undefined ||
+      typeof value.getOrigin === 'function') &&
+    'register' in value &&
+    typeof value.register === 'function' &&
+    'registerUpgrade' in value &&
+    typeof value.registerUpgrade === 'function'
+  );
+}

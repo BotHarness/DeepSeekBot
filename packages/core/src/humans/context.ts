@@ -1,4 +1,4 @@
-import { LOCAL_HUMAN_ID } from '../channels/channel.js';
+import { LOCAL_HUMAN_ID } from '../kernel/local-human.js';
 
 export type HumanId = string;
 

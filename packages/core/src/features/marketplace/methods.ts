@@ -19,7 +19,7 @@ import {
   MAX_MARKETPLACE_AVATAR_QUERY,
   MAX_MARKETPLACE_AVATAR_TAG_FILTER,
 } from '@botharness/host-protocol/marketplace-avatar';
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import { join } from 'node:path';
 import { createBotImports } from '../../bots/imports.js';
 import type {

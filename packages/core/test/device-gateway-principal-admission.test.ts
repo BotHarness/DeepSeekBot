@@ -7,7 +7,7 @@ import { createBridgeMethods, createBridgeMethodsForHumans } from '../src/bridge
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { DEVICE_GATEWAY_PREFIX } from '../src/devices/gateway.js';
+import { DEVICE_GATEWAY_PREFIX } from '../src/devices/encrypted-gateway-path.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { servers, fakeDsh, pair, stream } from './support/device-gateway.js';
 

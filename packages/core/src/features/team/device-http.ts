@@ -4,7 +4,8 @@ import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol';
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway';
 import { WebSocket, WebSocketServer } from 'ws';
 import { z } from 'zod';
-import { TeamError, type TeamService } from './service.js';
+import { TeamError } from '../../team-policy/error.js';
+import { type TeamService } from '../../team/service.js';
 import type { MemberDevices } from './devices.js';
 import { passwordTransportAllowed, readTeamBody, teamJson } from './http.js';
 

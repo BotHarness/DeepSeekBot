@@ -5,7 +5,7 @@ import {
   type ChannelQuote,
 } from './quotes.js';
 import type { TeamService } from '../team/service.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { BotNetworkPort } from '../runtime/bot-network.js';
 import { BotNetworkDeliveryError } from './bot-network-error.js';

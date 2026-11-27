@@ -414,6 +414,8 @@ The application-defined Bot runtime owns each PersonaBot’s turn queue and shar
 
 Host composition injects [Feature Contributions](../decisions/core-architecture.md#feature-contributions-at-host-composition) into the bridge, Runtime, and DSH Agent adapter. Schedules uses the RuntimeHost port to join Inbox readiness and wake delivery. Schedules and GenUI supply their bridge and Typert methods, prompt sections, and tools through descriptors. Browser, Computer, Connectors, Humans, and Prompts contribute bridge and Typert methods using the current invocation's projections and authority checks. Cloud, Diagnostics, and Usage also contribute hooks at the Host plugin's existing lifecycle stages.
 
+[Team Policy](../decisions/core-architecture.md#team-policy-and-administration) owns the permission catalog and evaluates Channel access from facts supplied by the Team services. Team's feature adapters expose member HTTP and device sign-in, PersonaBot metadata, and Workspace administration. The Team services own audit writes and coordinate database transactions with the relevant modules.
+
 DM and Group admission, causal sending, and Group digests use shared Channel and Runtime kernel modules behind the same Bot Runtime Service. They use the Runtime’s live turn state and existing Channel Store and admission transactions.
 
 Channel tools, Human input binding, direct Bot tools, and Tob CLI requests also use ports supplied by the Bot Runtime Service. The Runtime owns the live turn state and direct-tool Source Event writes. Activity records Inbox ignore writes through the Runtime's database port. See the [shared kernel](feature-map.md#shared-kernel).

@@ -1,4 +1,4 @@
-import { spaceAudienceSchema, type SpaceAudience } from './space-audience.js';
+import { spaceAudienceSchema, type SpaceAudience } from '../kernel/space-audience.js';
 import { BotMemoryPlacement } from './bot-memory-placement.js';
 import {
   existsSync,
@@ -15,7 +15,7 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { TeamRoles } from '../team/roles.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import { WorkspaceGrantError, type DshWorkspace, type DshWorkspaceLookup } from './grants.js';
 import { canonicalPath, within } from './space-paths.js';
 import {
@@ -64,7 +64,7 @@ function containsFile(
   );
 }
 
-export { spaceAudienceSchema, type SpaceAudience } from './space-audience.js';
+export { spaceAudienceSchema, type SpaceAudience } from '../kernel/space-audience.js';
 export type WorkspaceSpace = {
   spaceId: string;
   name: string;

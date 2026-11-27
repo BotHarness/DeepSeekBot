@@ -1,4 +1,4 @@
-import { roleModelsSchema } from '../src/team/permissions.js';
+import { roleModelsSchema } from '../src/team-policy/permissions.js';
 import { DatabaseSync } from 'node:sqlite';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { Peer } from '@deepseek-ai/dsh-client-connection';

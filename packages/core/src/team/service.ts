@@ -4,7 +4,7 @@ import * as memberLifecycle from './member-lifecycle.js';
 import type { MemberLifecycleHost } from './member-lifecycle.js';
 import { credentialPasswordJson, fields, memberSchema, type TeamMember } from './member-auth.js';
 export type { TeamMember } from './member-auth.js';
-import { audienceContains, type BotVisibility } from './bot-contract.js';
+import { audienceContains, type BotVisibility } from '../team-policy/bot-contract.js';
 import { TeamBots } from './bots.js';
 import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
@@ -14,12 +14,11 @@ import { TeamApprovals } from './approvals.js';
 import type { UsageProjection } from '../usage/usage.js';
 import type { UsageByMemberResult, UsageOverviewPeriod } from '../usage/overview.js';
 import { TeamChannels } from './channels.js';
-import { channelRoleMembershipEntrySql } from './channel-contract.js';
+import { channelRoleMembershipEntrySql } from '../team-policy/channel-contract.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
-import { TeamError } from './error.js';
-export { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
@@ -29,7 +28,8 @@ import { humanContext, type HumanContext } from '../humans/context.js';
 import type { ChannelStore } from '../channels/store.js';
 import { hashPassword, passwordHashSchema, verifyPassword } from './password.js';
 import { SignInRateLimit } from './rate-limit.js';
-import { memberUrls } from './member-urls.js';
+import { memberUrls } from '../team-policy/member-urls.js';
+import type { MemberInvitation, MemberPairingOffer } from './device-contract.js';
 
 export interface MemberPrincipal {
   readonly kind: 'botharness-member';
@@ -58,7 +58,7 @@ export interface TeamModeView {
     kind: 'owner' | 'member';
     displayName: string;
     mustChangePassword: boolean;
-    models: import('./permissions.js').ModelsAllowed;
+    models: import('../team-policy/permissions.js').ModelsAllowed;
     permissions: string[];
     roleIds: string[];
     owner: boolean;
@@ -195,8 +195,8 @@ export class TeamService {
   private devices:
     | {
         routes(): Promise<string[]>;
-        invitation(humanId: string): Promise<import('./devices.js').MemberInvitation>;
-        pairingOffer(humanId: string): Promise<import('./devices.js').MemberPairingOffer>;
+        invitation(humanId: string): Promise<MemberInvitation>;
+        pairingOffer(humanId: string): Promise<MemberPairingOffer>;
       }
     | undefined;
   private urls: () => string[] = () => [];

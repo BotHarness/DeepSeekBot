@@ -17,7 +17,7 @@ import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { sessionToolInputPreview } from './runtime/session-tool-detail.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
-import type { TeamError } from './team/error.js';
+import type { TeamError } from './team-policy/error.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { createPresence } from './push/presence.js';
 import type { VoiceCallMedia, VoiceCalls } from './voice/calls.js';

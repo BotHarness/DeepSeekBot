@@ -1,7 +1,7 @@
 import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { HumanContext } from '../../humans/context.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import { detail } from './methods.js';
 
 export type PersonaBotDetailProjection = (record: PersonaBotRecord) => { bot: PersonaBotDetail };

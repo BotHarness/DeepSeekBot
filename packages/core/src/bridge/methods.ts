@@ -84,9 +84,10 @@ import {
 import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { botModelAllowed } from '../team/models.js';
-import { TeamError } from '../team/error.js';
-import { guardHumanBridge } from '../team/bridge-access.js';
-import { botOwner, privateBotRegistry } from '../team/bot-access.js';
+import { TeamError } from '../team-policy/error.js';
+import { guardHumanBridge } from '../features/team/bridge-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
+import { privateBotRegistry } from '../features/team/private-bot-registry.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import type { TeamService } from '../team/service.js';

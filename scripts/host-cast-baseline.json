@@ -6,7 +6,6 @@
   "packages/client/src/client/mode.ts": 1,
   "packages/computer/src/client/index.tsx": 3,
   "packages/computer/src/index.ts": 4,
-  "packages/core/src/devices/mount.ts": 2,
   "packages/core/src/diagnostics/diagnostic-log.ts": 1,
   "packages/core/src/plugin.ts": 9
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { host, run } from './cli-team-fixtures.js';
 
 describe('M4 CLI parity', () => {

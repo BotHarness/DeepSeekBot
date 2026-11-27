@@ -20,7 +20,7 @@ import {
   type CloudflaredSource,
   type ResolvedCloudflared,
 } from './cloudflared.js';
-import { DEVICE_GATEWAY_PREFIX } from './gateway.js';
+import { DEVICE_GATEWAY_PREFIX } from './encrypted-gateway-path.js';
 import { CONNECT_HOSTNAME, type PhoneRoute } from './routes.js';
 import { stampConnectRoute } from './route-context.js';
 

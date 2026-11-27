@@ -12,8 +12,8 @@ import type {
   HandleDmMessageInput,
 } from '../../runtime/bot-runtime.js';
 import type { SessionOwnership } from '../../sessions/ownership.js';
-import { botOwner } from '../../team/bot-access.js';
-import { TeamError } from '../../team/error.js';
+import { botOwner } from '../../team-policy/bot-access.js';
+import { TeamError } from '../../team-policy/error.js';
 import type {
   TobCliOutput,
   TobCliRequest,

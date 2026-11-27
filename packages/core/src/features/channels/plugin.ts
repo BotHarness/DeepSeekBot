@@ -1,4 +1,4 @@
-import { ownsBot } from '../../team/bot-access.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { join } from 'node:path';
 import type { CompanionFeed } from '../../companions/feed.js';

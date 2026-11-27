@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { auditListSchema, auditRecordSchema, type AuditRecord } from './private-contract.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 
 const rowSchema = z.object({ seq: z.number(), audit_id: z.string(), record_json: z.string() });
 const headSchema = z.object({ seq: z.number(), audit_id: z.string(), hash: z.string() });

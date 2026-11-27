@@ -27,8 +27,8 @@ import {
   requireBotEngineAccount,
   requireBotModel,
 } from '../../team/models.js';
-import { TeamError } from '../../team/error.js';
-import { allowsEngineAccount, allowsModel } from '../../team/permissions.js';
+import { TeamError } from '../../team-policy/error.js';
+import { allowsEngineAccount, allowsModel } from '../../team-policy/permissions.js';
 import { createEngineGateway } from '../../engines/engine-gateway.js';
 import { EngineHost } from '../../engines/engine-host.js';
 import type {

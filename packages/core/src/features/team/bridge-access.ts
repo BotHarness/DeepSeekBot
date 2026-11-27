@@ -1,13 +1,9 @@
-import { parseSkillOwnerKey } from '../skills/entries.js';
-import {
-  BOT_ADMIN_READS,
-  botAdminActionSchema,
-  botMetadata,
-  administrativeResult,
-} from './bot-administration.js';
-import type { PersonaBotRecord } from '../bots/persona-bot.js';
-import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
-import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
+import { botAdminActionSchema } from '../../team/private-contract.js';
+import { parseSkillOwnerKey } from '../../skills/entries.js';
+import { BOT_ADMIN_READS, botMetadata, administrativeResult } from './bot-administration.js';
+import type { PersonaBotRecord } from '../../bots/persona-bot.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../../humans/context.js';
+import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../../bridge/methods.js';
 import {
   MEMBER_METHODS,
   MEMBER_BOT_METHODS,
@@ -15,9 +11,9 @@ import {
   MEMBER_BOT_IMPORT_METHODS,
   MEMBER_APPROVAL_METHODS,
   MODEL_CONFIGURATION_METHODS,
-} from './member-methods.js';
-import { ownsBot } from './bot-access.js';
-import { TeamError } from './error.js';
+} from '../../team/member-methods.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
+import { TeamError } from '../../team-policy/error.js';
 
 const adminSettings = new Set([
   ...BOT_ADMIN_READS,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { spaceAudienceSchema } from '../workspaces/space-audience.js';
+import { spaceAudienceSchema } from '../kernel/space-audience.js';
 
 export const botVisibilitySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('private') }).strict(),

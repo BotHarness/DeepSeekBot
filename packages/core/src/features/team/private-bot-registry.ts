@@ -1,13 +1,7 @@
-import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
-import type { PersonaBotRecord } from '../bots/persona-bot.js';
-import type { PersonaBotRegistry } from '../bots/registry.js';
-
-export const botOwner = (bot: Pick<PersonaBotRecord, 'ownerHumanId'>): string =>
-  bot.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId;
-
-export function ownsBot(human: HumanContext, bot: PersonaBotRecord | undefined): boolean {
-  return bot !== undefined && botOwner(bot) === human.humanId;
-}
+import type { HumanContext } from '../../humans/context.js';
+import type { PersonaBotRecord } from '../../bots/persona-bot.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 
 export function privateBotRegistry(
   registry: PersonaBotRegistry,

@@ -1,29 +1,25 @@
+import { DEVICE_GATEWAY_PREFIX } from '../../devices/encrypted-gateway-path.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
-import { localVideoCommand } from '../../../computer/src/local-video-http.js';
-import type { ActivityDelivery } from '../live-activity/delivery.js';
-import type { PushDelivery } from '../push/delivery.js';
-import { createDevicePushHttp } from '../push/http.js';
+import type { LocalVideoOwner } from '../../../../computer/src/local-video-contract.js';
+import { localVideoCommand } from '../../../../computer/src/local-video-http.js';
+import type { ActivityDelivery } from '../../live-activity/delivery.js';
+import type { PushDelivery } from '../../push/delivery.js';
+import { createDevicePushHttp } from '../../push/http.js';
 import type { createMemberDevices } from '../team/devices.js';
 import type { TeamHttp } from '../team/http.js';
 import { mountTeamGateway } from '../team/mount.js';
-import type { TeamService } from '../team/service.js';
-import type { VoiceCallResult } from '../voice/call-contract.js';
-import type { createConnectBotBridge } from './bot-connect-bridge.js';
-import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
-import type { ConnectAccount } from './connect-account.js';
-import type { createDevicesHttp } from './http.js';
-import { createChannelDiscovery } from './channel-discovery.js';
-import type { createDevicePairing } from './pairing.js';
-import type { ConnectionLike, WebServerLike } from './mount-types.js';
-import {
-  createDeviceGateway,
-  DEVICE_GATEWAY_PREFIX,
-  DEVICE_MUX_PATH,
-  DEVICE_SIGNALING_PATHS,
-} from './gateway.js';
+import type { TeamService } from '../../team/service.js';
+import type { VoiceCallResult } from '../../voice/call-contract.js';
+import type { createConnectBotBridge } from '../../devices/bot-connect-bridge.js';
+import { BOT_CONNECT_PATH } from '../../devices/bot-connect-channel.js';
+import type { ConnectAccount } from '../../devices/connect-account.js';
+import type { createDevicesHttp } from '../../devices/http.js';
+import { createChannelDiscovery } from '../../devices/channel-discovery.js';
+import type { createDevicePairing } from '../../devices/pairing.js';
+import type { ConnectionLike, WebServerLike } from '../../devices/mount-types.js';
+import { createDeviceGateway, DEVICE_MUX_PATH, DEVICE_SIGNALING_PATHS } from './gateway.js';
 
 export function mountDeviceGateway(
   ctx: Context,

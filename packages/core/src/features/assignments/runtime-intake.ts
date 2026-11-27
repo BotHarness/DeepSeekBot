@@ -41,7 +41,7 @@ import {
 import { requireNonBlank } from '../../runtime/require-non-blank.js';
 import type { sessionModelChoices } from '../../runtime/session-model-choices.js';
 import type { SessionOwnership } from '../../sessions/ownership.js';
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import type { AssignmentAccessStore } from '../../workspaces/assignment-access.js';
 import type { AssignmentPermissionSnapshot, WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createAssignmentDelivery } from './delivery.js';

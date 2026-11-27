@@ -39,7 +39,7 @@ describe('needs-human merge policy', () => {
     ['Auth, secrets or permissions', 'packages/core/src/credentials/secret-mcp-store.ts'],
     ['Auth, secrets or permissions', 'packages/core/src/devices/relationship-enrollment.ts'],
     ['Installed-client protocol contracts', 'packages/host-protocol/src/wire.ts'],
-    ['Installed-client protocol contracts', 'packages/core/src/team/channel-contract.ts'],
+    ['Installed-client protocol contracts', 'packages/core/src/team-policy/channel-contract.ts'],
     ['Human merge guardrail', '.github/workflows/pr-needs-human.yml'],
   ])('holds %s changes in %s', (rule, filename) => {
     expect(planNeedsHuman({ ...internal, changes: [{ filename }] })).toEqual({

@@ -1,5 +1,5 @@
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { pairedDeviceHuman } from '../src/team/device-audience.js';
+import { pairedDeviceHuman } from '../src/devices/device-audience.js';
 import { createServer } from 'node:http';
 import { Context } from '@deepseek-ai/cordis';
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol';
@@ -19,8 +19,8 @@ import {
 import { attachOperationalModule } from '../src/database/owner.js';
 import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
 import { TeamService } from '../src/team/service.js';
-import { createTeamBridge } from '../src/team/bridge.js';
-import { memberPolicy } from '../src/team/policy.js';
+import { createTeamBridge } from '../src/features/team/bridge.js';
+import { memberPolicy } from '../src/features/team/member-remote-policy.js';
 import { auditRecordSchema } from '../src/team/private-contract.js';
 import type { PrivateObject } from '../src/team/private-contract.js';
 import type { ChannelMessageAuthor } from '../src/channels/message-author.js';

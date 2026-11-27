@@ -1,5 +1,5 @@
-import { botMetadata, type BotMetadataResult } from '../../team/bot-administration.js';
-import { ownsBot } from '../../team/bot-access.js';
+import { botMetadata, type BotMetadataResult } from '../team/bot-administration.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 import { TeamRoles } from '../../team/roles.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { join } from 'node:path';

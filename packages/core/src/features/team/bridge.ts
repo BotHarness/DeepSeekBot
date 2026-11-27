@@ -1,16 +1,17 @@
-import { botVisibilitySchema, rolePolicySchema } from './bot-contract.js';
-import { spaceAudienceSchema } from '../workspaces/spaces.js';
-import { roleModelsSchema, PERMISSION_CATALOG } from './permissions.js';
+import { botVisibilitySchema, rolePolicySchema } from '../../team-policy/bot-contract.js';
+import { spaceAudienceSchema } from '../../workspaces/spaces.js';
+import { roleModelsSchema, PERMISSION_CATALOG } from '../../team-policy/permissions.js';
 import {
   channelVisibilitySchema,
   channelPolicySchema,
   channelPolicyRevisionSchema,
-} from './channel-contract.js';
-import { ContentPurgeError } from '../purge/contracts.js';
+} from '../../team-policy/channel-contract.js';
+import { ContentPurgeError } from '../../purge/contracts.js';
 import { z } from 'zod';
-import type { HumanContext } from '../humans/context.js';
-import type { BridgeResult } from '../bridge/method-utils.js';
-import { TeamError, type TeamService } from './service.js';
+import type { HumanContext } from '../../humans/context.js';
+import type { BridgeResult } from '../../bridge/method-utils.js';
+import { TeamError } from '../../team-policy/error.js';
+import { type TeamService } from '../../team/service.js';
 
 export function createTeamBridge(
   human: HumanContext,

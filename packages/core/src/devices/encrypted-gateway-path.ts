@@ -1,3 +1,4 @@
+export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export function encryptedGatewayPathAllowed(path: string): boolean {
   if (
     !path.startsWith('/botharness-device/') ||

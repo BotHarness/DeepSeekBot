@@ -10,7 +10,7 @@ import { invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { isValidSlug } from '../../bots/slug.js';
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import type { ChannelsManagementAdapterMethods } from './management-methods.js';
 
 const id = z.string().trim().min(1).max(200);

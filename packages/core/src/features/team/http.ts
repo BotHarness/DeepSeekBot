@@ -9,8 +9,9 @@ import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway';
 import { viewerCarrierScript } from '@deepseek-ai/dsh-experimental-liveshare-protocol';
 import { z } from 'zod';
 import { renderTeamSignInPage } from '@botharness/host-client/shared/team-sign-in-page';
-import { isConnectRequest, isManagedTlsRequest } from '../devices/route-context.js';
-import { TeamError, type TeamService } from './service.js';
+import { isConnectRequest, isManagedTlsRequest } from '../../devices/route-context.js';
+import { TeamError } from '../../team-policy/error.js';
+import { type TeamService } from '../../team/service.js';
 
 export const TEAM_PATH = '/botharness-device/team';
 export const MEMBER_COOKIE = 'botharness-member';

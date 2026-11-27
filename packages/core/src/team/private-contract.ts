@@ -1,7 +1,29 @@
-import { botAdminActionSchema } from './bot-administration.js';
 import { z } from 'zod';
+import { privateKindSchema } from '../team-policy/private-content.js';
 
-export const privateKindSchema = z.enum(['bot', 'channel', 'dm', 'bot-dm']);
+export const botAdminActionSchema = z.enum([
+  'update',
+  'botVisibilitySet',
+  'pause',
+  'resume',
+  'deletionConfirm',
+  'deletionRetry',
+  'botAvatarSet',
+  'botAppearanceSet',
+  'botBannerSet',
+  'botPrimaryColorSet',
+  'modelPlanSet',
+  'modelPlanSubSet',
+  'modelPresetApply',
+  'modelPlanCustomize',
+  'modelPlanAssignmentsSet',
+  'standingLimitsSet',
+  'modelPlanInherit',
+  'modelPlanReset',
+  'transfer',
+  'memberPurgeConfirm',
+]);
+export type BotAdminAction = z.infer<typeof botAdminActionSchema>;
 export const privateListSchema = z.object({
   humanId: z.string().min(1).optional(),
   username: z.string().min(1).max(128).optional(),
@@ -46,7 +68,6 @@ export const auditRecordSchema = z
   })
   .strict();
 export type PrivateObject = z.infer<typeof privateObjectSchema>;
-export type PrivateKind = z.infer<typeof privateKindSchema>;
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
 export type PrivateObjectListing = z.infer<typeof privateObjectListingSchema>;

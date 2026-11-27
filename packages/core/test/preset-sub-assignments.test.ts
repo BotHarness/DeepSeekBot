@@ -15,7 +15,7 @@ import {
 import { createRouteRests } from '../src/models/route-rest.js';
 import { createCore } from '../src/plugin.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import { TeamError } from '../src/team/error.js';
+import { TeamError } from '../src/team-policy/error.js';
 import { botModelFilter, requireBotEngineAccount } from '../src/team/models.js';
 import { createTempRoot } from './helpers.js';
 

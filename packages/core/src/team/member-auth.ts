@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol';
 import { humanContext, type HumanContext } from '../humans/context.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 import {
   DUMMY_PASSWORD_HASH,
   hashPassword,

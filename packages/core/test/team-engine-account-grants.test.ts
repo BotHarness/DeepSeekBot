@@ -21,7 +21,7 @@ import { createModelPresetStore } from '../src/models/presets.js';
 import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import { requireBotEngineAccount } from '../src/team/models.js';
 import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
-import { memberPolicy } from '../src/team/policy.js';
+import { memberPolicy } from '../src/features/team/member-remote-policy.js';
 import { requestListener } from './async-listener.js';
 import { permitted, teamModelFixture } from './team-model-fixture.js';
 

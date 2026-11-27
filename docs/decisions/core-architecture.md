@@ -1,5 +1,13 @@
 # Host core architecture decisions
 
+## Team Policy and administration
+
+[#5522](https://github.com/BotHarness/DeepSeekBot/issues/5522) puts the Host permission catalog, Channel access contracts and decisions, PersonaBot ownership rules, and Team errors in Domain's [Team Policy](../../packages/core/src/team-policy/). The policy evaluates supplied facts and may depend on Kernel contracts. The [Team services](../../packages/core/src/team/) read those facts from the Operational Database and coordinate mutations with the owning modules. They retain the audit writes and transaction boundaries.
+
+The [Team feature](../../packages/core/src/features/team/) adapts the services to HTTP, device sign-in and Typert, projects PersonaBot metadata, and exposes Workspace administration. The [Environments feature](../../packages/core/src/features/environments/) mounts Team alongside the device gateway. Devices, PersonaBots, Channels, and Workspaces can use Team Policy directly.
+
+The [package boundary check](../../scripts/check-package-boundaries.mjs) enforces Team Policy's allowed core imports. The [isolated policy tests](../../packages/core/test/team-policy.test.ts) exercise permission and Channel decisions using plain inputs.
+
 ## Kernel/Contracts for Host results
 
 [#5519](https://github.com/BotHarness/DeepSeekBot/issues/5519) puts shared bridge results, input validation, RPC error conversion, and protocol-only Session target selection in the [Kernel/Contracts tier](../../packages/core/src/kernel/). Features can use these helpers without loading bridge composition. Kernel owns the structural error-preview shape and a generic admin result. The Team-aware callers supply the metadata type. Invocation Human resolution stays in bridge composition because it needs authenticated connection and Team state.

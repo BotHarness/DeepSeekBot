@@ -1,5 +1,4 @@
-import type { MemberDevices } from '../team/devices.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import type { OfferVerification } from './connect-account.js';
 import type { IncomingMessage } from 'node:http';
 import { request } from 'node:http';
@@ -77,9 +76,20 @@ function appVersionHeader(input: Record<string, unknown>): Record<string, string
 
 let nextCallChannel = 0;
 
+type DeviceSignIn = (
+  input: unknown,
+  ip: string,
+  publicKey: string,
+) => Promise<{ deviceId: string; role?: 'owner' | 'member' }>;
+
 export function createEncryptedGateway(options: {
   pairing: DevicePairing;
-  memberDevices?: MemberDevices;
+  memberDevices?: {
+    signIn: DeviceSignIn;
+    signInOwner: DeviceSignIn;
+    signInPassword: DeviceSignIn;
+    revokeMemberSignIn(deviceId: string): Promise<void>;
+  };
   route?: 'connect' | 'lan';
   admissionDeadlineMs?: number;
   key(): Promise<Uint8Array>;

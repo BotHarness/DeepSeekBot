@@ -9,7 +9,7 @@ import {
 } from '../push/delivery.js';
 import { createExpoSender } from '../push/expo-sender.js';
 import { coalesce } from '../runtime/coalesce.js';
-import { pairedDeviceHuman } from '../team/device-audience.js';
+import { pairedDeviceHuman } from './device-audience.js';
 import type { createDevicePairing } from './pairing.js';
 
 export const PUSH_SETTLE_MS = 500;

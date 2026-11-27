@@ -1,5 +1,5 @@
 import type { ChannelQuote } from './quotes.js';
-import type { ChannelAction } from '../team/channel-contract.js';
+import type { ChannelAction } from '../team-policy/channel-contract.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import type { AcceptedQuestionReference } from './accepted-question-answer.js';
 import type { HumanContext } from '../humans/context.js';

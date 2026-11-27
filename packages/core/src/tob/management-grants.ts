@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { resolveGrants } from '../authorization/grants.js';
-import { hostPermissionHolderSql } from '../team/host-permissions.js';
-import type { HostPermission } from '../team/permissions.js';
+import { resolveGrants } from '../kernel/grants.js';
+import { hostPermissionHolderSql } from '../team-policy/host-access.js';
+import type { HostPermission } from '../team-policy/permissions.js';
 
 export const MANAGEMENT_CAPABILITIES = ['manage-app', 'manage-bots'] as const;
 export type ManagementCapability = (typeof MANAGEMENT_CAPABILITIES)[number];

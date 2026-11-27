@@ -1,8 +1,6 @@
-import { CHANNEL_ACTIONS, type ChannelAction, type ChannelPolicy } from './channel-contract.js';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { resolveGrants } from '../authorization/grants.js';
-import { ALL_PERMISSIONS, type HostPermission } from './permissions.js';
+import { ALL_PERMISSIONS, type HostPermission } from '../team-policy/permissions.js';
 
 export type HostPermissionState = 'granted' | 'denied' | 'unset';
 
@@ -26,11 +24,6 @@ export interface EffectiveHostPermissions {
   readonly permissions: readonly EffectiveHostPermission[];
 }
 
-export interface RoleGrant {
-  readonly allow: readonly string[];
-  readonly deny: readonly string[];
-}
-
 const ids = z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value)));
 
 const roleRow = z.object({
@@ -45,20 +38,6 @@ const humanRow = z.object({
   owner: z.coerce.boolean(),
   active: z.coerce.boolean(),
 });
-
-export function resolveHostPermissions(grants: readonly RoleGrant[]): HostPermission[] {
-  return resolveGrants(
-    grants.map((grant) => ({
-      allow: grant.allow.filter(isHostPermission),
-      deny: grant.deny.filter(isHostPermission),
-    })),
-    ALL_PERMISSIONS,
-  ).granted;
-}
-
-export function isHostPermission(id: string): id is HostPermission {
-  return ALL_PERMISSIONS.some((known) => known === id);
-}
 
 export function effectiveHostPermissions(
   database: OperationalDatabaseModulePort,
@@ -115,62 +94,14 @@ export function effectiveHostPermissions(
   });
 }
 
-function permissionLiteral(permission: HostPermission): string {
-  if (!isHostPermission(permission)) throw new Error(`unknown permission ${permission}`);
-  return `'${permission}'`;
-}
-
-export function roleGrantedPermissionsSql(human: string): string {
-  return `SELECT granted.value FROM human_roles granted_member
-    JOIN host_roles granted_role ON granted_role.role_id = granted_member.role_id,
-    json_each(granted_role.permissions_json) granted
-    WHERE granted_member.human_id = ${human}
-      AND granted.value NOT IN (SELECT denied.value FROM human_roles denied_member
-        JOIN host_roles denied_role ON denied_role.role_id = denied_member.role_id,
-        json_each(denied_role.denied_permissions_json) denied
-        WHERE denied_member.human_id = ${human})`;
-}
-
-export function roleGrantsPermissionSql(human: string, permission: HostPermission): string {
-  return `(${permissionLiteral(permission)} IN (${roleGrantedPermissionsSql(human)}))`;
-}
-
-export function hostPermissionHolderSql(human: string, permission: HostPermission): string {
-  return `(${human} = (SELECT holder_settings.owner_human_id FROM team_settings holder_settings)
-    OR ((SELECT holder_settings.enabled FROM team_settings holder_settings) = 1
-      AND EXISTS (SELECT 1 FROM humans holder WHERE holder.human_id = ${human} AND holder.status = 'active')
-      AND ${roleGrantsPermissionSql(human, permission)}))`;
-}
-
-export function mergeChannelAction(
-  policy: ChannelPolicy,
-  roleIds: ReadonlySet<string>,
-  action: ChannelAction,
-): boolean {
-  const effects = policy.overrides.filter((row) => roleIds.has(row.roleId));
-  const { granted, denied } = resolveGrants(
-    effects.map(({ actions }) => ({
-      allow: actions[action] === 'allow' ? [action] : [],
-      deny: actions[action] === 'deny' ? [action] : [],
-    })),
-    CHANNEL_ACTIONS,
-  );
-  return (
-    !denied.includes(action) && (granted.includes(action) || policy.everyone[action] === 'allow')
-  );
-}
-
-export function resolveChannelAction(
+export function channelActionRoleIds(
   database: OperationalDatabaseModulePort,
   humanId: string,
-  policy: ChannelPolicy,
-  action: ChannelAction,
-): boolean {
-  if (policy.overrides.length === 0) return policy.everyone[action] === 'allow';
+): ReadonlySet<string> {
   const roles = database.read((db) =>
     z
       .array(z.object({ role_id: z.string() }))
       .parse(db.prepare('SELECT role_id FROM human_roles WHERE human_id = ?').all(humanId)),
   );
-  return mergeChannelAction(policy, new Set(roles.map((role) => role.role_id)), action);
+  return new Set(roles.map((role) => role.role_id));
 }

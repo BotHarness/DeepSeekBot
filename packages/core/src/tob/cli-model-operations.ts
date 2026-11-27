@@ -1,5 +1,5 @@
 import { hasPresetEngines } from '../models/presets.js';
-import { ownsBot } from '../team/bot-access.js';
+import { ownsBot } from '../team-policy/bot-access.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRegistry } from '../bots/registry.js';

@@ -43,6 +43,7 @@ const CORE_LAYER_ORDER = [
       'storage',
       'takeover',
       'team',
+      'team-policy',
       'telemetry',
       'tob',
       'usage',

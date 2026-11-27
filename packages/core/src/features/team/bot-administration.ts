@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { PersonaBotRecord } from '../bots/persona-bot.js';
-import type { HumanContext } from '../humans/context.js';
-import { botOwner } from './bot-access.js';
+import type { PersonaBotRecord } from '../../bots/persona-bot.js';
+import type { HumanContext } from '../../humans/context.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 
 export const BOT_ADMIN_READS: ReadonlySet<string> = new Set([
   'get',
@@ -10,29 +10,6 @@ export const BOT_ADMIN_READS: ReadonlySet<string> = new Set([
   'deletionPreview',
   'deletionMemoryFolder',
 ]);
-export const botAdminActionSchema = z.enum([
-  'update',
-  'botVisibilitySet',
-  'pause',
-  'resume',
-  'deletionConfirm',
-  'deletionRetry',
-  'botAvatarSet',
-  'botAppearanceSet',
-  'botBannerSet',
-  'botPrimaryColorSet',
-  'modelPlanSet',
-  'modelPlanSubSet',
-  'modelPresetApply',
-  'modelPlanCustomize',
-  'modelPlanAssignmentsSet',
-  'standingLimitsSet',
-  'modelPlanInherit',
-  'modelPlanReset',
-  'transfer',
-  'memberPurgeConfirm',
-]);
-export type BotAdminAction = z.infer<typeof botAdminActionSchema>;
 export type BotMetadata = ReturnType<typeof botMetadata>;
 export type BotMetadataResult = { metadataOnly: true; bot: BotMetadata };
 export function botMetadata(

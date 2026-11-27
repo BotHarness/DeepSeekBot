@@ -7,7 +7,7 @@ import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
 import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { expect } from 'vitest';
 import { TeamService } from '../src/team/service.js';
-import { memberPolicy } from '../src/team/policy.js';
+import { memberPolicy } from '../src/features/team/member-remote-policy.js';
 import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import type { ChannelMessage } from '../src/channels/channel.js';

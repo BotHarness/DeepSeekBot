@@ -1,4 +1,4 @@
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import { TeamService } from '../../team/service.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { attachOperationalModule } from '../../database/owner.js';

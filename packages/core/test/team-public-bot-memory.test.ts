@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
-import type { BotVisibility } from '../src/team/bot-contract.js';
+import type { BotVisibility } from '../src/team-policy/bot-contract.js';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { attachOperationalModule } from '../src/database/owner.js';

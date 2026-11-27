@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import type { BotMetadataResult } from '../../team/bot-administration.js';
+import type { BotMetadataResult } from '../team/bot-administration.js';
 import {
   unwrap,
   unwrapAsync,
