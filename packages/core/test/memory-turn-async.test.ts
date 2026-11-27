@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createMemoryBridgeMethods } from '../src/features/memory/methods.js';
 import { createCore } from '../src/plugin.js';
 import { createMemoryService } from '../src/memory/service.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
@@ -238,6 +239,11 @@ describe('Memory turn Host responsiveness', () => {
     try {
       expect(methods.memorySnapshot({ channelId: before.channelId })).toEqual({
         ok: true,
+        value: { snapshot: { ...before.snapshot, observing: true } },
+      });
+      await preparing;
+      expect(methods.memorySnapshot({ channelId: before.channelId })).toEqual({
+        ok: true,
         value: { snapshot: before.snapshot },
       });
     } finally {
@@ -249,6 +255,43 @@ describe('Memory turn Host responsiveness', () => {
         reopened.operationalDatabase.close();
       }
     }
+  }, 60_000);
+
+  it('reads seeded Memory before ledger bootstrap and initializes it on the first idle snapshot', async () => {
+    const { database, memory, registry, root } = fixture();
+    const head = git(root, 'rev-parse', 'HEAD');
+    writeFileSync(join(root, 'note.md'), 'Visible before the first accepted commit');
+    const db = attachOperationalModule(database, 'memory-test');
+    const accepted = () =>
+      db.read((connection) =>
+        connection
+          .prepare('SELECT sha, cause_kind FROM memory_accepted_commits WHERE bot_slug = ?')
+          .all('atlas'),
+      );
+    const bridge = createMemoryBridgeMethods(OWNER_HUMAN_CONTEXT, { registry, memory }, () => ({
+      botSlug: 'atlas',
+    }));
+    const read = () => bridge.memorySnapshot({ channelId: 'dm-atlas' });
+    const snapshot = { head, files: expect.arrayContaining(['note.md']), provisional: false };
+    expect(accepted()).toEqual([]);
+    const observing = memory.pendingCommitsAsync('atlas');
+    let duringObservation;
+    try {
+      duringObservation = read();
+      expect(accepted()).toEqual([]);
+    } finally {
+      await observing;
+    }
+
+    const idle = read();
+    expect(idle).toMatchObject({ ok: true, value: { snapshot } });
+    expect(idle).not.toHaveProperty('value.snapshot.observing');
+    expect(read()).toEqual(idle);
+    expect(accepted()).toEqual([{ sha: head, cause_kind: 'repository-init' }]);
+    expect(duringObservation).toMatchObject({
+      ok: true,
+      value: { snapshot: { ...snapshot, observing: true } },
+    });
   }, 60_000);
 
   it('releases a failed preparation and preserves source authorization', async () => {
