@@ -30,8 +30,7 @@ export const zh = {
   'team.externalRoles.listSeparator': '、',
   'team.externalRoles.capabilities': '配对能力',
   'team.externalRoles.policy': '行为规则',
-  'team.externalRoles.policyHint':
-    '告诉 Bot 怎样对待这个角色的人。这是给 Bot 的提示，不是访问控制。同一话题有冲突时，拒绝优先于先问，先问优先于允许。',
+  'team.externalRoles.policyHint': '给 Bot 的提示，不是访问控制。冲突时拒绝优先，其次先问。',
   'team.externalRoles.instructions': '其他说明',
   'team.externalRoles.discard': '放弃修改',
   'team.externalRoles.contacts': '有这个角色的联系人',
@@ -82,7 +81,7 @@ export const en = {
   'team.externalRoles.capabilities': 'Pairing capabilities',
   'team.externalRoles.policy': 'Behavior rules',
   'team.externalRoles.policyHint':
-    'Tell the Bot how to treat people with this role. These rules guide the Bot; they are not access control. When rules on one topic conflict, deny beats ask first, and ask first beats allow.',
+    'Guidance for the Bot, not access control. On conflict, deny wins, then ask first.',
   'team.externalRoles.instructions': 'Other instructions',
   'team.externalRoles.discard': 'Discard changes',
   'team.externalRoles.contacts': 'Contacts with this role',
