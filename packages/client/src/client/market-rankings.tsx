@@ -331,6 +331,33 @@ function CompactCard({ bot, t, onOpen, onImport, extra = false }: RankingCardPro
   );
 }
 
+export function MarketSectionHead({
+  title,
+  target,
+  t,
+  onSeeAll,
+}: {
+  title: string;
+  target: string;
+  t: BotHarnessTranslate;
+  onSeeAll: () => void;
+}): ReactElement {
+  return (
+    <div {...stylex.props(styles.head)}>
+      <h3 {...stylex.props(styles.title)}>{title}</h3>
+      <button
+        type="button"
+        {...stylex.props(styles.seeAll)}
+        data-market-see-all={target}
+        onClick={onSeeAll}
+      >
+        {t('market.section.seeAll')}
+        <Icon name="chevron-right" size={12} />
+      </button>
+    </div>
+  );
+}
+
 export const SECTION_TITLES = {
   hot: 'market.section.hot',
   new: 'market.section.new',
@@ -382,18 +409,12 @@ export function MarketplaceSections({
             data-market-section={section.section}
             aria-label={title}
           >
-            <div {...stylex.props(styles.head)}>
-              <h3 {...stylex.props(styles.title)}>{title}</h3>
-              <button
-                type="button"
-                {...stylex.props(styles.seeAll)}
-                data-market-see-all={section.section}
-                onClick={() => onSeeAll(section)}
-              >
-                {t('market.section.seeAll')}
-                <Icon name="chevron-right" size={12} />
-              </button>
-            </div>
+            <MarketSectionHead
+              title={title}
+              target={section.section}
+              t={t}
+              onSeeAll={() => onSeeAll(section)}
+            />
             <div
               {...stylex.props(
                 styles.carousel,
