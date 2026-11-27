@@ -340,7 +340,7 @@ export const zh = {
   'market.skills.publish': '发布到市场',
   'market.skills.publishTitle': '发布 {name}',
   'market.skills.publishing': '正在扫描并上传…',
-  'market.skills.publishScan': '上传时会扫描密钥和恶意内容，有问题就不会发布。',
+  'market.skills.publishScan': '含密钥或恶意内容的 Skill 会被拒绝，可疑内容会带警告发布。',
   'market.skills.publishPublic': '发布后，任何人都能在 Skills 里看到并添加它。',
   'market.skills.published': '已发布到市场。',
   'market.skills.replaced': '已替换文件。之后添加的人会拿到新内容，已添加的副本不变。',
@@ -732,7 +732,7 @@ export const en = {
   'market.skills.publishTitle': 'Publish {name}',
   'market.skills.publishing': 'Scanning and uploading…',
   'market.skills.publishScan':
-    'Uploads are scanned for secrets and malicious content. Anything flagged is not published.',
+    'Skills with secrets or malicious content are refused; suspicious content is published with a warning.',
   'market.skills.publishPublic': 'Once published, anyone can find and add it in Skills.',
   'market.skills.published': 'Published to the Marketplace.',
   'market.skills.replaced':

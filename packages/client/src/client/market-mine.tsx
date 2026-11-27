@@ -16,6 +16,7 @@ import { FormDialog } from './ds/form-dialog.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -384,7 +385,15 @@ export function MyUploadsDialog({
             {skills.status === 'loading' ? (
               <Note>{t('market.mine.loading')}</Note>
             ) : skills.status === 'error' ? (
-              <Note tone="danger">{marketplaceError(skills.cause, t)}</Note>
+              <ReadFailure
+                retryLabel={t('market.retry')}
+                onRetry={() => {
+                  setSkills({ status: 'loading' });
+                  loadSkills();
+                }}
+              >
+                {marketplaceError(skills.cause, t)}
+              </ReadFailure>
             ) : skills.skills.length === 0 ? (
               <EmptyState title={t('market.skills.mine.empty')} />
             ) : (

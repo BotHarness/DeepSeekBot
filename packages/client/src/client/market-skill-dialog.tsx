@@ -387,7 +387,7 @@ export function MarketSkillDialog({
               <Note>{t('market.skills.loading')}</Note>
             ) : (
               <>
-                <SkillDetailBody skill={skill} detail={detail} t={t} />
+                <SkillDetailBody skill={detail.skill} detail={detail} t={t} />
                 {reportable ? <ReportPanel report={report} t={t} kind="skill" /> : null}
               </>
             )

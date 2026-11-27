@@ -288,6 +288,21 @@ describe('My uploads', () => {
     expect(document.body.textContent).toContain(t('market.skills.mine.empty'));
   });
 
+  it('retries only the Skill list after a failed read', async () => {
+    let fail = true;
+    const actions = uploadActions(async () => {
+      if (fail) throw new BridgeCallError('marketplace-unavailable', 'down');
+      return { skills: [uploaded] };
+    });
+    await openUploads(actions);
+    expect(document.querySelector('[data-market-mine-skill]')).toBeNull();
+    fail = false;
+    await press(buttonNamed(t('market.retry')));
+    expect(actions.marketplaceSkillMine).toHaveBeenCalledTimes(2);
+    expect(actions.marketplaceMine).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-market-mine-skill]')?.textContent).toContain('tidy');
+  });
+
   it('leaves Skills out for a viewer who is not the Host owner', async () => {
     const actions = uploadActions(async () => {
       throw new BridgeCallError('permission-required', 'owner only');
