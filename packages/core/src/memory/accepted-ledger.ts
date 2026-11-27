@@ -46,12 +46,14 @@ export function createAcceptedLedger({
   database,
   now,
   assertIdle,
+  isObserving,
   readRepository,
   registry,
 }: {
   database: OperationalDatabaseModulePort;
   now: () => Date;
   assertIdle: (botSlug: string) => void;
+  isObserving: (botSlug: string) => boolean;
   readRepository: (botSlug: string) => { root: string; repairing: boolean };
   registry: PersonaBotRegistry;
 }) {
@@ -180,13 +182,14 @@ export function createAcceptedLedger({
 
   const methods: Pick<MemoryAcceptance, 'snapshot' | 'sourceReferences' | 'history' | 'diff'> = {
     snapshot(botSlug) {
-      assertIdle(botSlug);
       const { root, repairing } = readRepository(botSlug);
-      bootstrap(botSlug, root);
+      const observing = isObserving(botSlug);
+      if (!observing) bootstrap(botSlug, root);
       return {
         head: head(root),
         files: listCurrentFiles(root),
         provisional: repairing,
+        ...(observing ? { observing: true } : {}),
         standing: standingUsage(
           root,
           registry.get(botSlug)?.standingLimits ?? DEFAULT_STANDING_LIMITS,

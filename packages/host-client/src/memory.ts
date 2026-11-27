@@ -90,6 +90,7 @@ export interface MemorySnapshot {
   head: string | null;
   files: string[];
   provisional: boolean;
+  observing?: true;
   standing: MemoryStandingUsage[];
 }
 
@@ -193,6 +194,7 @@ export async function loadMemorySnapshot(
     head: snapshot['head'],
     files: snapshot['files'],
     provisional: snapshot['provisional'],
+    ...(snapshot['observing'] === true ? { observing: true } : {}),
     standing: parseStandingUsage(snapshot['standing']),
   };
 }
