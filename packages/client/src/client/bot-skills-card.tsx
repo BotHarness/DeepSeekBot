@@ -11,7 +11,13 @@ import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketplaceFileReader, markdownBody } from './market-files.js';
-import { MarketSkillPublishDialog, type SkillPublishActions } from './market-skill-publish.js';
+import type { MarketplaceSkill } from '@botharness/host-protocol/marketplace-skill';
+import { MarketSkillDialog } from './market-skill-dialog.js';
+import {
+  MarketSkillPublishDialog,
+  MarketSkillReplaceDialog,
+  type SkillListingActions,
+} from './market-skill-publish.js';
 import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -20,7 +26,7 @@ export interface BotSkillsSource {
   read(name: string): Promise<SkillDetailView>;
   remove(name: string): Promise<void>;
   subscribe?(listener: () => void): () => void;
-  publish?: { bot: string; actions: SkillPublishActions };
+  publish?: { bot: string; actions: SkillListingActions };
 }
 
 function SkillRows({
@@ -64,6 +70,11 @@ type ListState =
   | { status: 'error'; cause: unknown }
   | { status: 'ready'; skills: BotSkillRow[] };
 
+type Listing =
+  | { kind: 'checking' }
+  | { kind: 'unlisted' }
+  | { kind: 'listed'; skill: MarketplaceSkill };
+
 type DetailState =
   | { status: 'loading' }
   | { status: 'error'; cause: unknown }
@@ -89,7 +100,31 @@ function SkillDetail({
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | undefined>(undefined);
-  const [publishing, setPublishing] = useState(false);
+  const [dialog, setDialog] = useState<'publish' | 'replace' | 'view'>();
+  const [listing, setListing] = useState<Listing>({ kind: 'checking' });
+  const [listingCheck, setListingCheck] = useState(0);
+  const listingMount = useMountedResource<HTMLDivElement>(() => {
+    const publish = source.publish;
+    if (publish === undefined) return undefined;
+    let live = true;
+    void publish.actions.marketplaceSkillMine().then(
+      ({ skills }) => {
+        if (!live) return;
+        const listed = skills.find((skill) => skill.name === name);
+        setListing(listed === undefined ? { kind: 'unlisted' } : { kind: 'listed', skill: listed });
+      },
+      () => {
+        if (live) setListing({ kind: 'unlisted' });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [source, name, listingCheck]);
+  const closeDialog = () => {
+    setDialog(undefined);
+    setListingCheck((n) => n + 1);
+  };
   const section = useMountedResource<HTMLElement>(
     (node) => {
       node.scrollIntoView?.({ block: 'nearest' });
@@ -124,6 +159,11 @@ function SkillDetail({
           <Icon name="chevron-left" size={16} />
         </IconButton>
         <strong className="bh-skill-row-name">/{name}</strong>
+        {listing.kind === 'listed' ? (
+          <Tag tone="success" data-skill-listed={listing.skill.id}>
+            {t('market.skills.listed')}
+          </Tag>
+        ) : null}
         {state.status === 'ready' && state.skill.path !== undefined ? (
           <span className="bh-skill-detail-path" title={state.skill.path}>
             {state.skill.path}
@@ -175,29 +215,68 @@ function SkillDetail({
               </ActionGroup>
             </div>
           ) : (
-            <ActionGroup>
-              {source.publish === undefined ? null : (
-                <ActionButton
-                  icon="upload"
-                  aria-haspopup="dialog"
-                  data-skill-publish={name}
-                  onClick={() => setPublishing(true)}
-                >
-                  {t('market.skills.publish')}
+            <div ref={listingMount}>
+              <ActionGroup>
+                {source.publish === undefined ||
+                listing.kind === 'checking' ? null : listing.kind === 'listed' ? (
+                  <>
+                    <ActionButton
+                      icon="upload"
+                      aria-haspopup="dialog"
+                      data-skill-replace={name}
+                      onClick={() => setDialog('replace')}
+                    >
+                      {t('market.skills.replaceListing')}
+                    </ActionButton>
+                    <ActionButton
+                      icon="external-link"
+                      aria-haspopup="dialog"
+                      data-skill-view-listing={name}
+                      onClick={() => setDialog('view')}
+                    >
+                      {t('market.skills.viewListing')}
+                    </ActionButton>
+                  </>
+                ) : (
+                  <ActionButton
+                    icon="upload"
+                    aria-haspopup="dialog"
+                    data-skill-publish={name}
+                    onClick={() => setDialog('publish')}
+                  >
+                    {t('market.skills.publish')}
+                  </ActionButton>
+                )}
+                <ActionButton icon="trash" onClick={() => setConfirming(true)}>
+                  {t('skills.remove')}
                 </ActionButton>
-              )}
-              <ActionButton icon="trash" onClick={() => setConfirming(true)}>
-                {t('skills.remove')}
-              </ActionButton>
-            </ActionGroup>
+              </ActionGroup>
+            </div>
           )}
-          {publishing && source.publish !== undefined ? (
+          {source.publish === undefined ? null : dialog === 'publish' ? (
             <MarketSkillPublishDialog
               actions={source.publish.actions}
               bot={source.publish.bot}
               name={name}
               t={t}
-              onClose={() => setPublishing(false)}
+              onClose={closeDialog}
+            />
+          ) : listing.kind !== 'listed' ? null : dialog === 'replace' ? (
+            <MarketSkillReplaceDialog
+              actions={source.publish.actions}
+              skill={listing.skill}
+              from={source.publish.bot}
+              t={t}
+              onClose={closeDialog}
+              onReplaced={(skill) => setListing({ kind: 'listed', skill })}
+            />
+          ) : dialog === 'view' ? (
+            <MarketSkillDialog
+              skill={listing.skill}
+              actions={source.publish.actions}
+              t={t}
+              onClose={closeDialog}
+              onAdded={() => undefined}
             />
           ) : null}
           {removeError === undefined ? null : <Note tone="danger">{removeError}</Note>}
