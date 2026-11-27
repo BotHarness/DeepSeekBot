@@ -1,38 +1,21 @@
 import type { WorkspaceLooks } from '../workspaces/workspace-looks.js';
-import {
-  createHostSessionsMethods,
-  type HostSessionBridgeMethods,
-  type NativeSessions,
-} from '../features/sessions/host-sessions.js';
-import { createSessionBotMethods } from '../features/sessions/session-bot-methods.js';
 import { createBotDetails } from '../features/personabots/bot-details.js';
 import {
   createTeamBridgeMethods,
   type TeamBridgeMethods,
   createTeamBridge,
 } from '../features/team/methods.js';
-import {
-  createActivityBridgeMethods,
-  type ActivityBridgeMethods,
-} from '../features/activity/methods.js';
 import { createMessagingCall } from '../features/messaging/methods.js';
-import {
-  createSessionsBridgeMethods,
-  type SessionsBridgeMethods,
-} from '../features/sessions/methods.js';
 import type { IdleCompactionDeps, SessionEngineQuota } from '../features/sessions/methods.js';
-import {
-  createAssignmentsBridgeMethods,
-  type AssignmentsBridgeMethods,
-  type AssignmentsBridgeDeps,
-} from '../features/assignments/methods.js';
 import { createModelRoutingHelpers } from '../features/models/routing.js';
 import {
   contributedBridgeMethods,
   mergeFeatureMethods,
   type ContributedBridgeDeps,
 } from '../feature-contributions.js';
-import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
+import { invalidInput } from '../kernel/method-utils.js';
+import type { NativeSessions } from '../features/sessions/host-sessions.js';
+import type { ChannelsSendAdapterMethods } from '../features/channels/send-methods.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { TeamError } from '../team-policy/error.js';
 import { guardHumanBridge } from '../features/team/bridge-access.js';
@@ -92,15 +75,7 @@ import {
 } from '../runtime/human-attention.js';
 import type { BotRuntime } from '../runtime/bot-runtime.js';
 import type { AggregatedState, BotStateTracker, SessionState } from '../state/bot-state.js';
-import {
-  botInChannel,
-  createChannelViews,
-  authorizeChannelBridgeMethods,
-} from '../features/channels/methods.js';
-import {
-  createSessionsAdapterMethods,
-  type SessionsAdapterMethods,
-} from '../features/sessions/methods.js';
+import { createChannelViews, authorizeChannelBridgeMethods } from '../features/channels/methods.js';
 import { createDmMemoryReader } from '../features/memory/methods.js';
 
 export type {
@@ -228,25 +203,9 @@ export type ChannelListChanges =
     };
 
 export interface BridgeMethods
-  extends
-    ReturnType<typeof contributedBridgeMethods>,
-    TeamBridgeMethods,
-    SessionsBridgeMethods,
-    AssignmentsBridgeMethods,
-    ActivityBridgeMethods,
-    Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
-    HostSessionBridgeMethods,
-    ReturnType<typeof createSessionBotMethods> {
-  sessionMessageSend(
-    payload: unknown,
-  ): Promise<
-    BridgeResult<
-      { sourceEventId: string; requestId?: never } | { requestId: string; sourceEventId?: never }
-    >
-  >;
-}
+  extends ReturnType<typeof contributedBridgeMethods>, TeamBridgeMethods {}
 
-export interface BridgeMethodsDeps extends ContributedBridgeDeps, AssignmentsBridgeDeps {
+export interface BridgeMethodsDeps extends ContributedBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   botContext?(slug: string): Promise<BotContextWindow>;
@@ -413,14 +372,10 @@ function buildBridgeMethods(
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
-  const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
-  const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
-  const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
-  const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
-  const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
   const contributions = contributedBridgeMethods(deps, {
+    channelSend: (payload): ReturnType<ChannelsSendAdapterMethods['channelSend']> =>
+      contributions.channelSend(payload),
     human,
     modelRouting,
     runnerOf,
@@ -436,69 +391,9 @@ function buildBridgeMethods(
     listedChannels,
     listItem,
   });
-  const sessionBots = createSessionBotMethods(human, deps, isHostOwner, detailOf, (payload) =>
-    contributions.channelSend(payload),
-  );
   const methods: Omit<BridgeMethods, keyof ReturnType<typeof contributedBridgeMethods>> = {
     ...createTeamBridge(human, deps.team),
-    botNewSession: sessionsMethods.botNewSession,
-    botCompact: sessionsMethods.botCompact,
-    botContext: sessionsMethods.botContext,
-    channelBotStop: sessionsMethods.channelBotStop,
-    botStop: sessionsMethods.botStop,
-    sessionMessageSend: (payload) =>
-      asObject(payload)['botSlug'] === null
-        ? sessionSend(payload)
-        : sessionsAdapterMethods.sessionMessageSend(payload),
-    sessionStop: sessionsMethods.sessionStop,
-    channelActivityToday: activityMethods.channelActivityToday,
-    activityOverview: activityMethods.activityOverview,
-    activitySnapshot: activityMethods.activitySnapshot,
-    createFromSessions: sessionBots.createFromSessions,
-    externalSessions: sessionBots.externalSessions,
-    idleCompaction: sessionsMethods.idleCompaction,
-    idleCompactionSet: sessionsMethods.idleCompactionSet,
-    idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
-    compactionThresholdSet: sessionsMethods.compactionThresholdSet,
-    botAttention: activityMethods.botAttention,
-    botSourcePolicies: activityMethods.botSourcePolicies,
-    botSourcePolicySet: activityMethods.botSourcePolicySet,
-    botSourcePolicyReset: activityMethods.botSourcePolicyReset,
-    humanAttention: activityMethods.humanAttention,
-    humanAttentionStatus: activityMethods.humanAttentionStatus,
-    channelUnreadCounts: activityMethods.channelUnreadCounts,
-    humanAssignmentContext: assignmentsMethods.humanAssignmentContext,
-    humanAttentionDismiss: activityMethods.humanAttentionDismiss,
-    humanAttentionDismissAll: activityMethods.humanAttentionDismissAll,
-    humanAttentionRestore: activityMethods.humanAttentionRestore,
-    humanAttentionSnooze: activityMethods.humanAttentionSnooze,
-    humanAttentionIgnore: activityMethods.humanAttentionIgnore,
-    assignments: assignmentsMethods.assignments,
-    channelAssignments: assignmentsMethods.channelAssignments,
-    assignment: assignmentsMethods.assignment,
-    assignmentTimeline: assignmentsMethods.assignmentTimeline,
-    sessionProgress: assignmentsMethods.sessionProgress,
-    ...hostSessionMethods,
-    sessionTranscript: (payload) =>
-      asObject(payload)['slug'] === null
-        ? sessionTranscript(payload)
-        : sessionsMethods.sessionTranscript(payload),
-    sessionModel: (payload) =>
-      asObject(payload)['slug'] === null
-        ? sessionModel(payload)
-        : sessionsMethods.sessionModel(payload),
-    sessionToolDetail: sessionsMethods.sessionToolDetail,
-    sessionSubagents: assignmentsMethods.sessionSubagents,
-    assignmentAccessGet: assignmentsMethods.assignmentAccessGet,
-    assignmentAccessSet: assignmentsMethods.assignmentAccessSet,
-    botToolTrace: sessionsMethods.botToolTrace,
-    sessions: sessionsMethods.sessions,
-    sessionArchiveSet: sessionsMethods.sessionArchiveSet,
-    sessionOwner: sessionsMethods.sessionOwner,
-    botSessionIds: sessionsMethods.botSessionIds,
     usageByMember: teamMethods.usageByMember,
-    profileActivity: activityMethods.profileActivity,
-    groupProfileActivity: activityMethods.groupProfileActivity,
   };
   return authorizeChannelBridgeMethods(
     mergeFeatureMethods([methods, contributions]),

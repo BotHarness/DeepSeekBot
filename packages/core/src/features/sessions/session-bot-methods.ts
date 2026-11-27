@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotDetail } from '../../bridge/methods.js';
 import {
   asObject,
   invalidInput,
@@ -15,6 +15,7 @@ import {
   validBotCreationKey,
   type BotCreationReceipt,
 } from '../../bots/creation.js';
+import type { SessionsBridgeDeps } from './bridge-deps.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { HumanContext } from '../../humans/context.js';
 import { WorkspaceGrantError, type WorkspaceGrant } from '../../workspaces/grants.js';
@@ -84,7 +85,16 @@ export function seedMessageId(operationKey: string): string {
 
 export function createSessionBotMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: Pick<
+    SessionsBridgeDeps,
+    | 'creations'
+    | 'externalSessions'
+    | 'grants'
+    | 'nativeSessions'
+    | 'ownership'
+    | 'registerWorkspace'
+    | 'telemetry'
+  >,
   isHostOwner: () => boolean,
   detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
   send: Send,

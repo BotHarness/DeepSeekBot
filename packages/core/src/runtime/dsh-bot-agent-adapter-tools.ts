@@ -5,12 +5,6 @@ import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
 import { agentFeatureContext } from './agent-feature-context.js';
 import type { FeatureToolPlacement, FeatureToolRegistrar } from '../kernel/feature-contribution.js';
-import { registerInboxTools, registerSourceAttentionTools } from '../features/activity/tools.js';
-import {
-  createAssignmentTool,
-  registerAssignmentTools,
-  type AssignmentToolOptions,
-} from '../features/assignments/tools.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { AttachmentId } from '@deepseek-ai/dsh-attachment';
 import { isBotSubagentModelTool } from './subagent-model-tools.js';
@@ -83,6 +77,16 @@ export function orchestratorTools(
   const loadAssignmentModes = () => adapter.assignmentModes?.(run.bot.slug);
   const featureContext = {
     ...agentFeatureContext(adapter, run, agentCtx),
+    engineChannel: () => adapter.engineChannels.get(run.sessionId),
+    assignmentTool: {
+      currentRun: currentOrchestrator,
+      run,
+      resolveModelPlan,
+      openAssignmentRoutes: adapter.openAssignmentRoutes,
+      assignmentGroups: adapter.assignmentGroups,
+      modeChoices: adapter.orchestratorModeChoices.get(run.sessionId),
+      loadAssignmentModes,
+    },
     assignmentModelTool: {
       run,
       isRunActive: () => currentRun() !== undefined,
@@ -139,23 +143,10 @@ export function orchestratorTools(
       },
     ),
   );
-  const assignmentOptions: AssignmentToolOptions = {
-    currentRun: currentOrchestrator,
-    run,
-    resolveModelPlan,
-    openAssignmentRoutes: adapter.openAssignmentRoutes,
-  };
   registerPlacedFeatureTools('before-assignment-tools');
-  registerTool(
-    createAssignmentTool({
-      ...assignmentOptions,
-      assignmentGroups: adapter.assignmentGroups,
-      modeChoices: adapter.orchestratorModeChoices.get(run.sessionId),
-      loadAssignmentModes,
-    }),
-  );
+  registerPlacedFeatureTools('create-assignment');
   registerPlacedFeatureTools('workspace-tools');
-  registerAssignmentTools(assignmentOptions, registerTool);
+  registerPlacedFeatureTools('assignment-tools');
   registerPlacedFeatureTools('after-assignment-tools');
   if (run === CATALOG_RUN || run.speakerPolicy)
     registerTool(
@@ -179,7 +170,7 @@ export function orchestratorTools(
   registerPlacedFeatureTools('bridge');
 
   registerPlacedFeatureTools('before-inbox-tools');
-  registerInboxTools(currentRun, registerTool, () => adapter.engineChannels.get(run.sessionId));
+  registerPlacedFeatureTools('inbox-tools');
   registerPlacedFeatureTools('after-inbox-tools');
   registerTool(
     defineTool({
@@ -308,7 +299,7 @@ export function orchestratorTools(
     }),
   );
   registerPlacedFeatureTools('before-source-attention-tools');
-  registerSourceAttentionTools(currentRun, registerTool);
+  registerPlacedFeatureTools('source-attention-tools');
   registerPlacedFeatureTools('after-channel-tools');
   registerPlacedFeatureTools('after-schedule-tools');
 }

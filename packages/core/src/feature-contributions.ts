@@ -29,6 +29,8 @@ import { createModelsContribution } from './features/models/contribution.js';
 import { createPersonaBotsContribution } from './features/personabots/contribution.js';
 import { createActivityContribution } from './features/activity/contribution.js';
 import { createTobContribution } from './features/tob/contribution.js';
+import { createSessionsContribution } from './features/sessions/contribution.js';
+import { createAssignmentsContribution } from './features/assignments/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
 
 export function createFeatureContributions(options?: {
@@ -65,6 +67,8 @@ export function createFeatureContributions(options?: {
     createApprovalsContribution(),
     createModelsContribution(),
     createTobContribution(),
+    createSessionsContribution(),
+    createAssignmentsContribution(),
   ] as const;
 }
 

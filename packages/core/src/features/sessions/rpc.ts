@@ -1,5 +1,6 @@
-import type { BridgeMethods, OwnedSessionSummary } from '../../bridge/methods.js';
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
+import type { OwnedSessionSummary } from './methods.js';
+import type { HostSessionBridgeMethods } from './host-sessions.js';
+import type { SessionSendResult } from './contribution.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
@@ -181,8 +182,15 @@ export function botSessionIds(methods: SessionsBridgeMethods): {
   return unwrap(methods.botSessionIds({}));
 }
 
+type SessionRpcReceiver = {
+  readonly methods: SessionsBridgeMethods &
+    HostSessionBridgeMethods & {
+      sessionMessageSend(payload: unknown): Promise<SessionSendResult>;
+    };
+};
+
 class SessionListRpc {
-  declare readonly methods: BridgeMethods;
+  declare readonly methods: SessionsBridgeMethods;
 
   sessions(slug: string): { sessions: OwnedSessionSummary[] };
   sessions(
@@ -202,7 +210,7 @@ export const sessionsRpcMethods = {
   ): Promise<{ archived: boolean }> {
     return sessionArchiveSet(this.methods, slug, sessionId, archived);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;
 
 export const botSessionRpc = {
   botNewSession(slug: string): Promise<{ started: true }> {
@@ -216,7 +224,7 @@ export const botSessionRpc = {
   botContext(slug: string): Promise<import('../../runtime/context-window.js').BotContextWindow> {
     return botContext(this.methods, slug);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;
 
 export const sessionControlRpc = {
   channelBotStop(
@@ -257,7 +265,7 @@ export const sessionControlRpc = {
   }> {
     return botStop(this.methods, botSlug, channelId, autoContinueFor);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;
 
 export const compactionSettingsRpc = {
   idleCompaction(): IdleCompactionView {
@@ -282,7 +290,7 @@ export const compactionSettingsRpc = {
   ): IdleCompactionView {
     return idleCompactionCacheLifetimeSet(this.methods, provider, model, seconds);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;
 
 export const sessionDetailsRpc = {
   sessionModel(
@@ -334,7 +342,7 @@ export const sessionDetailsRpc = {
   ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
     return sessionToolDetail(this.methods, slug, sessionId, callId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;
 
 export const sessionListRpc = {
   sessions: SessionListRpc.prototype.sessions,
@@ -382,7 +390,7 @@ export const sessionListRpc = {
   ): Promise<{ slug: string; sessionId: string; turns: TurnTrace[] }> {
     return botToolTrace(this.methods, slug, sessionId, turns);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;
 
 export const sessionOwnerRpc = {
   sessionOwner(sessionId: string): { owner: OwnedSessionBot | null } {
@@ -395,4 +403,4 @@ export const sessionOwnerRpc = {
   } {
     return botSessionIds(this.methods);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<SessionRpcReceiver>;

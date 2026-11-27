@@ -3,6 +3,13 @@ import type { AttachmentStore } from '@deepseek-ai/dsh-attachment';
 import type { FeatureContribution } from '../kernel/feature-contribution.js';
 import type { PromptText } from '../prompts/prompt-parts.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
+import type { CreateAssignmentToolOptions } from '../features/assignments/tools.js';
+import type {
+  createAssignmentReportTool,
+  isReportState,
+  ENGINE_REPORT_TOOL,
+} from '../features/assignments/tools.js';
+import type { assignmentMessage } from '../features/assignments/prompt.js';
 import type { AssignmentModelToolOptions } from '../features/models/tools.js';
 
 export interface AgentFeatureContext {
@@ -10,14 +17,34 @@ export interface AgentFeatureContext {
   readonly botSlug: string;
   readonly currentRun: () => OrchestratorAgentRun | undefined;
   readonly promptText: () => PromptText;
+  readonly engineChannel?: () => string | undefined;
+  readonly assignmentTool?: CreateAssignmentToolOptions;
   readonly assignmentModelTool?: AssignmentModelToolOptions;
   readonly workspaceSessionsAvailable?: boolean;
 }
 
+export interface AssignmentAgentHooks {
+  message: typeof assignmentMessage;
+  rolePrompt(fullAccess: boolean): string;
+  reportContract: string;
+  unreportedFinalPrefix: string;
+  createReportTool: typeof createAssignmentReportTool;
+  engineReportTool: typeof ENGINE_REPORT_TOOL;
+  isReportState: typeof isReportState;
+}
+
 export type AgentFeatureContribution = Pick<
-  FeatureContribution<never, AgentFeatureContext>,
-  'id' | 'promptSections' | 'tools'
+  FeatureContribution<never, AgentFeatureContext, never, AssignmentAgentHooks>,
+  'id' | 'promptSections' | 'tools' | 'assignmentAgent'
 >;
+
+export function requireAssignmentAgentHooks(
+  features: readonly AgentFeatureContribution[],
+): AssignmentAgentHooks {
+  const hooks = features.find((feature) => feature.assignmentAgent !== undefined)?.assignmentAgent;
+  if (hooks === undefined) throw new Error('Assignment Agent feature is unavailable');
+  return hooks;
+}
 
 export function agentFeatureContext(
   adapter: {
