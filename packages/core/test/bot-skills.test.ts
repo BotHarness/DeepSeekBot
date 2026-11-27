@@ -180,6 +180,20 @@ describe('Skill profile bridge methods and CLI', () => {
     expect(existsSync(join(root, '.agents/skills/review/SKILL.md'))).toBe(true);
   });
 
+  it('removes the whole folder of a Skill whose folder is named skills', async () => {
+    const root = memory();
+    put(root, '.agents/skills/skills/SKILL.md', 'skills');
+    writeFileSync(join(root, '.agents/skills/skills/run.py'), 'print(1)\n');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '--no-gpg-sign', '-m', 'add skills');
+    expect(await removeBotSkill(root, 'skills')).toEqual({
+      name: 'skills',
+      removed: '.agents/skills/skills',
+    });
+    expect(existsSync(join(root, '.agents/skills/skills/run.py'))).toBe(false);
+    expect(existsSync(join(root, '.agents/skills/review/SKILL.md'))).toBe(true);
+  });
+
   it('lists, shows and removes through the same bridge path as the profile card', async () => {
     const f = fixture();
     expect(await runSkillCommand('skills-memory', [], { bot: 'ada' }, async () => f.rpc)).toEqual({
