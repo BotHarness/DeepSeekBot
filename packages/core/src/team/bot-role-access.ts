@@ -1,4 +1,3 @@
-import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import {
   STALE_HOST_ROLE,
@@ -15,9 +14,9 @@ import {
   publicBotRoleSourceSql,
   selectedBotRoleIdsSql,
 } from '../team-policy/bot-access.js';
-import { botVisibilitySchema } from '../team-policy/bot-contract.js';
+import { botVisibilitySchema, type BotVisibility } from '../team-policy/bot-contract.js';
 import { TeamError } from '../team-policy/error.js';
-import { botMemorySpaceId } from '../workspaces/space-memory.js';
+import type { ReplaceBotMemory, TeamBots } from './bots.js';
 import type { TeamRoles } from './roles.js';
 
 const botSummary = z.object({ slug: z.string(), displayName: z.string() });
@@ -41,12 +40,8 @@ export class TeamBotRoleAccess {
   constructor(
     private readonly db: OperationalDatabaseModulePort,
     private readonly roles: TeamRoles,
-    private readonly changed: (revoked: ReadonlySet<string> | 'all-public') => void,
-    private readonly recordVisibilityChange: (
-      human: HumanContext,
-      bot: TeamAccessBot & { ownerHumanId: string },
-      db: DatabaseSync,
-    ) => void,
+    private readonly bots: TeamBots,
+    private readonly replaceBotMemory?: ReplaceBotMemory,
   ) {}
 
   private permissions(human: HumanContext) {
@@ -183,48 +178,72 @@ export class TeamBotRoleAccess {
     };
   }
 
-  setScope(human: HumanContext, input: RoleBotScopeUpdate): RoleBotScopeView {
+  private requireScopeEdit(human: HumanContext, input: RoleBotScopeUpdate) {
     const { roleId, expectedRevision, scope } = input;
     const { role, canSetAll, canSetSelected } = this.roles.botScopeTarget(human, roleId);
-    const allPublic = scope.kind === 'all';
-    if (allPublic ? !canSetAll : !canSetSelected) throw new TeamError('permission-required');
+    if (scope.kind === 'all' ? !canSetAll : !canSetSelected)
+      throw new TeamError('permission-required');
     if (expectedRevision !== role.revision) throw new TeamError(STALE_HOST_ROLE);
+    return role;
+  }
 
-    const updates =
-      scope.kind === 'selected' ? this.selectedUpdates(human, roleId, scope.botSlugs) : [];
-    if (allPublic === role.allPublicBots && !updates.length) return this.scope(human, roleId);
-    this.db.transaction(
-      (db) => {
-        const result = db
-          .prepare(`UPDATE host_roles SET all_public_bots = ?, revision = revision + ?
+  async setScope(human: HumanContext, input: RoleBotScopeUpdate): Promise<RoleBotScopeView> {
+    const { roleId, expectedRevision, scope } = input;
+    const allPublic = scope.kind === 'all';
+    const plan = () => {
+      const role = this.requireScopeEdit(human, input);
+      const updates =
+        scope.kind === 'selected' ? this.selectedUpdates(human, roleId, scope.botSlugs) : [];
+      return {
+        scopeChanged: allPublic !== role.allPublicBots,
+        changes: this.bots
+          .planVisibilityChanges(human, updates)
+          .filter((change) => change.needsWrite),
+      };
+    };
+    const planned = plan();
+    const moves = (current: typeof planned) =>
+      current.changes.flatMap(({ bot, memory }) =>
+        memory && memory.source !== memory.target
+          ? [
+              {
+                slug: bot.slug,
+                source: memory.source,
+                target: memory.target,
+                cwd: memory.preview.to,
+              },
+            ]
+          : [],
+      );
+    const plannedMoves = moves(planned);
+    const commit = (current: typeof planned) => {
+      if (!current.scopeChanged && !current.changes.length) return this.scope(human, roleId);
+      this.bots.commitVisibilityChanges(human, current.changes, {
+        reconcileAllPublic: current.scopeChanged && !allPublic,
+        write: (db) => {
+          this.requireScopeEdit(human, input);
+          const result = db
+            .prepare(`UPDATE host_roles SET all_public_bots = ?, revision = revision + ?
         WHERE role_id = ? AND revision = ?`)
-          .run(
-            Number(allPublic),
-            Number(allPublic !== role.allPublicBots),
-            roleId,
-            expectedRevision,
-          );
-        if (!result.changes) throw new TeamError(STALE_HOST_ROLE);
-        for (const { bot, visibility } of updates) {
-          if (bot.ownerHumanId !== human.humanId) this.recordVisibilityChange(human, bot, db);
-          db.prepare('UPDATE persona_bots SET visibility_json = ? WHERE slug = ?').run(
-            JSON.stringify(visibility),
-            bot.slug,
-          );
-          db.prepare('UPDATE workspace_spaces SET audience_json = ? WHERE space_id = ?').run(
-            JSON.stringify(visibility.audience),
-            botMemorySpaceId(bot.slug),
-          );
-        }
+            .run(Number(allPublic), Number(current.scopeChanged), roleId, expectedRevision);
+          if (!result.changes) throw new TeamError(STALE_HOST_ROLE);
+        },
+      });
+      return this.scope(human, roleId);
+    };
+
+    const replaceBotMemory = this.replaceBotMemory;
+    if (!replaceBotMemory || !plannedMoves.length) return commit(planned);
+    const apply = plannedMoves.reduceRight<() => RoleBotScopeView | Promise<RoleBotScopeView>>(
+      (next, move) => () => replaceBotMemory(move.slug, next, () => move.cwd),
+      () => {
+        const current = plan();
+        if (JSON.stringify(moves(current)) !== JSON.stringify(plannedMoves))
+          throw new TeamError(STALE_HOST_ROLE);
+        return commit(current);
       },
-      ['team', 'bots', 'workspace-spaces', 'private-audit'],
     );
-    this.changed(
-      role.allPublicBots && !allPublic
-        ? 'all-public'
-        : new Set(updates.filter(({ bot }) => bot.selected).map(({ bot }) => bot.slug)),
-    );
-    return this.scope(human, roleId);
+    return apply();
   }
 
   private selectedUpdates(human: HumanContext, roleId: string, botSlugs: string[]) {
@@ -233,20 +252,21 @@ export class TeamBotRoleAccess {
     const editableSlugs = new Set(editable.map((bot) => bot.slug));
     if (botSlugs.some((slug) => !editableSlugs.has(slug))) throw new TeamError('bot-not-editable');
     return editable
-      .filter((bot) => bot.selected !== desired.has(bot.slug))
+      .filter((bot) => bot.selected || desired.has(bot.slug))
       .map((bot) => {
         const current = botVisibilitySchema.parse(JSON.parse(bot.visibility));
         if (current.kind !== 'public' || current.audience.kind !== 'roles')
           throw new TeamError(STALE_HOST_ROLE);
+        if (bot.selected === desired.has(bot.slug)) return { slug: bot.slug, visibility: current };
         const roleIds = bot.selected
           ? current.audience.roleIds.filter((id) => id !== roleId)
           : [...current.audience.roleIds, roleId];
         return {
-          bot,
+          slug: bot.slug,
           visibility: {
             kind: 'public',
             audience: { kind: 'roles', roleIds: z.string().array().max(1000).parse(roleIds) },
-          },
+          } satisfies BotVisibility,
         };
       });
   }

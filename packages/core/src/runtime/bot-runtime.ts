@@ -408,7 +408,7 @@ class BotRuntimeImplementation implements BotRuntime {
 
   async replaceOrchestrator<T>(
     botSlug: string,
-    body: () => T,
+    body: () => T | Promise<T>,
     nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
     if (this.#features.tails.has(botSlug)) return BOT_BUSY;

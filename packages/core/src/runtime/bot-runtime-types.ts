@@ -164,7 +164,7 @@ export interface BotRuntime {
   sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
   replaceOrchestrator?<T>(
     botSlug: string,
-    body: () => T,
+    body: () => T | Promise<T>,
     nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
