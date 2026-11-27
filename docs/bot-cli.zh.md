@@ -2491,6 +2491,8 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 
+用 `deepseekbot --as <username> channels policy <频道 ID>` 查看频道审批规则。频道管理员可以用 `--see-approvals allow|deny|inherit` 和 `--decide-approvals allow|deny|inherit` 修改「所有成员」一行。要修改角色覆盖，先读取权限表，再用 `--policy-stdin` 提交修改后的 JSON。升级后的频道可用 `--use-channel-approvals` 启用表里的默认规则，修改审批权限也会启用规则。可以查看但不能决定时，`tool-approval-status` 返回 `approval.canDecide: false`。提交决定时，`tool-approval-decide` 会重新检查当前权限。
+
 `members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
 
 ```sh

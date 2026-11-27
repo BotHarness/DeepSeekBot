@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { CHANNEL_ACTIONS } from '@botharness/host-protocol/channel-policy';
+export { CHANNEL_ACTIONS, DEFAULT_CHANNEL_POLICY } from '@botharness/host-protocol/channel-policy';
+export type { ChannelAction, ChannelPolicy } from '@botharness/host-protocol/channel-policy';
 
 export const channelVisibilitySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('public') }),
@@ -18,19 +21,11 @@ export const channelBotChangeSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('audience'), audience: channelBotAudienceSchema }),
   z.strictObject({ kind: z.literal('block'), humanId: z.string().min(1), blocked: z.boolean() }),
 ]);
-export const CHANNEL_ACTIONS = [
-  'addMembers',
-  'post',
-  'mentionAll',
-  'wakeBot',
-  'addBots',
-  'editDetails',
-] as const;
-export type ChannelAction = (typeof CHANNEL_ACTIONS)[number];
 const action = z.enum(CHANNEL_ACTIONS);
 const effect = z.enum(['allow', 'deny', 'inherit']);
 export const channelPolicySchema = z.strictObject({
   version: z.literal(1),
+  approvalMode: z.enum(['legacy', 'channel']).optional(),
   everyone: z.strictObject({
     addMembers: effect,
     post: effect,
@@ -38,6 +33,8 @@ export const channelPolicySchema = z.strictObject({
     addBots: effect,
     editDetails: effect,
     wakeBot: effect.default('allow'),
+    seeApprovals: effect.default('allow'),
+    decideApprovals: effect.default('deny'),
   }),
   overrides: z
     .array(
@@ -50,19 +47,25 @@ export const channelPolicySchema = z.strictObject({
     .refine((rows) => new Set(rows.map((row) => row.roleId)).size === rows.length),
 });
 export const channelPolicyRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-export type ChannelPolicy = z.infer<typeof channelPolicySchema>;
-export const DEFAULT_CHANNEL_POLICY: ChannelPolicy = {
-  version: 1,
-  everyone: {
-    addMembers: 'allow',
-    post: 'allow',
-    mentionAll: 'allow',
-    addBots: 'deny',
-    editDetails: 'deny',
-    wakeBot: 'allow',
-  },
-  overrides: [],
-};
+export const channelPolicyWriteSchema = z.unknown().transform((value, context) => {
+  const parsed = channelPolicySchema.safeParse(value);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) context.addIssue(issue);
+    return z.NEVER;
+  }
+  const hasApprovalRules =
+    parsed.data.approvalMode !== undefined ||
+    parsed.data.overrides.some(
+      ({ actions }) => 'seeApprovals' in actions || 'decideApprovals' in actions,
+    ) ||
+    (typeof value === 'object' &&
+      value !== null &&
+      'everyone' in value &&
+      typeof value.everyone === 'object' &&
+      value.everyone !== null &&
+      ('seeApprovals' in value.everyone || 'decideApprovals' in value.everyone));
+  return { policy: parsed.data, hasApprovalRules };
+});
 
 export function channelRoleEligibleSql(channel: string, humanId: string): string {
   return `(json_extract(${channel}.visibility_json, '$.kind') <> 'roles'

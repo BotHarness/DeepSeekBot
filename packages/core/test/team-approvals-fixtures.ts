@@ -78,6 +78,13 @@ export function fixture(
       )
       .run(group.id),
   );
+  database.transaction((db) =>
+    db
+      .prepare(
+        "UPDATE channel_records SET permission_table_json = json_set(permission_table_json, '$.approvalMode', 'legacy') WHERE channel_id = ?",
+      )
+      .run(group.id),
+  );
   const active: string[] = [];
   const attention = createHumanAttentionQuery(
     database,
@@ -87,6 +94,8 @@ export function fixture(
     () => [],
     () => new Date(),
     (human, value) => team.approvals.project(human, value),
+    (human, channelId, messageId) =>
+      team.approvals.channelDecisionForActivity(human, channelId, messageId),
   );
   const assignmentAccess = createAssignmentAccessStore(database);
   const ownership = createTestOwnership();
@@ -213,6 +222,7 @@ export async function seed(
   kind: 'tool' | 'question' | 'secret',
   slug = 'alice-bot',
   channelId = f.group.id,
+  toolName = 'bash',
 ) {
   const message: ChannelMessage = {
     id: randomUUID(),
@@ -224,7 +234,7 @@ export async function seed(
           toolApprovalRequest: {
             sessionId: 'session',
             callId: 'call',
-            toolName: 'bash',
+            toolName,
             role: 'orchestrator',
             cwd: '/',
             input: 'CONFIDENTIAL_INPUT',

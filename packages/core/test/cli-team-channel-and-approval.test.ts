@@ -184,6 +184,52 @@ describe('M4 Channel policy CLI', () => {
       },
     });
   });
+  it('uses member authority and the observed revision for Channel approval setting flags', async () => {
+    const f = await host();
+    const args = ['channels', 'policy', 'group-1', '--as', 'bob'];
+    expect(
+      (
+        await run(f.url, [
+          ...args,
+          '--see-approvals',
+          'deny',
+          '--decide-approvals',
+          'allow',
+          '--use-channel-approvals',
+        ])
+      ).output,
+    ).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls[0]).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method: 'channelGet' },
+    });
+    expect(
+      (
+        await run(f.url, [
+          'channels',
+          'policy',
+          'group-1',
+          '--see-approvals',
+          'deny',
+          '--decide-approvals',
+          'allow',
+          '--use-channel-approvals',
+        ])
+      ).status,
+    ).toBe(0);
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: 'botharness/channelPolicySet',
+      payload: {
+        args: {
+          expectedRevision: 'a'.repeat(64),
+          policy: {
+            approvalMode: 'channel',
+            everyone: { seeApprovals: 'deny', decideApprovals: 'allow' },
+          },
+        },
+      },
+    });
+  });
   it('reports a stale policy write without retrying or overwriting newer settings', async () => {
     const f = await host(undefined, {
       code: 'stale-channel-policy',

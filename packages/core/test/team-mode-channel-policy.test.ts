@@ -16,7 +16,9 @@ import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/contex
 import { enabledFixture, cleanup } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
-const legacyActions = CHANNEL_ACTIONS.filter((action) => action !== 'wakeBot');
+const legacyActions = CHANNEL_ACTIONS.filter(
+  (action) => action !== 'wakeBot' && action !== 'seeApprovals' && action !== 'decideApprovals',
+);
 
 describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
   it.each(['private', 'roles-nonmember', 'roles-member'] as const)(
@@ -151,6 +153,8 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         post: 'deny',
         mentionAll: 'deny',
         wakeBot: 'deny',
+        seeApprovals: 'deny',
+        decideApprovals: 'deny',
         addBots: 'deny',
         editDetails: 'deny',
       },
@@ -647,6 +651,8 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       post: 'deny',
       mentionAll: 'deny',
       wakeBot: 'deny',
+      seeApprovals: 'allow',
+      decideApprovals: 'deny',
       addBots: 'deny',
       editDetails: 'deny',
     },

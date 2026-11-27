@@ -80,6 +80,9 @@ type TeamValues = {
   'mention-all'?: string;
   'add-bots'?: string;
   'wake-bot'?: string;
+  'see-approvals'?: string;
+  'decide-approvals'?: string;
+  'use-channel-approvals'?: boolean;
   'block-human'?: string;
   'unblock-human'?: string;
   'edit-details'?: string;
@@ -605,15 +608,21 @@ export async function runTeamCommand(
         ...(values.post === undefined ? {} : { post: values.post }),
         ...(values['mention-all'] === undefined ? {} : { mentionAll: values['mention-all'] }),
         ...(values['wake-bot'] === undefined ? {} : { wakeBot: values['wake-bot'] }),
+        ...(values['see-approvals'] === undefined ? {} : { seeApprovals: values['see-approvals'] }),
+        ...(values['decide-approvals'] === undefined
+          ? {}
+          : { decideApprovals: values['decide-approvals'] }),
         ...(values['add-bots'] === undefined ? {} : { addBots: values['add-bots'] }),
         ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
       };
-      if (!values['policy-stdin'] && Object.keys(patch).length === 0) return snapshot;
-      if (values['policy-stdin'] && Object.keys(patch).length > 0) return usage();
+      const change = Object.keys(patch).length > 0 || values['use-channel-approvals'];
+      if (!values['policy-stdin'] && !change) return snapshot;
+      if (values['policy-stdin'] && change) return usage();
       const policy = values['policy-stdin']
         ? { success: true as const, data: secretJson(channelPolicySchema, await secret(io)) }
         : channelPolicySchema.safeParse({
             ...snapshot.policy,
+            ...(values['use-channel-approvals'] ? { approvalMode: 'channel' } : {}),
             everyone: { ...snapshot.policy.everyone, ...patch },
           });
       if (!policy.success) return usage();

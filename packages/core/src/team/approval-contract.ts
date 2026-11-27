@@ -30,6 +30,7 @@ export type ApprovalCard =
   | (Omit<MaskedApprovalCard, 'masked'> & {
       masked: false;
       opaque: boolean;
+      canDecide?: boolean;
       decidedBy?: ApprovalDecider;
     });
 export type ProjectedApprovalMessage = Omit<

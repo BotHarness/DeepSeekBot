@@ -1302,7 +1302,7 @@
     },
     {
       "id": "team-members",
-      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. Read Channel permission tables with channels policy <id> and replace them with channels policy <id> --policy-stdin. Use channels bots <id> to read the Bot settings, or add <botSlug> and --audience, --block-human or --unblock-human to update them. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
+      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. Read Channel permission tables with channels policy <id> and replace them with channels policy <id> --policy-stdin. Channel approval rules are CLI-first in #5492: use --see-approvals, --decide-approvals, and --use-channel-approvals. The approval settings UI follows separately. Use channels bots <id> to read the Bot settings, or add <botSlug> and --audience, --block-human or --unblock-human to update them. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
       "scope": "Host / Human",
       "surfaces": [
         "route:packages/core/src/features/team/mount.ts:'/api/botharness/team-as'",

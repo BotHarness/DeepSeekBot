@@ -53,7 +53,7 @@ export function allowsGroupAction(
       )
     );
   }
-  const manages = facts.managesAll();
+  const manages = action !== 'seeApprovals' && action !== 'decideApprovals' && facts.managesAll();
   if (action === 'addMembers' && manages) return true;
   if (!(joined ?? facts.joined())) return false;
   const { owner, policy } = settings;

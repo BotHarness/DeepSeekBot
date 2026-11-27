@@ -904,7 +904,12 @@ export type WireApprovalCard = {
   decidedAt?: string;
 } & (
   | { masked: true }
-  | { masked: false; opaque: boolean; decidedBy?: { humanId: string; displayName?: string } }
+  | {
+      masked: false;
+      opaque: boolean;
+      canDecide?: boolean;
+      decidedBy?: { humanId: string; displayName?: string };
+    }
 );
 
 export interface WireAdministrativeBot {
