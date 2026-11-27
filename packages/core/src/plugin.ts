@@ -57,7 +57,6 @@ import type { HostFetchConnection } from './plugin-types.js';
 import { createHostCoreOptions } from './host-core-options.js';
 import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
-import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
 import { createSessionListChanges } from './features/sessions/session-list-changes.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
@@ -497,10 +496,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     requireHostFeatureHook(featureContributions, 'workspacePermissionTracking')(ctx, core);
   const reviewing = new Set<string>();
   const { idleCompactionSettings, compactionPolicy, applyCompactionPolicy } =
-    sessionsFeature.createCompactionPolicy(ctx, core, dshHome);
+    requireHostFeatureHook(featureContributions, 'sessionCompactionPolicy')(ctx, core, dshHome);
   installNativeSubagentWake(ctx, core.runtime);
   applyCompactionPolicy();
-  sessionsFeature.mountPreStep(ctx, {
+  requireHostFeatureHook(featureContributions, 'sessionPreStep')(ctx, {
     core,
     applyCompactionPolicy,
     compactionPolicy,
@@ -512,10 +511,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.modelRetry?.(ctx, core, routeRests, routingDefaults.effectivePlan),
   );
-  sessionsFeature.mountContextOverflowRecovery(ctx, core);
+  requireHostFeatureHook(featureContributions, 'sessionOverflowRecovery')(ctx, core);
   const { approvalTemplates, approvalReviewer } = approvalsFeature.apply(dshHome);
-  const { liveAgent, idleCompaction, compactReservedSession, compactBot } =
-    sessionsFeature.mountIdleCompaction(ctx, { core, idleCompactionSettings, compactionPolicy });
+  const { liveAgent, idleCompaction, compactReservedSession, compactBot } = requireHostFeatureHook(
+    featureContributions,
+    'sessionIdleCompaction',
+  )(ctx, { core, idleCompactionSettings, compactionPolicy });
   const {
     toolApproval: mountedToolApproval,
     userQuestions: mountedQuestions,
@@ -846,7 +847,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       hooks.afterConnectionRoutes?.(connectionCtx, () => connection.fetch, botZipHttp),
     );
   });
-  const activity = activityFeature.apply(
+  const activity = requireHostFeatureHook(featureContributions, 'activityObservers')(
     ctx,
     core,
     dshSessions,
@@ -858,7 +859,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   const botTurnTelemetry = diagnosticsFeature.createTurnTelemetry(ctx, core, telemetry, liveAgent);
   const turnLog = diagnosticsFeature.createTurnDiagnostics(core, diagnosticEvents);
-  sessionsFeature.mountLifecycle(ctx, config, {
+  requireHostFeatureHook(featureContributions, 'sessionLifecycle')(ctx, config, {
     core,
     mountedQuestions,
     activity,

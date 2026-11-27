@@ -5,12 +5,6 @@ import {
   installAgentNativeTools,
   selectNativeModel,
 } from './native-agent-compat.js';
-import { createAssignmentReportTool } from '../features/assignments/tools.js';
-import {
-  ASSIGNMENT_PROMPT,
-  DANGER_ASSIGNMENT_PROMPT,
-  assignmentMessage,
-} from '../features/assignments/prompt.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
@@ -35,7 +29,7 @@ import {
   interruptedToolCalls,
 } from './dsh-bot-agent-adapter-shared.js';
 import { runEngineAssignment } from './dsh-bot-agent-adapter-engine.js';
-import { UNREPORTED_FINAL_PREFIX } from '../features/assignments/prompt.js';
+import { requireAssignmentAgentHooks } from './agent-feature-context.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 
 type RunAssignmentContext = Pick<DshBotAgentAdapterState, 'assertOpen'> & DriveAssignmentContext;
@@ -90,6 +84,7 @@ type AssignmentHandleContext = Pick<
   | 'authorizeBorrow'
   | 'closed'
   | 'composePreset'
+  | 'featureContributions'
   | 'defaultModel'
   | 'handles'
   | 'hasSession'
@@ -168,7 +163,9 @@ export function requestAssignment(
   if (handle !== undefined && active?.role === 'assignment') {
     if (active.run.routingTarget === undefined) selectAssignmentModel(adapter, run);
     try {
-      handle.agent.steer(assignmentMessage(run.text));
+      handle.agent.steer(
+        requireAssignmentAgentHooks(adapter.featureContributions).message(run.text),
+      );
     } catch (error) {
       throw new AssignmentInboxAcceptanceUncertainError(error);
     }
@@ -323,6 +320,7 @@ async function driveAssignmentAttempt(
       await runEngineAssignment(adapter, run, engines, entry, abandonable.abandoned, accepted);
       return;
     }
+    const assignment = requireAssignmentAgentHooks(adapter.featureContributions);
     if (engines?.isLive(run.sessionId)) await engines.release(run.sessionId);
     const handle = await adapter
       .prepare(run.sessionId, async (signal) => {
@@ -345,7 +343,7 @@ async function driveAssignmentAttempt(
     } else {
       run.beginTurn?.();
       try {
-        handle.agent.followup(assignmentMessage(run.text));
+        handle.agent.followup(assignment.message(run.text));
       } catch (error) {
         throw new AssignmentInboxAcceptanceUncertainError(error);
       }
@@ -381,7 +379,7 @@ async function driveAssignmentAttempt(
     const text = finalAssistantText(handle, fromSeq);
     if (text === undefined) throw new Error('Assignment finished without report_to_orchestrator');
     await run.report(
-      { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+      { state: 'completed', summary: `${assignment.unreportedFinalPrefix}\n\n${text}` },
       { turn: completion.turn },
     );
   } finally {
@@ -417,6 +415,7 @@ async function assignmentHandle(
   signal?.throwIfAborted();
   const existing = adapter.liveHandle(run.sessionId);
   if (existing !== undefined) return existing;
+  const assignment = requireAssignmentAgentHooks(adapter.featureContributions);
   const resolvedAgentOptions = agentOptions(
     run,
     adapter.defaultModel,
@@ -466,9 +465,7 @@ async function assignmentHandle(
         order: ROLE_PROMPT_ORDER,
         text: () =>
           appendSkillInstallation(
-            run.permission.mode === 'danger-full-access'
-              ? DANGER_ASSIGNMENT_PROMPT
-              : ASSIGNMENT_PROMPT,
+            assignment.rolePrompt(run.permission.mode === 'danger-full-access'),
             adapter.promptText(run.sessionId),
           ),
       });
@@ -478,7 +475,7 @@ async function assignmentHandle(
       );
       if (borrowed) borrowedDisposers.push(disposeMemorySkills);
       registerTool(
-        createAssignmentReportTool(
+        assignment.createReportTool(
           () => {
             const active = adapter.runs.get(run.sessionId);
             return active?.role === 'assignment' ? active : undefined;

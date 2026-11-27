@@ -217,7 +217,7 @@ export const activityRpcMethods = {
   groupProfileActivity(channelId: string): GroupProfileActivity {
     return groupProfileActivity(this.methods, channelId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ActivityBridgeMethods }>;
 
 export const attentionRpc = {
   botAttention(
@@ -314,7 +314,7 @@ export const attentionRpc = {
   } {
     return channelUnreadCounts(this.methods);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ActivityBridgeMethods }>;
 
 export const humanAttentionDismissalRpc = {
   humanAttentionDismiss(itemId: string, sourceKey: string): { accepted: boolean } {
@@ -345,4 +345,4 @@ export const humanAttentionDismissalRpc = {
   ): { accepted: boolean } {
     return humanAttentionSnooze(this.methods, itemId, sourceKey, until);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: ActivityBridgeMethods }>;

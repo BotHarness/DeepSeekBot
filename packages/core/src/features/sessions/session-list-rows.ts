@@ -5,7 +5,7 @@ import {
   type HostSessionRow,
   type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { SessionsBridgeDeps } from './bridge-deps.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { AssignmentReport } from '@botharness/host-protocol/wire';
@@ -33,7 +33,7 @@ export function sessionTitleCache(
 }
 
 export async function fillSessionTitles(
-  deps: Pick<BridgeMethodsDeps, 'readSessionTitles' | 'nativeSessions'>,
+  deps: Pick<SessionsBridgeDeps, 'readSessionTitles' | 'nativeSessions'>,
   rows: readonly HostSessionRow[],
   { wait = true }: { wait?: boolean } = {},
 ): Promise<void> {
@@ -63,8 +63,18 @@ export type VisibleSessionRows = {
 
 export type SessionRowScope = {
   human: HumanContext;
-  deps: BridgeMethodsDeps;
-  globalRegistry: BridgeMethodsDeps['registry'];
+  deps: Pick<
+    SessionsBridgeDeps,
+    | 'nativeSessions'
+    | 'ownership'
+    | 'registry'
+    | 'team'
+    | 'runtime'
+    | 'describeEngineSession'
+    | 'workspaceLooks'
+    | 'readSessionTitles'
+  >;
+  globalRegistry: SessionsBridgeDeps['registry'];
   owner: boolean;
 };
 

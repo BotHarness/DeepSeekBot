@@ -22,7 +22,7 @@ import {
 import type { QuestionAnswer } from '@botharness/host-protocol/wire';
 import { z } from 'zod';
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { SessionsBridgeDeps } from './bridge-deps.js';
 import {
   asNonBlank,
   asObject,
@@ -178,8 +178,8 @@ function isNativeTranscriptEvent(event: DshSessionEvent): boolean {
 
 export function createHostSessionsMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
-  globalRegistry: BridgeMethodsDeps['registry'],
+  deps: SessionsBridgeDeps,
+  globalRegistry: SessionsBridgeDeps['registry'],
   isHostOwner: () => boolean,
 ) {
   const nativeAllowed = () => human.caller !== 'bot' && isHostOwner();

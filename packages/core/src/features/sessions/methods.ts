@@ -56,9 +56,9 @@ import { type ModelRoute } from '../../models/presets.js';
 import type { AssignmentAccessMode } from '../../workspaces/assignment-access.js';
 import type { AssignmentActivity, AssignmentReportState } from '../../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../../runtime/assignment-approval-capacity.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { SessionsBridgeDeps } from './bridge-deps.js';
 
-type SessionTranscriptRead = SessionTranscript & {
+export type SessionTranscriptRead = SessionTranscript & {
   sessionId: string;
   role: SessionRootRole | 'native';
   parentSessionId?: string;
@@ -164,7 +164,7 @@ export interface SessionEngineQuota {
   limitedUntil?: string;
   observedAt: string;
 }
-type SessionListResult = BridgeResult<{ sessions: OwnedSessionSummary[] }>;
+export type SessionListResult = BridgeResult<{ sessions: OwnedSessionSummary[] }>;
 export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
@@ -198,30 +198,7 @@ export interface OwnedSessionBot {
 
 export function createSessionsBridgeMethods(
   human: HumanContext,
-  deps: Pick<
-    BridgeMethodsDeps,
-    | 'botContext'
-    | 'sessionModels'
-    | 'engineSelection'
-    | 'routingGroups'
-    | 'modelCatalog'
-    | 'subscriptionEngines'
-    | 'channels'
-    | 'defaultModel'
-    | 'modelPresets'
-    | 'describeEngineSession'
-    | 'describeToolCall'
-    | 'idleCompaction'
-    | 'ownership'
-    | 'presentToolResult'
-    | 'readSessionTitles'
-    | 'readUsageSessionLog'
-    | 'registry'
-    | 'runtime'
-    | 'states'
-    | 'team'
-    | 'usage'
-  >,
+  deps: SessionsBridgeDeps,
   botInChannel: (channel: ChannelRecord, botSlug: string) => boolean,
   routing: ReturnType<typeof createModelRoutingHelpers>,
 ): SessionsBridgeMethods {
@@ -915,7 +892,7 @@ export interface SessionsAdapterMethods {
 
 export function createSessionsAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: Pick<SessionsBridgeDeps, 'registry' | 'runtime'>,
 ): SessionsAdapterMethods {
   return {
     async sessionMessageSend(payload) {

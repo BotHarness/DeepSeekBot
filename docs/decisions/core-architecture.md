@@ -36,6 +36,8 @@ Memory contributes its Engine tools, routes and Orchestrator prompt fragments. W
 
 Models, PersonaBots and Tob contribute bridge handlers, Runtime services and Host hooks. Models installs the Engine route and retry handler and provides the Assignment model tool. Tob owns the Agent shell setup and supplies its hooks to the PersonaBot Agent adapter. Workspaces contributes the Grant and Session tools at their existing positions. PersonaBots and Activity register their streams before the Channel and Window Companion streams.
 
+Sessions, Activity and Assignments contribute bridge methods and Runtime services. Sessions keeps the routing between native and PersonaBot Sessions inside its bridge adapter. Activity and Assignments supply Inbox tools, coordination prompts and Assignment Agent reporting at their existing positions.
+
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
 ## CLI adapters and PersonaBot protection

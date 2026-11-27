@@ -13,11 +13,8 @@ const BASELINE = 'scripts/cli-parity-baseline.json';
 const LABELS = { bridge: 'bridge method', routes: 'Host route', tools: 'Bot tool' };
 
 export function bridgeMethodsFrom(rpcSource) {
-  for (const match of rpcSource.matchAll(/\[\s*\n((?:\s*'[A-Za-z]+',\s*\n)+)\s*\]/g)) {
-    const names = [...match[1].matchAll(/'([A-Za-z]+)'/g)].map((name) => name[1]);
-    if (names.includes('sessions')) return names;
-  }
-  return [];
+  const list = rpcSource.match(/\bconst legacyRemoteMethods\s*=\s*\[([^\]]*)\]/u)?.[1];
+  return list === undefined ? [] : [...list.matchAll(/'([A-Za-z]+)'/gu)].map((name) => name[1]);
 }
 
 export function featureRpcMethodsFrom(read, registryPath) {
@@ -71,7 +68,7 @@ export function featureRpcMethodsFrom(read, registryPath) {
     return table.properties.flatMap((property) => {
       if (property.type === 'SpreadElement') return methodsFromTable(path, property.argument);
       if (
-        property.type !== 'ObjectMethod' ||
+        (property.type !== 'ObjectMethod' && property.type !== 'ObjectProperty') ||
         property.computed ||
         property.key.type !== 'Identifier'
       )
