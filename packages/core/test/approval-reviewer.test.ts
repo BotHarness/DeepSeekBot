@@ -247,12 +247,20 @@ describe('Approval Templates', () => {
       expect(requiresHumanToolApproval('bash', { command: input })).toBe(true);
     }
     expect(requiresHumanToolApproval('deepseekbot_cli', { argv: split.split(' ') })).toBe(true);
+    expect(
+      requiresHumanToolApproval('deepseekbot_cli', {
+        argv: ['skills', '--bot', 'helper', split.split(' ')[1]],
+      }),
+    ).toBe(true);
   });
 
   it.each(['marketplace-skill-report', 'marketplaceSkillReport', 'skills mine'])(
     'leaves %s outside the publication and deletion gate',
     (command) => {
       expect(requiresHumanToolApproval('bash', { command })).toBe(false);
+      expect(requiresHumanToolApproval('deepseekbot_cli', { argv: command.split(' ') })).toBe(
+        false,
+      );
     },
   );
 });

@@ -7,8 +7,7 @@ import type { TobCliWriteProposal } from './cli-broker.js';
 import { TobError } from '../../tob/service.js';
 import { toolApprovalRequired } from '../../workspaces/tool-effects.js';
 import { canonicalCliCommandName } from '../../kernel/cli-command-names.js';
-import { parseBotCliArgs } from '../../kernel/cli-options.js';
-import { asObject } from '../../kernel/method-utils.js';
+import { brokerCliEffects } from '../../kernel/cli-effects.js';
 
 export const ALWAYS_ASK_CLI_COMMANDS: ReadonlySet<string> = new Set([
   'release-install',
@@ -57,19 +56,6 @@ export function alwaysAsksHuman(command: string): boolean {
   return ALWAYS_ASK_CLI_COMMANDS.has(canonicalCliCommandName(command));
 }
 
-function requiresExplicitCliApproval(command: string, patch: unknown): boolean {
-  if (command !== 'skills') return alwaysAsksHuman(command);
-  const { argv } = asObject(patch);
-  if (!Array.isArray(argv) || !argv.every((arg): arg is string => typeof arg === 'string'))
-    return true;
-  try {
-    const [family, action] = parseBotCliArgs(argv).positionals;
-    return family !== 'skills' || action !== 'mine';
-  } catch {
-    return true;
-  }
-}
-
 export async function approveTobCliOperation(options: {
   execution: ToolExecution;
   operation: TobCliWriteProposal;
@@ -84,7 +70,10 @@ export async function approveTobCliOperation(options: {
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
   const generic = 'via' in operation && operation.via === 'cli';
-  const requireExplicitApproval = requiresExplicitCliApproval(command, operation.patch);
+  const requireExplicitApproval =
+    alwaysAsksHuman(command) ||
+    (command === 'skills' &&
+      brokerCliEffects('deepseekbot skills', operation)?.authority === 'management');
   const scope =
     !generic &&
     'target' in operation &&
