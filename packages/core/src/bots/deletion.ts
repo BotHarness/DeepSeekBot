@@ -327,7 +327,7 @@ export function createPersonaBotDeletions(options: {
     const record = options.registry.getHistorical(slug);
     if (record === undefined) throw new Error('PersonaBot does not exist');
     if (confirming && record.protection?.deletion === 'deny')
-      throw new HarnessError('protected-bot', 'Protected PersonaBot cannot be deleted');
+      throw new HarnessError('Protected PersonaBot cannot be deleted', 'protected-bot');
     const state = get(slug);
     const path = state?.memoryDir ?? pathFor(slug);
     const proof = owner(slug);
