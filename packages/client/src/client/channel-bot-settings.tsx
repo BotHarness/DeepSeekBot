@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import * as stylex from '@stylexjs/stylex';
 import { channelBotSettings } from '@botharness/host-client/channel-bots';
 import type {
   ChannelBotAudience,
@@ -12,14 +11,14 @@ import { Button } from './ds/button.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { SettingsRow, SettingsSection, SettingsValue } from './ds/settings-row.js';
-import { space } from './ds/tobs.stylex.js';
+import {
+  SettingsGroupPart,
+  SettingsRow,
+  SettingsSection,
+  SettingsValue,
+} from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-
-const styles = stylex.create({
-  stack: { display: 'flex', flexDirection: 'column', gap: space.x3, alignItems: 'start' },
-});
 
 const audienceKinds = ['everyone', 'roles', 'admins'] as const;
 
@@ -102,100 +101,115 @@ function BotSettings({
     view.members.find((member) => member.humanId === id)?.displayName ?? id;
   const candidates = view.members.filter((member) => !bot.blockedHumanIds.includes(member.humanId));
   return (
-    <SettingsSection title={bot.name}>
+    <SettingsSection
+      title={bot.name}
+      action={
+        draft === undefined ? undefined : (
+          <Button
+            variant="primary"
+            disabled={busy || !canSave}
+            onClick={() => {
+              void save({ kind: 'audience', audience: draft }).then((saved) => {
+                if (saved) setDraft(undefined);
+              });
+            }}
+          >
+            {t('channelAccess.save')}
+          </Button>
+        )
+      }
+    >
       <SettingsRow
         title={t('channelBots.audience')}
         description={t('channelBots.intersection')}
         control={
           bot.canSetAudience ? (
-            <div {...stylex.props(styles.stack)}>
-              <Select
-                label={t('channelBots.audience')}
-                value={audience.kind}
-                disabled={busy}
-                options={audienceKinds.map((value) => ({
-                  value,
-                  label: t(`channelBots.audience.${value}`),
-                }))}
-                onChange={(kind) =>
-                  setDraft(
-                    kind === 'roles'
-                      ? { kind, roleIds: bot.audience.kind === 'roles' ? bot.audience.roleIds : [] }
-                      : { kind },
-                  )
-                }
-              />
-              {audience.kind === 'roles'
-                ? view.roles.map(({ roleId, name }) => (
-                    <Checkbox
-                      key={roleId}
-                      disabled={busy}
-                      label={name}
-                      checked={audience.roleIds.includes(roleId)}
-                      onChange={(checked) =>
-                        setDraft({
-                          kind: 'roles',
-                          roleIds: checked
-                            ? [...audience.roleIds, roleId]
-                            : audience.roleIds.filter((id) => id !== roleId),
-                        })
+            <Select
+              label={t('channelBots.audience')}
+              value={audience.kind}
+              disabled={busy}
+              options={audienceKinds.map((value) => ({
+                value,
+                label: t(`channelBots.audience.${value}`),
+              }))}
+              onChange={(kind) =>
+                setDraft(
+                  kind === 'roles'
+                    ? {
+                        kind,
+                        roleIds:
+                          bot.audience.kind === 'roles'
+                            ? bot.audience.roleIds.filter((id) =>
+                                view.roles.some((role) => role.roleId === id),
+                              )
+                            : [],
                       }
-                    />
-                  ))
-                : null}
-              {draft === undefined ? null : (
-                <Button
-                  variant="primary"
-                  disabled={busy || !canSave}
-                  onClick={() => {
-                    void save({ kind: 'audience', audience: draft }).then((saved) => {
-                      if (saved) setDraft(undefined);
-                    });
-                  }}
-                >
-                  {t('channelAccess.save')}
-                </Button>
-              )}
-            </div>
+                    : { kind },
+                )
+              }
+            />
           ) : (
             <SettingsValue>{t(`channelBots.audience.${audience.kind}`)}</SettingsValue>
           )
         }
       />
+      {bot.canSetAudience && audience.kind === 'roles'
+        ? view.roles.map(({ roleId, name }) => (
+            <SettingsGroupPart key={roleId}>
+              <Checkbox
+                disabled={busy}
+                label={name}
+                checked={audience.roleIds.includes(roleId)}
+                onChange={(checked) =>
+                  setDraft({
+                    kind: 'roles',
+                    roleIds: checked
+                      ? [...audience.roleIds, roleId]
+                      : audience.roleIds.filter((id) => id !== roleId),
+                  })
+                }
+              />
+            </SettingsGroupPart>
+          ))
+        : null}
       <SettingsRow
         title={t('channelBots.blocks')}
         control={
-          <div {...stylex.props(styles.stack)}>
-            {bot.blockedHumanIds.map((humanId) => (
-              <Button
-                key={humanId}
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  void save({ kind: 'block', humanId, blocked: false });
-                }}
-              >
-                {t('channelBots.removeBlock', { name: nameOf(humanId) })}
-              </Button>
-            ))}
-            <Select
-              label={t('channelBots.addBlock')}
-              value=""
-              disabled={busy || candidates.length === 0}
-              options={[
-                { value: '', label: t('channelBots.addBlock') },
-                ...candidates.map(({ humanId, displayName }) => ({
-                  value: humanId,
-                  label: displayName,
-                })),
-              ]}
-              onChange={(humanId) => {
-                if (humanId) void save({ kind: 'block', humanId, blocked: true });
-              }}
-            />
-          </div>
+          <Select
+            label={t('channelBots.addBlock')}
+            value=""
+            disabled={busy || candidates.length === 0}
+            options={[
+              { value: '', label: t('channelBots.addBlock') },
+              ...candidates.map(({ humanId, displayName }) => ({
+                value: humanId,
+                label: displayName,
+              })),
+            ]}
+            onChange={(humanId) => {
+              if (humanId) void save({ kind: 'block', humanId, blocked: true });
+            }}
+          />
         }
       />
+      {bot.blockedHumanIds.map((humanId) => (
+        <SettingsRow
+          key={humanId}
+          title={nameOf(humanId)}
+          control={
+            <Button
+              variant="outline"
+              disabled={busy}
+              aria-label={t('channelBots.removeBlock', { name: nameOf(humanId) })}
+              onClick={() => {
+                void save({ kind: 'block', humanId, blocked: false });
+              }}
+            >
+              {t('channelBots.remove')}
+            </Button>
+          }
+        />
+      ))}
     </SettingsSection>
   );
 }

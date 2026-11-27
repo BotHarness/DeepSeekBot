@@ -1319,6 +1319,7 @@
         "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.visibility')}",
         "setting:packages/client/src/client/channel-bot-settings.tsx:{t('channelBots.audience')}",
         "setting:packages/client/src/client/channel-bot-settings.tsx:{t('channelBots.blocks')}",
+        "setting:packages/client/src/client/channel-bot-settings.tsx:{nameOf(humanId)}",
         "setting:packages/client/src/client/team-roles.tsx:{name}",
         "setting:packages/client/src/client/team-roles.tsx:{roleLabel(t, role)}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}",

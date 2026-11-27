@@ -8,7 +8,7 @@ import {
   channelBlockedBots,
   channelBlockedHumans,
   setChannelSenderBlock,
-} from '../messaging/permissions/sender-blocks.js';
+} from '../messaging/permissions/index.js';
 import type { TeamChannels } from './channels.js';
 import { allowsBotMention } from '../team-policy/channel-access.js';
 import { channelBotAudienceSchema, channelPolicySchema } from '../team-policy/channel-contract.js';
