@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runSkillCommand } from '../src/cli/cli-skills.js';
@@ -192,6 +192,25 @@ describe('Skill profile bridge methods and CLI', () => {
     });
     expect(existsSync(join(root, '.agents/skills/skills/run.py'))).toBe(false);
     expect(existsSync(join(root, '.agents/skills/review/SKILL.md'))).toBe(true);
+  });
+
+  it('refuses to remove a linked Skill whose files live deeper than its own folder', async () => {
+    const root = memory();
+    put(root, '.agents/skills/vendor/skills/SKILL.md', 'linked');
+    writeFileSync(join(root, '.agents/skills/vendor/skills/run.py'), 'print(1)\n');
+    symlinkSync(
+      join(root, '.agents/skills/vendor/skills'),
+      join(root, '.agents/skills/linked'),
+      'junction',
+    );
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '--no-gpg-sign', '-m', 'add linked');
+    expect((await readBotSkill(root, 'linked'))?.path).toBe(
+      '.agents/skills/vendor/skills/SKILL.md',
+    );
+    await expect(removeBotSkill(root, 'linked')).rejects.toThrow(/not found/);
+    expect(existsSync(join(root, '.agents/skills/vendor/skills/run.py'))).toBe(true);
+    expect(git(root, 'log', '-1', '--format=%s')).toBe('add linked');
   });
 
   it('lists, shows and removes through the same bridge path as the profile card', async () => {
