@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { limitD1Requests } from '../src/d1.js';
+import { continueDiscovery } from '../src/discovery.js';
 import { DISCOVERY_CRON, REFRESH_CRON } from '../src/worker.js';
-import { createMarket, fakeRepository, submit, type FakeRepository } from './market-harness.js';
+import {
+  createLocalD1,
+  createMarket,
+  fakeRepository,
+  submit,
+  type FakeRepository,
+} from './market-harness.js';
 
 interface Listed {
   bots: {
@@ -63,6 +71,65 @@ async function finishDiscovery(
 }
 
 describe('Marketplace scheduled discovery', () => {
+  it('stops at the exhausted request and resumes with the same repository', async () => {
+    const { db } = createLocalD1();
+    const work = limitD1Requests(db, 1).db;
+    const ids = ['1', '2', '3'];
+    const visited: string[] = [];
+    const first = await continueDiscovery({
+      db,
+      phase: 'skills',
+      ids,
+      async visit(id) {
+        await work.prepare('SELECT 1').first();
+        visited.push(id);
+        return true;
+      },
+    });
+    expect(first).toEqual({ complete: false, skipped: 0 });
+    expect(visited).toEqual(['1']);
+
+    const second = await continueDiscovery({
+      db,
+      phase: 'skills',
+      ids,
+      visit(id) {
+        visited.push(id);
+        return Promise.resolve(true);
+      },
+    });
+    expect(second).toEqual({ complete: true, skipped: 0 });
+    expect(visited).toEqual(ids);
+  });
+
+  it('skips a Bot repository that throws and continues to later repositories and Skills', async () => {
+    const market = createMarket();
+    for (const index of [1, 2, 3, 4, 5]) market.publish(fakeRepository({ name: `bot-${index}` }));
+    market.publish(fakeRepository({ name: 'skill', topics: ['tobs-skill'] }));
+    market.sqlite.exec(`CREATE TRIGGER fail_bot BEFORE INSERT ON indexed_repositories
+      WHEN NEW.name = 'bot-2' OR (NEW.name = 'bot-4' AND NEW.head_sha IS NOT NULL)
+      BEGIN SELECT RAISE(FAIL, 'test repository error'); END`);
+
+    expect(await market.scheduled(DISCOVERY_CRON)).toMatchObject({
+      phase: 'discovery',
+      complete: true,
+      found: 5,
+      added: 4,
+      skipped: 2,
+    });
+    const bots = await listed(market);
+    expect(bots.map((bot) => bot.fullName).sort()).toEqual([
+      'alice/bot-1',
+      'alice/bot-3',
+      'alice/bot-4',
+      'alice/bot-5',
+    ]);
+    expect(bots.find((bot) => bot.fullName === 'alice/bot-5')).toMatchObject({
+      headCommit: { sha: 'abcdef1234567890abcdef1234567890abcdef12' },
+    });
+    expect(market.logs.at(-1)).toMatchObject({ phase: 'skills', repositories: 1 });
+  });
+
   it('lists topic repositories without a paste and fills head commit and README', async () => {
     const market = createMarket();
     market.publish(fakeRepository({ name: 'tagged' }));

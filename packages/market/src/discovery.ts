@@ -1,4 +1,4 @@
-import type { D1Database } from './d1.js';
+import { D1RequestBudgetExhausted, type D1Database } from './d1.js';
 import { SEARCH_PAGE_SIZE, type GitHubClient, type GitHubRepository } from './github.js';
 
 const SEARCH_RESULT_CAP = 1000;
@@ -56,31 +56,44 @@ export async function continueDiscovery({
   phase: 'bots' | 'skills';
   ids: Iterable<string>;
   visit: (id: string) => Promise<boolean>;
-}): Promise<boolean> {
+}): Promise<{ complete: boolean; skipped: number }> {
   const saved = await db
     .prepare('SELECT repo_node_id FROM discovery_cursors WHERE phase = ?')
     .bind(phase)
     .first<{ repo_node_id: string }>();
   const cursor = saved?.repo_node_id ?? '';
   let next = cursor;
-  let complete = false;
-  try {
-    for (const id of [...ids].sort()) {
-      if (id <= cursor) continue;
-      if (!(await visit(id))) return false;
-      next = id;
+  let complete = true;
+  let skipped = 0;
+  for (const id of [...ids].sort()) {
+    if (id <= cursor) continue;
+    try {
+      if (!(await visit(id))) {
+        complete = false;
+        break;
+      }
+    } catch (error) {
+      if (error instanceof D1RequestBudgetExhausted) {
+        complete = false;
+        break;
+      }
+      skipped += 1;
     }
-    complete = true;
-    return true;
-  } finally {
-    const checkpoint = complete ? '' : next;
-    if (checkpoint !== cursor) {
+    next = id;
+  }
+  const checkpoint = complete ? '' : next;
+  if (checkpoint !== cursor) {
+    try {
       await db
         .prepare(`INSERT INTO discovery_cursors (phase, repo_node_id) VALUES (?, ?)
           ON CONFLICT (phase) DO UPDATE SET repo_node_id = excluded.repo_node_id
           WHERE discovery_cursors.repo_node_id = ?`)
         .bind(phase, checkpoint, cursor)
         .run();
+    } catch (error) {
+      if (!(error instanceof D1RequestBudgetExhausted)) throw error;
+      complete = false;
     }
   }
+  return { complete, skipped };
 }

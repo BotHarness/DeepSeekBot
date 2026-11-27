@@ -56,6 +56,42 @@ async function list(market: Market, query = ''): Promise<ListedSkill[]> {
 }
 
 describe('Marketplace Skills', () => {
+  it('skips a repository that throws and retries it after the discovery cursor wraps', async () => {
+    const market = createMarket();
+    for (const index of [1, 2, 3, 4, 5]) {
+      const name = `skill-${index}`;
+      market.publish(skillRepository({ 'SKILL.md': skillMd(name) }, { name }));
+    }
+    market.sqlite.exec(`CREATE TRIGGER fail_skill BEFORE INSERT ON marketplace_skills
+      WHEN NEW.repo = 'skill-2' BEGIN SELECT RAISE(FAIL, 'test repository error'); END`);
+
+    await market.scheduled(DISCOVERY_CRON);
+    expect(market.logs.at(-1)).toMatchObject({
+      phase: 'skills',
+      complete: true,
+      repositories: 5,
+      listed: 4,
+      skipped: 1,
+    });
+    expect((await list(market)).map((skill) => skill.name)).toEqual([
+      'skill-1',
+      'skill-3',
+      'skill-4',
+      'skill-5',
+    ]);
+
+    market.sqlite.exec('DROP TRIGGER fail_skill');
+    market.github.requests.length = 0;
+    await market.scheduled(DISCOVERY_CRON);
+    expect(market.github.requests).toContain('/repos/carol/skill-1/commits/main');
+    expect(market.logs.at(-1)).toMatchObject({
+      phase: 'skills',
+      complete: true,
+      listed: 5,
+      skipped: 0,
+    });
+  });
+
   it('shares the discovery query budget, resumes 600 Skill repositories, and skips unchanged writes', async () => {
     const market = createMarket();
     for (let index = 0; index < 600; index += 1) {

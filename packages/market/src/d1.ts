@@ -12,10 +12,16 @@ export interface D1Database {
   batch<T>(statements: D1PreparedStatement[]): Promise<{ results: T[] }[]>;
 }
 
+export class D1RequestBudgetExhausted extends Error {
+  constructor() {
+    super('D1 request budget exhausted');
+  }
+}
+
 export function limitD1Requests(db: D1Database, limit: number) {
   let remaining = limit;
   const spend = () => {
-    if (remaining === 0) throw new Error('D1 request budget exhausted');
+    if (remaining === 0) throw new D1RequestBudgetExhausted();
     remaining -= 1;
   };
   const statements = new WeakMap<D1PreparedStatement, D1PreparedStatement>();

@@ -1,4 +1,4 @@
-import type { D1Database } from './d1.js';
+import { D1RequestBudgetExhausted, type D1Database } from './d1.js';
 import { BOT_TOPIC, type GitHubClient } from './github.js';
 import { continueDiscovery, findTopicRepositories } from './discovery.js';
 import { createRepositoryStore } from './repositories.js';
@@ -12,6 +12,7 @@ export interface DiscoveryReport {
   found: number;
   added: number;
   hidden: number;
+  skipped: number;
 }
 
 export interface RefreshReport {
@@ -25,7 +26,10 @@ export function createCrawler(deps: { db: D1Database; github: GitHubClient; now:
   const { github } = deps;
   const store = createRepositoryStore(deps);
 
-  const refreshIds = async (ids: readonly string[]): Promise<RefreshReport> => {
+  const refreshIds = async (
+    ids: readonly string[],
+    onRepositoryFailure?: () => void,
+  ): Promise<RefreshReport> => {
     const report: RefreshReport = { batches: 0, failedBatches: 0, refreshed: 0, hidden: 0 };
     for (let start = 0; start < ids.length; start += NODE_BATCH_SIZE) {
       const batch = ids.slice(start, start + NODE_BATCH_SIZE);
@@ -38,14 +42,20 @@ export function createCrawler(deps: { db: D1Database; github: GitHubClient; now:
       for (const [index, node] of result.value.entries()) {
         const id = batch[index];
         if (id === undefined) continue;
-        if (node === null) {
-          if (await store.hide(id)) report.hidden += 1;
-          continue;
+        try {
+          if (node === null) {
+            if (await store.hide(id)) report.hidden += 1;
+            continue;
+          }
+          const before = await store.find(node.nodeId);
+          const row = await store.index(node, node.head);
+          report.refreshed += 1;
+          if (before?.visibility === 'listed' && row?.visibility !== 'listed') report.hidden += 1;
+        } catch (error) {
+          if (onRepositoryFailure === undefined) throw error;
+          if (error instanceof D1RequestBudgetExhausted) return report;
+          onRepositoryFailure();
         }
-        const before = await store.find(node.nodeId);
-        const row = await store.index(node, node.head);
-        report.refreshed += 1;
-        if (before?.visibility === 'listed' && row?.visibility !== 'listed') report.hidden += 1;
       }
     }
     return report;
@@ -63,13 +73,14 @@ export function createCrawler(deps: { db: D1Database; github: GitHubClient; now:
         found: found.size,
         added: 0,
         hidden: 0,
+        skipped: 0,
       };
       const ids = new Set(found.keys());
       if (search.complete) {
         for (const id of await store.listedIds()) ids.add(id);
       }
       const added: string[] = [];
-      const complete = await continueDiscovery({
+      const { complete, skipped } = await continueDiscovery({
         db: deps.db,
         phase: 'bots',
         ids,
@@ -90,7 +101,12 @@ export function createCrawler(deps: { db: D1Database; github: GitHubClient; now:
       });
       report.added = added.length;
       report.complete = search.complete && complete;
-      if (added.length > 0) await refreshIds(added);
+      report.skipped = skipped;
+      if (added.length > 0) {
+        await refreshIds(added, () => {
+          report.skipped += 1;
+        });
+      }
       return report;
     },
   };

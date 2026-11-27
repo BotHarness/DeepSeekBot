@@ -1,6 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
+import {
+  limitD1Requests,
+  type D1Database,
+  type D1PreparedStatement,
+  type D1Value,
+} from '../src/d1.js';
 import type { GitHubRepository } from '../src/github.js';
 import { parseChallenge, solveChallenge } from '../../core/src/marketplace/altcha.js';
 import { handlerForEnv, runDaily, runScheduled, type MarketEnv } from '../src/worker.js';
@@ -330,7 +335,7 @@ export function createMarket(
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
-  daily: () => Promise<Record<string, unknown>[]>;
+  daily: (maxD1Requests?: number) => Promise<Record<string, unknown>[]>;
   logs: Record<string, unknown>[];
   bucket: ReturnType<typeof createMemoryBucket>;
 } {
@@ -380,10 +385,11 @@ export function createMarket(
       logs.push(...lines.map((line) => JSON.parse(line) as Record<string, unknown>));
       return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
     },
-    daily: async () => {
+    daily: async (maxD1Requests) => {
       const lines: string[] = [];
+      const dailyDb = maxD1Requests === undefined ? db : limitD1Requests(db, maxD1Requests).db;
       await runDaily(
-        { MARKET_DB: db, MARKET_FILES: bucket },
+        { MARKET_DB: dailyDb, MARKET_FILES: bucket },
         (line) => lines.push(line),
         () => clock.value,
         options.digestWriter,

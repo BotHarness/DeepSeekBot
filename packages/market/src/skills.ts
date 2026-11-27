@@ -447,7 +447,7 @@ export function createMarketSkills(deps: {
           .filter((row) => !found.has(row.repo_node_id) && (row.curated === 1 || search.complete))
           .map((row) => [row.repo_node_id, row]),
       );
-      const complete = await continueDiscovery({
+      const { complete, skipped } = await continueDiscovery({
         db,
         phase: 'skills',
         ids: [...found.keys(), ...absent.keys()],
@@ -465,8 +465,8 @@ export function createMarketSkills(deps: {
               report.hidden += await hideRepository(id);
             return true;
           }
-          const one = await indexRepository(repository, { curated: false });
           report.repositories += 1;
+          const one = await indexRepository(repository, { curated: false });
           report.listed += one.listed;
           report.rejected += one.rejected;
           report.hidden += one.hidden;
@@ -475,6 +475,7 @@ export function createMarketSkills(deps: {
         },
       });
       report.complete = search.complete && complete;
+      report.skipped += skipped;
       return report;
     },
 
