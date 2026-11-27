@@ -12,6 +12,25 @@ function host(answer: Record<string, unknown>) {
 }
 
 describe('channel approval rules', () => {
+  it('uses the Host manager decision and shows a base inherit as denied', async () => {
+    const client = host({
+      channel,
+      role: 'member',
+      canManageApprovals: true,
+      policy: {
+        version: 1,
+        approvalMode: 'channel',
+        everyone: { seeApprovals: 'inherit' },
+        overrides: [],
+      },
+    });
+    await expect(readChannelApprovalRules(client, 'g1')).resolves.toMatchObject({
+      manager: true,
+      see: 'deny',
+      decide: 'deny',
+    });
+  });
+
   it('reads the approval rules, mode and manager role from the channel answer', async () => {
     const client = host({
       channel,

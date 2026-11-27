@@ -101,3 +101,10 @@ it('shows the current rules read-only to a member who cannot manage them', async
     '频道所有成员',
   );
 });
+
+it('describes a base inherit visibility as the denied choice the Host enforces', async () => {
+  await render({ ...legacy, everyone: { ...legacy.everyone, seeApprovals: 'inherit' } }, true);
+  expect(host.querySelector('[data-channel-approval-enable]')?.textContent).not.toContain(
+    '频道所有成员能看到内容',
+  );
+});

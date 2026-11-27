@@ -15,11 +15,9 @@ import type { ApprovalKey, ChannelPolicy, PolicyValue } from './team-channels-br
 
 type Choice = 'allow' | 'deny';
 
-const DEFAULTS: Record<ApprovalKey, Choice> = { seeApprovals: 'allow', decideApprovals: 'deny' };
-
 function choiceOf(policy: ChannelPolicy, key: ApprovalKey): Choice {
   const value: PolicyValue = policy.everyone[key];
-  return value === 'inherit' ? DEFAULTS[key] : value;
+  return value === 'allow' ? 'allow' : 'deny';
 }
 
 export function ChannelApprovalSettings({

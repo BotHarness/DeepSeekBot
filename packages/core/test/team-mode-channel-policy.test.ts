@@ -175,6 +175,7 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         },
         canPost: false,
         canEditDetails: false,
+        canManageApprovals: false,
         policyRevision: expect.any(String),
         visibility: { kind: 'private' },
         admins: [],

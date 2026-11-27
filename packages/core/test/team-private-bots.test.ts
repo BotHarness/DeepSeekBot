@@ -525,6 +525,7 @@ describe('M2 private Bot boundaries', () => {
       'admins',
       'approvalPolicy',
       'canEditDetails',
+      'canManageApprovals',
       'canPost',
       'channel',
       'policy',

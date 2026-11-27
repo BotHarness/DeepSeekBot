@@ -256,6 +256,7 @@ export class TeamChannels {
       approvalPolicy,
       canPost: allowsGroupAction('post', access, settings),
       canEditDetails: allowsGroupAction('editDetails', access, settings),
+      canManageApprovals: this.canManageBotSettings(human, channelId),
       policyRevision: policyRevision(settings.policy),
       visibility: settings.visibility,
       admins,

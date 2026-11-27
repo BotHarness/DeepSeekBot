@@ -48,6 +48,7 @@ export function useGroupBotSettings(
   const [draft, setDraft] = useState<ChannelBotAudience>();
   const writing = useRef(false);
   const latestSave = useRef(0);
+  const rulesRead = useRef(0);
   const [rules, setRules] = useState<ChannelApprovalRules>();
   const [rulesBusy, setRulesBusy] = useState(false);
   const [rulesStatus, setRulesStatus] = useState<'readFailed' | 'saveFailed' | 'refreshFailed'>();
@@ -56,14 +57,15 @@ export function useGroupBotSettings(
     let live = true;
     const unfollow = followConnection(client, async () => {
       const started = latestSave.current;
+      const read = ++rulesRead.current;
       void readChannelApprovalRules(client, channelId).then(
         (next) => {
-          if (!live) return;
+          if (!live || read !== rulesRead.current) return;
           setRules(next);
           setRulesStatus(undefined);
         },
         () => {
-          if (live) setRulesStatus('readFailed');
+          if (live && read === rulesRead.current) setRulesStatus('readFailed');
         },
       );
       try {
@@ -144,11 +146,14 @@ export function useGroupBotSettings(
     );
   const reloadRules = async (afterSave: boolean) => {
     if (!client) return;
+    const read = ++rulesRead.current;
     try {
-      setRules(await readChannelApprovalRules(client, channelId));
+      const next = await readChannelApprovalRules(client, channelId);
+      if (read !== rulesRead.current) return;
+      setRules(next);
       if (!afterSave) setRulesStatus(undefined);
     } catch {
-      setRulesStatus(afterSave ? 'refreshFailed' : 'readFailed');
+      if (read === rulesRead.current) setRulesStatus(afterSave ? 'refreshFailed' : 'readFailed');
     }
   };
   const writeRules = async (
@@ -157,6 +162,7 @@ export function useGroupBotSettings(
     if (!client || rules === undefined || rulesBusy) return;
     setRulesBusy(true);
     setRulesStatus(undefined);
+    rulesRead.current += 1;
     try {
       await write(client, rules);
     } catch {

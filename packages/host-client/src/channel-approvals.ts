@@ -23,11 +23,9 @@ export interface ChannelApprovalRules {
 type HostCall = Parameters<typeof readChannel>[0];
 
 function choice(value: unknown, key: ChannelApprovalKey): ChannelApprovalChoice {
-  return value === 'allow' || value === 'deny'
-    ? value
-    : DEFAULT_CHANNEL_POLICY.everyone[key] === 'allow'
-      ? 'allow'
-      : 'deny';
+  if (value === 'allow' || value === 'deny') return value;
+  if (value !== undefined) return 'deny';
+  return DEFAULT_CHANNEL_POLICY.everyone[key] === 'allow' ? 'allow' : 'deny';
 }
 
 export async function readChannelApprovalRules(
@@ -45,7 +43,10 @@ export async function readChannelApprovalRules(
     record(answer['approvalPolicy'])?.['mode'] ?? policy['approvalMode'],
   );
   return {
-    manager: role !== 'member',
+    manager:
+      typeof answer['canManageApprovals'] === 'boolean'
+        ? answer['canManageApprovals']
+        : role !== 'member',
     mode: effective.mode,
     effective,
     see: choice(everyone?.['seeApprovals'], 'seeApprovals'),
