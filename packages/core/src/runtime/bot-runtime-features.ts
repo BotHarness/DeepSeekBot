@@ -1,6 +1,5 @@
 import { createChannelAccess } from './runtime-access.js';
 import { createDirectTools } from '../features/sessions/direct-tools.js';
-import { createTobCliRuntime } from '../features/tob/cli-runtime.js';
 import { createGroupDigest } from './group-digest.js';
 import { createChannelAdmission } from './runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
@@ -34,7 +33,6 @@ import {
   voiceAdmissionNotes,
 } from '../features/sessions/runtime-orchestrator-services.js';
 import { createTurnFailures } from '../features/sessions/runtime-turn-failures.js';
-import { createRuntimeBotCreation } from '../features/personabots/runtime-creation.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
 import type { createBotRuntimeState } from './bot-runtime-state.js';
 import { createBotRuntimeLifecycle, createBotRuntimeRecovery } from './bot-runtime-lifecycle.js';
@@ -42,9 +40,7 @@ import { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/ru
 import { interruptedDmNotice } from '../features/activity/runtime-admission-support.js';
 import { createRuntimeAssignmentAccess } from '../features/assignments/runtime-access.js';
 import { createRuntimeAssignmentLifecycle } from '../features/assignments/runtime-lifecycle.js';
-import { pickSessionGroup } from '../features/models/runtime-session-group.js';
 import type { RuntimeFeatureServices } from './feature-services.js';
-import { createRuntimeBotContacts } from '../features/personabots/runtime-contacts.js';
 import { createNativeOrchestratorStep } from '../features/sessions/native-orchestrator-step.js';
 import { createRuntimeMembership } from './runtime-membership.js';
 import { createRuntimeQuotes } from './runtime-quotes.js';
@@ -78,7 +74,15 @@ export function createBotRuntimeFeatures(
   state: ReturnType<typeof createBotRuntimeState>,
   runtime: RuntimeInstancePorts,
   recordDirectToolSource: Parameters<typeof createDirectTools>[0]['recordDirectToolSource'],
-  { createRuntimeInputs, createMemoryEvents, createRuntimeMemoryChanges }: RuntimeFeatureServices,
+  {
+    createRuntimeInputs,
+    createMemoryEvents,
+    createRuntimeMemoryChanges,
+    pickSessionGroup,
+    createRuntimeBotContacts,
+    createRuntimeBotCreation,
+    createTobCliRuntime,
+  }: RuntimeFeatureServices,
 ) {
   const {
     activeSessionModels,

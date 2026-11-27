@@ -182,7 +182,7 @@ export function groupProfileActivity(
   return unwrap(methods.groupProfileActivity({ channelId }));
 }
 
-export const activityRpcMethods = {
+export const activityStreams = {
   async *followActivity(signal: AbortSignal): AsyncGenerator<ActivityLiveFrame> {
     if (this.live === undefined)
       throw toRemoteError({
@@ -199,7 +199,9 @@ export const activityRpcMethods = {
       throw error;
     }
   },
+} satisfies ThisType<Pick<BridgeRpcReceiver, 'live' | 'team' | 'invocationHuman'>>;
 
+export const activityRpcMethods = {
   activitySnapshot(): PersonaBotActivitySnapshot {
     return activitySnapshot(this.methods);
   },

@@ -17,8 +17,11 @@ import { GenuiDiagramError } from '../../runtime/genui-diagram.js';
 import { GenuiPreviewError } from '../../runtime/genui-preview.js';
 import { ChannelCallReadError } from '../../channels/call-window.js';
 import type { DirectBotToolSpec } from '../../runtime/bot-runtime.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { BotRuntime } from '../../runtime/bot-runtime-types.js';
+import type { TobService } from '../../tob/service.js';
+import type { HumanAttentionQuery } from '../../runtime/human-attention.js';
 
 const DIRECT_TOOL_TIMEOUT_MS = 10 * 60_000;
 
@@ -59,9 +62,16 @@ export interface TobAdapterMethods {
   >;
 }
 
+export interface TobBridgeDeps {
+  registry: PersonaBotRegistry;
+  runtime?: Pick<BotRuntime, 'directBotTools' | 'runDirectBotTool' | 'tobCli'>;
+  tob?: TobService;
+  humanAttention?: HumanAttentionQuery;
+}
+
 export function createTobAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: TobBridgeDeps,
   isHostOwner: () => boolean,
 ): TobAdapterMethods {
   return {

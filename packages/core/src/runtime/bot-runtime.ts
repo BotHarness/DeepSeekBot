@@ -69,19 +69,15 @@ export type {
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
 export { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
-export type { BotCreateInput } from '../features/personabots/runtime-creation.js';
-
-export type { BotCreateOutcome } from '../features/personabots/runtime-creation.js';
-
-export { NEW_BOT_ID_PLACEHOLDER } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_NAME_LENGTH } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_TAGS } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_TAG_LENGTH } from '../features/personabots/runtime-creation.js';
-
-export { MAX_CREATED_BOT_BIO_LENGTH } from '../features/personabots/runtime-creation.js';
+export {
+  MAX_CREATED_BOT_BIO_LENGTH,
+  MAX_CREATED_BOT_NAME_LENGTH,
+  MAX_CREATED_BOT_TAG_LENGTH,
+  MAX_CREATED_BOT_TAGS,
+  NEW_BOT_ID_PLACEHOLDER,
+  type BotCreateInput,
+  type BotCreateOutcome,
+} from '../bots/create-contract.js';
 export { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/runtime-types.js';
 export type {
   AssignmentRequestMode,

@@ -5,7 +5,8 @@ import type {
   ModelProviderSave,
   ModelProvidersView,
 } from '@botharness/host-client/model-providers';
-import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
+import type { BridgeResult } from '../kernel/method-utils.js';
+import type { TeamService } from '../team/service.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { ModelPresetError } from './presets.js';
@@ -51,10 +52,7 @@ export function modelFailure(error: unknown): BridgeResult<never> {
   return invalidInput(error instanceof Error ? error.message : String(error));
 }
 
-export function canManageModelSources(
-  human: HumanContext,
-  team: BridgeMethodsDeps['team'],
-): boolean {
+export function canManageModelSources(human: HumanContext, team: TeamService | undefined): boolean {
   return (
     human.caller !== 'bot' &&
     (team === undefined
@@ -63,14 +61,14 @@ export function canManageModelSources(
   );
 }
 
-export function requireModelSources(human: HumanContext, team: BridgeMethodsDeps['team']): void {
+export function requireModelSources(human: HumanContext, team: TeamService | undefined): void {
   if (canManageModelSources(human, team)) return;
   throw new TeamError('permission-required', undefined, { permission: 'modelSources.manage' });
 }
 
 export function createModelProviderBridge(
   human: HumanContext,
-  deps: Pick<BridgeMethodsDeps, 'team' | 'modelProviders'>,
+  deps: { team?: TeamService; modelProviders?: ModelProviders },
 ): ModelProviderBridgeMethods {
   const authorize = () => requireModelSources(human, deps.team);
   async function modelProviderOperation<T>(

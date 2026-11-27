@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TobCliCommand, TobCliStatus } from '../../kernel/tob-cli-request.js';
 import type { DirectBotToolSpec } from '../../runtime/bot-runtime.js';
@@ -73,7 +72,7 @@ export const tobRpcMethods = {
   ): Promise<TobCliStatus> {
     return tobCli(this.methods, action, command, id);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: TobAdapterMethods }>;
 
 export const directBotToolRpc = {
   botTools(): { sessionId: 'direct'; tools: DirectBotToolSpec[] } {
@@ -94,4 +93,4 @@ export const directBotToolRpc = {
   }> {
     return botToolRun(this.methods, slug, tool, args, sessionId, sourceEventId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: TobAdapterMethods }>;

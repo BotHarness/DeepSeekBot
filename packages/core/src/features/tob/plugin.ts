@@ -39,6 +39,7 @@ import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
 import type {
   createDshBotAgentAdapter,
   DshAgentPresetHost,
+  DshBotAgentAdapterOptions,
 } from '../../runtime/dsh-bot-agent-adapter.js';
 import type * as voice from '../voice/plugin.js';
 import { ModelFreeTobCliInvocation } from '../../runtime/tob-cli-invocation.js';
@@ -59,11 +60,11 @@ import { createTobMaintenanceOperations } from './cli-maintenance-operations.js'
 import { cliModulePath } from './cli-shell.js';
 import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
-import type { createBridgeMethodsForHumans } from '../../bridge/methods.js';
-import type { createLoadingReleaseService } from '../../release/service.js';
-import type { createGitService } from '../../memory/managed-git.js';
-import type { createTelemetryService } from '../../telemetry/service.js';
-import type { createHostModelCatalog } from '../../models/host-models.js';
+import type { BridgeMethods } from '../../bridge/methods.js';
+import type { ReleaseService } from '../../release/service.js';
+import type { GitService } from '../../memory/managed-git.js';
+import type { TelemetryService } from '../../telemetry/service.js';
+import type { ModelCatalog } from '../../models/catalog.js';
 import { attachOperationalModule } from '../../database/owner.js';
 import type { DeveloperMode } from '../skills/plugin.js';
 import type { BotHarnessCore, createCore } from '../../plugin.js';
@@ -137,11 +138,11 @@ export function mountSettingsOperations(
     git,
     releaseService,
   }: {
-    modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'];
+    modelCatalog: ModelCatalog;
     developerMode: Pick<DeveloperMode, 'set'>;
-    telemetry: ReturnType<typeof createTelemetryService>;
-    git: ReturnType<typeof createGitService>;
-    releaseService: ReturnType<typeof createLoadingReleaseService>;
+    telemetry: TelemetryService;
+    git: GitService;
+    releaseService: ReleaseService;
   },
 ) {
   const tobModelOperations = createTobModelOperations({
@@ -183,8 +184,8 @@ export function mountOperations(
     hostDiagnosticEnvironment,
     readWebServices,
   }: {
-    bridgeMethods: ReturnType<ReturnType<typeof createBridgeMethodsForHumans>>;
-    bridgeFor: ReturnType<typeof createBridgeMethodsForHumans>;
+    bridgeMethods: BridgeMethods;
+    bridgeFor(human: HumanContext): BridgeMethods;
     diagnosticEvents: ReturnType<typeof diagnosticsFeature.apply>['diagnosticEvents'];
     readWebServices(ctx: Context): {
       connection: { authenticatedUrl(baseUrl: string): string };
@@ -307,14 +308,28 @@ export function createCliInvocation() {
 
 export interface TobShellDependencies {
   readonly core: BotHarnessCore;
-  tobCliInvocation: ReturnType<typeof createCliInvocation>;
-  readonly agentAdapter: ReturnType<typeof createDshBotAgentAdapter>;
+  tobCliInvocation: Pick<ModelFreeTobCliInvocation, 'register' | 'require'>;
+  readonly agentAdapter: Pick<ReturnType<typeof createDshBotAgentAdapter>, 'ownsModelFreeTobTurn'>;
   readonly tobSettingsOperations: ReturnType<typeof mountSettingsOperations>;
 
   readonly tobOperations: ReturnType<typeof mountOperations>;
 
   readonly tobVoiceOperations: ReturnType<typeof voice.mountCalls>;
   readonly toolApproval: ChannelToolApproval | undefined;
+}
+
+export type TobAgentHooks = Pick<
+  DshBotAgentAdapterOptions,
+  'onOrchestratorFileSetup' | 'onAssignmentShellSetup' | 'assignmentReportFooter'
+>;
+
+export function createAgentHooks(ctx: Context, deps: TobShellDependencies): TobAgentHooks {
+  return {
+    onOrchestratorFileSetup: createOrchestratorFileSetup(ctx, deps),
+    onAssignmentShellSetup: createAssignmentShellSetup(ctx, deps),
+    assignmentReportFooter: (sessionId) =>
+      deps.tobOperations.tobMemoryLeases.reportFooter(sessionId),
+  };
 }
 
 export function createOrchestratorFileSetup(

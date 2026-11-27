@@ -1,6 +1,8 @@
 import { ENGINE_IDS, engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { z } from 'zod';
-import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
+import type { BridgeResult } from '../kernel/method-utils.js';
+import type { PersonaBotRegistry } from '../bots/registry.js';
+import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { invalidInput, modelFailure } from '../models/provider-bridge.js';
 import { ownsBot } from '../team-policy/bot-access.js';
@@ -44,6 +46,14 @@ export interface EngineSelectionBridgeMethods {
   engineSelection(payload: unknown): Promise<BridgeResult<EngineSelectionView>>;
 }
 
+export interface EngineSelectionBridgeDeps {
+  team?: TeamService;
+  registry: Pick<PersonaBotRegistry, 'get'>;
+  engineSelection?: EngineSelectionOperations;
+  localSubscriptionEngines?: boolean;
+  releaseEngineQuotaHold?(slug: string): void;
+}
+
 export function createEngineSelectionBridge(
   human: HumanContext,
   {
@@ -52,10 +62,7 @@ export function createEngineSelectionBridge(
     engineSelection: host,
     localSubscriptionEngines,
     releaseEngineQuotaHold,
-  }: Pick<
-    BridgeMethodsDeps,
-    'team' | 'engineSelection' | 'localSubscriptionEngines' | 'releaseEngineQuotaHold'
-  > & { registry: Pick<BridgeMethodsDeps['registry'], 'get'> },
+  }: EngineSelectionBridgeDeps,
 ): EngineSelectionBridgeMethods {
   const isOwner = () => team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   const requireGrant = (id: string) => {

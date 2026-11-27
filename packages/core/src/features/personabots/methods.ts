@@ -1,9 +1,10 @@
 import {
   createOnboardingBridgeMethods,
   type OnboardingBridgeMethods,
+  type OnboardingModelRouting,
 } from './onboarding-methods.js';
 import { createRosterBridgeMethods, type RosterBridgeMethods } from './roster-methods.js';
-import { createModelRoutingHelpers } from '../models/routing.js';
+import type { PersonaBotsBridgeDeps } from './bridge-deps.js';
 import {
   asObject,
   parseOptional,
@@ -58,7 +59,6 @@ import {
 } from '../../memory/soul.js';
 import type { BotStateSnapshot } from '../../state/bot-state.js';
 import type {
-  BridgeMethodsDeps,
   PersonaBotSummary,
   PersonaBotDetail,
   SharedBotSummary,
@@ -316,7 +316,7 @@ export interface PersonaBotsBridgeMethods extends RosterBridgeMethods, Onboardin
 
 export function createPersonaBotsBridgeMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: PersonaBotsBridgeDeps,
   isHostOwner: () => boolean,
   runnerOf: (slug: string) => { orchestratorRunner?: OrchestratorRunner },
   allowed: (record: PersonaBotRecord) => boolean,
@@ -324,7 +324,7 @@ export function createPersonaBotsBridgeMethods(
   detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
   createBotId: () => string,
   sendReceipt: (listingId: string) => void,
-  modelRouting: ReturnType<typeof createModelRoutingHelpers>,
+  modelRouting: OnboardingModelRouting,
 ): PersonaBotsBridgeMethods {
   const setPaused = (
     payload: unknown,

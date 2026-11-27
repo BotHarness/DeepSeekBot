@@ -3,12 +3,15 @@ import type { AttachmentStore } from '@deepseek-ai/dsh-attachment';
 import type { FeatureContribution } from '../kernel/feature-contribution.js';
 import type { PromptText } from '../prompts/prompt-parts.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
+import type { AssignmentModelToolOptions } from '../features/models/tools.js';
 
 export interface AgentFeatureContext {
   getAttachments(): Pick<AttachmentStore, 'saveImage' | 'imageLimits'> | undefined;
   readonly botSlug: string;
   readonly currentRun: () => OrchestratorAgentRun | undefined;
   readonly promptText: () => PromptText;
+  readonly assignmentModelTool?: AssignmentModelToolOptions;
+  readonly workspaceSessionsAvailable?: boolean;
 }
 
 export type AgentFeatureContribution = Pick<

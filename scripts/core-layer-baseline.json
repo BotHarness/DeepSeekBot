@@ -61,7 +61,7 @@
       "push -> runtime": 1
     },
     "packages/core/src/runtime/bot-runtime-features.ts": {
-      "runtime -> features": 25
+      "runtime -> features": 21
     },
     "packages/core/src/runtime/bot-runtime-lifecycle.ts": {
       "runtime -> features": 1
@@ -73,7 +73,7 @@
       "runtime -> features": 3
     },
     "packages/core/src/runtime/bot-runtime.ts": {
-      "runtime -> features": 12
+      "runtime -> features": 7
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-assignment.ts": {
       "runtime -> features": 3
@@ -88,7 +88,7 @@
       "runtime -> features": 1
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-tools.ts": {
-      "runtime -> features": 3
+      "runtime -> features": 2
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter.ts": {
       "runtime -> features": 3
