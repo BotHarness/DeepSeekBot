@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRendererRegistry,
+  decodeMarkdownBytes,
   markdownRenderer,
   MARKDOWN_MAX_BYTES,
   previewFallback,
@@ -12,11 +13,11 @@ describe('Renderer registry', () => {
     onState({ kind: 'loading' });
     if (input.kind === 'stream') return input.stream;
     try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(input.bytes);
+      const text = decodeMarkdownBytes(input.bytes);
       onState({ kind: 'ready' });
       return { text, ...display };
     } catch {
-      onState({ kind: 'failure', reason: 'invalid UTF-8' });
+      onState({ kind: 'failure', reason: 'invalid Markdown bytes' });
       return null;
     }
   });
@@ -27,6 +28,7 @@ describe('Renderer registry', () => {
     ['text/X-Markdown; charset=utf-8', 'report'],
     ['text/plain', 'REPORT.MD'],
     ['text/plain; charset=utf-8', '报告.markdown'],
+    ['application/octet-stream', '报告.md'],
   ])('selects Markdown for %s and %s', (mediaType, name) => {
     expect(registry.match(mediaType, name)).toBe(descriptor);
   });
@@ -42,7 +44,7 @@ describe('Renderer registry', () => {
     for (const unsupported of [
       { ...file, name: 'notes.txt' },
       { ...file, mediaType: 'text/html' },
-      { ...file, mediaType: 'application/octet-stream' },
+      { ...file, mediaType: 'application/octet-stream', name: 'notes.bin' },
     ])
       expect(registry.resolve(unsupported)).toEqual({
         kind: 'fallback',
@@ -53,14 +55,15 @@ describe('Renderer registry', () => {
 
   it('passes bytes, theme and font scale to the selected component and receives its ready state', () => {
     const states: RendererState[] = [];
-    const input = { kind: 'bytes', bytes: new TextEncoder().encode('# 报告') } as const;
-    const view = registry.match('text/markdown', 'report.md')?.component({
+    const text = '# '.padEnd(511, 'a') + '界';
+    const input = { kind: 'bytes', bytes: new TextEncoder().encode(text) } as const;
+    const view = registry.match('application/octet-stream', 'report.md')?.component({
       input,
       display: { theme: 'dark', fontScale: 1.5 },
       onState: (state) => states.push(state),
     });
     expect(states).toEqual([{ kind: 'loading' }, { kind: 'ready' }]);
-    expect(view).toEqual({ text: '# 报告', theme: 'dark', fontScale: 1.5 });
+    expect(view).toEqual({ text, theme: 'dark', fontScale: 1.5 });
   });
 
   it('accepts a stream, and preserves fallback choices when a component reports failure', () => {
@@ -74,14 +77,16 @@ describe('Renderer registry', () => {
         onState: () => undefined,
       }),
     ).toBe(stream);
-    expect(
-      descriptor.component({
-        input: { kind: 'bytes', bytes: Uint8Array.of(0xff) },
-        display,
-        onState: (state) => states.push(state),
-      }),
-    ).toBeNull();
-    expect(states.at(-1)).toEqual({ kind: 'failure', reason: 'invalid UTF-8' });
+    for (const bytes of [Uint8Array.of(0xff), Uint8Array.of(0)]) {
+      expect(
+        descriptor.component({
+          input: { kind: 'bytes', bytes },
+          display,
+          onState: (state) => states.push(state),
+        }),
+      ).toBeNull();
+      expect(states.at(-1)).toEqual({ kind: 'failure', reason: 'invalid Markdown bytes' });
+    }
     expect(previewFallback('renderer-failed').actions).toEqual(['open-external', 'download']);
   });
 });

@@ -58,6 +58,14 @@ export function createRendererRegistry<View>(renderers: readonly Renderer<View>[
 
 export const MARKDOWN_MAX_BYTES = 512 * 1024;
 
+export function decodeMarkdownBytes(bytes: Uint8Array): string {
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  for (const [control] of text.matchAll(/\p{Cc}/gu))
+    if (control !== '\t' && control !== '\n' && control !== '\r')
+      throw new TypeError('Markdown contains non-text bytes');
+  return text;
+}
+
 export function markdownRenderer<View>(component: Renderer<View>['component']): Renderer<View> {
   return {
     match(mediaType, name) {
@@ -65,7 +73,8 @@ export function markdownRenderer<View>(component: Renderer<View>['component']): 
       return (
         mime === 'text/markdown' ||
         mime === 'text/x-markdown' ||
-        (mime === 'text/plain' && /\.(?:md|markdown|mdown|mkd)$/iu.test(name))
+        ((mime === 'text/plain' || mime === 'application/octet-stream') &&
+          /\.(?:md|markdown|mdown|mkd)$/iu.test(name))
       );
     },
     maxBytes: MARKDOWN_MAX_BYTES,
