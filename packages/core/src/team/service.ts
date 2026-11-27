@@ -1,3 +1,5 @@
+import { TeamChannelBots } from './channel-bots.js';
+import { bindTeamChannelAccess } from './channel-access-binding.js';
 import * as memberAuth from './member-auth.js';
 import type { MemberAuthHost } from './member-auth.js';
 import * as memberLifecycle from './member-lifecycle.js';
@@ -326,42 +328,7 @@ export class TeamService {
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
     this.approvals = new TeamApprovals(db, channels, this.roles, this.bots);
-    channels.bindHumanAccess?.({
-      botReception: channelBotReception,
-      addInitialMembers: (db, human, channelId, humanIds, joinedAt) => {
-        if (!this.enabled()) throw new TeamError('team-mode-off');
-        return this.channelAccess.addInitialMembers(db, human, channelId, humanIds, joinedAt);
-      },
-      searchText: (human, channelId, messageId, text) =>
-        this.approvals.searchText(human, channelId, messageId, text),
-      canRead: (human, id) => this.channelAccess.canRead(human, id),
-      requirePolicy: (human, id, key) => this.channelAccess.requirePolicy(human, id, key),
-      requireBotPost: (slug, channel) =>
-        this.bots.available && this.bots.requireChannel(slug, channel, true),
-      requireBotJoin: (slug, id) => {
-        if (this.bots.available) this.bots.requireJoin(slug, id);
-      },
-      requireDm: (human, slug) => this.bots.available && this.bots.requireReach(human, slug),
-      requirePost: (human, id, all, message) => {
-        const decision =
-          message?.toolApprovalDecision ??
-          message?.userQuestionResolution ??
-          message?.privateInputResolution;
-        if (
-          !all &&
-          decision?.decidedBy?.humanId === human.humanId &&
-          message?.replyTo === decision.requestMessageId
-        ) {
-          this.approvals.requireRequest(human, id, decision.requestMessageId);
-          return;
-        }
-        const channel = channels.get(id);
-        if (channel?.botSlug && this.bots.available) this.bots.requireDmPost(human, channel);
-        if (channel?.type !== 'group' && !channel?.humanParticipants) return;
-        this.channelAccess.requirePolicy(human, id, 'post');
-        if (all) this.channelAccess.requirePolicy(human, id, 'mentionAll');
-      },
-    });
+    bindTeamChannelAccess(channels, this);
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});
     this.limiter = new SignInRateLimit(this.now);
@@ -1001,4 +968,3 @@ export class TeamService {
     return memberAuth.disposePeers.call(this.#memberOperations, humanId, keepGrant);
   }
 }
-import { channelBotReception, TeamChannelBots } from './channel-bots.js';

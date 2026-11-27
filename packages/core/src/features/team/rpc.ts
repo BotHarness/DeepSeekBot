@@ -1,3 +1,4 @@
+import type { ChannelBotChange } from '@botharness/host-protocol/channel-bots';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PrivateKind } from '../../team-policy/private-content.js';
@@ -630,4 +631,3 @@ export const teamServiceRpc = {
     return channelPublicSet(this.methods, channelId, publicValue);
   },
 } satisfies ThisType<BridgeRpcReceiver>;
-import type { ChannelBotChange } from '@botharness/host-protocol/channel-bots';

@@ -1,3 +1,4 @@
+import { CHANNEL_BOT_RECEPTION_MIGRATION } from './migrations/channel-bot-reception.js';
 import { CHANNEL_PERMISSION_TABLE_MIGRATION } from './migrations/channel-permission-table.js';
 import {
   MESSAGING_TRACER_MIGRATION,
@@ -464,4 +465,3 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_PERMISSION_TABLE_MIGRATION,
   CHANNEL_BOT_RECEPTION_MIGRATION,
 ]);
-import { CHANNEL_BOT_RECEPTION_MIGRATION } from './migrations/channel-bot-reception.js';
