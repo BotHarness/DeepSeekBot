@@ -14,13 +14,11 @@ export function ChatHeaderRow({
   title,
   back,
   leading,
-  extra,
   controls,
 }: {
   title?: ReactNode;
   back: Omit<ChatHeaderAction, 'icon'> | undefined;
-  leading?: ReactNode;
-  extra?: ReactNode;
+  leading?: ChatHeaderAction;
   controls?: ChatHeaderControls | undefined;
 }) {
   const theme = useDesignTheme();
@@ -36,9 +34,12 @@ export function ChatHeaderRow({
         gap: glassPress.gap,
       }}
     >
-      {leading ?? (back === undefined ? null : <ChatHeaderActions kind="back" back={back} />)}
+      {leading !== undefined ? (
+        <ChatHeaderActions kind="actions" actions={[leading]} />
+      ) : back === undefined ? null : (
+        <ChatHeaderActions kind="back" back={back} />
+      )}
       <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-      {extra}
       {controls !== undefined && (controls.kind === 'menu' || controls.actions.length > 0) ? (
         <ChatHeaderActions {...controls} />
       ) : null}

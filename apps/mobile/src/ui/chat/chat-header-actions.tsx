@@ -3,7 +3,7 @@ import type { MenuAction } from '../primitives/action-menu-button';
 import { HeaderActionGroup, HeaderBackButton } from './header-chrome';
 
 export type ChatHeaderAction = {
-  icon: 'call' | 'more';
+  icon: 'call' | 'more' | 'menu' | 'edit';
   label: string;
   testID: string;
   onPress(): void;
@@ -50,7 +50,7 @@ export function ChatHeaderActions(props: ChatHeaderActionsProps) {
     );
   }
   return props.kind === 'back' ? (
-    <HeaderBackButton onPress={props.back.onPress} />
+    <HeaderBackButton testID={props.back.testID} onPress={props.back.onPress} />
   ) : (
     <HeaderActionGroup actions={props.actions} />
   );

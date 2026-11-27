@@ -8,6 +8,7 @@ import {
   CloseIcon,
   ComputerIcon,
   HandBackIcon,
+  MenuIcon,
   PencilIcon,
   PhoneIcon,
   PlusIcon,
@@ -29,9 +30,11 @@ export type HeaderIcon =
   | 'computer'
   | 'hand-back'
   | 'call'
-  | 'more';
+  | 'more'
+  | 'menu';
 
 const glyphs = {
+  menu: { Glyph: MenuIcon, size: (theme) => theme.type.title.line },
   more: { Glyph: MoreIcon, size: (theme) => theme.type.title.size },
   back: { Glyph: ChevronLeftIcon, size: (theme) => theme.type.title.line },
   close: { Glyph: CloseIcon, size: (theme) => theme.type.title.line },

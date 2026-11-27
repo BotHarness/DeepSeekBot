@@ -207,7 +207,13 @@ vi.mock('../src/ui/chat/chat-header-actions', async () => {
       const [expanded, setExpanded] = useState(false);
       if (props.kind === 'back')
         return <button onClick={props.back.onPress}>{props.back.label}</button>;
-      return props.kind === 'menu' ? (
+      if (props.kind === 'actions')
+        return props.actions.map((action) => (
+          <button key={action.testID} data-testid={action.testID} onClick={action.onPress}>
+            {action.label}
+          </button>
+        ));
+      return (
         <>
           <button onClick={() => setExpanded(!expanded)}>{props.menu.label}</button>
           {expanded ? (
@@ -228,7 +234,7 @@ vi.mock('../src/ui/chat/chat-header-actions', async () => {
             </div>
           ) : null}
         </>
-      ) : null;
+      );
     },
   };
 });

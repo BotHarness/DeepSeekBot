@@ -149,6 +149,7 @@ vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () 
 import { NativePageHeader } from '../src/ui/primitives/native-page-navigation.ios';
 import { ChatTitle } from '../src/ui/chat/chat-title';
 import { ChannelTitle } from '../src/ui/chat/channel-title';
+import { ChatHeaderRow } from '../src/ui/chat/chat-header-row';
 
 const bot: RosterBot = {
   slug: 'qa',
@@ -201,6 +202,50 @@ describe('iOS chat header size contract', () => {
         expect(html.includes('data-symbol="phone"')).toBe(!group);
         expect(html).toContain(`data-host-width="${height * (group ? 1 : 2)}"`);
       }
+    },
+  );
+
+  it.each([1, 3.571])(
+    'matches the Channel header action sizes for a Session at scale %s',
+    (scale) => {
+      device.scale = scale;
+      const back = { label: 'Back', testID: 'back', onPress: noPress };
+      const title = <ChannelTitle channel={undefined} fallback="Long title" onPress={noPress} />;
+      const channel = renderToStaticMarkup(
+        <ChatHeaderRow
+          title={title}
+          back={back}
+          controls={{
+            kind: 'actions',
+            actions: [{ icon: 'more', label: 'Profile', testID: 'profile', onPress: noPress }],
+          }}
+        />,
+      );
+      const session = renderToStaticMarkup(
+        <ChatHeaderRow
+          title={title}
+          back={undefined}
+          leading={{
+            icon: 'menu',
+            label: 'Show Sessions',
+            testID: 'session-drawer-button',
+            onPress: noPress,
+          }}
+          controls={{
+            kind: 'actions',
+            actions: [
+              { icon: 'edit', label: 'New Session', testID: 'session-new', onPress: noPress },
+            ],
+          }}
+        />,
+      );
+      const sizes = (html: string) =>
+        Array.from(html.matchAll(/data-host-(?:height|width)="[\d.]+"/g), ([size]) => size);
+      expect(sizes(session)).toEqual(sizes(channel));
+      expect(session).toContain('aria-label="Show Sessions"');
+      expect(session).toContain('data-symbol="line.3.horizontal"');
+      expect(session).toContain('aria-label="New Session"');
+      expect(session).toContain('data-symbol="square.and.pencil"');
     },
   );
 

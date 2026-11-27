@@ -17,8 +17,16 @@ import { MENU_SYMBOL } from '../primitives/menu-symbols';
 import { controlCase } from '../platform-copy';
 import { headerContentScale, headerControlHeight } from './native-header';
 import type { ChatHeaderActionsProps } from './chat-header-actions';
+import { HeaderActionGroup, HeaderBackButton } from './header-chrome';
+import { glassHeader } from './header-kind';
 
-const symbols = { back: 'chevron.left', call: 'phone', more: 'ellipsis' } as const;
+const symbols = {
+  back: 'chevron.left',
+  call: 'phone',
+  more: 'ellipsis',
+  menu: 'line.3.horizontal',
+  edit: 'square.and.pencil',
+} as const;
 
 export function ChatHeaderActions(props: ChatHeaderActionsProps) {
   const actions =
@@ -28,6 +36,11 @@ export function ChatHeaderActions(props: ChatHeaderActionsProps) {
         ? props.actions
         : [];
   const theme = useDesignTheme();
+  if (!glassHeader) {
+    if (props.kind === 'back')
+      return <HeaderBackButton testID={props.back.testID} onPress={props.back.onPress} />;
+    if (props.kind === 'actions') return <HeaderActionGroup actions={props.actions} />;
+  }
   const height = headerControlHeight(theme);
   const symbolSize = theme.type.body.line * headerContentScale(theme);
   const count = props.kind === 'menu' ? 1 : actions.length;

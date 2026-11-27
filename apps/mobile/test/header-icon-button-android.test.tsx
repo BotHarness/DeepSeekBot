@@ -90,6 +90,7 @@ for (const name of [
   'do-not-touch',
   'call',
   'more-vert',
+  'menu',
 ]) {
   const path = requireAsset.resolve(`../assets/header/${name}.xml`);
   const asset = new Module(path);
