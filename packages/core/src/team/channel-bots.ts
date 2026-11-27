@@ -130,13 +130,27 @@ export class TeamChannelBots {
   }
 
   change(human: HumanContext, channelId: string, botSlug: string, change: ChannelBotChange) {
+    const { manager, bots } = this.scope(human, channelId);
+    if (!bots.some((bot) => bot.botSlug === botSlug)) throw new TeamError('bot-not-found');
+    if (change.kind === 'audience') {
+      if (!manager) throw new TeamError('permission-required');
+      if (change.audience.kind === 'roles') {
+        const { roleIds } = change.audience;
+        const valid = this.database.read((db) => {
+          const exists = db.prepare('SELECT 1 FROM host_roles WHERE role_id = ?');
+          return roleIds.every((id) => exists.get(id));
+        });
+        if (!valid) throw new TeamError('role-not-found');
+      }
+    } else if (
+      change.blocked &&
+      !this.access.canRead(humanContext(change.humanId), channelId, true)
+    ) {
+      throw new TeamError('member-not-found');
+    }
     this.database.transaction(
       (db) => {
-        const { manager, bots } = this.scope(human, channelId);
-        if (!bots.some((bot) => bot.botSlug === botSlug)) throw new TeamError('bot-not-found');
         if (change.kind === 'block') {
-          if (change.blocked && !this.access.canRead(humanContext(change.humanId), channelId, true))
-            throw new TeamError('member-not-found');
           setChannelSenderBlock(db, {
             channelId,
             botSlug,
@@ -144,12 +158,6 @@ export class TeamChannelBots {
             blocked: change.blocked,
           });
           return;
-        }
-        if (!manager) throw new TeamError('permission-required');
-        if (change.audience.kind === 'roles') {
-          const exists = db.prepare('SELECT 1 FROM host_roles WHERE role_id = ?');
-          if (change.audience.roleIds.some((id) => !exists.get(id)))
-            throw new TeamError('role-not-found');
         }
         db.prepare(`INSERT INTO channel_bot_mention_audiences(channel_id, bot_slug, audience_json)
         VALUES (?, ?, ?) ON CONFLICT (channel_id, bot_slug) DO UPDATE SET audience_json = excluded.audience_json`).run(

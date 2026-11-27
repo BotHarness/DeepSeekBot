@@ -109,7 +109,7 @@ it('persists the same historical Role grants and Channel policy in fresh and upg
     ],
     channel: {
       permission_table_json:
-        '{"version":1,"everyone":{"addMembers":"allow","post":"allow","mentionAll":"allow","addBots":"deny","editDetails":"deny"},"overrides":[]}',
+        '{"version":1,"everyone":{"addMembers":"allow","post":"allow","mentionAll":"allow","addBots":"deny","editDetails":"deny","wakeBot":"allow"},"overrides":[]}',
     },
   });
 });

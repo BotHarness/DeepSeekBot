@@ -951,6 +951,86 @@ export async function main(argv = process.argv.slice(2)) {
           check,
         ),
     );
+    await define('C9', 'Channel Bot mention audience and no-response list', async (check) => {
+      const create = (name) => {
+        const result = s.cli([
+          'group-create',
+          name,
+          '--member',
+          fx.ledgerSlug,
+          '--operation-key',
+          randomUUID(),
+        ]);
+        const id = result.channel?.id ?? result.channelId ?? result.id;
+        for (const human of [fx.humans.bob, fx.humans.carol])
+          s.cli(['channels', 'add-member', id, human.humanId]);
+        return id;
+      };
+      const a = create(`Studio A ${tag}`);
+      const b = create(`Studio B ${tag}`);
+      const update = (id, as, ...args) =>
+        s.cli(['channels', 'bots', id, fx.ledgerSlug, ...args], { as });
+      const send = (id, as, body) =>
+        s.cli(
+          [
+            'channels',
+            'send',
+            id,
+            '--body-stdin',
+            '--mention-bot',
+            fx.ledgerSlug,
+            '--mention-label',
+            `Ledger ${tag}`,
+          ],
+          { as, input: body },
+        ).message.id;
+      const delivered = (channelId, as, messageId) =>
+        s.messages(channelId, as).find((message) => message.id === messageId);
+      const denied = (channelId, as, messageId) => {
+        const message = delivered(channelId, as, messageId);
+        return (
+          message?.mentions?.some((mention) => mention.botSlug === fx.ledgerSlug) === true &&
+          !message.deliveries?.some((delivery) => delivery.botSlug === fx.ledgerSlug)
+        );
+      };
+      const handled = async (channelId, as, messageId) => {
+        const deadline = Date.now() + s.options.timeout * 1000;
+        while (Date.now() < deadline) {
+          if (
+            delivered(channelId, as, messageId)?.deliveries?.some(
+              (delivery) => delivery.botSlug === fx.ledgerSlug && delivery.state === 'handled',
+            )
+          )
+            return true;
+          await new Promise((done) => setTimeout(done, 2000));
+        }
+        return false;
+      };
+      const ask = 'Reply in this Channel with Studio ready.';
+      s.cli(['channels', 'admins', a, '--set', fx.humans.carol.humanId]);
+      update(a, fx.users.carol, '--audience', 'admins');
+      const view = s.cli(['channels', 'bots', a], { as: fx.users.carol });
+      check(
+        'channel admin can configure and read the Bot audience with --as',
+        view.bots.some((bot) => bot.botSlug === fx.ledgerSlug && bot.audience.kind === 'admins'),
+      );
+      const member = send(a, fx.users.bob, ask);
+      const admin = send(a, fx.users.carol, ask);
+      check('channel admin @ starts and completes a Turn', await handled(a, fx.users.carol, admin));
+      check('ordinary member @ is visible with no Turn', denied(a, fx.users.bob, member));
+      update(a, fx.users.carol, '--audience', 'everyone');
+      update(a, fx.users.carol, '--block-human', fx.humans.bob.humanId);
+      const blocked = send(a, fx.users.bob, ask);
+      const permitted = send(b, fx.users.bob, ask);
+      check(
+        'same member @ in channel B completes a Turn',
+        await handled(b, fx.users.bob, permitted),
+      );
+      check(
+        'blocked member @ in channel A is visible with no Turn',
+        denied(a, fx.users.bob, blocked),
+      );
+    });
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

@@ -6,8 +6,11 @@ export const CHANNEL_BOT_RECEPTION_MIGRATION: SchemaMigration = {
   description: 'Set a Channel Bot mention audience and scope person × Bot blocks to a Channel',
   migrate(db) {
     db.exec(`
+      ALTER TABLE channel_records RENAME COLUMN permission_table_json TO previous_permission_table_json;
+      ALTER TABLE channel_records ADD COLUMN permission_table_json TEXT NOT NULL DEFAULT '{"version":1,"everyone":{"addMembers":"allow","post":"allow","mentionAll":"allow","addBots":"deny","editDetails":"deny","wakeBot":"allow"},"overrides":[]}';
       UPDATE channel_records SET permission_table_json =
-        json_set(permission_table_json, '$.everyone.wakeBot', 'allow');
+        json_set(previous_permission_table_json, '$.everyone.wakeBot', 'allow');
+      ALTER TABLE channel_records DROP COLUMN previous_permission_table_json;
       CREATE TABLE channel_bot_mention_audiences (
         channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
         bot_slug TEXT NOT NULL,
