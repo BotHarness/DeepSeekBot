@@ -16,7 +16,9 @@ import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/contex
 import { enabledFixture, cleanup } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
-const legacyActions = CHANNEL_ACTIONS.filter((action) => action !== 'wakeBot');
+const legacyActions = CHANNEL_ACTIONS.filter(
+  (action) => action !== 'wakeBot' && action !== 'seeApprovals' && action !== 'decideApprovals',
+);
 
 describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
   it.each(['private', 'roles-nonmember', 'roles-member'] as const)(
@@ -151,6 +153,8 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         post: 'deny',
         mentionAll: 'deny',
         wakeBot: 'deny',
+        seeApprovals: 'deny',
+        decideApprovals: 'deny',
         addBots: 'deny',
         editDetails: 'deny',
       },
@@ -163,9 +167,15 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
       value: {
         channel: expect.any(Object),
         role: 'member',
-        policy: allAdmins,
+        policy: { ...allAdmins, approvalMode: 'channel' },
+        approvalPolicy: {
+          mode: 'channel',
+          see: 'channel-policy-or-eligible-deciders',
+          decide: 'channel-policy-or-bot-owner-or-opaque-tools',
+        },
         canPost: false,
         canEditDetails: false,
+        canManageApprovals: false,
         policyRevision: expect.any(String),
         visibility: { kind: 'private' },
         admins: [],
@@ -647,6 +657,8 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       post: 'deny',
       mentionAll: 'deny',
       wakeBot: 'deny',
+      seeApprovals: 'allow',
+      decideApprovals: 'deny',
       addBots: 'deny',
       editDetails: 'deny',
     },
@@ -769,7 +781,10 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
         everyone: { ...restrictedPolicy.everyone, post: 'allow' },
       }),
     ).toThrow('permission-required');
-    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual(restrictedPolicy);
+    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual({
+      ...restrictedPolicy,
+      approvalMode: 'legacy',
+    });
   });
 
   it.each(['owner', 'admin'] as const)(

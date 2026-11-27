@@ -70,6 +70,68 @@ async function publish(market: Market, input = upload()) {
   return { ...skill, upload: skill.upload };
 }
 
+it('admits one concurrent publish per author and Skill name and returns the winning listing ID', async () => {
+  const market = createMarket();
+  await signup(market);
+  let release = () => {};
+  const start = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const put = market.bucket.put.bind(market.bucket);
+  let writes = 0;
+  const gate = vi.spyOn(market.bucket, 'put').mockImplementation(async (...args) => {
+    writes += 1;
+    if (writes === 2) release();
+    await start;
+    return put(...args);
+  });
+  const [first, second] = await Promise.all([
+    request(market, '/v1/skills', 'POST', 'token-alice', upload('First revision')),
+    request(market, '/v1/skills', 'POST', 'token-alice', upload('Second revision')),
+  ]);
+  gate.mockRestore();
+  const [winner, loser] = first.status === 200 ? [first, second] : [second, first];
+  expect(winner.status).toBe(200);
+  const { skill } = await winner.json();
+  expect(loser.status).toBe(409);
+  expect(await loser.json()).toEqual({
+    error: { code: 'skill-name-taken', listingId: skill.id },
+  });
+  expect(await (await request(market, '/v1/me/skills', 'GET', 'token-alice')).json()).toMatchObject(
+    {
+      skills: [{ id: skill.id, name: 'tidy-notes' }],
+    },
+  );
+  expect(market.bucket.objects.size).toBe(1);
+});
+
+it('allows another author or a deleted listing name and refuses a conflicting rename', async () => {
+  const market = createMarket();
+  await signup(market);
+  await signup(market, 'token-bob', 'Bob');
+  const original = await publish(market);
+  const otherAuthor = await request(market, '/v1/skills', 'POST', 'token-bob', upload());
+  expect(otherAuthor.status).toBe(200);
+  const other = await publish(
+    market,
+    upload('Other notes.', {
+      'SKILL.md': '---\nname: other-notes\ndescription: Other notes.\n---\n',
+    }),
+  );
+  const rename = await request(market, `/v1/me/skills/${other.id}`, 'PUT', 'token-alice', upload());
+  expect(rename.status).toBe(409);
+  expect(await rename.json()).toEqual({
+    error: { code: 'skill-name-taken', listingId: original.id },
+  });
+  expect(
+    (await request(market, `/v1/me/skills/${original.id}`, 'DELETE', 'token-alice')).status,
+  ).toBe(200);
+  const mine = await request(market, '/v1/me/skills', 'GET', 'token-alice');
+  expect(await mine.json()).toMatchObject({ skills: [{ id: other.id, name: 'other-notes' }] });
+  const republished = await publish(market);
+  expect(republished.id).not.toBe(original.id);
+});
+
 it('guards publication with the Connect account, Author ID, and S1 safety scan', async () => {
   const market = createMarket();
   const input = upload();

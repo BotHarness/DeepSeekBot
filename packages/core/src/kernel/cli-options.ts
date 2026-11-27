@@ -20,6 +20,7 @@ export function parseBotCliArgs(argv: readonly string[]) {
     options: BOT_CLI_OPTIONS,
     allowPositionals: true,
     strict: true,
+    tokens: true,
   } as const;
   if (!argv.some((arg) => DEVICE_POSITIONALS.has(arg))) return parseArgs(config);
 
@@ -47,8 +48,9 @@ export function parseBotCliArgs(argv: readonly string[]) {
     }
   }
 
-  const parsed = parseArgs({ ...config, tokens: true });
+  const parsed = parseArgs(config);
   return {
+    tokens: parsed.tokens,
     values: parsed.values,
     positionals: parsed.tokens.flatMap((token) =>
       token.kind === 'positional' ? [argv[token.index] ?? token.value] : [],

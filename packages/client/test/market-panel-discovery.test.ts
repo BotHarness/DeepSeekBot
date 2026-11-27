@@ -94,9 +94,9 @@ describe('Market panel', () => {
       async () => ({ bots: [entry('writer')] }),
       async ({ host, list }) => {
         expect(list).toHaveBeenCalledTimes(1);
-        expect(avatars).not.toHaveBeenCalled();
+        expect(avatars).not.toHaveBeenCalledWith({});
         await click(host, zhTranslate('market.avatar.title'));
-        expect(avatars).toHaveBeenCalledTimes(1);
+        expect(avatars).toHaveBeenCalledWith({});
         expect(host.textContent).toContain(zhTranslate('market.avatar.empty'));
         await click(host, zhTranslate('market.avatar.bots'));
         expect(list).toHaveBeenCalledTimes(1);

@@ -115,6 +115,7 @@ export function TeamWorkbench({
 
   const inspect = async (member: TeamMember): Promise<void> => {
     const request = ++inspection.current;
+    if (inspecting.current?.humanId !== member.humanId) setInspected(undefined);
     inspecting.current = member;
     setInspectError(undefined);
     setPending(member.humanId);
@@ -132,11 +133,17 @@ export function TeamWorkbench({
     const member = inspecting.current;
     if (member === undefined) return;
     const reload = ++inspection.current;
+    setPending(member.humanId);
     try {
       const result = await loadMemberPermissions(call, member.humanId);
-      if (reload === inspection.current) setInspected({ member, result });
+      if (reload === inspection.current) {
+        setInspected({ member, result });
+        setInspectError(undefined);
+      }
     } catch (failure) {
       if (reload === inspection.current) setInspectError(teamErrorText(t, failure));
+    } finally {
+      if (reload === inspection.current) setPending(undefined);
     }
   };
 

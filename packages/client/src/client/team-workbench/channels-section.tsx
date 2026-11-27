@@ -128,8 +128,6 @@ export function ChannelsSection({
             </Note>
           ) : !ready ? (
             <PanelEmptyState icon="hash">{t('team.workbench.loading')}</PanelEmptyState>
-          ) : visible.length === 0 ? (
-            <PanelEmptyState icon="hash">{t('team.workbench.channels.empty')}</PanelEmptyState>
           ) : incomplete > 0 ? (
             <Note tone="warning">
               {t('team.workbench.channels.incomplete', { count: incomplete })}
@@ -137,6 +135,8 @@ export function ChannelsSection({
                 {t('team.workbench.retry')}
               </Button>
             </Note>
+          ) : visible.length === 0 ? (
+            <PanelEmptyState icon="hash">{t('team.workbench.channels.empty')}</PanelEmptyState>
           ) : undefined
         }
       >

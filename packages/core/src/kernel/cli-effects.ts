@@ -703,9 +703,17 @@ function familyEffects(
           : read;
       if (action === 'policy')
         return values['policy-stdin'] ||
-          ['post', 'add-members', 'mention-all', 'wake-bot', 'add-bots', 'edit-details'].some(
-            (flag) => flag in values,
-          )
+          [
+            'post',
+            'add-members',
+            'mention-all',
+            'wake-bot',
+            'add-bots',
+            'edit-details',
+            'see-approvals',
+            'decide-approvals',
+            'use-channel-approvals',
+          ].some((flag) => flag in values)
           ? management
           : read;
       if (['visibility', 'admins', 'add-member', 'set-public'].includes(action)) return management;

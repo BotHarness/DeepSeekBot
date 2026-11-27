@@ -496,7 +496,8 @@ export function createMarketSkills(deps: {
 
     async mine(account: string): Promise<MarketplaceSkill[]> {
       const { results } = await db
-        .prepare(`SELECT ${SELECT_COLUMNS} FROM marketplace_skills WHERE upload_account = ?
+        .prepare(`SELECT ${SELECT_COLUMNS} FROM marketplace_skills
+          WHERE upload_account = ? AND upload_deleted = 0
           ORDER BY pushed_at DESC, id`)
         .bind(account)
         .all<SkillRow>();
