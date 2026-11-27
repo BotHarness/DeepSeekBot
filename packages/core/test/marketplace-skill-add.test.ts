@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createMarket, fakeRepository } from '../../market/test/market-harness.js';
 import { DISCOVERY_CRON } from '../../market/src/worker.js';
@@ -16,6 +16,19 @@ import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createMarketplaceUploads } from '../src/marketplace/uploaded-bots.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
+
+const scanControl = vi.hoisted(() => ({ fail: false }));
+
+vi.mock('../../market/src/skill-scan.js', async (load) => {
+  const actual = await load<typeof import('../../market/src/skill-scan.js')>();
+  return {
+    ...actual,
+    scanSkillUpload: (files: Parameters<typeof actual.scanSkillUpload>[0]) => {
+      if (scanControl.fail) throw new Error('scan crashed');
+      return actual.scanSkillUpload(files);
+    },
+  };
+});
 
 const closes = new Set<() => Promise<void>>();
 
@@ -140,6 +153,64 @@ it('publishes a standalone SKILL.md without sibling files from the project Skill
   );
   const detail = value(await bridge.marketplaceSkillDetail({ id: uploaded.id }));
   expect(detail.files.map((file) => file.path)).toEqual(['SKILL.md']);
+});
+
+function watchedMarket() {
+  const market = createMarket();
+  const uploads: string[] = [];
+  const watched: Market = {
+    ...market,
+    request: (path: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (method !== 'GET' && /^\/v1\/(?:me\/)?skills/u.test(path))
+        uploads.push(`${method} ${path}`);
+      return market.request(path, init);
+    },
+  };
+  return { market: watched, uploads };
+}
+
+async function authorWithSkill(files: Record<string, string>) {
+  const { market, uploads } = watchedMarket();
+  const host = makeHost(market);
+  host.bot('author');
+  const folder = join(host.core.registry.memoryDirFor('author')!, '.agents/skills/tidy-notes');
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, 'SKILL.md'), SKILL_MD);
+  for (const [path, text] of Object.entries(files)) writeFileSync(join(folder, path), text);
+  const bridge = host.methods(owner);
+  value(await bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }));
+  return { bridge, uploads };
+}
+
+it('refuses a written secret on the Host before any file reaches the Marketplace', async () => {
+  const { bridge, uploads } = await authorWithSkill({
+    'setup.md': 'Run with:\n\nOPENAI_API_KEY=AbC123dEf456GhI789 ./run\n',
+  });
+  expect(await bridge.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' })).toMatchObject(
+    {
+      ok: false,
+      error: { code: 'skill-secret-detected', message: expect.stringContaining('credential') },
+    },
+  );
+  expect(uploads).toEqual([]);
+});
+
+it('uploads nothing when the Host scan cannot run', async () => {
+  const { bridge, uploads } = await authorWithSkill({ 'setup.md': 'Run ./run\n' });
+  scanControl.fail = true;
+  try {
+    expect(
+      await bridge.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' }),
+    ).toMatchObject({ ok: false, error: { code: 'skill-scan-failed' } });
+  } finally {
+    scanControl.fail = false;
+  }
+  expect(uploads).toEqual([]);
+  expect(
+    value(await bridge.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' })),
+  ).toMatchObject({ name: 'tidy-notes', scan: 'clean' });
+  expect(uploads).toEqual(['POST /v1/skills']);
 });
 
 function publishSkill(market: Market, files: Record<string, string>) {
