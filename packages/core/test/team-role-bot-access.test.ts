@@ -38,7 +38,10 @@ it('grants and revokes participant DM access through the same selected role audi
   const before = await api.roleBotScope({ roleId: role.roleId });
   expect(before).toMatchObject({
     ok: true,
-    value: { kind: 'selected', bots: [{ slug: 'dispatch', selected: false, editable: true }] },
+    value: {
+      kind: 'selected',
+      bots: [{ slug: 'dispatch', selected: false, editable: true, audience: 'roles' }],
+    },
   });
   if (!before.ok) throw new Error(before.error.code);
   await expect(f.invoke('channelDm', { slug: 'dispatch' })).rejects.toMatchObject({

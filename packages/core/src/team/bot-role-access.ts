@@ -130,7 +130,7 @@ export class TeamBotRoleAccess {
             selected: z.coerce.boolean(),
             manageable: z.coerce.boolean(),
             source: roleSource.or(z.literal('none')),
-            roleAudience: z.coerce.boolean(),
+            audience: z.enum(['everyone', 'roles', 'members']),
           })
           .array()
           .parse(
@@ -139,7 +139,7 @@ export class TeamBotRoleAccess {
         SELECT b.slug, json_extract(b.body,'$.displayName') AS displayName,
         b.owner_human_id AS ownerHumanId, b.visibility_json AS visibility,
         s.enabled = 1 AND principal.status = 'active' AS availableToMembers,
-        json_extract(b.visibility_json, '$.audience.kind') = 'roles' AS roleAudience,
+        json_extract(b.visibility_json, '$.audience.kind') AS audience,
         ? IN (${selectedBotRoleIdsSql('b.visibility_json')}) AS selected,
         ${manageableBotSql} AS manageable
         ${visibleBotFrom} WHERE ${liveBotSql}
@@ -153,19 +153,23 @@ export class TeamBotRoleAccess {
       .map((bot) => ({
         ...bot,
         editable:
-          canSetSelected && bot.roleAudience && bot.manageable && (bot.selected || canShare),
+          canSetSelected &&
+          bot.audience === 'roles' &&
+          bot.manageable &&
+          (bot.selected || canShare),
       }));
   }
 
   scope(human: HumanContext, roleId: string): RoleBotScopeView {
     const { role, canSetAll, canSetSelected } = this.roles.botScopeTarget(human, roleId);
     const bots = this.roleBots(human, roleId, role.allPublicBots, canSetSelected).map(
-      ({ slug, displayName, selected, editable, source, availableToMembers }) => ({
+      ({ slug, displayName, selected, editable, source, audience, availableToMembers }) => ({
         slug,
         displayName,
         selected,
         editable,
         source,
+        audience,
         availableToMembers,
       }),
     );

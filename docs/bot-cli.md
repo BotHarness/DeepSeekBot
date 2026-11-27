@@ -2628,7 +2628,8 @@ deepseekbot bots access-roles <slug>
 Use the revision from `roles bot-scope` when saving. `selected:` replaces the editable selections on
 public Bots with role audiences. An empty list clears those selections. The Host Owner and eligible role
 managers who already hold the grant can choose `all` to cover all current and future public Bots.
-The explicit selections stay saved.
+The explicit selections stay saved. Each Bot row reports its `audience` (`everyone`, `roles` or
+`members`) and whether it is `editable`; only role-audience Bots can be selected for a role.
 The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
 role sources and active named invitees. A private Bot's access is visible to its owner only.
 

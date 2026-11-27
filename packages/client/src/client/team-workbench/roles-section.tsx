@@ -52,6 +52,7 @@ export function RolesSection({
   pending,
   notice,
   inspected,
+  botScope,
   onSelect,
   onChoose,
   onInspect,
@@ -68,6 +69,7 @@ export function RolesSection({
   pending?: string | undefined;
   notice?: ReactNode;
   inspected: Inspection | undefined;
+  botScope?(role: TeamRole): ReactNode;
   onSelect(roleId: string): void;
   onChoose(role: TeamRole, id: string, choice: PermissionChoice): void;
   onInspect(member: TeamMember): void;
@@ -149,6 +151,7 @@ export function RolesSection({
               </Fragment>
             ))}
           </SettingsSection>
+          {botScope?.(role)}
           {canManage(view.viewer, MANAGE_MEMBERS) ? (
             <Holders
               t={t}

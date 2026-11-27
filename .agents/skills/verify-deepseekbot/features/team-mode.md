@@ -6,6 +6,7 @@
 - `packages/core/src/team/**`
 - `packages/core/src/team-policy/**`
 - `packages/client/src/client/team-*`
+- `packages/client/src/client/team-workbench/**`
 - `packages/client/src/client/channel-bot-settings.tsx`
 - `packages/host-client/src/channel-bots.ts`
 - `apps/mobile/src/ui/chat/group-bot-settings.tsx`
@@ -47,6 +48,8 @@
 - S10 (M14 Host/CLI): `channels member-candidates <id> [--query <name>]` and `channels add-member <id> <username>` enforce `addMembers` as the explicit calling Human. An invitation opens private/roles/public Channels immediately in list, stream and search. A role-based join exits on role revoke; a named invitation remains. Bots in the Channel do not cause invitation refusal. The Add people picker UI is verified separately by its UI owner.
 
 - S12 (#5491): In Team → Channels → Permissions, set who has the Wake a Bot with @mention action. Open the Bots tab and set a Bot's audience or no-response list, then reopen it to verify the saved settings. Mobile exposes the per-Bot controls in Group profile → Bots. `node scripts/e2e-team-security.mjs --launch --scenario C9` uses the authenticated CLI to test mentions and plain messages in all-message wake mode. A denied message stays visible without a Bot delivery. An allowed message completes a Turn. The same member can still wake the Bot in a second Channel where they are eligible.
+
+- S13 (#5487): In Team → Resources → Bots, search the Bot list and open a Bot's Roles tab. It lists every role that can use the Bot with its source (All members, All Bots or Selected) and the invited members; a private Bot says only its owner can use it. In Team → Internal roles, open a role's Bots this role can use. Pick All Bots or Selected Bots, toggle a role-audience Bot and Save; Bots open to everyone or to invited people stay read-only with the reason. Confirm with `roles bot-scope <roleId>` and `bots access-roles <slug>`, then `--as` a role holder to open a DM with the Bot.
 
 ## How to get to it (user POV)
 

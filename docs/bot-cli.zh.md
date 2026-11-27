@@ -2504,7 +2504,7 @@ deepseekbot bots access-roles <slug>
 
 保存时使用 `roles bot-scope` 返回的版本号。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
 Host Owner 和已持有全部公开 Bot 授权的合格角色管理员可以选择 `all`，授权访问现在和今后发布的公开 Bot。
-显式选择仍会保留。
+显式选择仍会保留。每个 Bot 行会给出 `audience`（`everyone`、`roles` 或 `members`）和 `editable`；只有按角色公开的 Bot 能被选给角色。
 `access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源和仍活跃的点名邀请成员。
 私有 Bot 的访问配置仅对其负责人可见。
 

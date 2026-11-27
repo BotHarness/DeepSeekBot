@@ -2,6 +2,7 @@ import type {
   BotAccessRolesView,
   BotRoleAccessSource,
   HostRoleRevision,
+  PublicBotAudience,
   RoleBotScopeUpdate,
   RoleBotScopeView,
   TeamAccessBot,
@@ -14,6 +15,7 @@ export type {
   BotRoleAccessSource,
   HostRoleRevision,
   HostRoleUpdatePrecondition,
+  PublicBotAudience,
   RoleBotScope,
   RoleBotScopeUpdate,
   RoleBotScopeView,
@@ -42,6 +44,10 @@ function isBotRoleAccessSource(value: unknown): value is BotRoleAccessSource {
   return value === 'everyone' || value === 'all' || value === 'selected';
 }
 
+function isPublicBotAudience(value: unknown): value is PublicBotAudience {
+  return value === 'everyone' || value === 'roles' || value === 'members';
+}
+
 function isRoleBotScopeView(value: unknown): value is RoleBotScopeView {
   const row = record(value);
   return (
@@ -59,6 +65,7 @@ function isRoleBotScopeView(value: unknown): value is RoleBotScopeView {
         typeof bot.selected === 'boolean' &&
         typeof bot.editable === 'boolean' &&
         typeof bot.availableToMembers === 'boolean' &&
+        isPublicBotAudience(bot.audience) &&
         (bot.source === 'none' || isBotRoleAccessSource(bot.source))
       );
     })
@@ -70,10 +77,7 @@ function isBotAccessRolesView(value: unknown): value is BotAccessRolesView {
   if (!row || !isTeamAccessBot(row)) return false;
   const audience = row.audience;
   return (
-    (audience === 'private' ||
-      audience === 'everyone' ||
-      audience === 'roles' ||
-      audience === 'members') &&
+    (audience === 'private' || isPublicBotAudience(audience)) &&
     typeof row.ownerHumanId === 'string' &&
     typeof row.availableToMembers === 'boolean' &&
     Array.isArray(row.roles) &&

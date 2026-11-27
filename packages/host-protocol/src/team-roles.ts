@@ -23,6 +23,8 @@ export interface TeamAccessBot {
 
 export type BotRoleAccessSource = 'everyone' | 'all' | 'selected';
 
+export type PublicBotAudience = 'everyone' | 'roles' | 'members';
+
 export interface RoleBotScopeView extends HostRoleRevision {
   kind: RoleBotScope['kind'];
   canSetAll: boolean;
@@ -31,12 +33,13 @@ export interface RoleBotScopeView extends HostRoleRevision {
     selected: boolean;
     editable: boolean;
     source: BotRoleAccessSource | 'none';
+    audience: PublicBotAudience;
     availableToMembers: boolean;
   })[];
 }
 
 export interface BotAccessRolesView extends TeamAccessBot {
-  audience: 'private' | 'everyone' | 'roles' | 'members';
+  audience: 'private' | PublicBotAudience;
   ownerHumanId: string;
   availableToMembers: boolean;
   roles: { roleId: string; name: string; source: BotRoleAccessSource }[];
