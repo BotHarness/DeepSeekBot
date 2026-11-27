@@ -43,6 +43,7 @@ const refusalMessages: Record<string, string> = {
   'author-required': 'Set up your Marketplace Author ID before publishing.',
   'sign-in-required': 'Sign in to Connect before publishing.',
   'skill-scan-failed': 'The safety scan could not check these files, so nothing was uploaded.',
+  'skill-name-taken': 'This Skill name is already listed. Use skills mine to find its listing ID.',
 };
 
 const decoder = new TextDecoder();
@@ -173,6 +174,11 @@ export function createMarketplaceSkillUploadMethods(
       },
       replacing && typeof id === 'string' ? id : undefined,
     );
+    if (!result.ok && result.code === 'skill-name-taken' && result.listingId !== undefined)
+      return refusal(
+        result.code,
+        `This Skill name is already listed. Use skills replace ${result.listingId} ${name} --bot ${bot} --confirm.`,
+      );
     return result.ok ? result : refusal(result.code, refusalMessages[result.code]);
   };
 

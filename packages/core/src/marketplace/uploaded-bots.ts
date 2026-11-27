@@ -26,6 +26,7 @@ import type {
   MarketplaceClient,
   MarketplaceEntry,
   MarketplaceFile,
+  MarketplaceRefusal,
   MarketplaceResult,
 } from './client.js';
 
@@ -51,7 +52,7 @@ export interface UploadPresentation {
   replaces?: string;
 }
 
-type Refusal = { ok: false; code: string; path?: string };
+type Refusal = MarketplaceRefusal;
 type Result<T> = { ok: true; value: T } | Refusal;
 
 const FETCH_CONCURRENCY = 6;
