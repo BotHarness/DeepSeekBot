@@ -17,7 +17,7 @@ import { MarketAvatarDetail } from './market-avatars.js';
 import { MarketSectionHead } from './market-rankings.js';
 import { MarketSkillDialog } from './market-skill-dialog.js';
 import { installsLabel, SkillLogo } from './market-skills.js';
-import { marketplaceOwner } from './marketplace-listing.js';
+import { MarketplaceInstalls, marketplaceOwner } from './marketplace-listing.js';
 import {
   MarketplaceAvatar as BotAvatar,
   marketplaceLanguage,
@@ -175,6 +175,15 @@ export function MarketAll({
   const byline = (kind: MarketKind, by: string) =>
     t('market.all.byline', { kind: t(KIND_LABELS[kind]), by });
 
+  const connectedLabel = (service: string) => {
+    const count =
+      view?.accounts.filter((account) => account.service === service && account.status === 'active')
+        .length ?? 0;
+    return count > 0
+      ? t('connectors.catalog.connected', { count })
+      : t('connectors.catalog.available');
+  };
+
   const cards = (kind: MarketKind): ReactElement[] => {
     switch (kind) {
       case 'bots':
@@ -186,6 +195,7 @@ export function MarketAll({
                 title={marketplaceName(bot)}
                 subtitle={byline('bots', marketplaceOwner(bot))}
                 summary={bot.description ?? undefined}
+                meta={<MarketplaceInstalls bot={bot} t={t} className="" />}
                 leading={<BotAvatar bot={bot} size={LOGO} t={t} />}
                 data={{ 'data-market-all-card': 'bot', 'data-market-bot': bot.fullName }}
                 onClick={() => onOpenBot(bot)}
@@ -218,6 +228,7 @@ export function MarketAll({
                 title={entry.name}
                 subtitle={byline('apps', 'Composio')}
                 summary={appSummary(entry, t) || undefined}
+                meta={connectedLabel(entry.service)}
                 leading={
                   <ConnectorLogo
                     service={entry.service}
@@ -237,6 +248,7 @@ export function MarketAll({
                 key={item.id}
                 title={item.name}
                 subtitle={byline('avatars', item.author.name)}
+                meta={t('market.applyCount', { count: String(item.applyCount) })}
                 leading={
                   <img
                     {...stylex.props(styles.thumbnail)}
