@@ -103,12 +103,6 @@
     "packages/core/src/runtime/dsh-bot-agent-adapter.ts": {
       "runtime -> features": 3
     },
-    "packages/core/src/runtime/genui-diagram-tool.ts": {
-      "runtime -> features": 1
-    },
-    "packages/core/src/runtime/genui-preview-tool.ts": {
-      "runtime -> features": 1
-    },
     "packages/core/src/runtime/human-attention.ts": {
       "runtime -> features": 2
     },
