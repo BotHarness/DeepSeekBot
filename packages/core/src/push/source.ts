@@ -61,17 +61,20 @@ function clip(text: string): string | undefined {
 function approvalOf(
   item: HumanAttentionItem,
   approval: PushApprovalLookup | undefined,
-): { preview?: string; categoryId: string } {
+): { preview?: string; categoryId?: string } {
   const request =
     item.channelId === undefined || item.messageId === undefined
       ? undefined
       : approval?.(item.channelId, item.messageId);
-  if (request === undefined) return { categoryId: 'tool-approval-once' };
+  const readOnly = item.approval?.masked === false && item.approval.canDecide === false;
+  if (request === undefined) return readOnly ? {} : { categoryId: 'tool-approval-once' };
   const shown = toolInputPreview(request.input);
   const preview = clip(shown.trim() === '' ? request.toolName : `${request.toolName} · ${shown}`);
   return {
     ...(preview === undefined ? {} : { preview }),
-    categoryId: request.allowAlways === true ? 'tool-approval' : 'tool-approval-once',
+    ...(readOnly
+      ? {}
+      : { categoryId: request.allowAlways === true ? 'tool-approval' : 'tool-approval-once' }),
   };
 }
 

@@ -420,6 +420,8 @@ describe('M5 approval projections and decisions', () => {
         post: 'deny',
         mentionAll: 'deny',
         wakeBot: 'allow',
+        seeApprovals: 'allow',
+        decideApprovals: 'deny',
         addBots: 'deny',
         editDetails: 'deny',
       },

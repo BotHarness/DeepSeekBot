@@ -11,7 +11,9 @@ import { Tag, type TagTone } from './ds/tag.js';
 import { ink, space, style, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
+  APPROVAL_KEYS,
   POLICY_KEYS,
+  isApprovalKey,
   type ChannelPolicy,
   type PolicyKey,
   type PolicyValue,
@@ -66,6 +68,7 @@ const styles = stylex.create({
     fontSize: type.captionSize,
     lineHeight: type.captionLine,
   },
+  legacy: { textAlign: 'start', color: ink.secondary },
   legendItem: { display: 'inline-flex', alignItems: 'center', gap: space.x2 },
 });
 
@@ -97,12 +100,14 @@ export function ChannelPermissionTable({
   policy,
   roles,
   disabled,
+  approvalLocked = false,
   onChange,
 }: {
   t: BotHarnessTranslate;
   policy: ChannelPolicy;
   roles: readonly RoleChoice[];
   disabled: boolean;
+  approvalLocked?: boolean;
   onChange(policy: ChannelPolicy): void;
 }): ReactElement {
   const [menu, setMenu] = useState<string>();
@@ -120,6 +125,7 @@ export function ChannelPermissionTable({
       };
     }),
   ];
+  const legacy = policy.approvalMode !== 'channel';
   const canAdd = !disabled && available.length > 0 && policy.overrides.length < 100;
   const set = (column: Column, key: PolicyKey, value: PolicyValue): void =>
     onChange(
@@ -158,7 +164,12 @@ export function ChannelPermissionTable({
                     {...stylex.props(styles.head)}
                     data-permission-column={column.roleId ?? 'everyone'}
                   >
-                    {column.roleId === undefined || disabled ? (
+                    {column.roleId === undefined ||
+                    disabled ||
+                    (approvalLocked &&
+                      APPROVAL_KEYS.some(
+                        (key) => column.actions[key] === 'allow' || column.actions[key] === 'deny',
+                      )) ? (
                       column.name
                     ) : (
                       <Menu
@@ -249,6 +260,20 @@ export function ChannelPermissionTable({
             <tbody>
               {POLICY_KEYS.map((key) => {
                 const action = t(`channelAccess.policy.${key}`);
+                if (legacy && isApprovalKey(key))
+                  return (
+                    <tr key={key} data-permission-action={key} data-state="legacy">
+                      <th scope="row" {...stylex.props(styles.action)}>
+                        {action}
+                      </th>
+                      <td
+                        colSpan={columns.length + (canAdd ? 1 : 0)}
+                        {...stylex.props(styles.cell, styles.legacy)}
+                      >
+                        {t('channelApprovals.legacyCell')}
+                      </td>
+                    </tr>
+                  );
                 return (
                   <tr key={key} data-permission-action={key}>
                     <th scope="row" {...stylex.props(styles.action)}>
@@ -279,7 +304,7 @@ export function ChannelPermissionTable({
                               display: <StateMark value={option} />,
                             }))}
                             value={value}
-                            disabled={disabled}
+                            disabled={disabled || (approvalLocked && isApprovalKey(key))}
                             onChange={(next) => set(column, key, next)}
                           />
                         </td>

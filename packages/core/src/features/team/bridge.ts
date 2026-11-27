@@ -8,7 +8,7 @@ import {
 } from '../../team-policy/permissions.js';
 import {
   channelVisibilitySchema,
-  channelPolicySchema,
+  channelPolicyWriteSchema,
   channelPolicyRevisionSchema,
 } from '../../team-policy/channel-contract.js';
 import { ContentPurgeError } from '../../purge/contracts.js';
@@ -390,11 +390,17 @@ export function createTeamBridge(
         const { channelId, policy, expectedRevision } = z
           .object({
             channelId: z.string().min(1),
-            policy: channelPolicySchema,
+            policy: channelPolicyWriteSchema,
             expectedRevision: channelPolicyRevisionSchema.optional(),
           })
           .parse(payload);
-        return service.channelAccess.policySet(human, channelId, policy, expectedRevision);
+        return service.channelAccess.policySet(
+          human,
+          channelId,
+          policy.policy,
+          expectedRevision,
+          policy.hasApprovalRules,
+        );
       }),
     teamDirectory: (_payload: unknown) => call((service) => service.channelAccess.directory(human)),
     humanDm: (payload: unknown) =>
