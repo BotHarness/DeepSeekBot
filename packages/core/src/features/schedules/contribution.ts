@@ -3,6 +3,7 @@ import type { InboxWakeSource, RuntimeHost } from '../../kernel/runtime-host.js'
 import type { HumanContext } from '../../humans/context.js';
 import type { PromptText } from '../../prompts/prompt-parts.js';
 import { createSchedulesBridgeMethods } from './methods.js';
+import { mountCleanup, start } from './plugin.js';
 import { schedulePrompt } from './prompt.js';
 import { schedulesServiceRpc } from './rpc.js';
 import { nativeScheduleToolRefusal, registerScheduleTools } from './tools.js';
@@ -25,6 +26,7 @@ export function createSchedulesContribution(wakeSource?: InboxWakeSource) {
     ...(wakeSource === undefined
       ? {}
       : { runtime: (host: RuntimeHost) => host.registerInboxWakeSource(wakeSource) }),
+    host: { afterCoreAssembly: start, afterRuntimeCleanupRegistration: mountCleanup },
     promptSections: ({ promptText }) => [
       { placement: 'role', text: () => schedulePrompt(promptText()) },
     ],
@@ -32,5 +34,12 @@ export function createSchedulesContribution(wakeSource?: InboxWakeSource) {
       guard(nativeScheduleToolRefusal);
       registerScheduleTools(currentRun, (tool) => register(tool, 'after-channel-tools'));
     },
-  } satisfies FeatureContribution<SchedulesBridgeContext, SchedulesAgentContext>;
+  } satisfies FeatureContribution<
+    SchedulesBridgeContext,
+    SchedulesAgentContext,
+    {
+      afterCoreAssembly: typeof start;
+      afterRuntimeCleanupRegistration: typeof mountCleanup;
+    }
+  >;
 }

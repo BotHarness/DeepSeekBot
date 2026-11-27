@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
-import { createGenuiDiagramTool } from '../src/runtime/genui-diagram-tool.js';
+import { createGenuiDiagramTool } from '../src/features/genui/tools.js';
 
 const execution: ToolRunContext = {
   callId: ToolCallId('diagram-test'),
