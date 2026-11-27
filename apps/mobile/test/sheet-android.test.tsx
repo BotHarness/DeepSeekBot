@@ -172,6 +172,7 @@ it('caps the hosted content at the room the sheet leaves, minus the keyboard', a
     </Sheet>,
   );
   expect(contentStyle(closed).maxHeight).toBe(844 - 24 - 16 - 48 * 2);
+  expect(contentStyle(closed).height).toBeUndefined();
   act(() => root?.unmount());
   Object.assign(keyboard, { isVisible: true, height: 300 });
   const open = await mount(
