@@ -25,6 +25,10 @@ import { createChannelsContribution } from './features/channels/contribution.js'
 import { createMemoryContribution } from './features/memory/contribution.js';
 import { createWorkspacesContribution } from './features/workspaces/contribution.js';
 import { createApprovalsContribution } from './features/approvals/contribution.js';
+import { createModelsContribution } from './features/models/contribution.js';
+import { createPersonaBotsContribution } from './features/personabots/contribution.js';
+import { createActivityContribution } from './features/activity/contribution.js';
+import { createTobContribution } from './features/tob/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
 
 export function createFeatureContributions(options?: {
@@ -32,6 +36,8 @@ export function createFeatureContributions(options?: {
   scheduleWakeSource?: InboxWakeSource;
 }) {
   return [
+    createPersonaBotsContribution(),
+    createActivityContribution(),
     createSchedulesContribution(options?.scheduleWakeSource),
     createGenuiContribution(options?.genui),
     createBrowserContribution(),
@@ -57,6 +63,8 @@ export function createFeatureContributions(options?: {
     createMemoryContribution(),
     createWorkspacesContribution(),
     createApprovalsContribution(),
+    createModelsContribution(),
+    createTobContribution(),
   ] as const;
 }
 

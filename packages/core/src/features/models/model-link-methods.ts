@@ -1,5 +1,4 @@
 import { asObject, asSlug, invalidInput, unknownBot } from '../../kernel/method-utils.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import { linkedPresetId, ownsModelSlot } from '../../models/bot-model-engines.js';
 import {
@@ -8,12 +7,12 @@ import {
   defaultPresetPlan,
 } from '../../models/presets.js';
 import { modelFailure } from '../../models/provider-bridge.js';
-import type { ModelsBridgeDeps } from './deps.js';
+import type { ModelInvocationDeps } from './deps.js';
 import type { ModelsBridgeMethods } from './methods.js';
 import type { createModelRoutingHelpers } from './routing.js';
 
 export function createModelLinkMethods(
-  deps: ModelsBridgeDeps & Pick<BridgeMethodsDeps, 'registry'>,
+  deps: ModelInvocationDeps,
   requireOwnedBot: (slug: string) => void,
   {
     requireRoutes,

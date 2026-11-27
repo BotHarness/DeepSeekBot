@@ -5,10 +5,6 @@ import {
   type NativeSessions,
 } from '../features/sessions/host-sessions.js';
 import { createSessionBotMethods } from '../features/sessions/session-bot-methods.js';
-import {
-  createPersonaBotsBridgeMethods,
-  type PersonaBotsBridgeMethods,
-} from '../features/personabots/methods.js';
 import { createBotDetails } from '../features/personabots/bot-details.js';
 import {
   createTeamBridgeMethods,
@@ -30,17 +26,6 @@ import {
   type AssignmentsBridgeMethods,
   type AssignmentsBridgeDeps,
 } from '../features/assignments/methods.js';
-import {
-  createEngineAccountBridge,
-  type EngineAccountBridgeMethods,
-  createEngineSelectionBridge,
-  type EngineSelectionBridgeMethods,
-  createModelProviderBridge,
-  type ModelProviderBridgeMethods,
-  createModelsBridgeMethods,
-  type ModelsBridgeMethods,
-} from '../features/models/methods.js';
-import type { ModelsBridgeDeps } from '../features/models/deps.js';
 import { createModelRoutingHelpers } from '../features/models/routing.js';
 import {
   contributedBridgeMethods,
@@ -49,7 +34,6 @@ import {
 } from '../feature-contributions.js';
 import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
-import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team-policy/error.js';
 import { guardHumanBridge } from '../features/team/bridge-access.js';
 import { botOwner } from '../team-policy/bot-access.js';
@@ -77,7 +61,6 @@ import type { SessionLiveStreams } from '../runtime/session-live.js';
 import { type PresentToolResult } from '../runtime/session-tool-detail.js';
 import { type PublicToolCall } from '../runtime/assignment-timeline.js';
 import type { AttachmentStore } from '../attachments/store.js';
-import { randomUUID } from 'node:crypto';
 import { type ChannelMessage, type ChannelRecord } from '../channels/channel.js';
 import { type BotBannerSummary } from '../bots/banner-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
@@ -114,7 +97,6 @@ import {
   createChannelViews,
   authorizeChannelBridgeMethods,
 } from '../features/channels/methods.js';
-import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
 import {
   createSessionsAdapterMethods,
   type SessionsAdapterMethods,
@@ -249,18 +231,12 @@ export interface BridgeMethods
   extends
     ReturnType<typeof contributedBridgeMethods>,
     TeamBridgeMethods,
-    ModelProviderBridgeMethods,
-    EngineAccountBridgeMethods,
-    EngineSelectionBridgeMethods,
-    ModelsBridgeMethods,
     SessionsBridgeMethods,
     AssignmentsBridgeMethods,
     ActivityBridgeMethods,
-    PersonaBotsBridgeMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
-    ReturnType<typeof createSessionBotMethods>,
-    TobAdapterMethods {
+    ReturnType<typeof createSessionBotMethods> {
   sessionMessageSend(
     payload: unknown,
   ): Promise<
@@ -270,8 +246,7 @@ export interface BridgeMethods
   >;
 }
 
-export interface BridgeMethodsDeps
-  extends ContributedBridgeDeps, ModelsBridgeDeps, AssignmentsBridgeDeps {
+export interface BridgeMethodsDeps extends ContributedBridgeDeps, AssignmentsBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   botContext?(slug: string): Promise<BotContextWindow>;
@@ -424,12 +399,6 @@ function buildBridgeMethods(
   };
   const modelRouting = createModelRoutingHelpers(human, deps, isHostOwner, requireOwnedBot);
   const { requireRoutes } = modelRouting;
-  const allowed = (record: PersonaBotRecord): boolean =>
-    botModelAllowed(
-      deps.team,
-      record,
-      deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.(),
-    );
   const { channelView, listedChannels, listItem } = createChannelViews(
     human,
     deps,
@@ -440,41 +409,21 @@ function buildBridgeMethods(
     void deps.marketplaceReceipts?.send(listingId).catch(() => undefined);
   };
   const messagingCall = createMessagingCall(deps);
-  const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
   const { runnerOf, detailOf } = createBotDetails(human, deps);
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const { modelInheritance, modelSettings, modelPlan } = createModelsBridgeMethods(
-    human,
-    deps,
-    globalRegistry,
-    isHostOwner,
-    requireOwnedBot,
-    modelRouting,
-  );
   const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
   const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
   const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
-  const personabotsMethods = createPersonaBotsBridgeMethods(
-    human,
-    deps,
-    isHostOwner,
-    runnerOf,
-    allowed,
-    requireOwnedBot,
-    detailOf,
-    createBotId,
-    sendReceipt,
-    modelRouting,
-  );
-  const tobAdapterMethods = createTobAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
   const contributions = contributedBridgeMethods(deps, {
     human,
+    modelRouting,
+    runnerOf,
     detailOf,
     channelView,
     globalRegistry,
@@ -492,13 +441,6 @@ function buildBridgeMethods(
   );
   const methods: Omit<BridgeMethods, keyof ReturnType<typeof contributedBridgeMethods>> = {
     ...createTeamBridge(human, deps.team),
-    ...createModelProviderBridge(human, deps),
-    ...createEngineAccountBridge(human, deps),
-    ...createEngineSelectionBridge(human, { ...deps, registry: globalRegistry }),
-    ...tobAdapterMethods,
-    onboarding: personabotsMethods.onboarding,
-    ...modelInheritance,
-    onboardingModel: personabotsMethods.onboardingModel,
     botNewSession: sessionsMethods.botNewSession,
     botCompact: sessionsMethods.botCompact,
     botContext: sessionsMethods.botContext,
@@ -509,32 +451,15 @@ function buildBridgeMethods(
         ? sessionSend(payload)
         : sessionsAdapterMethods.sessionMessageSend(payload),
     sessionStop: sessionsMethods.sessionStop,
-    ...modelSettings,
-    deletionPreview: personabotsMethods.deletionPreview,
-    deletionConfirm: personabotsMethods.deletionConfirm,
-    deletionRetry: personabotsMethods.deletionRetry,
-    deletionMemoryFolder: personabotsMethods.deletionMemoryFolder,
-    ...modelPlan,
-    list: personabotsMethods.list,
     channelActivityToday: activityMethods.channelActivityToday,
     activityOverview: activityMethods.activityOverview,
     activitySnapshot: activityMethods.activitySnapshot,
-    get: personabotsMethods.get,
-    create: personabotsMethods.create,
-    createLookup: personabotsMethods.createLookup,
-    botImportLookup: personabotsMethods.botImportLookup,
-    botImportPreview: personabotsMethods.botImportPreview,
-    createFromGit: personabotsMethods.createFromGit,
     createFromSessions: sessionBots.createFromSessions,
     externalSessions: sessionBots.externalSessions,
-    update: personabotsMethods.update,
-    pause: personabotsMethods.pause,
-    resume: personabotsMethods.resume,
     idleCompaction: sessionsMethods.idleCompaction,
     idleCompactionSet: sessionsMethods.idleCompactionSet,
     idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
     compactionThresholdSet: sessionsMethods.compactionThresholdSet,
-    standingLimitsSet: personabotsMethods.standingLimitsSet,
     botAttention: activityMethods.botAttention,
     botSourcePolicies: activityMethods.botSourcePolicies,
     botSourcePolicySet: activityMethods.botSourcePolicySet,
@@ -574,17 +499,6 @@ function buildBridgeMethods(
     usageByMember: teamMethods.usageByMember,
     profileActivity: activityMethods.profileActivity,
     groupProfileActivity: activityMethods.groupProfileActivity,
-    rosterGet: personabotsMethods.rosterGet,
-    sectionCreate: personabotsMethods.sectionCreate,
-    sectionRename: personabotsMethods.sectionRename,
-    sectionRemove: personabotsMethods.sectionRemove,
-    channelAssign: personabotsMethods.channelAssign,
-    sectionReorder: personabotsMethods.sectionReorder,
-    topReorder: personabotsMethods.topReorder,
-    pinsSet: personabotsMethods.pinsSet,
-    hiddenSet: personabotsMethods.hiddenSet,
-    channelMuteSet: personabotsMethods.channelMuteSet,
-    rosterBatch: personabotsMethods.rosterBatch,
   };
   return authorizeChannelBridgeMethods(
     mergeFeatureMethods([methods, contributions]),

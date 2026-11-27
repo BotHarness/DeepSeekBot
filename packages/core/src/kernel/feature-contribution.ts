@@ -22,6 +22,8 @@ export type FeaturePromptSection =
     };
 
 export type FeatureToolPlacement =
+  | 'before-assignment-tools'
+  | 'workspace-tools'
   | 'after-assignment-tools'
   | 'bridge'
   | 'before-inbox-tools'

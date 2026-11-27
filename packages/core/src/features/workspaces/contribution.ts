@@ -12,6 +12,7 @@ import {
   relocateMemoryOnStartup,
 } from './plugin.js';
 import { workspaceGrantRpc, workspacesRpcMethods } from './rpc.js';
+import { registerWorkspaceTools, type WorkspaceAgentContext } from './tools.js';
 
 export interface WorkspacesBridgeContext {
   human: HumanContext;
@@ -27,6 +28,8 @@ export function createWorkspacesContribution() {
       ...createWorkspacesBridgeMethods(human, deps),
     }),
     rpc: { ...workspacesRpcMethods, ...workspaceGrantRpc },
+    tools: (context, { register }) =>
+      registerWorkspaceTools(context, (tool) => register(tool, 'workspace-tools')),
     host: {
       beforeRegistry: relocateMemoryOnStartup,
       workspacePermissionTracking: mountPermissionTracking,
@@ -35,7 +38,7 @@ export function createWorkspacesContribution() {
     },
   } satisfies FeatureContribution<
     WorkspacesBridgeContext,
-    never,
+    WorkspaceAgentContext,
     {
       beforeRegistry: typeof relocateMemoryOnStartup;
       workspacePermissionTracking: typeof mountPermissionTracking;

@@ -1,17 +1,16 @@
 import { asObject, invalidInput, unavailable } from '../../kernel/method-utils.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { modelFavorite } from '../../models/favorites.js';
 import { DEFAULT_MODEL_PRESET_ID, type ModelRoute } from '../../models/presets.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { allowsEngineAccount, allowsModel } from '../../team-policy/permissions.js';
-import type { ModelsBridgeDeps } from './deps.js';
+import type { ModelInvocationDeps } from './deps.js';
 import type { ModelsBridgeMethods } from './methods.js';
 import { routeKey, type createModelRoutingHelpers } from './routing.js';
 
 export function createModelCatalogMethods(
   human: HumanContext,
-  deps: ModelsBridgeDeps & Pick<BridgeMethodsDeps, 'team'>,
+  deps: ModelInvocationDeps,
   isHostOwner: () => boolean,
   {
     catalogRests,

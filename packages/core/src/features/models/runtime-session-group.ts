@@ -1,12 +1,14 @@
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
-import type { BotRuntimeOptions } from '../../runtime/bot-runtime-types.js';
+import type { GroupFallback, MixedGroupPick } from '../../models/group-fallback.js';
 
 export async function pickSessionGroup(
-  groups: BotRuntimeOptions['groupFallback'],
+  groups:
+    | (Pick<GroupFallback, 'pick'> & Partial<Pick<GroupFallback, 'pickMixedAssignment'>>)
+    | undefined,
   botSlug: string,
   choice: Extract<SessionModelChoice, { kind: 'group' }>,
   attempted?: ReadonlySet<string>,
-): Promise<import('../../models/group-fallback.js').MixedGroupPick> {
+): Promise<MixedGroupPick> {
   const mixed = await groups?.pickMixedAssignment?.(botSlug, choice.id, choice.effort, attempted);
   if (mixed !== undefined) return mixed;
   const native = await groups?.pick(botSlug, choice.id, choice.effort);

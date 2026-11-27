@@ -247,7 +247,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = tobFeature.createCliInvocation();
   const sessionLive = new SessionLiveStreams();
-  const { engineHost, localEngines, followPresetEngines } = models.mountEngines(
+  const { engineHost, localEngines, followPresetEngines } = requireHostFeatureHook(
+    featureContributions,
+    'subscriptionEngines',
+  )(
     ctx,
     config,
     dshHome,
@@ -286,23 +289,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return routeRests;
     },
     allowedGroupTargets: (slug, id) => allowedGroupTargets(slug, id),
-    get agentAdapter() {
-      return agentAdapter;
-    },
-    get tobSettingsOperations() {
-      return tobSettingsOperations;
-    },
-
-    get tobOperations() {
-      return tobOperations;
-    },
-
-    get tobVoiceOperations() {
-      return tobVoiceOperations;
-    },
-    get toolApproval() {
-      return toolApproval;
-    },
+    agentHooks: requireHostFeatureHook(featureContributions, 'tobAgentHooks')(ctx, {
+      tobCliInvocation,
+      get core() {
+        return core;
+      },
+      get agentAdapter() {
+        return agentAdapter;
+      },
+      get tobSettingsOperations() {
+        return tobSettingsOperations;
+      },
+      get tobOperations() {
+        return tobOperations;
+      },
+      get tobVoiceOperations() {
+        return tobVoiceOperations;
+      },
+      get toolApproval() {
+        return toolApproval;
+      },
+    }),
   });
   let userQuestions: ChannelUserQuestions | undefined;
   let toolApproval: ChannelToolApproval | undefined;
@@ -353,7 +360,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ),
   );
   followPresetEngines();
-  const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
+  const modelProviders = requireHostFeatureHook(featureContributions, 'modelProviders')(
+    ctx,
+    core,
+    routeRests,
+    defaultModel,
+  );
   publishDraft = (event) => {
     core.live.publishDraft(event);
     try {
@@ -421,7 +433,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.afterEnvironments?.(ctx, core, { telemetry, telemetryDir, telemetryState, activeDay }),
   );
-  personabotsFeature.mountRosterCleanup(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.rosterCleanup?.(ctx, core));
   ctx.effect(() => {
     const controller = new AbortController();
     if (core.operationalDatabase.mode === 'ready')
@@ -497,7 +509,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     recordOrchestratorPermission,
     agentAdapter,
   });
-  models.mountRetry(ctx, core, routeRests, routingDefaults.effectivePlan);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.modelRetry?.(ctx, core, routeRests, routingDefaults.effectivePlan),
+  );
   sessionsFeature.mountContextOverflowRecovery(ctx, core);
   const { approvalTemplates, approvalReviewer } = approvalsFeature.apply(dshHome);
   const { liveAgent, idleCompaction, compactReservedSession, compactBot } =
@@ -565,7 +579,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     updateRuns,
     updateLifecycle,
   });
-  const tobSettingsOperations = tobFeature.mountSettingsOperations(ctx, core, {
+  const tobSettingsOperations = requireHostFeatureHook(
+    featureContributions,
+    'tobSettingsOperations',
+  )(ctx, core, {
     modelCatalog,
     developerMode,
     telemetry,
@@ -708,7 +725,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     compactBot,
   );
-  const tobOperations = tobFeature.mountOperations(ctx, core, {
+  const tobOperations = requireHostFeatureHook(featureContributions, 'tobOperations')(ctx, core, {
     bridgeMethods,
     bridgeFor: invocationBridgeMethods,
     diagnosticEvents,
@@ -766,16 +783,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = (connectionCtx as unknown as { connection: HostFetchConnection }).connection;
-    models.mountSubscriptionEngineRoute(connectionCtx, connection, {
-      core,
-      team,
-      bridgeDeps,
-      engineHost,
-      agentAdapter,
-      get toolApproval() {
-        return toolApproval;
-      },
-    });
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.subscriptionEngineRoute?.(connectionCtx, connection, {
+        core,
+        team,
+        bridgeDeps,
+        engineHost,
+        agentAdapter,
+        get toolApproval() {
+          return toolApproval;
+        },
+      }),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.beforeVoiceRoutes?.(ctx, connectionCtx, connection, {
         team,

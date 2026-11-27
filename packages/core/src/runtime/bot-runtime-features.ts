@@ -1,6 +1,5 @@
 import { createChannelAccess } from './runtime-access.js';
 import { createDirectTools } from '../features/sessions/direct-tools.js';
-import { createTobCliRuntime } from '../features/tob/cli-runtime.js';
 import { createGroupDigest } from './group-digest.js';
 import { createChannelAdmission } from './runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
@@ -34,7 +33,6 @@ import {
   voiceAdmissionNotes,
 } from '../features/sessions/runtime-orchestrator-services.js';
 import { createTurnFailures } from '../features/sessions/runtime-turn-failures.js';
-import { createRuntimeBotCreation } from '../features/personabots/runtime-creation.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
 import type { createBotRuntimeState } from './bot-runtime-state.js';
 import { createBotRuntimeLifecycle, createBotRuntimeRecovery } from './bot-runtime-lifecycle.js';
@@ -42,9 +40,7 @@ import { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/ru
 import { interruptedDmNotice } from '../features/activity/runtime-admission-support.js';
 import { createRuntimeAssignmentAccess } from '../features/assignments/runtime-access.js';
 import { createRuntimeAssignmentLifecycle } from '../features/assignments/runtime-lifecycle.js';
-import { pickSessionGroup } from '../features/models/runtime-session-group.js';
 import type { RuntimeFeatureServices } from './feature-services.js';
-import { createRuntimeBotContacts } from '../features/personabots/runtime-contacts.js';
 import { createNativeOrchestratorStep } from '../features/sessions/native-orchestrator-step.js';
 import { createRuntimeMembership } from './runtime-membership.js';
 import { createRuntimeQuotes } from './runtime-quotes.js';
@@ -78,7 +74,7 @@ export function createBotRuntimeFeatures(
   state: ReturnType<typeof createBotRuntimeState>,
   runtime: RuntimeInstancePorts,
   recordDirectToolSource: Parameters<typeof createDirectTools>[0]['recordDirectToolSource'],
-  { createRuntimeInputs, createMemoryEvents, createRuntimeMemoryChanges }: RuntimeFeatureServices,
+  services: RuntimeFeatureServices,
 ) {
   const {
     activeSessionModels,
@@ -215,13 +211,13 @@ export function createBotRuntimeFeatures(
     channels,
     quoteBlocks,
   });
-  const { recordTurnCommits, insertMemoryChange } = createRuntimeMemoryChanges({
+  const { recordTurnCommits, insertMemoryChange } = services.createRuntimeMemoryChanges({
     channels,
     memory,
     now,
     warn,
   });
-  const memoryEvents = createMemoryEvents({
+  const memoryEvents = services.createMemoryEvents({
     database,
     registry,
     memory,
@@ -545,7 +541,7 @@ export function createBotRuntimeFeatures(
     turnSources,
     voiceMessages,
   });
-  const runtimeInputs = createRuntimeInputs({
+  const runtimeInputs = services.createRuntimeInputs({
     activeDirectTools,
     bindPrivateInputOrigin: (...args) => runtime.bindPrivateInputOrigin(...args),
     channels,
@@ -585,7 +581,7 @@ export function createBotRuntimeFeatures(
     tobCliRequests,
     warn,
   });
-  const tobCliRuntime = createTobCliRuntime({
+  const tobCliRuntime = services.createTobCliRuntime({
     activeDirectTools,
     admitDmMessage: (...args) => channelAdmission.admitDmMessage(...args),
     channels,
@@ -685,7 +681,7 @@ export function createBotRuntimeFeatures(
     groupFallback,
     inheritedModelPlan: inheritedModelPlanForRuntime,
     now,
-    pickSessionGroup: (...args) => pickSessionGroup(groupFallback, ...args),
+    pickSessionGroup: (...args) => services.pickSessionGroup(groupFallback, ...args),
     publishSessionFailure: (...args) => turnFailures.publishSessionFailure(...args),
     refreshAssignmentRoute: (...args) => runtime.refreshAssignmentRoute(...args),
     registry,
@@ -796,7 +792,7 @@ export function createBotRuntimeFeatures(
     observeAdmission: (...args) => admissions.observeAdmission(...args),
     orchestratorServices: (...args) => orchestratorServices.orchestratorServices(...args),
     originalAttachments,
-    pickSessionGroup: (...args) => pickSessionGroup(groupFallback, ...args),
+    pickSessionGroup: (...args) => services.pickSessionGroup(groupFallback, ...args),
     preparedOrchestrators,
     promptText,
     publishSessionFailure: (...args) => turnFailures.publishSessionFailure(...args),
@@ -889,7 +885,7 @@ export function createBotRuntimeFeatures(
     triageQueued,
     warn,
   });
-  const botCreation = createRuntimeBotCreation({
+  const botCreation = services.createRuntimeBotCreation({
     channels,
     closed,
     createBotId,
@@ -913,7 +909,7 @@ export function createBotRuntimeFeatures(
     waitLifetime,
     nativeStepReady,
   });
-  const contacts = createRuntimeBotContacts({ botNetwork, registry, team });
+  const contacts = services.createRuntimeBotContacts({ botNetwork, registry, team });
   const lifecycle = createBotRuntimeLifecycle({
     closed,
     markClosed,
