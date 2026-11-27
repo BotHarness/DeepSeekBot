@@ -137,6 +137,8 @@ export async function handleSkillRoute(
     if (input.kind === 'invalid') return failure(400, 'invalid-skill-upload');
     const result = await uploads.write(account, input.body, editing);
     if (!result.ok) {
+      if (result.code === 'skill-name-taken')
+        return json(409, { error: { code: result.code, listingId: result.listingId } }, headers);
       const status = {
         'invalid-skill-upload': 400,
         'invalid-skill-md': 422,

@@ -40,6 +40,8 @@ type UploadRefusal =
 
 const refuse = (code: UploadRefusal) => ({ ok: false, code }) as const;
 const accepted = (id: string) => ({ ok: true, id }) as const;
+const liveNameMatch = `SELECT id FROM marketplace_skills
+  WHERE upload_account = ? AND name = ? AND id <> ? AND upload_deleted = 0`;
 
 export async function removeUploadedSkill(
   db: D1Database,
@@ -187,6 +189,7 @@ export function createSkillUploads(db: D1Database, bucket: R2Bucket, now: () => 
       if (replacing !== undefined && previous === null) return refuse('skill-not-found');
       const upload = prepare(input['files']);
       if (!upload.ok) return upload;
+      const nameArgs = [account, upload.columns[0], id];
       if (previous?.upload_retired_revision != null)
         await discardRetired(account, id, previous.upload_retired_revision);
 
@@ -194,11 +197,12 @@ export function createSkillUploads(db: D1Database, bucket: R2Bucket, now: () => 
       const nextKey = key(id, revision);
       const timestamp = now().toISOString();
       await bucket.put(nextKey, upload.bundle);
-      let row: { id: string } | null;
+      let written: { id: string } | undefined;
+      let conflict: { id: string } | undefined;
       try {
-        row =
+        const write =
           previous === null
-            ? await db
+            ? db
                 .prepare(`
             INSERT INTO marketplace_skills (
               id, repo_node_id, owner, repo, path, name, description, skill_md, files, scripts,
@@ -208,6 +212,7 @@ export function createSkillUploads(db: D1Database, bucket: R2Bucket, now: () => 
             SELECT ?, ?, '', '', '', ?, ?, ?, ?, ?, ?, ?, '', 'listed', ?, ?, ?, account, ?
               FROM authors WHERE account = ? AND author_id = ? AND terms_accepted_at IS NOT NULL
               AND (SELECT COUNT(*) FROM marketplace_skills WHERE upload_account = ?) < ?
+              AND NOT EXISTS (${liveNameMatch})
             ON CONFLICT (id) DO NOTHING RETURNING id`)
                 .bind(
                   id,
@@ -221,9 +226,9 @@ export function createSkillUploads(db: D1Database, bucket: R2Bucket, now: () => 
                   author.author_id,
                   account,
                   MAX_BOTS_PER_ACCOUNT,
+                  ...nameArgs,
                 )
-                .first<{ id: string }>()
-            : await db
+            : db
                 .prepare(`
             UPDATE marketplace_skills
                SET name = ?, description = ?, skill_md = ?, files = ?, scripts = ?,
@@ -232,6 +237,7 @@ export function createSkillUploads(db: D1Database, bucket: R2Bucket, now: () => 
              WHERE id = ? AND upload_account = ? AND upload_revision = ? AND upload_deleted = 0
                AND upload_retired_revision IS NULL
                AND EXISTS (SELECT 1 FROM authors WHERE account = ? AND author_id = ? AND terms_accepted_at IS NOT NULL)
+               AND NOT EXISTS (${liveNameMatch})
             RETURNING id`)
                 .bind(
                   ...upload.columns,
@@ -243,16 +249,32 @@ export function createSkillUploads(db: D1Database, bucket: R2Bucket, now: () => 
                   previous.upload_revision,
                   account,
                   author.author_id,
-                )
-                .first<{ id: string }>();
+                  ...nameArgs,
+                );
+        const [writeResult, conflicts] = await db.batch<{ id: string }>([
+          write,
+          db
+            .prepare(`${liveNameMatch}
+              AND EXISTS (SELECT 1 FROM authors WHERE account = ? AND author_id = ? AND terms_accepted_at IS NOT NULL)
+              ORDER BY id LIMIT 1`)
+            .bind(...nameArgs, account, author.author_id),
+        ]);
+        written = writeResult?.results[0];
+        conflict = conflicts?.results[0];
       } catch (error) {
         if ((await find(account, id))?.upload_revision !== revision) await bucket.delete(nextKey);
         throw error;
       }
-      if (row === null) {
+      if (written === undefined) {
         await bucket.delete(nextKey);
-        if (previous !== null) return refuse('skill-upload-changed');
-        return (await find(account, id)) === null ? refuse('skill-upload-limit') : accepted(id);
+        if (previous === null) {
+          const replay = await find(account, id);
+          if (replay !== null)
+            return replay.upload_deleted === 1 ? refuse('skill-not-found') : accepted(id);
+        }
+        if (conflict !== undefined)
+          return { ok: false, code: 'skill-name-taken', listingId: conflict.id } as const;
+        return refuse(previous === null ? 'skill-upload-limit' : 'skill-upload-changed');
       }
       if (previous !== null)
         await discardRetired(account, id, previous.upload_revision).catch(() => undefined);

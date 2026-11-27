@@ -206,7 +206,7 @@ export async function runBotCreateCli(
   };
   try {
     rejectSecretArgv(argv);
-    const { values, positionals } = parseBotCliArgs(argv);
+    const { values, positionals, tokens } = parseBotCliArgs(argv);
     let [command, ...rest] = positionals;
     if (values['migration-dry-run'] && command !== 'model-default')
       throw usageError('--migration-dry-run requires model-default.');
@@ -289,7 +289,14 @@ export async function runBotCreateCli(
       return 0;
     }
     if (hasAgentCliContext(io.env)) {
-      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io, argv), null, 2));
+      const commandIndexes = new Set(
+        tokens
+          .filter((token) => token.kind === 'positional')
+          .slice(0, positionals.length - rest.length)
+          .map((token) => token.index),
+      );
+      const hostArgs = argv.filter((_, index) => !commandIndexes.has(index));
+      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io, hostArgs), null, 2));
       return 0;
     }
     if (command !== undefined) command = canonicalCliCommandName(command);

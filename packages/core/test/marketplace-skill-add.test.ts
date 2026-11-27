@@ -15,6 +15,7 @@ import { createMarketplaceSkillSource } from '../src/marketplace/skill-source.js
 import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createMarketplaceUploads } from '../src/marketplace/uploaded-bots.js';
 import { createCore } from '../src/plugin.js';
+import { host as cliHost, invoke } from './cli-host-admin-fixture.js';
 import { createTempRoot } from './helpers.js';
 
 const scanControl = vi.hoisted(() => ({ fail: false }));
@@ -182,6 +183,28 @@ async function authorWithSkill(files: Record<string, string>) {
   value(await bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }));
   return { bridge, uploads };
 }
+
+it('returns the existing listing ID and replacement command through the Host and CLI', async () => {
+  const { bridge } = await authorWithSkill({});
+  const publication = { bot: 'author', name: 'tidy-notes' };
+  const { id } = value(await bridge.marketplaceSkillPublish(publication));
+  const live = await cliHost((method, args) => {
+    if (method === 'marketplaceSkillPublish') return bridge.marketplaceSkillPublish(args);
+    if (method === 'marketplaceSkillMine') return bridge.marketplaceSkillMine(args);
+    throw new Error(`Unexpected method ${method}`);
+  });
+  const error = {
+    code: 'skill-name-taken',
+    message: expect.stringContaining(`skills replace ${id} tidy-notes --bot author --confirm`),
+  };
+  expect(await bridge.marketplaceSkillPublish(publication)).toMatchObject({ ok: false, error });
+  const refused = await invoke(['skills', 'publish', 'tidy-notes', '--bot', 'author'], live.url);
+  expect(refused.code).not.toBe(0);
+  expect(refused.json).toMatchObject({ error });
+  expect((await invoke(['skills', 'mine'], live.url)).json).toMatchObject({
+    skills: [{ id, name: 'tidy-notes' }],
+  });
+});
 
 it('refuses a written secret on the Host before any file reaches the Marketplace', async () => {
   const { bridge, uploads } = await authorWithSkill({
