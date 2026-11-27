@@ -49,6 +49,41 @@ export function createTeamBridge(
     }
   };
   return {
+    botAccessDirectory: (_payload: unknown) =>
+      call((service) => service.botRoleAccess.directory(human)),
+    botAccessRoles: (payload: unknown) =>
+      call((service) => {
+        const { slug } = z
+          .object({ slug: z.string().min(1) })
+          .strict()
+          .parse(payload);
+        return service.botRoleAccess.botRoles(human, slug);
+      }),
+    roleBotScope: (payload: unknown) =>
+      call((service) => {
+        const { roleId } = z
+          .object({ roleId: z.string().min(1) })
+          .strict()
+          .parse(payload);
+        return service.botRoleAccess.scope(human, roleId);
+      }),
+    roleBotScopeSet: (payload: unknown) =>
+      call((service) => {
+        const patch = z
+          .object({
+            roleId: z.string().min(1),
+            expectedRevision: roleRevisionSchema,
+            scope: z.discriminatedUnion('kind', [
+              z.object({ kind: z.literal('all') }).strict(),
+              z
+                .object({ kind: z.literal('selected'), botSlugs: z.string().min(1).array() })
+                .strict(),
+            ]),
+          })
+          .strict()
+          .parse(payload);
+        return service.botRoleAccess.setScope(human, patch);
+      }),
     botVisibility: (payload: unknown) =>
       call((service) =>
         service.bots.view(human, z.object({ slug: z.string() }).parse(payload).slug),

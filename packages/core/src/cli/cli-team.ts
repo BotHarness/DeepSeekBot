@@ -24,7 +24,8 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 export const TEAM_COMMANDS = [
   {
     command: 'bot-access',
-    description: 'bots visibility|visibility-set|switches|reachable|proactive-opt-out',
+    description:
+      'bots visibility|visibility-set|switches|reachable|proactive-opt-out|access-directory|access-roles <slug>',
   },
   { command: 'speaker-policy', description: '[--human-id] [--topic]' },
   { command: 'audit', description: 'list [--after] [--limit] | verify' },
@@ -46,7 +47,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | effective [<username>] | conflicts <username> | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
+      'list | catalog | effective [<username>] | conflicts <username> | bot-scope <roleId> | bot-scope-set <roleId> --expected-revision <revision> --set all|selected:<slugs> | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -209,7 +210,10 @@ export async function runTeamCommand(
     });
   if (command === 'bot-access') {
     if (action === 'reachable' && rest.length === 1) return rpc('reachableBots', {});
+    if (action === 'access-directory' && rest.length === 1) return rpc('botAccessDirectory', {});
     if (!argument) return usage();
+    if (action === 'access-roles' && rest.length === 2)
+      return rpc('botAccessRoles', { slug: argument });
     if (action === 'visibility' && rest.length === 2)
       return rpc('botVisibility', { slug: argument });
     if (action === 'visibility-set' && rest.length === 2) {
@@ -331,7 +335,25 @@ export async function runTeamCommand(
     return usage();
   }
   if (command === 'roles') {
+    if (action === 'bot-scope-set' && argument && rest.length === 2) {
+      const revision = values['expected-revision'];
+      const set = values.set;
+      const scope =
+        set === 'all'
+          ? { kind: 'all' }
+          : set?.startsWith('selected:')
+            ? { kind: 'selected', botSlugs: ids(set.slice('selected:'.length)) }
+            : undefined;
+      if (revision === undefined || scope === undefined) return usage();
+      return rpc('roleBotScopeSet', {
+        roleId: argument,
+        expectedRevision: await expectedRoleRevision(rpc, argument, revision),
+        scope,
+      });
+    }
     if (action !== 'update' && values['expected-revision'] !== undefined) return usage();
+    if (action === 'bot-scope' && argument && rest.length === 2)
+      return rpc('roleBotScope', { roleId: argument });
     const providers = values['model-providers'];
     if (values.models === 'all' && providers !== undefined) return usage();
     const accounts = values['engine-accounts'];

@@ -2617,6 +2617,20 @@ When editing a role from an earlier `roles list`, pass its `revision` as `--expe
 If the Host returns `stale-role`, read the role again and review the latest grants before retrying.
 Without the flag, `roles update` reads the current revision using the same caller as the update.
 
+```sh
+deepseekbot roles bot-scope <roleId>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set selected:<slug>,<slug>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
+deepseekbot bots access-directory
+deepseekbot bots access-roles <slug>
+```
+
+Use the revision from `roles bot-scope` when saving. `selected:` replaces the editable selections on
+public Bots with role audiences. An empty list clears those selections. The Host Owner can choose
+`all` to grant access to all current and future public Bots while retaining the explicit selections.
+The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
+role sources and active named invitees. A private Bot's access is visible to its owner only.
+
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 
 `members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.

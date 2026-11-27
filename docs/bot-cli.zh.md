@@ -2494,6 +2494,19 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 若 Host 返回 `stale-role`，请重新读取角色，确认最新权限后再试。
 省略此选项时，`roles update` 会以执行更新的同一身份读取当前版本。
 
+```sh
+deepseekbot roles bot-scope <roleId>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set selected:<slug>,<slug>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
+deepseekbot bots access-directory
+deepseekbot bots access-roles <slug>
+```
+
+保存时使用 `roles bot-scope` 返回的版本号。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
+Host Owner 可以选择 `all`，授权访问现在和今后发布的公开 Bot，同时保留显式选择。
+`access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源和仍活跃的点名邀请成员。
+私有 Bot 的访问配置仅对其负责人可见。
+
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 
 `members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。

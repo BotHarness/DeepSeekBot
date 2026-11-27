@@ -8,6 +8,7 @@ import { credentialPasswordJson, fields, memberSchema, type TeamMember } from '.
 export type { TeamMember } from './member-auth.js';
 import { audienceContains, type BotVisibility } from '../team-policy/bot-contract.js';
 import { TeamBots } from './bots.js';
+import { TeamBotRoleAccess } from './bot-role-access.js';
 import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
 import type { ConfinementStatus } from '../execution/linux-confinement.js';
@@ -80,6 +81,7 @@ const credentialSchema = z.object({
 
 export class TeamService {
   readonly bots: TeamBots;
+  readonly botRoleAccess: TeamBotRoleAccess;
   readonly speakerPolicy: SpeakerPolicy;
   readonly privateAccess: TeamPrivateContent;
   readonly roles: TeamRoles;
@@ -324,6 +326,19 @@ export class TeamService {
       (revoke) => this.accessChanged(revoke),
       (human, bot) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet'),
       this.spaceProvider,
+    );
+    this.botRoleAccess = new TeamBotRoleAccess(
+      db,
+      this.roles,
+      (revoked) => {
+        try {
+          if (revoked === 'all-public' || revoked.size > 0)
+            this.bots.reconcileRoleAudience(revoked);
+        } finally {
+          this.accessChanged(true);
+        }
+      },
+      (human, bot, sql) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet', sql),
     );
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);

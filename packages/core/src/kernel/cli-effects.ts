@@ -637,7 +637,8 @@ function botAccessEffects(
   action: string | undefined,
   values: ReturnType<typeof parseBotCliArgs>['values'],
 ): ToolEffects | undefined {
-  if (action === 'reachable' || action === 'visibility') return read;
+  if (['reachable', 'visibility', 'access-directory', 'access-roles'].includes(action ?? ''))
+    return read;
   if (action === 'visibility-set') return values.preview ? read : management;
   if (action === 'switches')
     return values['proactive-dms'] === undefined &&
@@ -717,7 +718,7 @@ function familyEffects(
       if (action === 'purge') return destructiveSecretManagement;
       return action === undefined ? secretManagement : management;
     case 'roles':
-      return action === 'list' || action === 'catalog' || action === 'conflicts'
+      return ['list', 'catalog', 'conflicts', 'bot-scope'].includes(action ?? '')
         ? read
         : action === 'delete'
           ? destructiveManagement

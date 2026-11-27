@@ -798,5 +798,9 @@
   {
     "id": "host-role-revision",
     "sha256": "de2602befc612092b29d849b01425ac37fea1aaa1014dbd166a30d56c2a4ba1a"
+  },
+  {
+    "id": "host-role-bot-scope",
+    "sha256": "bdf981f5ad39f703b055145fa15435f6e105849a039fad07824a55066111f357"
   }
 ]

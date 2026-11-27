@@ -11,6 +11,7 @@ import { humanContext, type HumanContext } from '../humans/context.js';
 import type { TeamRoles } from './roles.js';
 import type { TeamChannels } from './channels.js';
 import { TeamError } from '../team-policy/error.js';
+import { activeBotHumanSql, botAudienceAccessSql } from '../team-policy/bot-access.js';
 import {
   audienceContains,
   botVisibilitySchema,
@@ -102,7 +103,7 @@ export class TeamBots {
         .get(slug, human.humanId),
     );
   }
-  private bot(slug: string): Bot {
+  private findBot(slug: string): Bot | undefined {
     const raw = this.db.read((db) =>
       db
         .prepare(
@@ -110,16 +111,20 @@ export class TeamBots {
         )
         .get(slug),
     );
-    if (!raw) throw new TeamError('bot-not-found', undefined, { slug });
+    if (!raw) return undefined;
     const bot = botRow.parse(raw);
-    if (bot.body.deletedAt) throw new TeamError('bot-not-found', undefined, { slug });
+    return bot.body.deletedAt ? undefined : bot;
+  }
+  private bot(slug: string): Bot {
+    const bot = this.findBot(slug);
+    if (!bot) throw new TeamError('bot-not-found', undefined, { slug });
     return bot;
   }
   private active(humanId: string): boolean {
     return !!this.db.read((db) =>
       db
         .prepare(`SELECT 1 FROM humans h, team_settings s
-      WHERE h.human_id = ? AND h.status = 'active' AND (s.enabled = 1 OR s.owner_human_id = h.human_id)`)
+      WHERE h.human_id = ? AND ${activeBotHumanSql('h', 's')}`)
         .get(humanId),
     );
   }
@@ -129,17 +134,13 @@ export class TeamBots {
       throw new TeamError('bot-principal-inactive', undefined, { slug });
   }
   private audience(humanId: string, bot: Bot, visibility = bot.visibility): boolean {
-    if (!this.active(humanId) || !this.active(bot.owner)) return false;
-    if (humanId === bot.owner) return true;
-    if (visibility.kind === 'private') return false;
-    const audience = visibility.audience;
-    if (audience.kind === 'everyone') return true;
-    if (audience.kind === 'members') return audience.humanIds.includes(humanId);
     return !!this.db.read((db) =>
       db
-        .prepare(`SELECT 1 FROM human_roles WHERE human_id = ?
-      AND role_id IN (SELECT value FROM json_each(?)) LIMIT 1`)
-        .get(humanId, JSON.stringify(audience.roleIds)),
+        .prepare(`SELECT 1 FROM humans viewer, humans principal, team_settings s, (SELECT ? AS visibility) v
+          WHERE viewer.human_id = ? AND principal.human_id = ?
+          AND ${activeBotHumanSql('viewer', 's')} AND ${activeBotHumanSql('principal', 's')}
+          AND ${botAudienceAccessSql('v.visibility', 'viewer.human_id', 'principal.human_id')}`)
+        .get(JSON.stringify(visibility), humanId, bot.owner),
     );
   }
   requireJoin(slug: string, channelId: string): void {
@@ -196,13 +197,10 @@ export class TeamBots {
     return { visibility: bot.visibility, switches: bot.switches, audienceDirectory };
   }
   private reachableRows(human: HumanContext, history = false) {
-    const reachable = `h.status='active' AND (s.enabled=1 OR h.human_id=s.owner_human_id)
+    const reachable = `${activeBotHumanSql('h', 's')}
       AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
       AND json_extract(b.body,'$.deletedAt') IS NULL
-      AND (b.owner_human_id=viewer.human_id OR (json_extract(b.visibility_json,'$.kind')='public' AND (
-        json_extract(b.visibility_json,'$.audience.kind')='everyone'
-        OR EXISTS (SELECT 1 FROM json_each(b.visibility_json,'$.audience.humanIds') a WHERE a.value=viewer.human_id)
-        OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(b.visibility_json,'$.audience.roleIds') a ON a.value=r.role_id WHERE r.human_id=viewer.human_id))))`;
+      AND ${botAudienceAccessSql('b.visibility_json', 'viewer.human_id', 'b.owner_human_id')}`;
     return this.db.read((db) =>
       db
         .prepare(`
@@ -212,9 +210,8 @@ export class TeamBots {
         CASE WHEN EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
           OR json_extract(b.body,'$.deletedAt') IS NOT NULL THEN 1 ELSE 0 END AS deleted
       FROM persona_bots b LEFT JOIN humans h ON h.human_id=b.owner_human_id CROSS JOIN team_settings s
-      JOIN humans viewer ON viewer.human_id=? AND viewer.status='active'
-      WHERE (s.enabled=1 OR viewer.human_id=s.owner_human_id)
-      AND ((${reachable}) OR (? AND EXISTS (
+      JOIN humans viewer ON viewer.human_id=? AND ${activeBotHumanSql('viewer', 's')}
+      WHERE ((${reachable}) OR (? AND EXISTS (
         SELECT 1 FROM channel_records c WHERE json_extract(c.record_json,'$.type')='dm'
         AND json_extract(c.record_json,'$.botSlug')=b.slug
         AND json_extract(c.record_json,'$.dmHumanId')=viewer.human_id
@@ -222,6 +219,18 @@ export class TeamBots {
       ORDER BY b.slug`)
         .all(human.humanId, history ? 1 : 0),
     );
+  }
+
+  reconcileRoleAudience(revoked: ReadonlySet<string> | 'all-public'): void {
+    for (const channel of this.channels.list()) {
+      if (channel.type !== 'group') continue;
+      for (const slug of channel.members) {
+        if (revoked !== 'all-public' && !revoked.has(slug)) continue;
+        const bot = this.findBot(slug);
+        if (bot?.visibility.kind === 'public' && !this.groupEligible(bot, channel))
+          this.channels.removeGroupMember(channel.id, slug);
+      }
+    }
   }
   reachable(human: HumanContext) {
     const bots = z

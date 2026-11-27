@@ -1,6 +1,7 @@
 import { resolveHostPermissions, type RoleGrant } from '../team-policy/host-access.js';
 import { rolePolicySchema, type RolePolicy } from '../team-policy/bot-contract.js';
 import { STALE_HOST_ROLE } from '@botharness/host-protocol/team-roles';
+import { allPublicBotsSql } from '../team-policy/bot-access.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -25,7 +26,7 @@ import {
   roleModelsSchema,
 } from '../team-policy/permissions.js';
 
-const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.denied_permissions_json AS denied, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision, r.revision,
+const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.denied_permissions_json AS denied, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision, r.revision, r.all_public_bots AS allPublicBots,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
 
 export function requireEngineAccountGrant(allowed: ModelsAllowed, accountId: string): void {
@@ -181,6 +182,28 @@ export class TeamRoles {
     return roleSchema.parse(row);
   }
 
+  botScopeTarget(human: HumanContext, roleId: string) {
+    if (human.caller === 'bot') throw new TeamError('permission-required');
+    this.require(human, 'roles.manage', 'members.manage');
+    const role = this.role(roleId);
+    if (this.isOwner(human)) return { role, canSetAll: true, canSetSelected: true };
+    const permissions = this.permissions(human);
+    const ownRole = this.db.read((db) =>
+      db
+        .prepare('SELECT 1 FROM human_roles WHERE human_id = ? AND role_id = ?')
+        .get(human.humanId, roleId),
+    );
+    const canSetSelected =
+      permissions.includes('roles.manage') &&
+      !ownRole &&
+      role.builtin !== 'admin' &&
+      !role.allPublicBots &&
+      [...role.permissions, ...role.denied].every((id) =>
+        permissions.some((permission) => permission === id),
+      );
+    return { role, canSetAll: false, canSetSelected };
+  }
+
   private name(name: string, roleId?: string): string {
     const trimmed = name.trim();
     if (!trimmed || trimmed.length > 128 || /[\u0000-\u001f\u007f]/u.test(trimmed))
@@ -254,6 +277,21 @@ export class TeamRoles {
     );
     if (permission !== undefined)
       throw new TeamError('permission-not-grantable', undefined, { permission });
+  }
+
+  private checkBotScopeGrant(human: HumanContext, authority: RoleAuthority, role: HostRole): void {
+    if (
+      role.allPublicBots &&
+      authority.kind !== 'owner' &&
+      !this.db.read((db) =>
+        db
+          .prepare(
+            `SELECT 1 FROM humans h WHERE h.human_id = ? AND ${allPublicBotsSql('h.human_id')}`,
+          )
+          .get(human.humanId),
+      )
+    )
+      throw new TeamError('permission-not-grantable', undefined, { permission: 'allPublicBots' });
   }
 
   create(
@@ -408,6 +446,7 @@ export class TeamRoles {
       )
     ) {
       const fallback = this.role('member');
+      this.checkBotScopeGrant(human, authority, fallback);
       this.checkPermissions(authority, fallback.permissions, 'grant');
       this.checkModelGrant(this.modelsAllowed(human), fallback.models);
     }
@@ -436,6 +475,7 @@ export class TeamRoles {
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
     const models = authority.kind === 'owner' ? { all: true as const } : this.modelsAllowed(human);
     for (const role of roles) {
+      this.checkBotScopeGrant(human, authority, role);
       this.checkPermissions(authority, role.permissions, 'grant');
       this.checkModelGrant(models, role.models);
     }
