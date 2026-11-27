@@ -10,7 +10,7 @@ import {
   type Catalog,
   type SubmissionRefusal,
 } from './catalog.js';
-import type { D1Database } from './d1.js';
+import { limitD1Requests, type D1Database } from './d1.js';
 import { createCrawler } from './crawl.js';
 import { createGitHubClient, parseRepositoryUrl, type GitHubClient } from './github.js';
 import {
@@ -720,6 +720,9 @@ export function handlerForEnv(
 }
 
 export const DISCOVERY_CRON = '0 3 * * *';
+const SCHEDULED_D1_LIMIT = 900;
+const DISCOVERY_D1_LIMIT = 800;
+const BOT_DISCOVERY_D1_LIMIT = 300;
 export const REFRESH_CRON = '17 * * * *';
 
 export const DEFAULT_SUMMARY_API_BASE = 'https://opencode.ai/inference/go/v1';
@@ -811,10 +814,15 @@ export async function runScheduled(
   digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
   now: () => Date = () => new Date(),
 ): Promise<void> {
-  const crawler = createCrawler({ db: env.MARKET_DB, github, now: () => new Date() });
+  const discovery =
+    cron === DISCOVERY_CRON ? limitD1Requests(env.MARKET_DB, DISCOVERY_D1_LIMIT) : undefined;
+  const bots =
+    discovery === undefined ? undefined : limitD1Requests(discovery.db, BOT_DISCOVERY_D1_LIMIT);
+  const crawler = createCrawler({ db: bots?.db ?? env.MARKET_DB, github, now });
   const started = Date.now();
-  const phase = cron === DISCOVERY_CRON ? 'discovery' : 'refresh';
-  const report = phase === 'discovery' ? await crawler.discover() : await crawler.refresh();
+  const phase = bots === undefined ? 'refresh' : 'discovery';
+  const report =
+    bots === undefined ? await crawler.refresh() : await crawler.discover(bots.remaining);
   log(
     JSON.stringify({
       module: 'marketplace-worker',
@@ -824,14 +832,14 @@ export async function runScheduled(
       ...report,
     }),
   );
-  if (phase === 'discovery') {
+  if (discovery !== undefined) {
     const skillsStarted = Date.now();
     try {
       const skills = await createMarketSkills({
-        db: env.MARKET_DB,
+        db: discovery.db,
         github,
         now,
-      }).discover();
+      }).discover(discovery.remaining);
       log(
         JSON.stringify({
           module: 'marketplace-worker',
@@ -940,9 +948,13 @@ export default {
     env: MarketEnv,
     context: { waitUntil(promise: Promise<unknown>): void },
   ): void {
-    const crawl = runScheduled(controller.cron, env);
+    const discovery = controller.cron === DISCOVERY_CRON;
+    const scheduledEnv = discovery
+      ? { ...env, MARKET_DB: limitD1Requests(env.MARKET_DB, SCHEDULED_D1_LIMIT).db }
+      : env;
+    const crawl = runScheduled(controller.cron, scheduledEnv);
     context.waitUntil(
-      controller.cron === DISCOVERY_CRON
+      discovery
         ? crawl
             .then(undefined, (error: unknown) =>
               logWorker('error', {
@@ -952,7 +964,7 @@ export default {
                 error: String(error),
               }),
             )
-            .then(() => runDaily(env))
+            .then(() => runDaily(scheduledEnv))
         : crawl,
     );
   },
