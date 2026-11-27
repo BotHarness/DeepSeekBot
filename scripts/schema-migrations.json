@@ -786,5 +786,9 @@
   {
     "id": "channel-permission-table",
     "sha256": "b741d518438ef331b290f467886ce7335589b9df2f13e91cfccf5e346ebc01f7"
+  },
+  {
+    "id": "channel-bot-reception",
+    "sha256": "e7a19a60a4bd445d6d4a284bd062fb3a0db100ee7fb41430b6d8b2e1e0a27f8c"
   }
 ]

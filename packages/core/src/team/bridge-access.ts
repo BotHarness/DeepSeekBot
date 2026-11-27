@@ -324,6 +324,7 @@ export function guardHumanBridge(
             'channelVisibilitySet',
             'channelPolicySet',
             'channelRoleDirectory',
+            'channelBotSettings',
             'channelHumanAdd',
             'channelMemberCandidates',
             'channelGroupMemberPicker',

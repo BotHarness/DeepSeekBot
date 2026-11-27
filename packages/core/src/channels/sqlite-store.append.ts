@@ -525,7 +525,21 @@ export function createChannelAppender({
                         durable.botCausation.hop <= hopLimit
                       ? [{ botSlug: recipient, reason: 'bot-dm' }]
                       : [];
-          const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
+          const reception =
+            channel.type === 'group' && durable.author.kind === 'human'
+              ? humanAccess.current?.botReception?.(
+                  db,
+                  human,
+                  id,
+                  new Set(mentions.map((mention) => mention.botSlug)),
+                )
+              : undefined;
+          const recipients = candidateRecipients.filter(
+            ({ botSlug }) =>
+              isBotActive(botSlug) &&
+              !reception?.deniedMentions.has(botSlug) &&
+              !reception?.blocked.has(botSlug),
+          );
           const immediate = new Set(recipients.map((item) => item.botSlug));
           const ordinaryAllowed =
             (durable.author.kind === 'human' && durable.takeoverResolution === undefined) ||
@@ -535,7 +549,13 @@ export function createChannelAppender({
           const ordinary =
             channel.type === 'group' && ordinaryAllowed
               ? channel.members.flatMap((botSlug) => {
-                  if (botSlug === senderSlug || immediate.has(botSlug) || !isBotActive(botSlug))
+                  if (
+                    botSlug === senderSlug ||
+                    immediate.has(botSlug) ||
+                    !isBotActive(botSlug) ||
+                    reception?.deniedMentions.has(botSlug) ||
+                    reception?.blocked.has(botSlug)
+                  )
                     return [];
                   const sourceRule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
                   const policy =

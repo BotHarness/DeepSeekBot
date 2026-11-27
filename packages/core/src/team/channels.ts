@@ -133,6 +133,16 @@ export class TeamChannels {
     if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
     if (this.role(human, channelId) === 'member') throw new TeamError('permission-required');
   }
+  canManageBotSettings(human: HumanContext, channelId: string): boolean {
+    if (!this.active(human)) return false;
+    const { owner, visibility } = this.settings(channelId);
+    return (
+      (visibility.kind !== 'private' &&
+        this.roles.permissions(human).includes('channels.manageAll')) ||
+      (this.canRead(human, channelId, true) &&
+        this.roleForOwner(human, channelId, owner) !== 'member')
+    );
+  }
   requirePolicy(human: HumanContext, channelId: string, key: ChannelAction): void {
     if (key === 'addMembers') {
       this.requireAddMembers(human, channelId);
@@ -170,7 +180,7 @@ export class TeamChannels {
     if (key === 'addMembers' && manages) return true;
     if (!(joined ?? this.canRead(human, channelId, true))) return false;
     return (
-      manages ||
+      (key !== 'wakeBot' && manages) ||
       resolveChannelAction(this.db, human.humanId, settings.policy, key) ||
       this.roleForOwner(human, channelId, settings.owner) !== 'member'
     );

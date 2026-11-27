@@ -10,6 +10,7 @@ export const CHANNEL_ACTIONS = [
   'addMembers',
   'post',
   'mentionAll',
+  'wakeBot',
   'addBots',
   'editDetails',
 ] as const;
@@ -18,7 +19,16 @@ const action = z.enum(CHANNEL_ACTIONS);
 const effect = z.enum(['allow', 'deny', 'inherit']);
 export const channelPolicySchema = z.strictObject({
   version: z.literal(1),
-  everyone: z.record(action, effect),
+  everyone: z.partialRecord(action, effect).pipe(
+    z.object({
+      addMembers: effect,
+      post: effect,
+      mentionAll: effect,
+      wakeBot: effect.default('allow'),
+      addBots: effect,
+      editDetails: effect,
+    }),
+  ),
   overrides: z
     .array(
       z.strictObject({
@@ -37,6 +47,7 @@ export const DEFAULT_CHANNEL_POLICY: ChannelPolicy = {
     addMembers: 'allow',
     post: 'allow',
     mentionAll: 'allow',
+    wakeBot: 'allow',
     addBots: 'deny',
     editDetails: 'deny',
   },

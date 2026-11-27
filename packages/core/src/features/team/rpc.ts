@@ -564,6 +564,16 @@ export const teamServiceRpc = {
     return channelAdminsSet(this.methods, channelId, humanIds);
   },
 
+  channelBotSettings(channelId: string, botSlug?: string, change?: ChannelBotChange) {
+    return unwrapAsync(
+      this.methods.channelBotSettings({
+        channelId,
+        ...(botSlug === undefined ? {} : { botSlug }),
+        ...(change === undefined ? {} : { change }),
+      }),
+    );
+  },
+
   channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {
     return channelPolicySet(this.methods, channelId, policy, expectedRevision);
   },
@@ -620,3 +630,4 @@ export const teamServiceRpc = {
     return channelPublicSet(this.methods, channelId, publicValue);
   },
 } satisfies ThisType<BridgeRpcReceiver>;
+import type { ChannelBotChange } from '@botharness/host-protocol/channel-bots';

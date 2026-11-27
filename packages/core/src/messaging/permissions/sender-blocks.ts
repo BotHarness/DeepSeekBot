@@ -21,6 +21,68 @@ export interface SenderBlock {
 
 export type SourceBlocker = 'authenticated-web' | 'paired-reviewer' | 'bot';
 
+export function channelBlockedBots(db: DatabaseSync, channelId: string, humanId: string) {
+  const rows = db
+    .prepare(`SELECT bot_slug AS id FROM messaging_sender_blocks
+    WHERE channel_id = ? AND channel_id <> '' AND actor_id = ?
+      AND json_extract(body, '$.unblockedAt') IS NULL`)
+    .all(channelId, humanId);
+  return new Set(
+    z
+      .array(z.object({ id: z.string() }))
+      .parse(rows)
+      .map((row) => row.id),
+  );
+}
+
+export function channelBlockedHumans(db: DatabaseSync, channelId: string, botSlug: string) {
+  const rows = db
+    .prepare(`SELECT actor_id AS id FROM messaging_sender_blocks
+    WHERE bot_slug = ? AND fingerprint = '' AND channel_id = ?
+      AND json_extract(body, '$.unblockedAt') IS NULL ORDER BY actor_id`)
+    .all(botSlug, channelId);
+  return z
+    .array(z.object({ id: z.string() }))
+    .parse(rows)
+    .map((row) => row.id);
+}
+
+export function setChannelSenderBlock(
+  db: DatabaseSync,
+  input: {
+    botSlug: string;
+    humanId: string;
+    channelId: string;
+    blocked: boolean;
+  },
+): void {
+  const { botSlug, humanId, channelId, blocked } = input;
+  const at = new Date().toISOString();
+  if (blocked) {
+    db.prepare(`INSERT INTO messaging_sender_blocks (bot_slug, fingerprint, actor_id, channel_id, revision, body)
+      VALUES (?, '', ?, ?, 1, ?) ON CONFLICT DO UPDATE SET
+        revision = revision + 1, body = json_set(excluded.body, '$.revision', revision + 1)
+      WHERE json_extract(body, '$.unblockedAt') IS NOT NULL`).run(
+      botSlug,
+      humanId,
+      channelId,
+      JSON.stringify({
+        botSlug,
+        actorId: humanId,
+        channelId,
+        revision: 1,
+        blockedAt: at,
+        blockedBy: 'authenticated-web',
+      }),
+    );
+    return;
+  }
+  db.prepare(`UPDATE messaging_sender_blocks SET revision = revision + 1,
+      body = json_set(body, '$.revision', revision + 1, '$.unblockedAt', ?)
+    WHERE bot_slug = ? AND fingerprint = '' AND actor_id = ? AND channel_id = ?
+      AND json_extract(body, '$.unblockedAt') IS NULL`).run(at, botSlug, humanId, channelId);
+}
+
 export interface ConversationSourceBlock {
   botSlug: string;
   bindingId: string;
@@ -106,7 +168,7 @@ function readStoredBlock(
 ): SenderBlock | undefined {
   const row = db
     .prepare(
-      'SELECT body FROM messaging_sender_blocks WHERE bot_slug = ? AND fingerprint = ? AND actor_id = ?',
+      "SELECT body FROM messaging_sender_blocks WHERE bot_slug = ? AND fingerprint = ? AND actor_id = ? AND channel_id = ''",
     )
     .get(botSlug, fingerprint, actorId) as { body: string } | undefined;
   return row ? (JSON.parse(row.body) as SenderBlock) : undefined;
@@ -154,7 +216,7 @@ export function listSenderBlocks(db: DatabaseSync, botSlug: string): SenderBlock
   return (
     db
       .prepare(
-        "SELECT body FROM messaging_sender_blocks WHERE bot_slug = ? AND json_extract(body, '$.unblockedAt') IS NULL ORDER BY json_extract(body, '$.blockedAt') DESC",
+        "SELECT body FROM messaging_sender_blocks WHERE bot_slug = ? AND channel_id = '' AND json_extract(body, '$.unblockedAt') IS NULL ORDER BY json_extract(body, '$.blockedAt') DESC",
       )
       .all(botSlug) as { body: string }[]
   ).map((row) => JSON.parse(row.body) as SenderBlock);
@@ -206,7 +268,7 @@ export function unblockSender(
     unblockedAt: new Date().toISOString(),
   };
   db.prepare(
-    'UPDATE messaging_sender_blocks SET revision = ?, body = ? WHERE bot_slug = ? AND fingerprint = ? AND actor_id = ?',
+    "UPDATE messaging_sender_blocks SET revision = ?, body = ? WHERE bot_slug = ? AND fingerprint = ? AND actor_id = ? AND channel_id = ''",
   ).run(unblocked.revision, JSON.stringify(unblocked), botSlug, binding.fingerprint, input.actorId);
   return true;
 }

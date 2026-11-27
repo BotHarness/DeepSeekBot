@@ -11,7 +11,13 @@ export type ChannelVisibility =
   | { readonly kind: 'roles'; readonly roleIds: readonly string[] }
   | { readonly kind: 'private' };
 
-export type PolicyKey = 'addMembers' | 'post' | 'mentionAll' | 'addBots' | 'editDetails';
+export type PolicyKey =
+  | 'addMembers'
+  | 'post'
+  | 'mentionAll'
+  | 'wakeBot'
+  | 'addBots'
+  | 'editDetails';
 export type PolicyValue = 'allow' | 'deny' | 'inherit';
 export interface ChannelPolicy {
   readonly version: 1;
@@ -26,6 +32,7 @@ export const POLICY_KEYS: readonly PolicyKey[] = [
   'addMembers',
   'post',
   'mentionAll',
+  'wakeBot',
   'addBots',
   'editDetails',
 ];
@@ -36,6 +43,7 @@ export const DEFAULT_POLICY: ChannelPolicy = {
     addMembers: 'allow',
     post: 'allow',
     mentionAll: 'allow',
+    wakeBot: 'allow',
     addBots: 'deny',
     editDetails: 'deny',
   },
@@ -78,6 +86,7 @@ export function parsePolicy(value: unknown): ChannelPolicy {
       addMembers: effect(everyone?.addMembers),
       post: effect(everyone?.post),
       mentionAll: effect(everyone?.mentionAll),
+      wakeBot: effect(everyone?.wakeBot ?? 'allow'),
       addBots: effect(everyone?.addBots),
       editDetails: effect(everyone?.editDetails),
     },

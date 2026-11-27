@@ -25,6 +25,7 @@ import {
   ClockIcon,
   FolderIcon,
   MembersIcon,
+  MentionIcon,
   MemoryIcon,
   SettingsIcon,
   WorkIcon,
@@ -119,6 +120,7 @@ const TAB_GLYPHS: Record<ProfileTab, typeof WorkIcon> = {
   routines: ClockIcon,
   settings: SettingsIcon,
   members: MembersIcon,
+  bots: MentionIcon,
 };
 
 export function profileTabOptions(tabs: readonly ProfileTab[]): IconTabOption<ProfileTab>[] {

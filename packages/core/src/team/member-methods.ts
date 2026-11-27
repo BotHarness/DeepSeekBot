@@ -182,6 +182,7 @@ export const MEMBER_APPROVAL_METHODS = [
 export const MEMBER_CHANNEL_METHODS = [
   'grantRequestApprove',
   'channelRoleDirectory',
+  'channelBotSettings',
   'channelRename',
   'channelHumanNameSet',
   'channelGroupAvatarSet',

@@ -83,6 +83,7 @@ export class TeamService {
   readonly roles: TeamRoles;
   readonly approvals: TeamApprovals;
   readonly channelAccess: TeamChannels;
+  readonly channelBots: TeamChannelBots;
   private readonly accessListeners = new Set<() => void>();
   private readonly ownerListeners = new Set<() => Promise<unknown>>();
   onOwnerTransferred(listener: () => Promise<unknown>): () => void {
@@ -312,6 +313,7 @@ export class TeamService {
     this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
       this.accessChanged(revoke),
     );
+    this.channelBots = new TeamChannelBots(db, channels, this.channelAccess);
     this.bots = new TeamBots(
       db,
       channels,
@@ -325,6 +327,7 @@ export class TeamService {
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
     this.approvals = new TeamApprovals(db, channels, this.roles, this.bots);
     channels.bindHumanAccess?.({
+      botReception: channelBotReception,
       addInitialMembers: (db, human, channelId, humanIds, joinedAt) => {
         if (!this.enabled()) throw new TeamError('team-mode-off');
         return this.channelAccess.addInitialMembers(db, human, channelId, humanIds, joinedAt);
@@ -998,3 +1001,4 @@ export class TeamService {
     return memberAuth.disposePeers.call(this.#memberOperations, humanId, keepGrant);
   }
 }
+import { channelBotReception, TeamChannelBots } from './channel-bots.js';
