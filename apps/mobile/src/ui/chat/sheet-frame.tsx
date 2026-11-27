@@ -18,6 +18,7 @@ export interface SheetFrameProps {
   animationType: 'none' | 'slide' | 'fade';
   fill?: boolean | undefined;
   resizable?: boolean | undefined;
+  androidFill?: boolean | undefined;
 }
 
 function Grabber() {
