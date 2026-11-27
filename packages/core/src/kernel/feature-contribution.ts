@@ -1,12 +1,35 @@
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 import type { RuntimeHost } from './runtime-host.js';
 
+export type FeaturePromptSlot =
+  | 'reply-contract'
+  | 'group-collaboration'
+  | 'channel-files'
+  | 'reply-delivery'
+  | 'peer-review';
+
 export type FeaturePromptSection =
   | { placement: 'role'; text: () => string }
-  | { placement: 'system'; name: string; order: number; text: string | (() => string) };
+  | { placement: 'slot'; slot: FeaturePromptSlot; text: () => string }
+  | {
+      placement: 'system';
+      name: string;
+      order: number;
+      text: string | (() => string);
+      condition?: 'external-messaging-connected';
+    };
+
+export type FeatureToolPlacement =
+  | 'after-assignment-tools'
+  | 'bridge'
+  | 'before-inbox-tools'
+  | 'after-inbox-tools'
+  | 'before-source-attention-tools'
+  | 'after-channel-tools'
+  | 'after-schedule-tools';
 
 export interface FeatureToolRegistrar {
-  register(tool: ToolDefinition, placement?: 'after-channel-tools'): void;
+  register(tool: ToolDefinition, placement?: FeatureToolPlacement): void;
   guard(refuse: (name: string) => string | undefined): void;
 }
 

@@ -7,14 +7,20 @@ import {
 import { createMessageAttachmentFiles } from '../../attachments/message-files.js';
 import { ChannelAttachmentError } from '../../attachments/store.js';
 import { type MemoryFileTarget } from '../../memory/file-actions.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { AttachmentStore } from '../../attachments/store.js';
+import type { ChannelStore } from '../../channels/store.js';
 
-export interface ChannelFilesAdapterMethods {
+export type ChannelFilesAdapterMethods = {
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
+};
+
+export interface ChannelFilesBridgeDeps {
+  channels: ChannelStore;
+  attachments?: AttachmentStore;
 }
 
 export function createChannelFilesAdapterMethods(
-  deps: BridgeMethodsDeps,
+  deps: ChannelFilesBridgeDeps,
 ): ChannelFilesAdapterMethods {
   return {
     messageAttachmentTarget(payload) {

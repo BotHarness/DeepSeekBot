@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_PROMPT_TEXT } from '../../src/prompts/prompt-parts.js';
-import {
-  orchestratorPromptSections,
-  replyReminderText,
-} from '../../src/runtime/dsh-bot-agent-adapter.js';
+import { replyReminderText } from '../../src/runtime/dsh-bot-agent-adapter.js';
+import { orchestratorPromptSections } from '../fixtures/orchestrator-prompt.js';
 import { renderInbox } from '../../src/runtime/inbox-render.js';
 import { withoutOpenStatus, type Scenario, type ToolCall } from './scenarios.js';
 import type { EvalReport, ScenarioRun } from './score.js';

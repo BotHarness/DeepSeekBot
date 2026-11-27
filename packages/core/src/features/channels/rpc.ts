@@ -5,8 +5,7 @@ import {
   type DraftDelivery,
 } from '../../channels/live.js';
 import type { ChannelMessagePage } from '../../channels/read-continuation.js';
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import type { BridgeLive } from '../../bridge/rpc.js';
+import type { BridgeLive } from '../../bridge/rpc-types.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { TeamService } from '../../team/service.js';
 import { toRemoteError } from '../../kernel/rpc-result.js';
@@ -39,6 +38,17 @@ import type { ChannelTimelinePage, TimelineDirection } from '../../channels/time
 import type { ChannelAccessState, ChannelsAdapterMethods } from './methods.js';
 import type { ChannelsManagementAdapterMethods } from './management-methods.js';
 import type { ChannelsSendAdapterMethods } from './send-methods.js';
+import type { GroupMemberMethods } from './group-members.js';
+
+type ChannelRpcReceiver = {
+  readonly methods: ChannelsAdapterMethods &
+    ChannelsManagementAdapterMethods &
+    ChannelsSendAdapterMethods &
+    GroupMemberMethods;
+  readonly live?: BridgeLive;
+  readonly team?: TeamService;
+  invocationHuman(): HumanContext;
+};
 
 export function channelRetry(
   methods: ChannelsAdapterMethods,
@@ -518,7 +528,7 @@ export const channelsRpcMethods = {
   channelAllBotPreview(channelId: string): AllBotPreview {
     return channelAllBotPreview(this.methods, channelId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ChannelRpcReceiver>;
 
 export const channelChangeRpc = {
   channelChanges(
@@ -541,7 +551,9 @@ export const channelChangeRpc = {
   channelChangeCursor(): ChannelChangeCursor {
     return channelChangeCursor(this.live, () => this.invocationHuman());
   },
+} satisfies ThisType<ChannelRpcReceiver>;
 
+export const channelStreams = {
   async *followChannel(
     channelId: string,
     limit: number,
@@ -569,7 +581,7 @@ export const channelChangeRpc = {
       throw error;
     }
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ChannelRpcReceiver>;
 
 export const channelManagementRpc = {
   async channels(): Promise<{ channels: ChannelListItem[] }> {
@@ -692,7 +704,7 @@ export const channelManagementRpc = {
       expectedChannel,
     );
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ChannelRpcReceiver>;
 
 export const channelDeletionRpc = {
   channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
@@ -709,7 +721,7 @@ export const channelDeletionRpc = {
   ): { sources: PurgeSource[]; before?: string } {
     return channelHistorySources(this.methods, channelId, before);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ChannelRpcReceiver>;
 
 export const channelHistoryRpc = {
   channelMessages(
@@ -778,7 +790,7 @@ export const channelHistoryRpc = {
   messageSearch(text: string, cursor?: string, limit?: number): HumanMessageSearchPage {
     return messageSearch(this.methods, text, cursor, limit);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ChannelRpcReceiver>;
 
 export const channelSendRpc = {
   channelSendStatus(channelId: string, messageId: string): ChannelSendStatus {
@@ -819,4 +831,4 @@ export const channelSendRpc = {
       quotes,
     );
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<ChannelRpcReceiver>;

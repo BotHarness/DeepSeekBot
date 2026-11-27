@@ -52,7 +52,6 @@ import { directTools, runDirectTool } from './dsh-bot-agent-adapter-tools.js';
 import { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 export { TURN_ONLY_BOT_TOOLS } from './dsh-bot-agent-adapter-shared.js';
 export { hostWorkContext } from './dsh-bot-agent-adapter-orchestrator.js';
-export { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
 
 export { onlyActiveGrant } from '../features/assignments/tools.js';
 export {

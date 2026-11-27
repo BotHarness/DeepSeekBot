@@ -31,7 +31,6 @@ import {
 import {
   type ModelFreeTobTurn,
   ROLE_PROMPT_ORDER,
-  EXTERNAL_IM_PROMPT,
   type ActiveRun,
   linkForgottenSessions,
   agentOptions,
@@ -701,9 +700,6 @@ export async function orchestratorHandle(
     const featurePrompts = adapter.featureContributions.flatMap(
       (feature) => feature.promptSections?.(featureContext) ?? [],
     );
-    const roleSections = featurePrompts
-      .filter((section) => section.placement === 'role')
-      .map((section) => section.text);
     const disposeRolePrompt = agentCtx.systemPrompt.section({
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,
@@ -711,18 +707,20 @@ export async function orchestratorHandle(
         orchestratorPromptSections(
           adapter.promptText(run.sessionId),
           managerPromptNow(),
-          roleSections,
+          featurePrompts,
         ).role,
     });
     if (borrowed) borrowedDisposers.push(disposeRolePrompt);
     const disposeReplyPrompt = agentCtx.systemPrompt.section({
       name: 'botharness:reply-delivery',
       order: 10_450,
-      text: () => orchestratorPromptSections(adapter.promptText(run.sessionId)).replyDelivery,
+      text: () =>
+        orchestratorPromptSections(adapter.promptText(run.sessionId), false, featurePrompts)
+          .replyDelivery,
     });
     if (borrowed) borrowedDisposers.push(disposeReplyPrompt);
     for (const section of featurePrompts) {
-      if (section.placement !== 'system') continue;
+      if (section.placement !== 'system' || section.condition !== undefined) continue;
       const dispose = agentCtx.systemPrompt.section({
         name: section.name,
         order: section.order,
@@ -738,13 +736,17 @@ export async function orchestratorHandle(
         bridgeDisposers = undefined;
         return;
       }
-      const disposers = [
-        agentCtx.systemPrompt.section({
-          name: 'botharness:external-im',
-          order: ROLE_PROMPT_ORDER + 1,
-          text: EXTERNAL_IM_PROMPT,
-        }),
-      ];
+      const disposers = featurePrompts.flatMap((section) =>
+        section.placement === 'system' && section.condition === 'external-messaging-connected'
+          ? [
+              agentCtx.systemPrompt.section({
+                name: section.name,
+                order: section.order,
+                text: section.text,
+              }),
+            ]
+          : [],
+      );
       for (const tool of bridgeTools) disposers.push(agentCtx.tools.register(tool));
       bridgeDisposers = disposers;
     };

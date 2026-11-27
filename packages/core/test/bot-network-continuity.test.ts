@@ -9,7 +9,7 @@ import { createConnectBotBridge } from '../src/devices/bot-connect-bridge.js';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import type { AuthenticatedConnectBotPeer } from '../src/devices/connect-bot-network.js';
 import { receiveNetworkBotDm } from '../src/runtime/bot-network.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 import { loopbackAliasesAvailable } from './loopback-aliases.js';

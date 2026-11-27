@@ -29,7 +29,7 @@ import { createGroupFallback } from '../../src/models/group-fallback.js';
 import { createRouteRests } from '../../src/models/route-rest.js';
 import type { RoutingGroupMember } from '../../src/models/routing-groups.js';
 import { createCore } from '../../src/plugin.js';
-import { createDshBotAgentAdapter } from '../../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../../src/agent-adapter.js';
 import { sessionModelChoices } from '../../src/runtime/session-model-choices.js';
 import { readTurnTargets } from '../../src/runtime/turn-targets.js';
 import { engineWorkspaceMode } from '../../src/workspaces/grant-execution.js';

@@ -30,14 +30,22 @@ import { OperationalDatabaseError } from '../../database/owner.js';
 import { z } from 'zod';
 import { ChannelAttachmentError } from '../../attachments/store.js';
 import { type MemoryFileTarget } from '../../memory/file-actions.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { AttachmentStore } from '../../attachments/store.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+
+export interface MessagingBridgeDeps {
+  attachments?: AttachmentStore;
+  externalMessaging?: OutboundMessaging;
+  registry: PersonaBotRegistry;
+  warn?: (message: string) => void;
+}
 
 export interface MessagingAppsView {
   apps: MessagingApp[];
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
-export function createMessagingCall(deps: Pick<BridgeMethodsDeps, 'externalMessaging' | 'warn'>) {
+export function createMessagingCall(deps: Pick<MessagingBridgeDeps, 'externalMessaging' | 'warn'>) {
   const messagingCall = async <T>(
     operation: (service: OutboundMessaging) => Promise<T>,
   ): Promise<BridgeResult<T>> => {
@@ -76,7 +84,7 @@ export function createMessagingCall(deps: Pick<BridgeMethodsDeps, 'externalMessa
   };
   return messagingCall;
 }
-export interface MessagingBridgeMethods {
+export type MessagingBridgeMethods = {
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsTest(payload: unknown): Promise<
     BridgeResult<{
@@ -123,10 +131,10 @@ export interface MessagingBridgeMethods {
   messagingConversation(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingSend(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
   channelMediaTarget(payload: unknown): Promise<BridgeResult<{ target: MemoryFileTarget }>>;
-}
+};
 
 export function createMessagingBridgeMethods(
-  deps: BridgeMethodsDeps,
+  deps: MessagingBridgeDeps,
   messagingCall: ReturnType<typeof createMessagingCall>,
 ): MessagingBridgeMethods {
   return {

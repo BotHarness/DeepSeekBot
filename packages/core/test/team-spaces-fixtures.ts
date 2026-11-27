@@ -1,4 +1,4 @@
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { afterEach } from 'vitest';
 import { realpathSync } from 'node:fs';

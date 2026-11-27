@@ -66,8 +66,6 @@ import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
 import { createSessionListChanges } from './features/sessions/session-list-changes.js';
-import * as channelsFeature from './features/channels/plugin.js';
-import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
@@ -474,7 +472,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.afterConfinement?.(ctx, core, takeovers),
   );
-  messaging.mountCleanup(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.messagingCleanup?.(ctx, core));
   const { cloudConnections, cloudWork } = createCloudResources(ctx, core);
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeEngineTools?.(ctx, core, cloudWork),
@@ -483,7 +481,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeMessagingProviders?.(ctx, core, cloudConnections, cloudWork),
   );
-  messaging.mountProviders(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.messagingProviders?.(ctx, core));
 
   const { permissionDenial, recordOrchestratorPermission, appliedPermission } =
     workspacesFeature.mountPermissionTracking(ctx, core);
@@ -791,12 +789,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.voiceRoutes?.(connectionCtx, connection.fetch, () => voiceCalls),
     );
-    channelsFeature.mountLiveRoute(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.channelLiveRoute?.(connectionCtx, connection, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.afterLiveRoute?.(connectionCtx, connection, core),
     );
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
-    channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.attachmentRoutes?.(connectionCtx, connection, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.beforeWorkspaceFavicon?.(connectionCtx, connection, core),
     );

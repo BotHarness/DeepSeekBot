@@ -4,27 +4,14 @@ import { executeNativeTool } from './native-agent-compat.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
 import { agentFeatureContext } from './agent-feature-context.js';
-import type { FeatureToolRegistrar } from '../kernel/feature-contribution.js';
+import type { FeatureToolPlacement, FeatureToolRegistrar } from '../kernel/feature-contribution.js';
 import { registerInboxTools, registerSourceAttentionTools } from '../features/activity/tools.js';
 import {
   createAssignmentTool,
   registerAssignmentTools,
   type AssignmentToolOptions,
 } from '../features/assignments/tools.js';
-import {
-  createBotContactsTool,
-  createChannelListTool,
-  createChannelReadTool,
-  createGroupCreateTool,
-  createGroupLeaveTool,
-  registerGroupChannelTools,
-} from '../features/channels/tools.js';
-import { registerExternalMessagingTools } from '../features/messaging/tools.js';
 import { createListAssignmentModelsTool } from '../features/models/tools.js';
-import {
-  createBridgeAttachmentSaveTool,
-  registerChannelFileTools,
-} from '../features/channel-files/tools.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { AttachmentId } from '@deepseek-ai/dsh-attachment';
 import { isBotSubagentModelTool } from './subagent-model-tools.js';
@@ -94,12 +81,20 @@ export function orchestratorTools(
   };
   const currentRun = () => currentOrchestrator()?.run;
   const featureContext = agentFeatureContext(adapter, run, agentCtx);
-  const lateFeatureTools: ToolDefinition[] = [];
+  const placedFeatureTools = new Map<FeatureToolPlacement, ToolDefinition[]>();
+  const registerPlacedFeatureTools = (placement: FeatureToolPlacement) => {
+    const register = placement === 'bridge' ? registerBridgeTool : registerTool;
+    for (const tool of placedFeatureTools.get(placement) ?? []) register(tool);
+  };
   for (const feature of adapter.featureContributions) {
     feature.tools?.(featureContext, {
       register(tool, placement) {
-        if (placement === 'after-channel-tools') lateFeatureTools.push(tool);
-        else registerTool(tool);
+        if (placement === undefined) registerTool(tool);
+        else {
+          const tools = placedFeatureTools.get(placement) ?? [];
+          tools.push(tool);
+          placedFeatureTools.set(placement, tools);
+        }
       },
       guard: guardFeatureTool,
     });
@@ -231,7 +226,7 @@ export function orchestratorTools(
       }),
     );
   registerAssignmentTools(assignmentOptions, registerTool);
-  registerTool(createChannelListTool(currentRun));
+  registerPlacedFeatureTools('after-assignment-tools');
   if (run === CATALOG_RUN || run.speakerPolicy)
     registerTool(
       defineTool({
@@ -251,12 +246,11 @@ export function orchestratorTools(
         },
       }),
     );
-  registerExternalMessagingTools(currentRun, registerBridgeTool);
-  registerBridgeTool(createBridgeAttachmentSaveTool(currentRun));
+  registerPlacedFeatureTools('bridge');
 
-  registerTool(createChannelReadTool(currentRun));
+  registerPlacedFeatureTools('before-inbox-tools');
   registerInboxTools(currentRun, registerTool, () => adapter.engineChannels.get(run.sessionId));
-  registerChannelFileTools(currentRun, agentCtx, registerTool);
+  registerPlacedFeatureTools('after-inbox-tools');
   registerTool(
     defineTool({
       name: 'call_frame',
@@ -383,12 +377,10 @@ export function orchestratorTools(
       },
     }),
   );
-  registerTool(createBotContactsTool(currentRun));
-  registerTool(createGroupCreateTool(currentRun));
-  registerGroupChannelTools(currentRun, registerTool);
+  registerPlacedFeatureTools('before-source-attention-tools');
   registerSourceAttentionTools(currentRun, registerTool);
-  for (const tool of lateFeatureTools) registerTool(tool);
-  registerTool(createGroupLeaveTool(currentRun));
+  registerPlacedFeatureTools('after-channel-tools');
+  registerPlacedFeatureTools('after-schedule-tools');
 }
 
 export function directTools(adapter: DirectToolsContext): DirectBotToolSpec[] {
