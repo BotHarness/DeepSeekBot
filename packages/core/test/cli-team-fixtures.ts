@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { z } from 'zod';
 import { join } from 'node:path';
 import { afterEach, expect, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];

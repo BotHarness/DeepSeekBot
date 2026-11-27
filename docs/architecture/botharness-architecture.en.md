@@ -416,6 +416,8 @@ Host composition injects [Feature Contributions](../decisions/core-architecture.
 
 [Team Policy](../decisions/core-architecture.md#team-policy-and-administration) owns the permission catalog and evaluates Channel access from facts supplied by the Team services. Team's feature adapters expose member HTTP and device sign-in, PersonaBot metadata, and Workspace administration. The Team services own audit writes and coordinate database transactions with the relevant modules.
 
+The [CLI module and Profile bridge](../decisions/core-architecture.md#cli-adapters-and-personabot-protection) separate command dispatch from durable PersonaBot operations. The Registry and deletion owner read protection from the record. Tob assigns protection when it creates the Owner's identity, and the Owner transfer transaction expires it.
+
 DM and Group admission, causal sending, and Group digests use shared Channel and Runtime kernel modules behind the same Bot Runtime Service. They use the Runtime’s live turn state and existing Channel Store and admission transactions.
 
 Channel tools, Human input binding, direct Bot tools, and Tob CLI requests also use ports supplied by the Bot Runtime Service. The Runtime owns the live turn state and direct-tool Source Event writes. Activity records Inbox ignore writes through the Runtime's database port. See the [shared kernel](feature-map.md#shared-kernel).

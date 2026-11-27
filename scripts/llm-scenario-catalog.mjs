@@ -410,7 +410,7 @@ export const SCENARIOS = [
     areas: [
       'packages/core/src/marketplace/',
       'packages/core/src/tob/',
-      'packages/core/src/bots/cli-share-draft.ts',
+      'packages/core/src/cli/cli-share-draft.ts',
       'scripts/e2e-llm-scenarios.mjs',
     ],
     bots: ['atlas'],
@@ -498,7 +498,7 @@ export const SCENARIOS = [
       'Tob, which holds the App management grant, runs deepseekbot doctor before it diagnoses a problem the Human reports, and reports from that output in its Human DM (#5193).',
     areas: [
       'packages/core/src/tob/',
-      'packages/core/src/bots/cli-doctor.ts',
+      'packages/core/src/cli/cli-doctor.ts',
       'packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.ts',
       'scripts/e2e-llm-scenarios.mjs',
     ],

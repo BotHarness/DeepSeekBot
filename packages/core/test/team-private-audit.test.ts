@@ -24,8 +24,8 @@ import { memberPolicy } from '../src/features/team/member-remote-policy.js';
 import { auditRecordSchema } from '../src/team/private-contract.js';
 import type { PrivateObject } from '../src/team/private-contract.js';
 import type { ChannelMessageAuthor } from '../src/channels/message-author.js';
-import { createTobHostCliOperations } from '../src/tob/cli-host-commands.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { createTobHostCliOperations } from '../src/features/tob/cli-host-commands.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';
 

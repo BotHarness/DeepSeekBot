@@ -7,6 +7,7 @@ import {
   isPersonaBotAvatar,
   type CreatePersonaBotInput,
   type CreatePersonaBotResult,
+  type PersonaBotProtection,
   type PersonaBotRecord,
 } from '../../bots/persona-bot.js';
 import type {
@@ -73,6 +74,7 @@ export function createRegistryCreationMethods(
     input: CreatePersonaBotInput,
     sync: boolean,
     standingLimits?: StandingLimits,
+    protection?: PersonaBotProtection,
   ): Generator<Preparation, CreatePersonaBotResult, MemoryRepositoryInitialization> {
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined) return { ok: false, reason: 'duplicate' };
@@ -117,6 +119,7 @@ export function createRegistryCreationMethods(
       displayName: displayName.length > 0 ? displayName : input.slug,
       workspaces: input.workspaces ?? [],
       createdAt: now().toISOString(),
+      ...(protection === undefined ? {} : { protection }),
       ...(roles.length > 0 ? { roles } : {}),
       ...(description ? { description } : {}),
       ...(avatar ? { avatar } : {}),
@@ -316,7 +319,7 @@ export function createRegistryCreationMethods(
       if (result.ok) capture('bot_library:bot_create');
       return result;
     },
-    async createAsync(input, authorize) {
+    async createAsync(input, authorize, protection) {
       authorize?.();
       if (creating.has(input.slug)) return { ok: false, reason: 'duplicate' };
       let finish = (): void => {};
@@ -325,7 +328,7 @@ export function createRegistryCreationMethods(
       });
       creating.set(input.slug, { humanId: input.ownerHumanId ?? 'local-human', settled });
       try {
-        const steps = createSteps(input, true);
+        const steps = createSteps(input, true, undefined, protection);
         let step = steps.next();
         try {
           while (!step.done) {

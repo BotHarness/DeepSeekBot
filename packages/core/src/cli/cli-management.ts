@@ -1,0 +1,577 @@
+import {
+  confirmBotDeletion,
+  previewBotDeletion,
+  retryBotDeletion,
+} from '@botharness/host-client/deletion-readers';
+import { compactBot, newBotSession, readBotAttention } from '@botharness/host-client/bot-control';
+import { expandGitHubRef } from './bot-create-cli.js';
+import { parseMemoryGitUrl } from '../memory/clone.js';
+import { parseAgentBots } from './cli-agent-bots.js';
+import { validBotCreationKey, type BotCreationReceipt } from '../bots/creation.js';
+import { resolveBotDm } from './cli-bot-dm.js';
+import type { PersonaBotDetail } from '../bridge/methods.js';
+import {
+  isAssignmentGroupOption,
+  isAssignmentModelOption,
+  type AssignmentGroupOption,
+  type AssignmentModelOption,
+  type ModelPreset,
+  type ModelPresetEngineInput,
+  type ModelRoute,
+  type PresetSub,
+} from '../models/presets.js';
+import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
+import type {
+  BotCreateCliIo,
+  BotCreateResult,
+  BotCreateStep,
+  CreateValues,
+  ValidatedCreate,
+} from './bot-create-cli.js';
+import { CliLiveError } from './cli-live-error.js';
+import { readBotActivityPage } from './cli-activity-page.js';
+import { ReadContinuationError } from '../channels/read-cursor.js';
+import {
+  assignmentModelsMode,
+  presetEngineFlags,
+  presetGroupFlags,
+  presetSubStdin,
+} from './cli-models-usage.js';
+import { connectLiveHost } from './cli-live.js';
+
+export const ONLINE_MANAGEMENT_COMMANDS = [
+  'create',
+  'create-status',
+  'bot-import-preview',
+  'list',
+  'show',
+  'update',
+  'model-presets',
+  'model-preset-create',
+  'model-preset-apply',
+  'model-plan',
+  'channels',
+] as const;
+
+export const DIAGNOSTIC_COMMANDS = [
+  {
+    command: 'bot-attention',
+    description: 'inspect bounded Bot Source Event and Admission processing states',
+  },
+  { command: 'bot-sessions', description: 'inspect bounded Bot-owned Session summaries' },
+  {
+    command: 'bot-activity',
+    description: 'inspect a Bot activity snapshot without execution logs',
+  },
+] as const;
+
+export const LIFECYCLE_COMMANDS = [
+  {
+    command: 'bot-context',
+    description: 'inspect current Orchestrator context occupancy and model capacity',
+  },
+  {
+    command: 'bot-system-prompt',
+    description:
+      "show the system prompt a Bot's Orchestrator Session uses now, its sections, and whether a newer one is pending",
+  },
+  {
+    command: 'bot-new-session',
+    description: "retire an idle Bot's Orchestrator Session; the next message starts a fresh one",
+  },
+  {
+    command: 'bot-compact',
+    description:
+      "compact an idle Bot's Orchestrator Session now through DSH /compact; refuses while it works",
+  },
+  {
+    command: 'bot-delete-preview',
+    description: 'inspect the current PersonaBot deletion scope and confirmation token',
+  },
+  {
+    command: 'bot-delete-memory-folder',
+    description: 'inspect the owner-validated Memory folder before deleting a Bot',
+  },
+  {
+    command: 'bot-delete-confirm',
+    description: 'confirm reviewed deletion; retain Memory unless --erase-memory is explicit',
+  },
+  {
+    command: 'bot-delete-retry',
+    description: 'retry incomplete PersonaBot cleanup through its owner',
+  },
+] as const;
+
+function usage(message: string): never {
+  throw new CliLiveError('usage', message);
+}
+
+function route(values: CreateValues, prefix: 'orchestrator' | 'assignment'): ModelRoute {
+  const provider = values[`${prefix}-provider`]?.trim();
+  const model = values[`${prefix}-model`]?.trim();
+  const effort = values[`${prefix}-effort`]?.trim();
+  if (!provider || !model) usage(`--${prefix}-provider and --${prefix}-model are required.`);
+  return { provider, model, ...(effort ? { reasoningEffort: effort } : {}) };
+}
+
+export async function runOnlineManagement(
+  command: string,
+  rest: string[],
+  values: CreateValues,
+  io: BotCreateCliIo,
+  create?: ValidatedCreate,
+  bundle?: { archive: Uint8Array; name?: string; historySkipped: boolean },
+): Promise<unknown> {
+  if (values.home !== undefined) usage('Do not combine --home and an online Host target.');
+  const operationKey = values['operation-key'];
+  if (
+    operationKey !== undefined &&
+    (!['create', 'create-status'].includes(command) ||
+      !validBotCreationKey(operationKey) ||
+      !['blank', 'git', 'sessions'].includes(create?.source.kind ?? '') ||
+      create?.presetId !== undefined ||
+      create?.memoryLocation !== undefined)
+  )
+    usage(
+      '--operation-key requires blank or inspected Git creation with a valid 8–128 character key, no preset and managed Memory.',
+    );
+  const expectedCommit = values['expected-commit'];
+  if (
+    expectedCommit !== undefined &&
+    (!['create', 'create-status'].includes(command) ||
+      create?.source.kind !== 'git' ||
+      !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(expectedCommit))
+  )
+    usage('--expected-commit requires Git creation or lookup and the inspected commit.');
+  if (operationKey !== undefined && create?.source.kind === 'git' && expectedCommit === undefined)
+    usage('Stable Git creation requires --expected-commit from bot-import-preview.');
+  if (command === 'create-status' && operationKey === undefined)
+    usage('create-status requires --operation-key.');
+  if (command === 'create-status' && create?.source.kind === 'sessions')
+    usage('Repeat create --from-sessions with the same --operation-key to recover it.');
+  const noTarget = [
+    'create',
+    'create-status',
+    'bot-import-preview',
+    'list',
+    'model-presets',
+    'model-preset-create',
+    'channels',
+  ].includes(command);
+  if (rest.length !== (noTarget ? 0 : 1))
+    usage(`${command} ${noTarget ? 'takes no positional arguments' : 'requires one Bot ID'}.`);
+  const slug = rest[0]?.trim();
+  if (!noTarget && !slug) usage('A nonempty Bot ID is required.');
+  const seconds = values.timeout === undefined ? 120 : Number(values.timeout);
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 600)
+    usage('--timeout must be between 0 and 600 seconds.');
+  const limit = values.limit === undefined ? 50 : Number(values.limit);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) usage('--limit must be 1–100.');
+  let presetInput:
+    | ({
+        name: string;
+        orchestrator?: ModelRoute;
+        assignmentDefault?: ModelRoute;
+        sub?: PresetSub;
+        assignmentModels?: AssignmentModelOption[];
+        openAssignmentModels?: boolean;
+        orchestratorGroupId?: string | null;
+        orchestratorGroupEffort?: string;
+        assignmentGroups?: string[];
+        assignmentDefaultGroupId?: string | null;
+        assignmentGroupOptions?: AssignmentGroupOption[];
+      } & ModelPresetEngineInput)
+    | undefined;
+  if (command === 'model-preset-create') {
+    const name = values.name?.trim();
+    if (!name) usage('--name is required for a Model Preset.');
+    const groups = presetGroupFlags(values);
+    if (groups.orchestratorGroupId && values['orchestrator-provider'] !== undefined)
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    if (
+      groups.assignmentDefaultGroupId &&
+      !(groups.assignmentGroups ?? []).includes(groups.assignmentDefaultGroupId)
+    )
+      usage('--assignment-default-group must be one of --assignment-groups.');
+    const groupEffort = values['orchestrator-effort']?.trim();
+    const main = {
+      name,
+      ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
+      ...(groups.orchestratorGroupId && groupEffort
+        ? { orchestratorGroupEffort: groupEffort }
+        : {}),
+      ...groups,
+      ...presetEngineFlags(values),
+    };
+    let plan: Record<string, unknown> = {};
+    if (values['plan-stdin']) {
+      let input: unknown;
+      try {
+        input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+      } catch {
+        usage('Plan stdin must contain sub, assignmentModels or assignmentGroupOptions.');
+      }
+      if (typeof input !== 'object' || input === null || Array.isArray(input))
+        usage('Plan stdin must contain one JSON object.');
+      plan = Object.fromEntries(Object.entries(input));
+    }
+    const sub = presetSubStdin(plan, values);
+    if (sub !== undefined) {
+      if (Object.keys(plan).length !== 1) usage('Plan stdin with sub accepts only sub.');
+      presetInput = { ...main, sub };
+    } else {
+      presetInput = {
+        ...main,
+        assignmentDefault: route(values, 'assignment'),
+        ...assignmentModelsMode(values['assignment-models']),
+      };
+      if (values['plan-stdin']) {
+        const models = plan['assignmentModels'];
+        const options = plan['assignmentGroupOptions'];
+        if (
+          (models === undefined && options === undefined) ||
+          (models !== undefined &&
+            (!Array.isArray(models) || !models.every(isAssignmentModelOption))) ||
+          (options !== undefined &&
+            (!Array.isArray(options) ||
+              !options.every(
+                (option) =>
+                  isAssignmentGroupOption(option) &&
+                  (groups.assignmentGroups ?? []).includes(option.group),
+              ))) ||
+          Object.keys(plan).some(
+            (key) => key !== 'assignmentModels' && key !== 'assignmentGroupOptions',
+          )
+        )
+          usage(
+            'Plan stdin must contain only valid assignmentModels and assignmentGroupOptions for --assignment-groups.',
+          );
+        if (models !== undefined) presetInput.assignmentModels = models as AssignmentModelOption[];
+        if (options !== undefined)
+          presetInput.assignmentGroupOptions = options as AssignmentGroupOption[];
+      }
+    }
+  }
+  if (command === 'model-preset-apply' && !values.preset?.trim()) usage('--preset is required.');
+  if (command.startsWith('bot-delete-')) {
+    if (values.path !== undefined || values['memory-location'] !== undefined)
+      usage(
+        'Deletion uses the owner-reviewed Memory folder; a caller-selected path is not accepted.',
+      );
+    if (values['erase-memory'] && command !== 'bot-delete-confirm')
+      usage('--erase-memory is only valid when confirming a reviewed deletion.');
+    if (
+      (command === 'bot-delete-confirm' || command === 'bot-delete-retry') &&
+      values.confirm !== true
+    )
+      usage(`${command} requires --confirm.`);
+  }
+  let confirmation: string | undefined;
+  if (command === 'bot-delete-confirm') {
+    if (!values['confirmation-stdin']) usage('bot-delete-confirm requires --confirmation-stdin.');
+    let input: unknown;
+    try {
+      input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+    } catch {
+      usage('Confirmation stdin must be JSON with a token string.');
+    }
+    if (
+      typeof input !== 'object' ||
+      input === null ||
+      !('token' in input) ||
+      typeof input.token !== 'string' ||
+      !input.token.trim() ||
+      input.token.length > 256 ||
+      Object.keys(input).some((key) => key !== 'token')
+    )
+      usage(
+        'Confirmation stdin must contain only a nonempty token string; use --erase-memory for explicit erasure.',
+      );
+    confirmation = input.token;
+  }
+  const update =
+    command === 'update'
+      ? await parseAgentBots(
+          command,
+          rest,
+          Object.fromEntries(
+            Object.entries(values).filter(([key]) => !['host', 'token-file', 'as'].includes(key)),
+          ),
+          io,
+        )
+      : undefined;
+  let previewUrl: string | undefined;
+  if (command === 'bot-import-preview') {
+    previewUrl = values['from-git'] === undefined ? undefined : expandGitHubRef(values['from-git']);
+    if (
+      !previewUrl ||
+      !parseMemoryGitUrl(previewUrl) ||
+      values['from-zip'] !== undefined ||
+      values['from-dir'] !== undefined
+    )
+      usage('bot-import-preview requires one --from-git source.');
+  }
+  const { rpc, importBotZip } = await connectLiveHost(
+    values,
+    io,
+    AbortSignal.timeout(Math.ceil(seconds * 1000)),
+  );
+  if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
+  if (command === 'list')
+    return withoutDeletedBots(
+      await rpc('list', values.administration ? { administration: true } : {}),
+    );
+  if (command === 'show') return rpc('get', { slug });
+  if (update) return rpc('update', update.args);
+  if (command === 'channels') return rpc('channels', {});
+  if (command === 'model-presets')
+    return rpc('modelPresets', values['include-usage'] ? { includeUsage: true } : {});
+  if (command === 'model-preset-create') return rpc('modelPresetCreate', { ...presetInput! });
+  if (command === 'model-preset-apply') {
+    const revisions: Record<string, number> = {};
+    for (const [flag, field] of [
+      ['expected-revision', 'expectedRevision'],
+      ['preset-revision', 'expectedPresetRevision'],
+    ] as const) {
+      const raw = values[flag];
+      if (raw === undefined) continue;
+      if (!/^\d+$/u.test(raw) || !Number.isSafeInteger(Number(raw)))
+        usage(`--${flag} must be a nonnegative integer.`);
+      revisions[field] = Number(raw);
+    }
+    return rpc('modelPresetApply', {
+      slug,
+      presetId: values.preset!.trim(),
+      ...revisions,
+      ...(values['keep-overrides'] === true ? { keepOverrides: true } : {}),
+    });
+  }
+  if (command === 'model-plan') return rpc('modelPlan', { slug });
+  const reader = { call: (method: string, args = {}) => rpc(method, args) };
+  if (command === 'bot-new-session') return newBotSession(reader, slug!);
+  if (command === 'bot-compact') return compactBot(reader, slug!);
+  if (command === 'bot-context') return rpc('botContext', { slug });
+  if (command === 'bot-system-prompt') return rpc('botSystemPrompt', { slug });
+  if (command === 'bot-delete-preview') return previewBotDeletion(reader, slug!, true);
+  if (command === 'bot-delete-memory-folder') return rpc('deletionMemoryFolder', { slug });
+  if (command === 'bot-delete-confirm')
+    return confirmBotDeletion(
+      reader,
+      {
+        slug: slug!,
+        token: confirmation!,
+        eraseMemory: values['erase-memory'] === true,
+      },
+      true,
+    );
+  if (command === 'bot-delete-retry') {
+    const { preview } = await previewBotDeletion(reader, slug!, true);
+    if (preview.deletion === undefined)
+      usage('Retry requires an existing accepted deletion and preserves its Memory choice.');
+    return retryBotDeletion(reader, slug!, true);
+  }
+  if (command === 'bot-attention')
+    return readBotAttention(reader, {
+      slug,
+      limit,
+      ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+      ...(values.state === undefined ? {} : { state: values.state }),
+    });
+  if (command === 'bot-sessions') {
+    const result = await rpc<{ sessions: Array<{ createdAt: string }> }>('sessions', {
+      slug,
+      includeTitles: true,
+    });
+    const sorted = [...result.sessions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return { sessions: sorted.slice(0, limit), total: sorted.length };
+  }
+  if (command === 'bot-activity') {
+    const detail = await rpc<{ bot?: { createdAt?: unknown } }>('get', { slug });
+    const snapshot = await rpc<PersonaBotActivitySnapshot>('activitySnapshot', {});
+    try {
+      return readBotActivityPage({
+        slug: slug!,
+        incarnation: typeof detail?.bot?.createdAt === 'string' ? detail.bot.createdAt : '',
+        snapshot,
+        limit,
+        ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+      });
+    } catch (error) {
+      if (error instanceof ReadContinuationError) throw new CliLiveError(error.code, error.message);
+      throw error;
+    }
+  }
+  if (command === 'create-status' && create !== undefined)
+    return rpc(create.source.kind === 'git' ? 'botImportLookup' : 'createLookup', {
+      ...(create.source.kind === 'git' ? { gitUrl: create.source.gitUrl, expectedCommit } : {}),
+      operationKey,
+      displayName: create.displayName,
+      ...(create.persona === undefined ? {} : { persona: create.persona }),
+      ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
+      ...(create.roles === undefined ? {} : { roles: create.roles }),
+      ...(create.description === undefined ? {} : { description: create.description }),
+      ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
+    });
+  if (command !== 'create' || create === undefined) usage('Unsupported online management command.');
+  const steps: BotCreateStep[] = [{ name: 'validate', status: 'ok' }];
+  let bot: { id: string; name: string } | undefined;
+  let submitted = false;
+  let operationConfirmed = false;
+  try {
+    if (create.presetId !== undefined) {
+      const result = await rpc<{ presets: ModelPreset[] }>('modelPresets', {});
+      if (!result.presets.some((preset) => preset.id === create.presetId))
+        throw new CliLiveError(
+          'unknown-preset',
+          'The specified Model Preset does not exist on this Host.',
+        );
+    }
+    if ((create.source.kind === 'zip' || create.source.kind === 'dir') && bundle === undefined)
+      usage('A validated local bundle is required.');
+    submitted = true;
+    const metadata = {
+      ...(create.displayName === undefined ? {} : { displayName: create.displayName }),
+      ...(create.roles === undefined ? {} : { roles: create.roles }),
+      ...(create.description === undefined ? {} : { description: create.description }),
+    };
+    const result =
+      create.source.kind === 'sessions'
+        ? await rpc<{
+            bot: PersonaBotDetail;
+            receipt?: BotCreationReceipt;
+            httpsFallback?: BotCreateResult['httpsFallback'];
+          }>('createFromSessions', {
+            ...metadata,
+            sessionIds: create.source.sessionIds,
+            ...(create.source.addWorkspaces === true ? { addWorkspaces: true } : {}),
+            ...(create.persona === undefined ? {} : { persona: create.persona }),
+            ...(operationKey === undefined ? {} : { operationKey }),
+          })
+        : create.source.kind === 'zip' || create.source.kind === 'dir'
+          ? await importBotZip<{
+              bot: PersonaBotDetail;
+              receipt?: BotCreationReceipt;
+              httpsFallback?: BotCreateResult['httpsFallback'];
+            }>(bundle!.archive, {
+              ...metadata,
+              ...(bundle!.name === undefined ? {} : { name: bundle!.name }),
+            })
+          : await rpc<{
+              bot: PersonaBotDetail;
+              receipt?: BotCreationReceipt;
+              httpsFallback?: BotCreateResult['httpsFallback'];
+            }>(create.source.kind === 'git' ? 'createFromGit' : 'create', {
+              ...metadata,
+              ...(operationKey === undefined ? {} : { operationKey }),
+              ...(create.source.kind === 'git'
+                ? {
+                    gitUrl: create.source.gitUrl,
+                    ...(expectedCommit === undefined ? {} : { expectedCommit }),
+                  }
+                : {
+                    ...(create.persona === undefined ? {} : { persona: create.persona }),
+                    ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
+                    ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
+                  }),
+              ...(create.memoryLocation === undefined
+                ? {}
+                : { memoryLocation: create.memoryLocation }),
+            });
+    if (!result.bot?.slug || !result.bot.displayName)
+      throw new CliLiveError('host-protocol-error', 'The Host returned no created Bot identity.');
+    bot = { id: result.bot.slug, name: result.bot.displayName };
+    if (
+      operationKey !== undefined &&
+      (result.receipt?.operationKey !== operationKey ||
+        result.receipt.botSlug !== bot.id ||
+        result.receipt.status !== 'created')
+    )
+      throw new CliLiveError(
+        'host-protocol-error',
+        'The Host did not confirm the stable creation receipt; inspect the returned Bot identity before retrying.',
+      );
+    operationConfirmed = operationKey !== undefined;
+    if (create.source.kind === 'git') steps.push({ name: 'clone', status: 'ok' });
+    if (bundle !== undefined)
+      steps.push({
+        name: 'read-bundle',
+        status: 'ok',
+        ...(bundle.historySkipped
+          ? { detail: 'Git history was unavailable; imported files only.' }
+          : {}),
+      });
+    steps.push({ name: 'create-bot', status: 'ok' });
+    if (create.source.kind === 'sessions')
+      steps.push(
+        { name: 'grant-workspaces', status: 'ok' },
+        { name: 'seed-message', status: 'ok' },
+      );
+    if (create.presetId !== undefined) {
+      await rpc('modelPresetApply', { slug: bot.id, presetId: create.presetId });
+      steps.push({ name: 'model', status: 'ok' });
+    } else steps.push({ name: 'model', status: 'deferred', code: 'no-model-yet' });
+    const detail = await rpc<{ bot: PersonaBotDetail & { memoryDir: string } }>('get', {
+      slug: bot.id,
+    });
+    if (typeof detail.bot?.memoryDir !== 'string')
+      throw new CliLiveError('host-protocol-error', 'The Host returned no Bot Memory path.');
+    const channelId = await resolveBotDm(rpc, bot.id, bot.name);
+    steps.push({ name: 'dm', status: 'ok' });
+    const output: BotCreateResult = {
+      bot,
+      ...(result.receipt === undefined ? {} : { operation: result.receipt }),
+      dm: { channelId },
+      dataDir: detail.bot.memoryDir,
+      steps,
+      next: [
+        ...(create.presetId === undefined
+          ? [`Apply a Model Preset with deepseekbot model-preset-apply ${bot.id} --preset <id>.`]
+          : []),
+        `Run deepseekbot send ${bot.id} --body <text> against this Host to verify a real reply.`,
+      ],
+      ...(result.httpsFallback !== undefined ? { httpsFallback: result.httpsFallback } : {}),
+    };
+    return output;
+  } catch (error) {
+    if (error instanceof CliLiveError) {
+      if (error.creation?.bot !== undefined) {
+        bot = error.creation.bot;
+        steps.push(...error.creation.steps);
+      }
+      const failure = new CliLiveError(error.code, error.message, undefined, undefined, {
+        ...(bot === undefined ? {} : { bot }),
+        ...(operationKey === undefined
+          ? {}
+          : {
+              operation: {
+                operationKey,
+                status: operationConfirmed
+                  ? ('created' as const)
+                  : submitted
+                    ? ('unknown' as const)
+                    : ('not-created' as const),
+                ...(bot === undefined ? {} : { botSlug: bot.id }),
+              },
+            }),
+        steps,
+        outcome: bot !== undefined ? 'created' : submitted ? 'unknown' : 'not-created',
+      });
+      if (error.details !== undefined) failure.details = error.details;
+      throw failure;
+    }
+    throw error;
+  }
+}
+
+function withoutDeletedBots(listed: unknown): unknown {
+  if (typeof listed !== 'object' || listed === null || !('bots' in listed)) return listed;
+  const { bots } = listed;
+  if (!Array.isArray(bots)) return listed;
+  return {
+    ...listed,
+    bots: bots.filter(
+      (bot: unknown) =>
+        typeof bot !== 'object' || bot === null || !('deleted' in bot) || bot.deleted !== true,
+    ),
+  };
+}

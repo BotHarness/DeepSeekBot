@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 import {

@@ -6,9 +6,9 @@ import {
   createTobAssignmentLeaseOperations,
   createTobMemoryLeaseOperations,
   TOB_ASSIGNMENT_LEASE_CAPABILITIES,
-} from '../src/tob/cli-memory-lease-operations.js';
-import { startTobCliBroker } from '../src/tob/cli-broker.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+} from '../src/features/tob/cli-memory-lease-operations.js';
+import { startTobCliBroker } from '../src/features/tob/cli-broker.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 

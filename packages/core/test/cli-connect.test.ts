@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runConnectCommand } from '../src/bots/cli-connect.js';
+import { runConnectCommand } from '../src/cli/cli-connect.js';
 const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });

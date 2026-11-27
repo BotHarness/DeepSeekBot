@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { runRelationshipCommand } from '../src/bots/cli-relationships.js';
+import { runRelationshipCommand } from '../src/cli/cli-relationships.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTempRoot } from './helpers.js';

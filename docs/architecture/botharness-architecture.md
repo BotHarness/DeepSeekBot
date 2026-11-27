@@ -1808,6 +1808,8 @@ The [Team mode decisions](../decisions/team-mode.md) cover current member author
 
 [Team Policy](../decisions/core-architecture.md#team-policy-and-administration) 持有权限目录，并依据 Team 服务提供的事实判定 Channel 访问。Team Feature 提供成员 HTTP 与设备登录、PersonaBot 元数据和 Workspace 管理入口。审计记录及跨模块数据库事务仍由 Team 服务协调。
 
+[CLI 模块和 Profile bridge](../decisions/core-architecture.md#cli-adapters-and-personabot-protection) 将命令分发与 PersonaBot 持久化操作分开。Registry 和删除服务从记录读取保护策略。Tob 创建 Owner 身份时设置策略，Owner 转移事务使该策略失效。
+
 Desktop and mobile share the pure `host-protocol` contracts and the framework-independent `host-client` session logic. Native storage and transports stay in the mobile app behind injected interfaces. The desktop remote-host adapter drives member sign-in without creating relationship grants; see [Desktop Team sign-in contract](team-mode-desktop-sign-in.md) for states, identity persistence and ownership boundaries.
 
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. A disconnected member HTTP open or poll releases its stream slot and iterator. When the peer closes a keep-alive socket, the Host releases all streams still bound to it, including those between polls. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.
@@ -1896,11 +1898,11 @@ E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请�
 
 ### CLI effect declaration ownership
 
-The application-defined CLI declaration table in `bots/cli-effects.ts` supplies effects to direct command dispatch and Channel Tool Approval for typed and exact-argv Tob operations. Each declaration separately retains the broker's existing read admission; effect metadata does not confer caller authority. The broker continues to own Human DM provenance, target authorization, exact operation identity and live revocation fences. Unknown commands and arbitrary Shell text retain the existing protected path. The dispatch inventory check follows real command-family arrays and entry branches rather than help or search text.
+The application-defined CLI declaration table in `kernel/cli-effects.ts` supplies effects to direct command dispatch and Channel Tool Approval for typed and exact-argv Tob operations. Each declaration separately retains the broker's existing read admission; effect metadata does not confer caller authority. The broker continues to own Human DM provenance, target authorization, exact operation identity and live revocation fences. Unknown commands and arbitrary Shell text retain the existing protected path. The dispatch inventory check follows real command-family arrays and entry branches rather than help or search text.
 
 The Tob broker admits each new request against the Shell's accepted Human DM sources. Before sending a prepared write to Channel Tool Approval, it captures those sources and the approval DM for that proposal. Additional Inbox sources can steer the turn while the write is pending. The broker continues the same operation only while its original sources, Session owner, turn and execution remain live, and the operation still passes its exact approval, target and revision checks. See [Tob CLI authority](../decisions/tob.md#adr-0224).
 
-CLI flag declarations live in the data-only `bots/cli-option-spec.ts` module. `cli-options.ts` owns strict parsing for both dispatch and effect resolution without importing runtime handlers; the existing command-family modules re-export their option groups. Effect-contract type consumers therefore do not acquire the Host credential and child-process implementation graph.
+CLI flag declarations live in the data-only `kernel/cli-option-spec.ts` module. `cli-options.ts` owns strict parsing for both dispatch and effect resolution without importing runtime handlers; the existing command-family modules re-export their option groups. Effect-contract type consumers therefore do not acquire the Host credential and child-process implementation graph.
 
 ### Model-free Tob CLI admission
 

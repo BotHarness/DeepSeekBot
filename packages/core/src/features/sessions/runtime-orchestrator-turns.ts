@@ -49,7 +49,7 @@ import {
 } from '../../runtime/session-model-choices.js';
 import { recordTurnTarget, type TurnTargetSegment } from '../../runtime/turn-targets.js';
 import { botOwner } from '../../team-policy/bot-access.js';
-import type { TobCliTurn } from '../../tob/cli-request.js';
+import type { TobCliTurn } from '../../kernel/tob-cli-request.js';
 import { TobError } from '../../tob/service.js';
 import type { createActivityEvents } from '../activity/events.js';
 import type { createInboxHarvest } from '../activity/inbox-harvest.js';

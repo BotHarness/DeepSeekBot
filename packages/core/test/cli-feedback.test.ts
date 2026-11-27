@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { expect, it } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { requestListener } from './async-listener.js';
 
 it('previews feedback through the live authenticated Host and refuses submission without confirmation', async () => {

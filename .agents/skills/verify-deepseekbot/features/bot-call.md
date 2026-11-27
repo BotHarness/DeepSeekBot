@@ -7,7 +7,7 @@ A paired iPhone or Android phone, or the Mac or Windows desktop Client (`desktop
 - `packages/core/src/features/voice/plugin.ts`
 - `packages/core/src/voice/call*.ts`
 - `packages/core/src/voice/{harvest,keyframes,vad}.ts`
-- `packages/core/src/bots/cli-call.ts`
+- `packages/core/src/cli/cli-call.ts`
 - `packages/client/src/client/{call-*,desktop-call,dm-call,host-bridge-call,voice-call-record}.{ts,tsx}`
 - `packages/computer/native/local-video/call-renderer.js`
 - `apps/mobile/app/call/**`

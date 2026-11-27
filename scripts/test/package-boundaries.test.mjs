@@ -101,18 +101,27 @@ describe('workspace dependency boundaries', () => {
     "const sqlite = require('better-sqlite3');",
     "import { DatabaseSync } from 'node:sqlite';",
   ])('rejects direct operational database dependencies in CLI adapters: %s', (source) => {
-    expect(packageBoundaryErrors('packages/core/src/bots/cli-live.ts', source, workspaces)).toEqual(
-      [expect.stringContaining('CLI adapters must use the Host for operational database access')],
-    );
+    expect(packageBoundaryErrors('packages/core/src/cli/cli-live.ts', source, workspaces)).toEqual([
+      expect.stringContaining('CLI adapters must use the Host for operational database access'),
+    ]);
   });
-  it('keeps database ownership available to the offline CLI dispatcher', () => {
+  it('keeps database ownership available to the offline Profile bridge', () => {
     expect(
       packageBoundaryErrors(
-        'packages/core/src/bots/bot-create-cli.ts',
+        'packages/core/src/bridge/cli-offline.ts',
         "import '../database/owner.js';",
         workspaces,
       ),
     ).toEqual([]);
+  });
+  it.each(['registry', 'deletion'])('keeps PersonaBot %s independent of Tob', (module) => {
+    expect(
+      packageBoundaryErrors(
+        `packages/core/src/bots/${module}.ts`,
+        "import type { TobService } from '../tob/service.js';",
+        workspaces,
+      ),
+    ).toEqual([expect.stringContaining('PersonaBot lifecycle must use record protection policy')]);
   });
   it('rejects a direct database dependency in the shared Host client', () => {
     expect(

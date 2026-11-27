@@ -8,7 +8,7 @@ import { seededBotBanner } from '../src/bots/bot-banner.js';
 import { createPersonaBotDeletions } from '../src/bots/deletion.js';
 import { botProfileFingerprint } from '../src/bots/profile-snapshot.js';
 import { createCore } from '../src/plugin.js';
-import { createTobBotProfileOperations } from '../src/tob/cli-bot-profile-operations.js';
+import { createTobBotProfileOperations } from '../src/features/tob/cli-bot-profile-operations.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 

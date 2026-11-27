@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runAppearanceCommand } from '../src/bots/cli-appearance.js';
+import { runAppearanceCommand } from '../src/cli/cli-appearance.js';
 const io = { env: {}, cwd: '/tmp', stdout: () => {}, stderr: () => {} };
 describe('appearance CLI contract', () => {
   it('requires an explicit target and read revision before connecting', async () => {

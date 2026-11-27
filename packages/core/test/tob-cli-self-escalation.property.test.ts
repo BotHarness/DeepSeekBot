@@ -1,9 +1,9 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { CLI_EFFECTS, cliEffects } from '../src/bots/cli-effects.js';
+import { CLI_EFFECTS, cliEffects } from '../src/kernel/cli-effects.js';
 import { humanContext } from '../src/humans/context.js';
-import { authorizeTobHostCli } from '../src/tob/cli-host-commands.js';
+import { authorizeTobHostCli } from '../src/features/tob/cli-host-commands.js';
 
 const TOB = 'tob-manager';
 const deps = {

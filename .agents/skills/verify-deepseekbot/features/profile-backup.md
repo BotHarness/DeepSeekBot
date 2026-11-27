@@ -4,7 +4,7 @@
 
 - `packages/core/src/features/profile-storage/plugin.ts`
 - `packages/core/src/portability/**`
-- `packages/core/src/bots/cli-profile-backup.ts`
+- `packages/core/src/cli/cli-profile-backup.ts`
 - `packages/core/test/tob-cli-profile-backup.test.ts`
 - `packages/core/src/*/backup.ts`
 - `packages/core/src/*/profile-restore.ts`

@@ -4,7 +4,7 @@ import {
   readToolApprovalStatus,
   readUserQuestionStatus,
 } from './approval-readers';
-import { parseToolEffects } from '../../core/src/workspaces/tool-effects-contract';
+import { parseToolEffects } from '../../core/src/kernel/tool-effects-contract';
 import { approvalShellCommand } from './shared/approval-diff';
 import {
   approveWorkspaceRequest,

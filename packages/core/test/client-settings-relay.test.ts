@@ -1,8 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { createAppearanceControl } from '../src/appearance/control.js';
-import { CLIENT_SETTINGS_COMMANDS, runClientSettings } from '../src/bots/cli-client-settings.js';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
-import { CLI_EFFECTS } from '../src/bots/cli-effects.js';
+import { CLIENT_SETTINGS_COMMANDS, runClientSettings } from '../src/cli/cli-client-settings.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
+import { CLI_EFFECTS } from '../src/kernel/cli-effects.js';
 
 const request = (body: unknown) =>
   new Request('http://localhost/api/botharness/appearance-control', {

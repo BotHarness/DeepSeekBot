@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readBotActivityPage } from '../src/bots/cli-activity-page.js';
+import { readBotActivityPage } from '../src/cli/cli-activity-page.js';
 import type { PersonaBotActivitySnapshot } from '../src/state/bot-state.js';
 
 function snapshot(names: readonly string[]): PersonaBotActivitySnapshot {

@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
-import { runSkillCommand } from '../src/bots/cli-skills.js';
+import { runSkillCommand } from '../src/cli/cli-skills.js';
 import { createChannelLiveHub } from '../src/channels/live.js';
 import { createChannelStore } from '../src/channels/store.js';
 import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';

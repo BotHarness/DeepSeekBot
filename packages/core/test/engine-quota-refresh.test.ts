@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { runEngineCommand } from '../src/bots/cli-engine.js';
-import { parseBotCliArgs } from '../src/bots/cli-options.js';
+import { runEngineCommand } from '../src/cli/cli-engine.js';
+import { parseBotCliArgs } from '../src/kernel/cli-options.js';
 import { claudeQuotaReport, type ClaudeQueryFactory } from '../src/engines/claude-engine.js';
 import { codexQuotaReport, type CodexProcessOptions } from '../src/engines/codex-engine.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';

@@ -1,4 +1,4 @@
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 
 export interface Captured {
   code: number;

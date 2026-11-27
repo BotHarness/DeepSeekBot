@@ -1,9 +1,9 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { BROKER_CLI_READS, CLI_EFFECTS, cliEffects } from '../src/bots/cli-effects.js';
-import { canonicalCliCommandName } from '../src/bots/cli-command-names.js';
-import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
+import { BROKER_CLI_READS, CLI_EFFECTS, cliEffects } from '../src/kernel/cli-effects.js';
+import { canonicalCliCommandName } from '../src/kernel/cli-command-names.js';
+import { classifyTobHostCli } from '../src/features/tob/cli-host-commands.js';
 
 const known = Object.keys(CLI_EFFECTS);
 const reads = [...BROKER_CLI_READS];

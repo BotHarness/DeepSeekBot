@@ -6,12 +6,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
-import { approveTobCliOperation } from '../src/tob/cli-approval.js';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
+import { approveTobCliOperation } from '../src/features/tob/cli-approval.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
 import {
   createTobModelOperations,
   type TobNativeSettings,
-} from '../src/tob/cli-model-operations.js';
+} from '../src/features/tob/cli-model-operations.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import { createTempRoot } from './helpers.js';
 

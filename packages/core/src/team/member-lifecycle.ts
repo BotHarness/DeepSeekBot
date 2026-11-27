@@ -60,6 +60,10 @@ export function commitOwnerTransfer(
         db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
       }
       db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(from, to);
+      db.prepare(`
+        UPDATE persona_bots SET body = json_remove(body, '$.protection')
+        WHERE owner_human_id IN (?, ?) AND json_extract(body, '$.protection.lifetime') = 'owner-tenure'
+      `).run(from, to);
       return roleAccessEnded;
     },
     ['team'],
