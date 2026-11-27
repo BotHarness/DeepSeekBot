@@ -7,7 +7,7 @@ import type { MemberLifecycleHost } from './member-lifecycle.js';
 import { credentialPasswordJson, fields, memberSchema, type TeamMember } from './member-auth.js';
 export type { TeamMember } from './member-auth.js';
 import { audienceContains, type BotVisibility } from '../team-policy/bot-contract.js';
-import { TeamBots } from './bots.js';
+import { TeamBots, type ReplaceBotMemory } from './bots.js';
 import { TeamBotRoleAccess } from './bot-role-access.js';
 import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
@@ -188,9 +188,7 @@ export class TeamService {
     if (!spaces) throw new TeamError('unavailable');
     return spaces;
   }
-  private readonly replaceBotMemory:
-    | (<T>(slug: string, action: () => T, nextCwd: () => string | undefined) => Promise<T>)
-    | undefined;
+  private readonly replaceBotMemory: ReplaceBotMemory | undefined;
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly settleBotPreparations: ((humanId: string) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
@@ -295,11 +293,7 @@ export class TeamService {
     options: {
       purge?: ContentPurge;
       spaces?: () => WorkspaceSpaces;
-      replaceBotMemory?: <T>(
-        slug: string,
-        action: () => T,
-        nextCwd: () => string | undefined,
-      ) => Promise<T>;
+      replaceBotMemory?: ReplaceBotMemory;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
       settleBotPreparations?: (humanId: string) => Promise<void>;
       now?: () => number;
@@ -324,22 +318,10 @@ export class TeamService {
       this.roles,
       this.channelAccess,
       (revoke) => this.accessChanged(revoke),
-      (human, bot) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet'),
+      (human, bot, sql) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet', sql),
       this.spaceProvider,
     );
-    this.botRoleAccess = new TeamBotRoleAccess(
-      db,
-      this.roles,
-      (revoked) => {
-        try {
-          if (revoked === 'all-public' || revoked.size > 0)
-            this.bots.reconcileRoleAudience(revoked);
-        } finally {
-          this.accessChanged(true);
-        }
-      },
-      (human, bot, sql) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet', sql),
-    );
+    this.botRoleAccess = new TeamBotRoleAccess(db, this.roles, this.bots, this.replaceBotMemory);
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
     this.approvals = new TeamApprovals(db, channels, this.roles, this.bots, this.channelAccess);

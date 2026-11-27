@@ -80,7 +80,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
 
   async function replaceOrchestrator<T>(
     botSlug: string,
-    body: () => T,
+    body: () => T | Promise<T>,
     nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
     const current =
@@ -88,7 +88,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
       (nextCwd === undefined ? undefined : latestAvailableOrchestrator(botSlug)?.sessionId);
     if (current === undefined) {
       ports.ownership.discardOrchestratorReplacements(botSlug);
-      return { outcome: 'replaced', value: body() };
+      return { outcome: 'replaced', value: await body() };
     }
     const archive = ports.sessionArchive?.();
     if (archive === undefined) throw new Error('DSH Session archive is unavailable');
@@ -99,7 +99,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
       if (!(error instanceof Error && error.name === 'WorkspaceUnknownSessionError')) throw error;
       return {
         outcome: 'replaced',
-        value: supersedeUnsavedOrchestrator(current, body, nextCwd),
+        value: await supersedeUnsavedOrchestrator(current, body, nextCwd),
       };
     }
     await ports.agents.releaseSession?.(current).catch(() =>
@@ -114,18 +114,18 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     );
     try {
       ports.ownership.discardOrchestratorReplacements(botSlug);
-      return { outcome: 'replaced', value: body() };
+      return { outcome: 'replaced', value: await body() };
     } catch (error) {
       await archive.unarchiveSession(current);
       throw error;
     }
   }
 
-  function supersedeUnsavedOrchestrator<T>(
+  async function supersedeUnsavedOrchestrator<T>(
     unsaved: string,
-    body: () => T,
+    body: () => T | Promise<T>,
     nextCwd?: () => string | undefined,
-  ): T {
+  ): Promise<T> {
     const owner = ports.ownership.resolve(unsaved);
     const bot = owner === undefined ? undefined : ports.registry.get(owner.botSlug);
     if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
@@ -141,7 +141,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     });
     let value: T;
     try {
-      value = body();
+      value = await body();
     } catch (error) {
       try {
         ports.ownership.discardOrchestratorReplacement(sessionId);

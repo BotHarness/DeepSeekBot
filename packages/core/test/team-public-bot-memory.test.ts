@@ -104,6 +104,139 @@ function crossDevice(source: string, target: string) {
 }
 
 describe('M7 public Bot Memory placement', () => {
+  it('applies the same Memory audience and Group departures through either visibility editor', async () => {
+    const f = fixture();
+    const { core, db } = f;
+    const bridge = createBridgeMethodsForHumans(core)(owner);
+    expect(
+      core.registry.create({ slug: 'mentor', displayName: 'Mentor', ownerHumanId: alice.humanId })
+        .ok,
+    ).toBe(true);
+    const { roleId } = core.team.roles.create(owner, 'Public Bot readers', []).role;
+    core.team.roles.set(owner, bob.humanId, [roleId]);
+    const shared: BotVisibility = {
+      kind: 'public',
+      audience: { kind: 'roles', roleIds: [roleId] },
+    };
+    const revoked: BotVisibility = { kind: 'public', audience: { kind: 'roles', roleIds: [] } };
+    const makeGroup = async (slug: string) => {
+      expect(await bridge.botVisibilitySet({ slug, visibility: shared })).toMatchObject({
+        ok: true,
+      });
+      const channel = core.channels.createGroup(bob, { name: slug, members: [slug] });
+      core.team.channelAccess.addMember(bob, channel.id, alice.humanId);
+      core.team.bots.recordAdder(bob, slug, channel.id);
+      return channel.id;
+    };
+    const fromRole = await makeGroup('helper');
+    const fromBot = await makeGroup('mentor');
+    const { revision } = core.team.botRoleAccess.scope(owner, roleId);
+    expect(
+      await bridge.roleBotScopeSet({
+        roleId,
+        expectedRevision: revision,
+        scope: { kind: 'selected', botSlugs: ['mentor'] },
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await bridge.botVisibilitySet({ slug: 'mentor', visibility: revoked, confirm: true }),
+    ).toMatchObject({
+      ok: true,
+      value: { applied: true, preview: { channelsLeaving: [{ channelId: fromBot }] } },
+    });
+    const result = (slug: string, channelId: string) => ({
+      memoryAudience: db.read((sql) =>
+        sql
+          .prepare('SELECT audience_json FROM workspace_spaces WHERE space_id=?')
+          .get(botMemorySpaceId(slug)),
+      ),
+      groupMembers: core.channels.get(channelId)?.members,
+    });
+    expect(result('helper', fromRole)).toEqual(result('mentor', fromBot));
+    expect(result('helper', fromRole)).toEqual({
+      memoryAudience: { audience_json: JSON.stringify(revoked.audience) },
+      groupMembers: [],
+    });
+  });
+
+  it('recreates a missing public Memory space when saving an unchanged selected Bot', async () => {
+    const f = fixture();
+    const bridge = createBridgeMethodsForHumans(f.core)(owner);
+    const { roleId } = f.core.team.roles.create(owner, 'Public Bot readers', []).role;
+    const audience = { kind: 'roles', roleIds: [roleId] };
+    expect(
+      await bridge.botVisibilitySet({ slug: 'helper', visibility: { kind: 'public', audience } }),
+    ).toMatchObject({ ok: true });
+    const spaceId = botMemorySpaceId('helper');
+    f.db.transaction((sql) =>
+      sql.prepare('DELETE FROM workspace_spaces WHERE space_id=?').run(spaceId),
+    );
+    const { revision } = f.core.team.botRoleAccess.scope(owner, roleId);
+    expect(
+      await bridge.roleBotScopeSet({
+        roleId,
+        expectedRevision: revision,
+        scope: { kind: 'selected', botSlugs: ['helper'] },
+      }),
+    ).toMatchObject({ ok: true, value: { revision } });
+    expect(
+      f.db.read((sql) =>
+        sql
+          .prepare('SELECT kind, audience_json FROM workspace_spaces WHERE space_id=?')
+          .get(spaceId),
+      ),
+    ).toEqual({ kind: 'shared', audience_json: JSON.stringify(audience) });
+    expect(f.core.registry.memoryDirFor('helper')).toBe(f.target);
+    intact(f.target, f.history);
+  });
+
+  it('moves multiple unplaced public Memories and rolls every move back on a failed scope edit', async () => {
+    const f = fixture();
+    const { core, db } = f;
+    const bridge = createBridgeMethodsForHumans(core)(owner);
+    const { roleId } = core.team.roles.create(owner, 'Public Bot readers', []).role;
+    const slugs = ['helper', 'other'];
+    const otherSource = core.registry.memoryDirFor('other');
+    db.transaction((sql) => {
+      sql
+        .prepare('UPDATE persona_bots SET visibility_json=? WHERE slug IN (?, ?)')
+        .run(
+          JSON.stringify({ kind: 'public', audience: { kind: 'roles', roleIds: [] } }),
+          ...slugs,
+        );
+      sql.exec(`CREATE TRIGGER reject_other BEFORE UPDATE OF visibility_json ON persona_bots
+        WHEN NEW.slug = 'other' BEGIN SELECT RAISE(ABORT, 'rejected'); END`);
+    });
+    const before = core.team.botRoleAccess.scope(owner, roleId);
+    const patch = {
+      roleId,
+      expectedRevision: before.revision,
+      scope: { kind: 'selected', botSlugs: slugs },
+    };
+    expect(await bridge.roleBotScopeSet(patch)).toMatchObject({ ok: false });
+    expect(core.team.botRoleAccess.scope(owner, roleId)).toEqual(before);
+    expect(core.registry.memoryDirFor('helper')).toBe(f.source);
+    expect(core.registry.memoryDirFor('other')).toBe(otherSource);
+    intact(f.source, f.history);
+    expect(fs.existsSync(f.target)).toBe(false);
+    expect(db.read((sql) => sql.prepare('SELECT * FROM workspace_file_transfers').all())).toEqual(
+      [],
+    );
+
+    db.transaction((sql) => sql.exec('DROP TRIGGER reject_other'));
+    expect(await bridge.roleBotScopeSet(patch)).toMatchObject({ ok: true });
+    for (const slug of slugs) {
+      const spaceId = botMemorySpaceId(slug);
+      expect(core.registry.memoryDirFor(slug)).toBe(join(f.home, spaceId, 'bots', slug, 'memory'));
+      expect(
+        db.read((sql) =>
+          sql.prepare('SELECT audience_json FROM workspace_spaces WHERE space_id=?').get(spaceId),
+        ),
+      ).toEqual({ audience_json: JSON.stringify({ kind: 'roles', roleIds: [roleId] }) });
+    }
+    intact(f.target, f.history);
+  });
+
   it('previews labelled paths without moving Memory, publishes the same repository, and never lists the backing space', async () => {
     const f = fixture(),
       bridge = createBridgeMethodsForHumans(f.core)(alice);

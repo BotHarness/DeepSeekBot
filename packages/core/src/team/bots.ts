@@ -3,6 +3,8 @@ import { currentBotPrimaryColor, isBotPrimaryColor } from '../bots/primary-color
 import { dmChannelId } from '../channels/channel.js';
 import { botAvatarUrl } from '../bots/avatar-http.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
+import type { BotMemoryPlacement } from '../workspaces/bot-memory-placement.js';
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -37,6 +39,13 @@ const botRow = z.object({
   switches: z.string().transform((v) => botSwitchesSchema.parse(JSON.parse(v))),
 });
 type Bot = z.infer<typeof botRow>;
+type VisibilityPlan = ReturnType<TeamBots['planVisibility']>;
+type VisibilityChange = { slug: string; visibility: BotVisibility };
+export type ReplaceBotMemory = <T>(
+  slug: string,
+  action: () => T | Promise<T>,
+  nextCwd: () => string | undefined,
+) => Promise<T>;
 const fields =
   'slug, owner_human_id AS owner, body, visibility_json AS visibility, switches_json AS switches';
 
@@ -51,6 +60,7 @@ export class TeamBots {
     private readonly recordVisibilityChange: (
       human: HumanContext,
       bot: { slug: string; displayName: string; ownerHumanId: string },
+      transaction: DatabaseSync,
     ) => void = () => {},
     private readonly memorySpaces?: () => WorkspaceSpaces,
   ) {
@@ -221,15 +231,20 @@ export class TeamBots {
     );
   }
 
-  reconcileRoleAudience(revoked: ReadonlySet<string> | 'all-public'): void {
+  private reconcileAllPublicGroups(): void {
+    const groups = new Map<string, ChannelRecord[]>();
     for (const channel of this.channels.list()) {
       if (channel.type !== 'group') continue;
       for (const slug of channel.members) {
-        if (revoked !== 'all-public' && !revoked.has(slug)) continue;
-        const bot = this.findBot(slug);
-        if (bot?.visibility.kind === 'public' && !this.groupEligible(bot, channel))
-          this.channels.removeGroupMember(channel.id, slug);
+        const memberships = groups.get(slug);
+        if (memberships) memberships.push(channel);
+        else groups.set(slug, [channel]);
       }
+    }
+    for (const [slug, memberships] of groups) {
+      const bot = this.findBot(slug);
+      if (bot?.visibility.kind === 'public')
+        this.leaveGroups(slug, this.channelsLeaving(bot, bot.visibility, memberships));
     }
   }
   reachable(human: HumanContext) {
@@ -297,7 +312,11 @@ export class TeamBots {
         };
       });
   }
-  setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm?: boolean) {
+  private planVisibility(
+    human: HumanContext,
+    { slug, visibility }: VisibilityChange,
+    channels: readonly ChannelRecord[],
+  ) {
     const bot = this.bot(slug);
     this.requireManage(human, bot);
     if (!audienceContains(bot.visibility, visibility))
@@ -319,8 +338,7 @@ export class TeamBots {
       }
     }
     const shrinking = !audienceContains(visibility, bot.visibility);
-    const dmsBecomingReadOnly = this.channels
-      .list()
+    const dmsBecomingReadOnly = channels
       .filter(
         (c) =>
           c.type === 'dm' &&
@@ -330,13 +348,7 @@ export class TeamBots {
           !this.audience(c.dmHumanId ?? bot.owner, bot, visibility),
       )
       .map((c) => ({ channelId: c.id, humanId: c.dmHumanId ?? bot.owner }));
-    const channelsLeaving = this.channels
-      .list()
-      .filter(
-        (c) =>
-          c.type === 'group' && c.members.includes(slug) && !this.groupEligible(bot, c, visibility),
-      )
-      .map((c) => ({ channelId: c.id }));
+    const channelsLeaving = this.channelsLeaving(bot, visibility, channels);
     const placement = this.memorySpaces?.().botMemory;
     const memory = placement?.plan(slug, bot.owner, visibility);
     const preview = {
@@ -344,45 +356,112 @@ export class TeamBots {
       channelsLeaving,
       ...(memory ? { memory: memory.preview } : {}),
     };
-    if (
-      JSON.stringify(bot.visibility) === JSON.stringify(visibility) &&
-      channelsLeaving.length === 0 &&
-      (!memory || memory.source === memory.target)
-    )
-      return { applied: true, visibility, preview };
-    if (confirm === false || (shrinking && !confirm)) return { applied: false, preview };
-    if (human.humanId !== bot.owner)
-      this.recordVisibilityChange(human, {
-        slug: bot.slug,
-        displayName: bot.body.displayName,
-        ownerHumanId: bot.owner,
-      });
-    const move = memory ? placement?.prepare(memory) : undefined;
+    const needsWrite =
+      JSON.stringify(bot.visibility) !== JSON.stringify(visibility) ||
+      channelsLeaving.length > 0 ||
+      memory?.needsPlacement === true;
+    return { bot, visibility, preview, shrinking, placement, memory, needsWrite };
+  }
+
+  planVisibilityChanges(human: HumanContext, changes: readonly VisibilityChange[]) {
+    const channels = changes.length ? this.channels.list() : [];
+    return changes.map((change) => this.planVisibility(human, change, channels));
+  }
+
+  private channelsLeaving(bot: Bot, visibility: BotVisibility, channels: readonly ChannelRecord[]) {
+    return channels
+      .filter(
+        (c) =>
+          c.type === 'group' &&
+          c.members.includes(bot.slug) &&
+          !this.groupEligible(bot, c, visibility),
+      )
+      .map((c) => ({ channelId: c.id }));
+  }
+
+  private leaveGroups(slug: string, channelsLeaving: readonly { channelId: string }[]): void {
+    for (const { channelId } of channelsLeaving) this.channels.removeGroupMember(channelId, slug);
+  }
+
+  commitVisibilityChanges(
+    human: HumanContext,
+    plans: readonly VisibilityPlan[],
+    scope?: { write: (db: DatabaseSync) => void; reconcileAllPublic: boolean },
+  ): void {
+    type Move = ReturnType<BotMemoryPlacement['prepare']>;
+    const prepared: { plan: VisibilityPlan; move: Move | undefined }[] = [];
     try {
+      for (const plan of plans) {
+        const move = plan.memory ? plan.placement?.prepare(plan.memory) : undefined;
+        prepared.push({ plan, move });
+      }
       this.db.transaction(
         (db) => {
-          move?.commit(db);
-          db.prepare('UPDATE persona_bots SET visibility_json=? WHERE slug=?').run(
-            JSON.stringify(visibility),
-            slug,
-          );
-          if (visibility.kind === 'public')
-            db.prepare(`UPDATE channel_records SET record_json=json_set(record_json,'$.dmHumanId',?)
-        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=? AND json_extract(record_json,'$.dmHumanId') IS NULL`).run(
-              bot.owner,
-              slug,
+          scope?.write(db);
+          for (const {
+            plan: { bot, visibility },
+            move,
+          } of prepared) {
+            if (human.humanId !== bot.owner)
+              this.recordVisibilityChange(
+                human,
+                {
+                  slug: bot.slug,
+                  displayName: bot.body.displayName,
+                  ownerHumanId: bot.owner,
+                },
+                db,
+              );
+            move?.commit(db);
+            db.prepare('UPDATE persona_bots SET visibility_json=? WHERE slug=?').run(
+              JSON.stringify(visibility),
+              bot.slug,
             );
+            if (visibility.kind === 'public')
+              db.prepare(`UPDATE channel_records SET record_json=json_set(record_json,'$.dmHumanId',?)
+        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=? AND json_extract(record_json,'$.dmHumanId') IS NULL`).run(
+                bot.owner,
+                bot.slug,
+              );
+          }
         },
-        ['team', 'bots', 'channels', 'bot-registry', 'workspace-spaces'],
+        ['team', 'bots', 'channels', 'bot-registry', 'workspace-spaces', 'private-audit'],
       );
     } catch (error) {
-      if (!(error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted'))
-        move?.rollback();
+      if (
+        !(error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted')
+      ) {
+        const rollbackErrors: unknown[] = [];
+        for (const { move } of prepared.reverse()) {
+          try {
+            move?.rollback();
+          } catch (rollbackError) {
+            rollbackErrors.push(rollbackError);
+          }
+        }
+        if (rollbackErrors.length)
+          throw new AggregateError(rollbackErrors, 'Bot Memory rollback failed', { cause: error });
+      }
+      if (error instanceof OperationalDatabaseError && error.cause instanceof TeamError)
+        throw error.cause;
       throw error;
     }
-    move?.finish();
-    for (const c of channelsLeaving) this.channels.removeGroupMember(c.channelId, slug);
-    this.changed(true);
+    try {
+      for (const { move } of prepared) move?.finish();
+      if (scope?.reconcileAllPublic) this.reconcileAllPublicGroups();
+      else
+        for (const { bot, preview } of plans) this.leaveGroups(bot.slug, preview.channelsLeaving);
+    } finally {
+      this.changed(true);
+    }
+  }
+
+  setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm?: boolean) {
+    const plan = this.planVisibility(human, { slug, visibility }, this.channels.list());
+    const { preview } = plan;
+    if (!plan.needsWrite) return { applied: true, visibility, preview };
+    if (confirm === false || (plan.shrinking && !confirm)) return { applied: false, preview };
+    this.commitVisibilityChanges(human, [plan]);
     return { applied: true, visibility, preview };
   }
   switches(human: HumanContext, slug: string, patch: Partial<BotSwitches> = {}) {
