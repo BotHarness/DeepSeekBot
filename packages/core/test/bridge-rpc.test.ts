@@ -94,6 +94,7 @@ describe('bridge typert service', () => {
       agents: host,
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
       featureContributions: features,
     });
     try {
