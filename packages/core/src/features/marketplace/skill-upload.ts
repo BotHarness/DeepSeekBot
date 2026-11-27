@@ -49,13 +49,15 @@ const decoder = new TextDecoder();
 
 function scanBeforeUpload(files: readonly { path: string; data: string }[]) {
   try {
-    const { refusal: code } = scanSkillUpload(
+    const result = scanSkillUpload(
       files.map(({ path, data }) => ({
         path,
         text: decoder.decode(Buffer.from(data, 'base64')),
       })),
     );
-    return code === undefined ? undefined : refusal(code, refusalMessages[code]);
+    return result.kind === 'accepted'
+      ? undefined
+      : refusal(result.code, refusalMessages[result.code]);
   } catch {
     return refusal('skill-scan-failed', refusalMessages['skill-scan-failed']);
   }

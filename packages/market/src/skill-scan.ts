@@ -99,7 +99,7 @@ function secretValue(value: string): boolean {
 export function hasSecretField(text: string): boolean {
   for (const match of text.matchAll(SECRET_FIELD)) {
     const [, , name = '', separator, value = ''] = match;
-    if (/^[A-Za-z_][\w.-]*[:=]/u.test(value)) {
+    if (/^[A-Za-z_][\w.-]*[:=](?!=|$)/u.test(value)) {
       if (hasSecretField(value)) return true;
       continue;
     }
@@ -188,10 +188,13 @@ export function scanSkillFiles(
 
 export type SkillUploadRefusal = 'skill-secret-detected' | 'skill-malicious-content';
 
-export function scanSkillUpload(files: readonly { path: string; text: string | null }[]): {
-  scan: SkillScan;
-  refusal?: SkillUploadRefusal;
-} {
+export type SkillUploadScan =
+  | { kind: 'accepted'; scan: SkillScan }
+  | { kind: 'refused'; code: SkillUploadRefusal; scan: SkillScan };
+
+export function scanSkillUpload(
+  files: readonly { path: string; text: string | null }[],
+): SkillUploadScan {
   const scan = scanSkillFiles(
     files.flatMap((file) => [
       { path: file.path, text: file.text },
@@ -199,10 +202,11 @@ export function scanSkillUpload(files: readonly { path: string; text: string | n
     ]),
     { rejectSecrets: true },
   );
-  if (scan.verdict !== 'blocked') return { scan };
+  if (scan.verdict !== 'blocked') return { kind: 'accepted', scan };
   return {
+    kind: 'refused',
     scan,
-    refusal: scan.findings.some(
+    code: scan.findings.some(
       (finding) => finding.kind === 'secret' && finding.severity === 'malicious',
     )
       ? 'skill-secret-detected'

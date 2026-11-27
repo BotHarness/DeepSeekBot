@@ -113,8 +113,9 @@ function prepare(value: unknown) {
     }
   }
 
-  const { scan, refusal } = scanSkillUpload(files);
-  if (refusal !== undefined) return refuse(refusal);
+  const result = scanSkillUpload(files);
+  if (result.kind === 'refused') return refuse(result.code);
+  const { scan } = result;
   if (unsupported) return refuse('invalid-skill-upload');
   const content = files.find((file) => file.path === 'SKILL.md')?.text;
   const frontmatter =
