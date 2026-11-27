@@ -1,7 +1,4 @@
-import type {
-  ExternalContactQuery,
-  HostExternalRoleChange,
-} from '@botharness/host-protocol/external-roles';
+import type { HostExternalRoleChange } from '@botharness/host-protocol/external-roles';
 import type { ExternalSource } from '../../messaging/inbound.js';
 import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
@@ -415,8 +412,8 @@ export const messagingPolicyRpc = {
     return unwrapAsync(this.methods.externalRoleChange(input));
   },
 
-  externalContactAccess(input: ExternalContactQuery) {
-    return unwrapAsync(this.methods.externalContactAccess(input));
+  externalContactAccess(slug: string, bindingId: string, actorId: string) {
+    return unwrapAsync(this.methods.externalContactAccess({ slug, bindingId, actorId }));
   },
 
   failureAlertsSet(

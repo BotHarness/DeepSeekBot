@@ -413,8 +413,10 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
     case 'external-role-create':
     case 'external-role-update':
       return rpc('externalRoleChange', {
-        ...input,
-        kind: command === 'external-role-create' ? 'create' : 'update',
+        input: {
+          ...input,
+          kind: command === 'external-role-create' ? 'create' : 'update',
+        },
       });
     case 'external-contact-access':
       return rpc('externalContactAccess', {

@@ -89,7 +89,7 @@ export async function changeExternalRole(
   input: HostExternalRoleChange,
 ): Promise<HostExternalRole> {
   return answer(
-    record(await host.call('externalRoleChange', input))?.['role'],
+    record(await host.call('externalRoleChange', { input }))?.['role'],
     role,
     'externalRoleChange',
   );

@@ -713,8 +713,8 @@ it('uses Host external role listing, change and access methods over the authenti
   ).toMatchObject({ code: 0 });
   expect(live.calls).toEqual([
     { method: 'externalRoles', args: {} },
-    { method: 'externalRoleChange', args: { kind: 'create', ...create } },
-    { method: 'externalRoleChange', args: { kind: 'update', ...update } },
+    { method: 'externalRoleChange', args: { input: { kind: 'create', ...create } } },
+    { method: 'externalRoleChange', args: { input: { kind: 'update', ...update } } },
     { method: 'externalContactAccess', args: { slug: BOT, bindingId: BINDING, actorId: 'U12345' } },
   ]);
 });
