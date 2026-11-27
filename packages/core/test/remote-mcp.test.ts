@@ -23,7 +23,7 @@ import {
   CONNECTOR_CALLBACK_PATH,
   CONNECTOR_DEVICE_CALLBACK_PATH,
   connectorCallback,
-} from '../src/connectors/mount.js';
+} from '../src/features/connectors/plugin.js';
 import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
 import { createTempRoot } from './helpers.js';

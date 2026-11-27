@@ -1517,6 +1517,30 @@ deepseekbot connector-key-clear --confirm
 
 `connector-search [query]` lists the apps you can connect: the featured apps that match come first, then every matching app Composio supports (about 2,000), with `next` as the `--cursor` for the following page. Chinese words match the featured apps only; English words such as `crm` or `email` search all of Composio. Without a key it returns only the featured apps. A Bot's `connector_catalog` uses the same search. `connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
 
+### App connections (Google Workspace with your OAuth client)
+
+Run these as the Host Owner. In Google Cloud, enable the Gmail API, Google Calendar API, and People API. Create an OAuth client of type **Web application**. Add the exact `redirectUri` from `connector setup google` to its authorized redirect URIs. Open sign-in links in a browser on the Host that runs DeepSeekBot.
+
+```bash
+deepseekbot connector setup google
+deepseekbot connector add google --client-id <client-id> --client-secret-stdin < google-client-secret.txt
+deepseekbot connector login google --account Work
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+```
+
+The login command prints the consent link. Sign in with the Google account you want to connect. Use a different label to connect a second account. An existing label signs in to the same account again and keeps its Bot grants.
+
+New accounts request read scopes. To enable drafting, sending, and event creation, grant a Bot `write` and run `connector-reconnect <account-id>` to approve the additional scopes at Google. Each write asks for Tool Approval. Read grants permit mail, primary calendar, and contact lookups when another Bot has Write on the same account.
+
+The Host keeps the client secret and refresh tokens in DSH credentials. Google access tokens expire after about an hour. Set up the OAuth client and sign in to grant offline access. For an External app in **Testing**, refresh tokens expire after seven days. Publishing the app **In production** makes it usable with an unverified-app screen and a 100-user cap. A Google Workspace organization can choose **Internal** for use within that organization. [Google OAuth setup and limits](https://developers.google.com/identity/protocols/oauth2/web-server)
+
+```bash
+printf '%s\n' '{"query":"in:inbox"}' | deepseekbot bot-tool <bot-id> google_gmail_search --args-stdin
+```
+
+Other direct tools are `google_gmail_read`, `google_gmail_draft`, `google_gmail_send`, `google_calendar_list_events`, `google_calendar_create_event`, and `google_contacts_search`. Include the `account` label when multiple granted accounts can run the tool. Check the resulting message or event before retrying a write whose result was interrupted.
+
 ### App connections (remote MCP)
 
 Many services publish a remote MCP server that you connect by signing in, with no Composio key. PostHog, Notion, Linear, Sentry, Atlassian, Stripe, HubSpot, Vercel, Supabase, Figma and Canva are featured, and `connector-mcp-search` also searches the public [MCP Registry](https://registry.modelcontextprotocol.io). The Host finds the server's sign-in through OAuth discovery, registers itself as a client, and opens the sign-in page with PKCE; the page returns to the Host and the account turns `active`. When the Host has a public https address (Tobs Connect, a Tailscale HTTPS address, or an https address you serve it on), the sign-in returns to `/botharness-device/connectors/oauth/callback` there, so you can open the link on your phone or any other device; otherwise it returns to `/botharness/connectors/oauth/callback` on This Host. A sign-in link stays valid for 60 minutes. Tokens stay in the Host credential store and the Host refreshes them before they expire; when a refresh fails the account shows as expired and `connector-reconnect` signs it in again. A server that needs no sign-in is active at once.

@@ -42,6 +42,12 @@ Team contributes its bridge methods, Typert handlers, startup and confinement ho
 
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
+## Google Workspace connector custody
+
+The Connectors feature owns the Google OAuth bridge, callback and Agent Tool registrations. It reuses the DSH web server's connector callback on a loopback origin, giving the Owner's Web OAuth client one exact authorized redirect without starting another listener. The Google code exchange uses a single-use state and an S256 PKCE verifier held in Host memory. The service saves the client secret and account refresh tokens through the DSH Credentials Provider. The existing Connector Account row carries the Google subject, displayed identity and consent level. Each Bot's grant remains independent of Google consent. [#5334](https://github.com/BotHarness/DeepSeekBot/issues/5334)
+
+The first sign-in requests read scopes. An Owner-granted Write authorizes the Host to request write scopes at the next sign-in. The intersection of the signed-in access and each Bot's grant determines available tools. The Host rechecks that access and Channel Tool Approval before each provider write. The Connectors descriptor declares direct CLI tool coverage through the native Agent port, so CLI and model calls share registration, grant checks, and execution. [Google Workspace CLI guide](../bot-cli.md#app-connections-google-workspace-with-your-oauth-client)
+
 ## CLI adapters and PersonaBot protection
 
 [#5524](https://github.com/BotHarness/DeepSeekBot/issues/5524) puts command dispatch and adapters in [the CLI module](../../packages/core/src/cli/). Online commands call the existing Host bridge through Host Client. The [offline Profile bridge](../../packages/core/src/bridge/cli-offline.ts) opens the established owners for commands that support offline Profiles. Kernel owns CLI parsing, request schemas, and effect declarations shared with the Tob feature. The Tob feature binds typed commands and exact-argv dispatch to its existing source checks, approvals, and Host owners.

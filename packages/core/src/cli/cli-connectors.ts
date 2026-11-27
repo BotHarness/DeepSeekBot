@@ -1,3 +1,4 @@
+import { GOOGLE_ACCESS_TOKEN_REFUSAL } from '../connectors/google-oauth.js';
 export { CONNECTOR_OPTIONS } from '../kernel/cli-option-spec.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -6,6 +7,9 @@ type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown
 
 export interface ConnectorValues {
   'key-stdin'?: boolean;
+  'client-secret-stdin'?: boolean;
+  'client-id'?: string;
+  account?: string;
   label?: string;
   access?: string;
   confirm?: boolean;
@@ -14,6 +18,11 @@ export interface ConnectorValues {
 }
 
 export const CONNECTOR_COMMANDS = [
+  {
+    command: 'connector',
+    description:
+      'configure Google Workspace (setup google; add google --client-id <id> --client-secret-stdin; login google --account <label>) or add a Composio key (add composio --key-stdin)',
+  },
   {
     command: 'connectors',
     description:
@@ -100,6 +109,31 @@ export async function runConnectorCommand(
   io: Pick<BotCreateCliIo, 'readStdin'>,
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
+  if (command === 'connector') {
+    const [action, provider] = positionals(
+      command,
+      rest,
+      2,
+      'an action (setup, add or login) and a provider',
+    );
+    if (action === 'add' && provider === 'composio')
+      return runConnectorCommand('connector-key-set', [], values, io, connect);
+    if (provider !== 'google') usage('Use Google for setup, add and login, or Composio for add.');
+    if (action === 'setup') return (await connect())('connectorGoogleSetup', {});
+    if (action === 'add') {
+      const clientId = values['client-id']?.trim();
+      if (!clientId || values['client-secret-stdin'] !== true) usage(GOOGLE_ACCESS_TOKEN_REFUSAL);
+      const clientSecret = ((await io.readStdin?.()) ?? '').trim();
+      if (clientSecret === '') usage('No Google OAuth client secret was provided on stdin.');
+      return (await connect())('connectorGoogleAdd', { input: { clientId, clientSecret } });
+    }
+    if (action === 'login') {
+      const label = values.account?.trim();
+      if (!label) usage('connector login google needs --account <label>.');
+      return (await connect())('connectorGoogleLogin', { label });
+    }
+    usage('connector needs setup, add or login.');
+  }
   if (command === 'connectors' || command === 'connector-refresh') {
     positionals(command, rest, 0, '');
     return (await connect())(command === 'connectors' ? 'connectors' : 'connectorRefresh', {});

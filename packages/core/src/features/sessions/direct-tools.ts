@@ -1,3 +1,4 @@
+import type { NativeDirectToolSpec } from '../../kernel/runtime-host.js';
 import { randomUUID } from 'node:crypto';
 import { HarnessError } from '@deepseek-ai/dsh-llm';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
@@ -22,11 +23,7 @@ import { hasIrreversibleExternalEffect, toolEffects } from '../../workspaces/too
 import type { createAssignmentReporting } from '../assignments/reporting.js';
 import type { TobCliRequestLease } from '../tob/cli-runtime.js';
 
-export interface DirectBotToolSpec {
-  name: string;
-  description: string;
-  inputSchema: unknown;
-}
+export type DirectBotToolSpec = NativeDirectToolSpec;
 
 export interface DirectBotToolCall {
   callId: string;
@@ -227,6 +224,7 @@ export function createDirectTools(ports: DirectToolPorts) {
     let approvalHuman: HumanContext | undefined;
     if (
       PRIVATE_INPUT_TOOLS.has(tool) ||
+      ports.agents.isNativeDirectTool?.(tool) === true ||
       hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
       toolEffects(tool, args)?.authority === 'management'
     ) {

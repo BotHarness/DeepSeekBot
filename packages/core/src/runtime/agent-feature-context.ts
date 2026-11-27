@@ -36,7 +36,7 @@ export interface AssignmentAgentHooks {
 
 export type AgentFeatureContribution = Pick<
   FeatureContribution<never, AgentFeatureContext, never, AssignmentAgentHooks>,
-  'id' | 'promptSections' | 'tools' | 'assignmentAgent'
+  'id' | 'promptSections' | 'tools' | 'assignmentAgent' | 'directTools'
 >;
 
 export function requireAssignmentAgentHooks(

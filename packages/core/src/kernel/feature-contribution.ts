@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
-import type { RuntimeHost } from './runtime-host.js';
+import type { NativeDirectToolSpec, RuntimeHost } from './runtime-host.js';
 
 export type FeaturePromptSlot =
   | 'inbox-coordination'
@@ -66,5 +66,6 @@ export interface FeatureContribution<
   readonly host?: HostHooks;
   readonly assignmentAgent?: AssignmentHooks;
   readonly promptSections?: (context: AgentContext) => readonly FeaturePromptSection[];
+  readonly directTools?: readonly NativeDirectToolSpec[];
   readonly tools?: (context: AgentContext, registrar: FeatureToolRegistrar) => void;
 }

@@ -1,4 +1,4 @@
-# App connections (Composio)
+# App connections
 
 ## Sources
 
@@ -39,6 +39,12 @@ node scripts/verify-app.mjs rpc --name <n> botharness/connectors '{}'
 Canonical proof without a key: `connectors` returns `configured: false` and the catalog; `connector-connect gmail` fails with `connector-not-configured`; an invalid key piped to `connector-key-set --key-stdin` fails with `invalid-input` (“Composio rejected the API key.”) and `connectors` still reports `configured: false`.
 
 With the Owner's real Composio key that has write access to Session management, Session tool execution, Connected accounts and Auth configs (Human step, isolated Profile only; a read-only key fails `connector-connect` with a message naming those permissions): add the key, `connector-connect gmail`, finish sign-in in the browser, `connector-refresh` until `active`, grant a test Bot Read, ask it “帮我看一下最近的邮件”, and verify a send attempt is refused under Read.
+
+## Google Workspace journey
+
+Use an isolated Host and a Google OAuth Web client for a test account. Run `connector setup google` and check the loopback redirect URI and API list. Pass the secret on stdin to `connector add google`. Open the URL from `connector login google --account Work` in a browser on the Host. Run `connectors` and check that the account is active. Sign in with a second account under another label. Verify each Bot reads only its assigned account with `bot-tool <bot-id> google_gmail_search --args-stdin` and compare the account labels in `connectors`. With two eligible accounts on one Bot, pass `account` explicitly. Revoke a grant and verify the next tool call fails.
+
+Grant Write to one Bot, reconnect that account, and verify the Google consent includes Gmail draft and primary-calendar write access. Try an event creation and reject the Tool Approval, then read the calendar to confirm there is no event. Approve a second call and read back the event. Restart the same Profile and repeat a read. The fake-provider tests also cover single-use state, PKCE, concurrent refresh, provider failure, multiple Bot grants, and the Write scope gate.
 
 ## Gotchas
 
