@@ -2,6 +2,19 @@
   "version": 1,
   "groups": [
     {
+      "id": "marketplace-skill-uploads",
+      "description": "Publish Bot Skills with a Connect Author ID, manage current files, and report listings.",
+      "scope": "host",
+      "surfaces": [],
+      "commands": [
+        "skills-publish",
+        "skills-replace",
+        "skills-delete",
+        "skills-mine",
+        "marketplace-skill-report"
+      ]
+    },
+    {
       "id": "host-relationships",
       "description": "Reciprocal Host approval, independent client enrollment and relationship disconnection.",
       "scope": "Local Host",

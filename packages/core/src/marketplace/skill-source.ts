@@ -86,6 +86,13 @@ export function createMarketplaceSkillSource(options: {
       ),
     async files(skill, paths) {
       if (paths.length > MAX_SKILL_FILES) return { ok: false, code: 'skill-too-large' };
+      if (skill.upload !== undefined) {
+        return request(
+          `/v1/skills/${encodeURIComponent(skill.id)}/files/${encodeURIComponent(skill.upload.revision)}`,
+          { method: 'GET', headers: { accept: 'application/json' }, redirect: 'error' },
+          (value) => parseUploadedFiles(value, paths),
+        );
+      }
       const files = new Map<string, Uint8Array>();
       let total = 0;
       for (const path of paths) {
@@ -104,4 +111,25 @@ export function createMarketplaceSkillSource(options: {
       return { ok: true, value: files };
     },
   };
+}
+
+function parseUploadedFiles(
+  value: unknown,
+  paths: readonly string[],
+): Map<string, Uint8Array> | undefined {
+  if (!Array.isArray(value) || value.length !== paths.length) return undefined;
+  const expected = new Set(paths);
+  const files = new Map<string, Uint8Array>();
+  let size = 0;
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) return undefined;
+    const { path, data } = Object.fromEntries(Object.entries(entry));
+    if (typeof path !== 'string' || !expected.delete(path) || typeof data !== 'string')
+      return undefined;
+    const bytes = Buffer.from(data, 'base64');
+    size += bytes.length;
+    if (size > MAX_SKILL_BYTES) return undefined;
+    files.set(path, bytes);
+  }
+  return files;
 }

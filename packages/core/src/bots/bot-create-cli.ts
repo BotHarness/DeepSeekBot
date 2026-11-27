@@ -240,6 +240,18 @@ export async function runBotCreateCli(
         command = aliases[action];
         rest = targets;
       }
+    } else if (command === 'skills') {
+      const [action, ...targets] = rest;
+      if (
+        action === 'publish' ||
+        action === 'replace' ||
+        action === 'delete' ||
+        action === 'mine'
+      ) {
+        command = `skills-${action}`;
+        rest = targets;
+      } else if (values.help !== true)
+        throw usageError('skills needs publish, replace, delete or mine.');
     } else if (command === 'engine') {
       const [action, ...targets] = rest;
       if (

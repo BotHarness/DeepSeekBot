@@ -1,3 +1,8 @@
+import type {
+  MarketplaceSkill,
+  MarketplaceSkillDetail,
+  MarketplaceSkillFile,
+} from '../../host-protocol/src/marketplace-skill.js';
 import type { D1Database, D1PreparedStatement } from './d1.js';
 import { continueDiscovery, findTopicRepositories } from './discovery.js';
 import {
@@ -14,7 +19,6 @@ import {
   SKILL_TOPIC,
   parseSkillFrontmatter,
   scanSkillFiles,
-  type SkillFinding,
   type SkillScanVerdict,
 } from './skill-scan.js';
 import { uploadFileKind } from './upload-files.js';
@@ -28,38 +32,6 @@ export const MAX_SKILLS_PER_REPOSITORY = 50;
 const MAX_SCANNED_FILES = 30;
 const MAX_SCANNED_FILE_BYTES = 256 * 1024;
 const OFFICIAL_OWNERS = new Set(['botharness']);
-
-export interface MarketplaceSkillFile {
-  path: string;
-  size: number;
-}
-
-export interface MarketplaceSkill {
-  id: string;
-  name: string;
-  description: string;
-  owner: string;
-  repo: string;
-  fullName: string;
-  path: string;
-  htmlUrl: string;
-  commitSha: string;
-  stars: number;
-  installs: number;
-  scripts: string[];
-  scan: Exclude<SkillScanVerdict, 'blocked'>;
-  findings: SkillFinding[];
-  fileCount: number;
-  size: number;
-  official: boolean;
-  pushedAt: string;
-}
-
-export interface MarketplaceSkillDetail {
-  skill: MarketplaceSkill;
-  content: string;
-  files: MarketplaceSkillFile[];
-}
 
 export interface SkillIndexReport {
   repositories: number;
@@ -88,10 +60,17 @@ interface SkillRow {
   curated: number;
   visibility: 'listed' | 'hidden_missing' | 'rejected' | 'blocked';
   installs: number;
+  upload_revision: string | null;
+  author_id: string | null;
+  display_name: string | null;
 }
 
 const COLUMNS =
   'id, repo_node_id, owner, repo, path, name, description, skill_md, files, scripts, scan, findings, commit_sha, stars, pushed_at, curated, visibility, installs';
+
+const SELECT_COLUMNS = `${COLUMNS}, upload_revision,
+  (SELECT author_id FROM authors WHERE account = upload_account) AS author_id,
+  (SELECT display_name FROM authors WHERE account = upload_account) AS display_name`;
 
 type IndexedSkill = Pick<
   SkillRow,
@@ -137,20 +116,31 @@ export function toMarketplaceSkill(row: SkillRow): MarketplaceSkill {
   const files = parseJson<MarketplaceSkillFile[]>(row.files, []);
   const encodedPath = row.path.split('/').map(encodeURIComponent).join('/');
   return {
+    ...(row.upload_revision === null || row.author_id === null || row.display_name === null
+      ? {}
+      : {
+          upload: {
+            revision: row.upload_revision,
+            author: { id: row.author_id, name: row.display_name },
+          },
+        }),
     id: row.id,
     name: row.name,
     description: row.description,
     owner: row.owner,
     repo: row.repo,
-    fullName: `${row.owner}/${row.repo}`,
+    fullName: row.upload_revision === null ? `${row.owner}/${row.repo}` : '',
     path: row.path,
-    htmlUrl: `https://github.com/${row.owner}/${row.repo}/tree/${row.commit_sha}${row.path === '' ? '' : `/${encodedPath}`}`,
+    htmlUrl:
+      row.upload_revision !== null
+        ? ''
+        : `https://github.com/${row.owner}/${row.repo}/tree/${row.commit_sha}${row.path === '' ? '' : `/${encodedPath}`}`,
     commitSha: row.commit_sha,
     stars: row.stars,
     installs: row.installs,
     scripts: parseJson<string[]>(row.scripts, []),
     scan: row.scan === 'warning' ? 'warning' : 'clean',
-    findings: parseJson<SkillFinding[]>(row.findings, []),
+    findings: parseJson<MarketplaceSkill['findings']>(row.findings, []),
     fileCount: files.length,
     size: files.reduce((total, file) => total + file.size, 0),
     official: OFFICIAL_OWNERS.has(row.owner.toLowerCase()),
@@ -393,7 +383,7 @@ export function createMarketSkills(deps: {
 
   const find = async (id: string): Promise<SkillRow | undefined> =>
     (await db
-      .prepare(`SELECT ${COLUMNS} FROM marketplace_skills WHERE id = ?`)
+      .prepare(`SELECT ${SELECT_COLUMNS} FROM marketplace_skills WHERE id = ?`)
       .bind(id)
       .first<SkillRow>()) ?? undefined;
 
@@ -433,7 +423,7 @@ export function createMarketSkills(deps: {
         await db
           .prepare(`SELECT repo_node_id, owner, repo, MAX(curated) AS curated,
             SUM(visibility = 'listed') AS listed FROM marketplace_skills
-            WHERE visibility = 'listed' OR curated = 1 GROUP BY repo_node_id`)
+            WHERE upload_account IS NULL AND (visibility = 'listed' OR curated = 1) GROUP BY repo_node_id`)
           .all<{
             repo_node_id: string;
             owner: string;
@@ -490,9 +480,9 @@ export function createMarketSkills(deps: {
       const filter =
         q === undefined || q.length === 0
           ? ''
-          : `AND (instr(lower(name), ?1) > 0 OR instr(lower(description), ?1) > 0 OR instr(lower(owner || '/' || repo), ?1) > 0)`;
+          : `AND (instr(lower(name), ?1) > 0 OR instr(lower(description), ?1) > 0 OR instr(lower(owner || '/' || repo), ?1) > 0 OR instr(lower((SELECT display_name FROM authors WHERE account = upload_account)), ?1) > 0 OR instr(lower((SELECT author_id FROM authors WHERE account = upload_account)), ?1) > 0)`;
       const statement = db.prepare(
-        `SELECT ${COLUMNS} FROM marketplace_skills WHERE visibility = 'listed' ${filter}
+        `SELECT ${SELECT_COLUMNS} FROM marketplace_skills WHERE visibility = 'listed' ${filter}
          ORDER BY installs DESC, stars DESC, name ASC, id ASC LIMIT ${limit + 1} OFFSET ${offset}`,
       );
       const rows = (
@@ -502,6 +492,24 @@ export function createMarketSkills(deps: {
         skills: rows.slice(0, limit).map(toMarketplaceSkill),
         nextCursor: rows.length > limit ? String(offset + limit) : null,
       };
+    },
+
+    async mine(account: string): Promise<MarketplaceSkill[]> {
+      const { results } = await db
+        .prepare(`SELECT ${SELECT_COLUMNS} FROM marketplace_skills WHERE upload_account = ?
+          ORDER BY pushed_at DESC, id`)
+        .bind(account)
+        .all<SkillRow>();
+      return results.map(toMarketplaceSkill);
+    },
+
+    async uploaded(account: string, id: string): Promise<MarketplaceSkill | undefined> {
+      const row = await db
+        .prepare(`SELECT ${SELECT_COLUMNS} FROM marketplace_skills
+          WHERE upload_account = ? AND id = ? AND upload_deleted = 0`)
+        .bind(account, id)
+        .first<SkillRow>();
+      return row === null ? undefined : toMarketplaceSkill(row);
     },
 
     async detail(id: string): Promise<MarketplaceSkillDetail | undefined> {
@@ -529,8 +537,8 @@ export function createMarketSkills(deps: {
       const row = await db
         .prepare(
           `UPDATE marketplace_skills
-           SET visibility = CASE WHEN ?1 = 1 THEN 'blocked' WHEN scan = 'blocked' THEN 'rejected' ELSE 'hidden_missing' END
-           WHERE id = ?2 RETURNING name, visibility`,
+           SET visibility = CASE WHEN ?1 = 1 THEN 'blocked' WHEN scan = 'blocked' THEN 'rejected' WHEN upload_account IS NOT NULL THEN 'listed' ELSE 'hidden_missing' END
+           WHERE id = ?2 AND upload_deleted = 0 RETURNING name, visibility`,
         )
         .bind(blocked ? 1 : 0, id)
         .first<{ name: string; visibility: string }>();

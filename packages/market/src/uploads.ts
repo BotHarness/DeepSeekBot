@@ -4,6 +4,7 @@ import {
   parseBotDescriptor,
 } from '../../core/src/marketplace/descriptor.js';
 import { removeMarketAvatar } from './avatars.js';
+import { removeUploadedSkill } from './skill-uploads.js';
 import type { D1Database } from './d1.js';
 import type { R2Bucket } from './r2.js';
 import { MAX_README_LENGTH } from './repositories.js';
@@ -350,10 +351,17 @@ export function createUploads(deps: {
           .bind(account, existing.id)
           .all<{ id: string }>();
         for (const avatar of avatars) await removeMarketAvatar(db, bucket, account, avatar.id);
+        const { results: skills } = await db
+          .prepare(`SELECT s.id FROM marketplace_skills s JOIN authors ON s.upload_account = authors.account
+            WHERE s.upload_account = ? AND authors.author_id = ?`)
+          .bind(account, existing.id)
+          .all<{ id: string }>();
+        for (const skill of skills) await removeUploadedSkill(db, bucket, account, skill.id);
         const deleted = await db
           .prepare(`DELETE FROM authors WHERE account = ? AND author_id = ?
-            AND NOT EXISTS (SELECT 1 FROM marketplace_avatars WHERE account = ?) RETURNING author_id`)
-          .bind(account, existing.id, account)
+            AND NOT EXISTS (SELECT 1 FROM marketplace_avatars WHERE account = ?)
+            AND NOT EXISTS (SELECT 1 FROM marketplace_skills WHERE upload_account = ?) RETURNING author_id`)
+          .bind(account, existing.id, account, account)
           .first();
         if (deleted !== null) return;
       } while ((await author(account))?.id === existing.id);

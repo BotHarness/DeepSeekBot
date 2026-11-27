@@ -1,4 +1,11 @@
 import {
+  parseMarketplaceSkill,
+  parseMarketplaceSkillPage,
+  type MarketplaceSkill,
+  type MarketplaceSkillPage,
+  type MarketplaceSkillUploadInput,
+} from '@botharness/host-protocol/marketplace-skill';
+import {
   MAX_MARKETPLACE_AVATAR_BYTES,
   type MarketplaceAvatar as MarketplaceAvatarListing,
   type MarketplaceAvatarEdit,
@@ -165,6 +172,13 @@ export type MarketplaceResult<T> =
   | { ok: false; code: string; path?: string };
 
 export interface MarketplaceClient {
+  skillWrite(
+    token: string,
+    input: MarketplaceSkillUploadInput,
+    replacing?: string,
+  ): Promise<MarketplaceResult<MarketplaceSkill>>;
+  skillMine(token: string): Promise<MarketplaceResult<MarketplaceSkillPage['skills']>>;
+  skillDelete(token: string, id: string): Promise<MarketplaceResult<{ deleted: true }>>;
   avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
   avatarTags(): Promise<MarketplaceResult<MarketplaceAvatarTag[]>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
@@ -195,7 +209,7 @@ export interface MarketplaceClient {
   report(
     id: string,
     options: { altcha: string; reason?: string },
-    kind?: 'bot' | 'avatar',
+    kind?: 'bot' | 'avatar' | 'skill',
   ): Promise<MarketplaceResult<{ received: true }>>;
   author(token: string): Promise<MarketplaceResult<MarketplaceAuthorAccount | null>>;
   saveAuthor(
@@ -710,6 +724,30 @@ export function createMarketplaceClient(options: {
   };
 
   return {
+    skillWrite: (token, input, replacing) =>
+      request(
+        replacing === undefined ? '/v1/skills' : `/v1/me/skills/${encodeURIComponent(replacing)}`,
+        {
+          method: replacing === undefined ? 'POST' : 'PUT',
+          headers: authorized(token, true),
+          body: JSON.stringify(input),
+        },
+        (value) => parseMarketplaceSkill(record(value)?.['skill']),
+      ),
+    skillMine: (token) =>
+      request(
+        '/v1/me/skills',
+        { method: 'GET', headers: authorized(token, false) },
+        (value) =>
+          parseMarketplaceSkillPage({ skills: record(value)?.['skills'], nextCursor: null })
+            ?.skills,
+      ),
+    skillDelete: (token, id) =>
+      request(
+        `/v1/me/skills/${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: authorized(token, false) },
+        (value) => (record(value)?.['deleted'] === true ? { deleted: true as const } : undefined),
+      ),
     avatarList: ({ cursor, q, tag, sort }) => {
       const params = new URLSearchParams();
       if (cursor !== undefined) params.set('cursor', cursor);
@@ -857,7 +895,7 @@ export function createMarketplaceClient(options: {
       ),
     report: (id, options, kind = 'bot') =>
       request(
-        `/v1/${kind === 'bot' ? 'bots' : 'avatars'}/${encodeURIComponent(id)}/reports`,
+        `/v1/${kind === 'bot' ? 'bots' : kind === 'avatar' ? 'avatars' : 'skills'}/${encodeURIComponent(id)}/reports`,
         {
           method: 'POST',
           headers: { accept: 'application/json', 'content-type': 'application/json' },

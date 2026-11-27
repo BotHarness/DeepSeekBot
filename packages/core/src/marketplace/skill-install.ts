@@ -153,7 +153,7 @@ export async function writeSkill(
           file,
           withSkillMetadata(renamed, {
             source: staged.skill.id,
-            repository: staged.skill.htmlUrl,
+            ...(staged.skill.upload === undefined ? { repository: staged.skill.htmlUrl } : {}),
             hash: staged.hash,
           }),
         );

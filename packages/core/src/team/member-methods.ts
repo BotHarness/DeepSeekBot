@@ -34,6 +34,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'marketplaceAvatarApply',
   'marketplaceSkillList',
   'marketplaceSkillDetail',
+  'marketplaceSkillReport',
   'marketplaceSkillAddCandidates',
   'marketplaceSkillReview',
   'marketplaceSkillAdd',

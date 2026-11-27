@@ -94,7 +94,10 @@ export function isScriptPath(path: string): boolean {
   return uploadFileKind(path) === 'script';
 }
 
-export function scanSkillFiles(files: readonly { path: string; text: string | null }[]): SkillScan {
+export function scanSkillFiles(
+  files: readonly { path: string; text: string | null }[],
+  options: { rejectSecrets?: boolean } = {},
+): SkillScan {
   const findings: SkillFinding[] = [];
   const scripts: string[] = [];
   let malicious = false;
@@ -105,16 +108,18 @@ export function scanSkillFiles(files: readonly { path: string; text: string | nu
     for (const [index, line] of lines.entries()) {
       const next = lines[index + 1] ?? '';
       for (const rule of RULES) {
-        if (findings.length >= MAX_FINDINGS && (rule.severity === 'warning' || malicious)) continue;
+        const severity =
+          options.rejectSecrets === true && rule.kind === 'secret' ? 'malicious' : rule.severity;
+        if (findings.length >= MAX_FINDINGS && (severity === 'warning' || malicious)) continue;
         const own = rule.test(line);
         const across = !own && rule.test(`${line} ${next}`) && !rule.test(next);
         if (!own && !across) continue;
-        if (rule.severity === 'malicious') malicious = true;
+        if (severity === 'malicious') malicious = true;
         findings.push({
           kind: rule.kind,
           path: file.path,
           line: index + 1,
-          severity: rule.severity,
+          severity,
         });
       }
     }
