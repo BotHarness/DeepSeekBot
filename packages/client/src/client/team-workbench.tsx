@@ -6,7 +6,14 @@ import { Button } from './ds/button.js';
 import { Note } from './ds/note.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { loadMembers, loadTeamMode, type TeamMember, type TeamModeView } from './team-bridge.js';
+import { STALE_HOST_ROLE } from '@botharness/host-client/team-roles';
+import {
+  loadMembers,
+  loadTeamMode,
+  teamRefusal,
+  type TeamMember,
+  type TeamModeView,
+} from './team-bridge.js';
 import {
   MANAGE_MEMBERS,
   MANAGE_ROLES,
@@ -23,6 +30,7 @@ import { ChannelsSection } from './team-workbench/channels-section.js';
 import { DetailNotice, EmptyDetail, WorkbenchFrame } from './team-workbench/frame.js';
 import { MembersSection } from './team-workbench/members-section.js';
 import { withChoice, type PermissionChoice } from './team-workbench/permission-model.js';
+import { RoleConflictNote, type RoleConflict } from './team-workbench/role-conflict.js';
 import { RolesSection, type Inspection } from './team-workbench/roles-section.js';
 import { SectionNav } from './team-workbench/section-nav.js';
 import {
@@ -58,6 +66,7 @@ export function TeamWorkbench({
   const [inspected, setInspected] = useState<Inspection>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [conflict, setConflict] = useState<RoleConflict>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const inspection = useRef(0);
@@ -114,9 +123,11 @@ export function TeamWorkbench({
   const choose = async (target: TeamRole, id: string, choice: PermissionChoice): Promise<void> => {
     setBusy(true);
     setError(undefined);
+    setConflict(undefined);
     try {
       const updated = await updateRole(call, {
         roleId: target.roleId,
+        expectedRevision: target.revision,
         ...withChoice(target, id, choice),
       });
       setRoles((current) =>
@@ -128,6 +139,20 @@ export function TeamWorkbench({
         const result = await loadMemberPermissions(call, member.humanId);
         if (reload === inspection.current) setInspected({ member, result });
       }
+    } catch (failure) {
+      if (teamRefusal(failure) === STALE_HOST_ROLE)
+        setConflict({ roleId: target.roleId, id, choice, reloaded: false });
+      else setError(teamErrorText(t, failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reloadRoles = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      setRoles(await loadRoles(call));
+      setConflict((current) => (current === undefined ? current : { ...current, reloaded: true }));
     } catch (failure) {
       setError(teamErrorText(t, failure));
     } finally {
@@ -158,8 +183,19 @@ export function TeamWorkbench({
           busy={busy}
           error={error}
           inspected={inspected}
+          notice={
+            conflict === undefined ? undefined : (
+              <RoleConflictNote
+                t={t}
+                conflict={conflict}
+                busy={busy}
+                onReload={() => void reloadRoles()}
+              />
+            )
+          }
           onSelect={(roleId) => {
             setSelectedRole(roleId);
+            setConflict(undefined);
             clearInspection();
           }}
           onChoose={(role, id, choice) => void choose(role, id, choice)}

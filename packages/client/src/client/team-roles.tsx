@@ -12,10 +12,11 @@ import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { RoleModelsField } from './team-role-models.js';
 import { RolePolicyField } from './role-policy-field.js';
-import { policyConflicts, policyReady, trimmedPolicy } from './team-roles-bridge.js';
+import { loadRoles, policyConflicts, policyReady, trimmedPolicy } from './team-roles-bridge.js';
 import type { PolicyItem } from './team-roles-bridge.js';
 import { useMountedResource } from './mounted-resource.js';
-import type { TeamMember } from './team-bridge.js';
+import { STALE_HOST_ROLE } from '@botharness/host-client/team-roles';
+import { teamRefusal, type TeamMember } from './team-bridge.js';
 import {
   createRole,
   deleteRole,
@@ -177,6 +178,7 @@ export function RolesSection({
             setEditing(undefined);
             onChanged();
           }}
+          onReloaded={onChanged}
         />
       )}
     </SettingsSection>
@@ -191,6 +193,7 @@ function RoleDialog({
   viewer,
   onCancel,
   onSaved,
+  onReloaded,
 }: {
   call: BridgeCall;
   t: BotHarnessTranslate;
@@ -199,7 +202,10 @@ function RoleDialog({
   viewer: GrantingViewer;
   onCancel(): void;
   onSaved(): void;
+  onReloaded(): void;
 }): ReactElement {
+  const [base, setBase] = useState(role);
+  const [conflict, setConflict] = useState<'stale' | 'reloaded'>();
   const [name, setName] = useState(role?.name ?? '');
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set(role?.permissions ?? []));
   const [models, setModels] = useState<RoleModels>(role?.models ?? { kind: 'all' });
@@ -212,13 +218,54 @@ function RoleDialog({
   const run = (work: () => Promise<unknown>): void => {
     setBusy(true);
     setError(undefined);
+    setConflict(undefined);
     work()
       .then(onSaved)
       .catch((failure: unknown) => {
-        setError(teamErrorText(t, failure));
+        if (teamRefusal(failure) === STALE_HOST_ROLE) setConflict('stale');
+        else setError(teamErrorText(t, failure));
         setBusy(false);
       });
   };
+  const reload = (): void => {
+    if (base === undefined) return;
+    setBusy(true);
+    loadRoles(call)
+      .then((latest) => {
+        const fresh = latest.find((item) => item.roleId === base.roleId);
+        if (fresh !== undefined) {
+          setBase(fresh);
+          setName(fresh.name);
+          setChosen(new Set(fresh.permissions));
+          setModels(fresh.models);
+          setPolicy([...fresh.policy]);
+        }
+        setConflict('reloaded');
+        onReloaded();
+      })
+      .catch((failure: unknown) => setError(teamErrorText(t, failure)))
+      .finally(() => setBusy(false));
+  };
+  const conflictNote =
+    conflict === undefined ? undefined : (
+      <Note tone={conflict === 'stale' ? 'warning' : 'muted'}>
+        <span data-team-role-conflict={conflict}>
+          {t(conflict === 'stale' ? 'team.error.staleRole' : 'team.roles.reloaded')}
+        </span>
+        {conflict === 'stale' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            data-team-role-reload=""
+            onClick={reload}
+          >
+            {t('team.roles.reload')}
+          </Button>
+        ) : null}
+      </Note>
+    );
   const toggle = (id: string, on: boolean): void => {
     const next = new Set(chosen);
     if (on) next.add(id);
@@ -252,7 +299,7 @@ function RoleDialog({
       submitLabel={t('team.save')}
       submitDisabled={!ready}
       busy={busy}
-      error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
+      error={error === undefined ? conflictNote : <Note tone="danger">{error}</Note>}
       secondary={
         role !== undefined && builtin === null ? (
           <Button variant="outline" disabled={busy} onClick={() => setConfirmDelete(true)}>
@@ -272,6 +319,7 @@ function RoleDialog({
               })
             : updateRole(call, {
                 roleId: role.roleId,
+                expectedRevision: (base ?? role).revision,
                 ...(builtin === null ? { name: name.trim() } : {}),
                 permissions: [...chosen],
                 models,

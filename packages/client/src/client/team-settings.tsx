@@ -108,6 +108,7 @@ export interface TeamSectionProps {
 }
 
 const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
+  'stale-role': 'team.error.staleRole',
   'owner-password-required': 'team.error.ownerPasswordRequired',
   'password-weak': 'team.error.passwordWeak',
   'password-reused': 'team.error.passwordReused',

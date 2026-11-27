@@ -48,6 +48,7 @@ function role(overrides: Partial<TeamRole> = {}): TeamRole {
     memberCount: 1,
     policy: [],
     policyRevision: 1,
+    revision: 1,
     ...overrides,
   };
 }
@@ -151,7 +152,7 @@ it('denies a capability for a role and shows where a member gets each permission
   await act(async () => segment('channels.create', '拒绝').click());
   expect(call).toHaveBeenCalledWith(
     'roleUpdate',
-    { roleId: 'leads', permissions: [], denied: ['channels.create'] },
+    { roleId: 'leads', expectedRevision: 1, permissions: [], denied: ['channels.create'] },
     undefined,
   );
   expect(segment('channels.create', '拒绝').getAttribute('aria-selected')).toBe('true');
@@ -500,4 +501,36 @@ it('shows the no-access state when the viewer cannot open any section', async ()
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
   expect(host.textContent).toContain('只有能管理角色的人可以打开 Team');
   expect(host.querySelector('[data-team-nav]')).toBeNull();
+});
+
+it('keeps a stale role save unsaved, says so and reloads the latest role', async () => {
+  let current = role();
+  let rolesReads = 0;
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'roles') {
+      rolesReads++;
+      return { ok: true, value: [current] };
+    }
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    if (method === 'members') return { ok: true, value: [] };
+    if (method === 'roleUpdate') {
+      current = { ...current, permissions: ['channels.create', 'members.manage'], revision: 2 };
+      return { ok: false, error: { code: 'stale-role', message: 'stale', details: {} } };
+    }
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => segment('channels.create', '拒绝').click());
+  const note = () => host.querySelector<HTMLElement>('[data-team-role-conflict]');
+  expect(note()?.dataset['teamRoleConflict']).toBe('stale');
+  expect(note()?.textContent).toContain('你的修改没有保存');
+  expect(note()?.textContent).toContain('创建频道 → 拒绝');
+  expect(segment('channels.create', '允许').getAttribute('aria-selected')).toBe('true');
+  const reads = rolesReads;
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-team-role-reload]')!.click());
+  expect(rolesReads).toBe(reads + 1);
+  expect(note()?.dataset['teamRoleConflict']).toBe('reloaded');
+  expect(note()?.textContent).toContain('创建频道 → 拒绝');
+  expect(segment('members.manage', '允许').getAttribute('aria-selected')).toBe('true');
 });
