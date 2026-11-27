@@ -749,7 +749,7 @@ export function BotProfilePage({
   const working = workingRows([bot], false);
   const sessions = profile?.orchestrators;
   const sessionsError = sessions?.status === 'failed' ? sessions.error : sessions?.staleError;
-  const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
+  const bodies: Record<Exclude<ProfileTab, 'files' | 'members' | 'bots'>, ProfileTabBody> = {
     work: {
       rows: [
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
@@ -925,7 +925,9 @@ export function BotProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={(page) => (page === 'files' || page === 'members' ? filesBody : bodies[page])}
+      body={(page) =>
+        page === 'files' || page === 'members' || page === 'bots' ? filesBody : bodies[page]
+      }
       onClose={actions.onClose}
     />
   );
