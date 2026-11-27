@@ -1,3 +1,4 @@
+import type { ChannelBotChange } from '@botharness/host-protocol/channel-bots';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PrivateKind } from '../../team-policy/private-content.js';
@@ -562,6 +563,16 @@ export const teamServiceRpc = {
 
   channelAdminsSet(channelId: string, humanIds: string[]) {
     return channelAdminsSet(this.methods, channelId, humanIds);
+  },
+
+  channelBotSettings(channelId: string, botSlug?: string, change?: ChannelBotChange) {
+    return unwrapAsync(
+      this.methods.channelBotSettings({
+        channelId,
+        ...(botSlug === undefined ? {} : { botSlug }),
+        ...(change === undefined ? {} : { change }),
+      }),
+    );
   },
 
   channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {

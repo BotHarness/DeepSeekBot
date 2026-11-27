@@ -131,6 +131,12 @@ export interface CreateChannelGroupInput {
 export interface ChannelStore {
   requireHumanPolicy?(human: HumanContext, id: string, key: ChannelAction): void;
   bindHumanAccess?(access: {
+    botReception?(
+      db: import('node:sqlite').DatabaseSync,
+      human: HumanContext,
+      channelId: string,
+      candidates: ReadonlySet<string>,
+    ): ReadonlySet<string>;
     addInitialMembers?(
       db: import('node:sqlite').DatabaseSync,
       human: HumanContext,

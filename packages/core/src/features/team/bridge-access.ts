@@ -320,6 +320,7 @@ export function guardHumanBridge(
             'channelVisibilitySet',
             'channelPolicySet',
             'channelRoleDirectory',
+            'channelBotSettings',
             'channelHumanAdd',
             'channelMemberCandidates',
             'channelGroupMemberPicker',
@@ -389,7 +390,7 @@ export function guardHumanBridge(
         }
         for (const name of ['botSlug', 'targetBotSlug']) {
           const id = input[name];
-          if (typeof id === 'string') botIds.push(id);
+          if (property !== 'channelBotSettings' && typeof id === 'string') botIds.push(id);
         }
         for (const name of ['members', 'mentions']) {
           const entries = input[name];

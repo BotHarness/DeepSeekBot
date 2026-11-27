@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runFolderCreateGate } from './team-security-folder-create-gate.mjs';
 import { runHostSessionGate } from './team-security-host-sessions-gate.mjs';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
+import { runChannelBotGate } from './team-security-channel-bot-gate.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
@@ -477,6 +478,7 @@ export async function main(argv = process.argv.slice(2)) {
       );
     }
 
+    await define('C9', 'Channel Bot reception', (check) => runChannelBotGate(s, fx, tag, check));
     await define(
       'A0',
       'Positive control: a finance member gets the figure in a DM',

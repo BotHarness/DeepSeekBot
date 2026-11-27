@@ -419,6 +419,7 @@ describe('M5 approval projections and decisions', () => {
         addMembers: 'allow',
         post: 'deny',
         mentionAll: 'deny',
+        wakeBot: 'allow',
         addBots: 'deny',
         editDetails: 'deny',
       },

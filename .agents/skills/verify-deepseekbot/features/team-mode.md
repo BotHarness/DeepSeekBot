@@ -6,6 +6,9 @@
 - `packages/core/src/team/**`
 - `packages/core/src/team-policy/**`
 - `packages/client/src/client/team-*`
+- `packages/client/src/client/channel-bot-settings.tsx`
+- `packages/host-client/src/channel-bots.ts`
+- `apps/mobile/src/ui/chat/group-bot-settings.tsx`
 - `packages/client/src/client/owner-password-dialog.tsx`
 - `packages/host-client/src/team-*.ts`
 - `packages/host-client/src/sign-in-discovery.ts`
@@ -41,6 +44,8 @@
 - S11: After a member's first sign-in, the Web Client and the phone ask once for a chat name (prefilled with the admin-set name) and photo. Done saves both on the Host; Later or closing skips. Either answer ends the prompt on every device (`human-identity --as <member>` no longer shows `profileSetup: "pending"`). The Owner, and a member who already has a photo, are never asked. Drive it with `node scripts/e2e-team-profile-setup.mjs --name <instance>` on a fresh instance; it captures the prompt in light and dark under `.humanlayer/verify/<instance>/team-profile-setup/`. The phone screen has a source test only until native QA (#4446).
 
 - S10 (M14 Host/CLI): `channels member-candidates <id> [--query <name>]` and `channels add-member <id> <username>` enforce `addMembers` as the explicit calling Human. An invitation opens private/roles/public Channels immediately in list, stream and search. A role-based join exits on role revoke; a named invitation remains. Bots in the Channel do not cause invitation refusal. The Add people picker UI is verified separately by its UI owner.
+
+- S12 (#5491): In Team → Channels → Permissions, set who has the Wake a Bot with @mention action. Open the Bots tab and set a Bot's audience or no-response list, then reopen it to verify the saved settings. Mobile exposes the per-Bot controls in Group profile → Bots. `node scripts/e2e-team-security.mjs --launch --scenario C9` uses the authenticated CLI to test mentions and plain messages in all-message wake mode. A denied message stays visible without a Bot delivery. An allowed message completes a Turn. The same member can still wake the Bot in a second Channel where they are eligible.
 
 ## How to get to it (user POV)
 

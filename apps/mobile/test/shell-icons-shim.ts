@@ -58,3 +58,4 @@ export const PencilIcon = () => null;
 export const ReplyIcon = () => null;
 export const MenuIcon = () => null;
 export const AssignmentSessionIcon = () => null;
+export const MentionIcon = () => null;
