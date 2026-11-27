@@ -62,11 +62,6 @@ import {
 import type { ModelsBridgeDeps } from '../features/models/deps.js';
 import { createModelRoutingHelpers } from '../features/models/routing.js';
 import {
-  createMarketplaceBridgeMethods,
-  type MarketplaceBridgeMethods,
-  type MarketplaceBridgeDeps,
-} from '../features/marketplace/methods.js';
-import {
   contributedBridgeMethods,
   mergeFeatureMethods,
   type ContributedBridgeDeps,
@@ -98,14 +93,8 @@ import { validBotCreationKey, type BotCreationService } from '../bots/creation.j
 import { type TobService } from '../tob/service.js';
 import type { BotOnboarding } from '../onboarding/service.js';
 import type { ClientAcknowledgements } from '../onboarding/acknowledgements.js';
-import { type ContentPurge } from '../purge/contracts.js';
-import { type StorageCleanup } from '../storage/media-cleanup.js';
 import { type UsageOverviewBuckets, type UsageOverviewResult } from '../usage/overview.js';
 import type { OutboundMessaging } from '../messaging/outbound.js';
-import type { InstallReceipts } from '../marketplace/install-receipts.js';
-import type { ReleaseService } from '../release/service.js';
-import type { PluginUpdateService } from '../release/plugins.js';
-import { type UpdateRuns } from '../release/update-runs.js';
 import type { ActiveDay } from '../telemetry/active-day.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
 import type { SessionLiveStreams } from '../runtime/session-live.js';
@@ -125,7 +114,6 @@ import type { ChannelChangeCursor } from '../channels/timeline.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { PersonaBotDeletions } from '../bots/deletion.js';
-import { type DataReset } from '../data-reset/reset.js';
 import { RosterStore } from '../roster/store.js';
 import type { SessionOwnership, SessionRootRole } from '../sessions/ownership.js';
 import type {
@@ -164,14 +152,6 @@ import {
   createSessionsAdapterMethods,
   type SessionsAdapterMethods,
 } from '../features/sessions/methods.js';
-import {
-  createReleaseAdapterMethods,
-  type ReleaseAdapterMethods,
-} from '../features/release/methods.js';
-import {
-  createProfileStorageAdapterMethods,
-  type ProfileStorageAdapterMethods,
-} from '../features/profile-storage/methods.js';
 import {
   createChannelFilesAdapterMethods,
   type ChannelFilesAdapterMethods,
@@ -325,7 +305,6 @@ export interface BridgeMethods
     ModelProviderBridgeMethods,
     EngineAccountBridgeMethods,
     EngineSelectionBridgeMethods,
-    MarketplaceBridgeMethods,
     ModelsBridgeMethods,
     VoiceBridgeMethods,
     ApprovalsBridgeMethods,
@@ -341,8 +320,6 @@ export interface BridgeMethods
     GroupMemberMethods,
     ChannelsSendAdapterMethods,
     ChannelFilesAdapterMethods,
-    ProfileStorageAdapterMethods,
-    ReleaseAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
     ReturnType<typeof createSessionBotMethods>,
@@ -361,7 +338,6 @@ export interface BridgeMethods
 export interface BridgeMethodsDeps
   extends
     ContributedBridgeDeps,
-    MarketplaceBridgeDeps,
     ModelsBridgeDeps,
     VoiceBridgeDeps,
     ApprovalsBridgeDeps,
@@ -381,9 +357,6 @@ export interface BridgeMethodsDeps
   imports?: BotImportsService;
   channelManagement?: ChannelManagementService;
   deletions?: PersonaBotDeletions;
-  contentPurge?: ContentPurge;
-  storage?: StorageCleanup;
-  dataReset?: DataReset;
   attachments?: AttachmentStore;
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
@@ -426,11 +399,7 @@ export interface BridgeMethodsDeps
   toolApproval?: ChannelToolApproval;
   developerMode?: { set(enabled: boolean): void };
   createBotId?: () => string;
-  marketplaceReceipts?: InstallReceipts;
-  release?: ReleaseService;
   hostVersion?: () => string;
-  plugins?: PluginUpdateService;
-  updates?: UpdateRuns;
   telemetry?: {
     status(): TelemetryStatus;
     setPreference(enabled: boolean): TelemetryStatus;
@@ -549,14 +518,6 @@ function buildBridgeMethods(
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const { marketplaceZip, marketplaceReads, marketplaceSharing } = createMarketplaceBridgeMethods(
-    human,
-    deps,
-    globalRegistry,
-    isHostOwner,
-    detailOf,
-    sendReceipt,
-  );
   const { modelInheritance, modelSettings, modelPlan } = createModelsBridgeMethods(
     human,
     deps,
@@ -597,8 +558,6 @@ function buildBridgeMethods(
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
-  const releaseAdapterMethods = createReleaseAdapterMethods(deps);
-  const profileStorageAdapterMethods = createProfileStorageAdapterMethods(human, deps);
   const channelFilesAdapterMethods = createChannelFilesAdapterMethods(deps);
   const channelsSendAdapterMethods = createChannelsSendAdapterMethods(
     human,
@@ -684,8 +643,6 @@ function buildBridgeMethods(
         : sessionsAdapterMethods.sessionMessageSend(payload),
     sessionStop: sessionsMethods.sessionStop,
     ...modelSettings,
-    dataResetPreview: profileStorageAdapterMethods.dataResetPreview,
-    dataResetConfirm: profileStorageAdapterMethods.dataResetConfirm,
     deletionPreview: personabotsMethods.deletionPreview,
     deletionConfirm: personabotsMethods.deletionConfirm,
     deletionRetry: personabotsMethods.deletionRetry,
@@ -698,23 +655,11 @@ function buildBridgeMethods(
     get: personabotsMethods.get,
     create: personabotsMethods.create,
     createLookup: personabotsMethods.createLookup,
-    ...marketplaceZip,
     botImportLookup: personabotsMethods.botImportLookup,
     botImportPreview: personabotsMethods.botImportPreview,
     createFromGit: personabotsMethods.createFromGit,
     createFromSessions: sessionBots.createFromSessions,
     externalSessions: sessionBots.externalSessions,
-    ...marketplaceReads,
-    releaseInfo: releaseAdapterMethods.releaseInfo,
-    releaseUpdate: releaseAdapterMethods.releaseUpdate,
-    releaseInstall: releaseAdapterMethods.releaseInstall,
-    releaseRestart: releaseAdapterMethods.releaseRestart,
-    pluginUpdates: releaseAdapterMethods.pluginUpdates,
-    pluginInstall: releaseAdapterMethods.pluginInstall,
-    pluginRestart: releaseAdapterMethods.pluginRestart,
-    updateRun: releaseAdapterMethods.updateRun,
-    updateCancel: releaseAdapterMethods.updateCancel,
-    ...marketplaceSharing,
     update: personabotsMethods.update,
     pause: personabotsMethods.pause,
     resume: personabotsMethods.resume,
@@ -755,13 +700,6 @@ function buildBridgeMethods(
     channelGroupWakeSet: channelsManagementAdapterMethods.channelGroupWakeSet,
     channelHistory: channelsAdapterMethods.channelHistory,
     channelHistorySources: channelsAdapterMethods.channelHistorySources,
-    channelPurgePreview: profileStorageAdapterMethods.channelPurgePreview,
-    storageUsage: profileStorageAdapterMethods.storageUsage,
-    storageCleanupPreview: profileStorageAdapterMethods.storageCleanupPreview,
-    storageCleanupConfirm: profileStorageAdapterMethods.storageCleanupConfirm,
-    storageMessagesCleanupPreview: profileStorageAdapterMethods.storageMessagesCleanupPreview,
-    storageMessagesCleanupConfirm: profileStorageAdapterMethods.storageMessagesCleanupConfirm,
-    channelPurgeConfirm: profileStorageAdapterMethods.channelPurgeConfirm,
     channelGroupDelete: channelsManagementAdapterMethods.channelGroupDelete,
     channelMessages: channelsAdapterMethods.channelMessages,
     channelTimeline: channelsAdapterMethods.channelTimeline,
@@ -881,6 +819,7 @@ function buildBridgeMethods(
         dmMemory,
         channelSkillBots,
         requireOwnedBot,
+        sendReceipt,
       }),
     ]),
     human,

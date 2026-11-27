@@ -148,7 +148,11 @@ it('counts RPC methods only from registered descriptors', () => {
       export const prompts = { id: 'prompts' };
       export const unregistered = { id: 'other', rpc: { hidden() {} } };
     `,
-    'rpc.ts': `export const reporting = { reportGet(id: string) {}, reportSave(payload: unknown) {} };`,
+    'rpc.ts': `
+      import { reads } from './reads.js';
+      export const reporting = { ...reads, reportSave(payload: unknown) {} };
+    `,
+    'reads.ts': `export const reads = { reportGet(id: string) {} } satisfies ThisType<Receiver>;`,
   };
   expect(featureRpcMethodsFrom((path) => files[path], 'registry.ts')).toEqual([
     'reportGet',

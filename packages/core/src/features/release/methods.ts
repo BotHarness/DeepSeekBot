@@ -3,11 +3,21 @@ import type {
   ReleaseInfo,
   ReleaseInstall,
   ReleaseRestart,
+  ReleaseService,
   ReleaseUpdate,
 } from '../../release/service.js';
-import type { PluginInstall, PluginRestart, PluginUpdates } from '../../release/plugins.js';
-import { isUpdateRequestId, type UpdateCancel, type UpdateRun } from '../../release/update-runs.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type {
+  PluginInstall,
+  PluginRestart,
+  PluginUpdates,
+  PluginUpdateService,
+} from '../../release/plugins.js';
+import {
+  isUpdateRequestId,
+  type UpdateCancel,
+  type UpdateRun,
+  type UpdateRuns,
+} from '../../release/update-runs.js';
 
 function releaseUnavailable(): BridgeResult<never> {
   return {
@@ -19,7 +29,7 @@ function releaseUnavailable(): BridgeResult<never> {
   };
 }
 
-export interface ReleaseAdapterMethods {
+export type ReleaseAdapterMethods = {
   releaseInfo(payload: unknown): BridgeResult<ReleaseInfo>;
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
@@ -29,9 +39,15 @@ export interface ReleaseAdapterMethods {
   pluginRestart(payload: unknown): Promise<BridgeResult<PluginRestart>>;
   updateRun(payload?: unknown): BridgeResult<UpdateRun | null>;
   updateCancel(payload: unknown): Promise<BridgeResult<UpdateCancel>>;
+};
+
+export interface ReleaseBridgeDeps {
+  release?: Pick<ReleaseService, 'info' | 'update' | 'install' | 'restart'>;
+  plugins?: Pick<PluginUpdateService, 'list' | 'install' | 'restart'>;
+  updates?: Pick<UpdateRuns, 'get' | 'cancel'>;
 }
 
-export function createReleaseAdapterMethods(deps: BridgeMethodsDeps): ReleaseAdapterMethods {
+export function createReleaseAdapterMethods(deps: ReleaseBridgeDeps): ReleaseAdapterMethods {
   return {
     releaseInfo(payload) {
       if (deps.release === undefined) return releaseUnavailable();

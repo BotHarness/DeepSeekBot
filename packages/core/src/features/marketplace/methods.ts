@@ -21,7 +21,7 @@ import {
 } from '@botharness/host-protocol/marketplace-avatar';
 import { TeamError } from '../../team-policy/error.js';
 import { join } from 'node:path';
-import { createBotImports } from '../../bots/imports.js';
+import { createBotImports, type BotImportsService } from '../../bots/imports.js';
 import type {
   BotZipImportService,
   BotZipImportInput,
@@ -34,7 +34,11 @@ import {
   type BotZipUploadStatus,
 } from '../../bots/zip-upload.js';
 import { ZipArchiveError } from '../../bots/zip-archive.js';
-import { BotCreationError, type BotCreationReceipt } from '../../bots/creation.js';
+import {
+  BotCreationError,
+  type BotCreationReceipt,
+  type BotCreationService,
+} from '../../bots/creation.js';
 import type {
   MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
@@ -75,7 +79,13 @@ import type { UploadFileKind } from '../../../../market/src/upload-files.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../../marketplace/language.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import { isPersonaBotAvatar } from '../../bots/persona-bot.js';
-import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { TeamService } from '../../team/service.js';
+import type { TobService } from '../../tob/service.js';
+import type { SkillCatalog } from '../../skills/catalog.js';
+import type { TelemetryCapture } from '../../telemetry/service.js';
+import type { InstallReceipts } from '../../marketplace/install-receipts.js';
 import type { HumanContext } from '../../humans/context.js';
 import { createMarketplaceAvatarApply } from './avatar-apply.js';
 import {
@@ -94,7 +104,7 @@ function avatarManagementRefused(): BridgeResult<never> {
   };
 }
 
-export interface MarketplaceBridgeMethods extends MarketplaceSkillBridgeMethods {
+export type MarketplaceBridgeMethods = MarketplaceSkillBridgeMethods & {
   zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
@@ -158,13 +168,22 @@ export interface MarketplaceBridgeMethods extends MarketplaceSkillBridgeMethods 
       listing: MarketplaceEntry;
     }>
   >;
-}
+};
 
 export interface MarketplaceBridgeDeps extends MarketplaceSkillBridgeDeps {
+  registry: PersonaBotRegistry;
+  creations?: BotCreationService;
+  imports?: BotImportsService;
+  warn?: (message: string) => void;
+  telemetry?: { capture?: TelemetryCapture };
+  tob?: TobService;
+  team?: TeamService;
+  skills?: SkillCatalog;
   zipImports?: BotZipImportService;
   marketplace?: MarketplaceClient;
   marketplaceUploads?: MarketplaceUploads;
   marketplaceInstallReviews?: MarketplaceInstallReviews;
+  marketplaceReceipts?: InstallReceipts;
   shareDrafts?: ShareDrafts;
 }
 function marketplaceLang(value: unknown): MarketplaceLanguage | undefined | false {
@@ -232,26 +251,23 @@ function zipFailure(error: unknown): BridgeResult<never> {
   };
 }
 
-export function createMarketplaceBridgeMethods(
-  human: HumanContext,
-  deps: MarketplaceBridgeDeps &
-    Pick<
-      BridgeMethodsDeps,
-      | 'registry'
-      | 'creations'
-      | 'imports'
-      | 'warn'
-      | 'telemetry'
-      | 'tob'
-      | 'team'
-      | 'marketplaceReceipts'
-      | 'skills'
-    >,
-  globalRegistry: BridgeMethodsDeps['registry'],
-  isHostOwner: () => boolean,
-  detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
-  sendReceipt: (listingId: string) => void,
-) {
+export interface MarketplaceBridgeContext {
+  human: HumanContext;
+  deps: MarketplaceBridgeDeps;
+  globalRegistry: PersonaBotRegistry;
+  isHostOwner: () => boolean;
+  detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail };
+  sendReceipt: (listingId: string) => void;
+}
+
+export function createMarketplaceBridgeMethods({
+  human,
+  deps,
+  globalRegistry,
+  isHostOwner,
+  detailOf,
+  sendReceipt,
+}: MarketplaceBridgeContext) {
   const marketplaceCall = async <T>(
     operation: (client: MarketplaceClient) => Promise<MarketplaceResult<T>>,
   ): Promise<BridgeResult<T>> => {
