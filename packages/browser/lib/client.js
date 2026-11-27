@@ -882,6 +882,7 @@ window.__ModuleLoader__.load({
 				r: "10"
 			}], ["path", { d: "M4.929 4.929 19.07 19.071" }]],
 			x: [["path", { d: "M18 6 6 18" }], ["path", { d: "m6 6 12 12" }]],
+			minus: [["path", { d: "M5 12h14" }]],
 			trash: [
 				["path", { d: "M3 6h18" }],
 				["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }],
@@ -2374,7 +2375,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useRefWithInit.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useRefWithInit.mjs
 		const UNINITIALIZED = {};
 		/**
 		* A React.useRef() that is initialized with a function. Note that it accepts an optional
@@ -2389,7 +2390,7 @@ window.__ModuleLoader__.load({
 			return ref;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/fastHooks.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/fastHooks.mjs
 		const hooks = [];
 		let currentInstance = void 0;
 		function getInstance() {
@@ -2481,16 +2482,16 @@ window.__ModuleLoader__.load({
 			return { didInitialize: false };
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/empty.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/empty.mjs
 		function NOOP() {}
 		const EMPTY_ARRAY = Object.freeze([]);
 		const EMPTY_OBJECT = Object.freeze({});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useIsoLayoutEffect.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useIsoLayoutEffect.mjs
 		const noop = () => {};
 		const useIsoLayoutEffect = typeof document !== "undefined" ? react.useLayoutEffect : noop;
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/formatErrorMessage.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/formatErrorMessage.mjs
 		/**
 		* Creates a formatErrorMessage function with a custom URL and prefix.
 		* @param baseUrl - The base URL for the error page (e.g., 'https://base-ui.com/production-error')
@@ -2516,7 +2517,7 @@ window.__ModuleLoader__.load({
 		*/
 		const formatErrorMessage = createFormatErrorMessage("https://base-ui.com/production-error", "Base UI");
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/root/TooltipRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/root/TooltipRootContext.mjs
 		const TooltipRootContext = /*#__PURE__*/ react.createContext(void 0);
 		function useTooltipRootContext(optional) {
 			const context = react.useContext(TooltipRootContext);
@@ -2524,7 +2525,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useOnMount.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useOnMount.mjs
 		/**
 		* A React.useEffect equivalent that runs once, when the component is mounted.
 		*/
@@ -2532,7 +2533,7 @@ window.__ModuleLoader__.load({
 			react.useEffect(fn, EMPTY_ARRAY);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useTimeout.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useTimeout.mjs
 		const EMPTY$1 = 0;
 		var Timeout = class Timeout {
 			static create() {
@@ -2571,7 +2572,7 @@ window.__ModuleLoader__.load({
 			return timeout;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/platform/shared.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/platform/shared.mjs
 		/**
 		* Reads `navigator.userAgent` / `navigator.platform` (legacy but universally
 		* supported) into a normalized shape. In development, prefers the modern
@@ -2598,7 +2599,7 @@ window.__ModuleLoader__.load({
 		const lowerUserAgent = userAgent.toLowerCase();
 		const lowerPlatform = platform$1.toLowerCase();
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/platform/os.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/platform/os.mjs
 		/** iPhone, iPad (including iPadOS 13+ reporting as macOS), iPod. */
 		const ios = /^i(os$|p)/.test(lowerPlatform) || lowerPlatform === "macintel" && maxTouchPoints > 1;
 		/** Android phones, tablets, and embedded Android browsers. */
@@ -2611,24 +2612,24 @@ window.__ModuleLoader__.load({
 		/** Any Apple OS (`mac || ios`). */
 		const apple = mac || ios;
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/platform/engine.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/platform/engine.mjs
 		/** WebKit: Safari, all iOS browsers, GNOME Web. Excludes Blink. */
 		const webkit = typeof CSS !== "undefined" && !!CSS.supports?.("-webkit-backdrop-filter:none");
 		!webkit && lowerUserAgent.includes("firefox");
 		!webkit && lowerUserAgent.includes("chrom");
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/platform/screen-reader.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/platform/screen-reader.mjs
 		/**
 		* The user *may* be using VoiceOver — actual activation is not detectable.
 		* True on any Apple platform (macOS, iOS, iPadOS).
 		*/
 		const voiceOver = apple;
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/platform/env.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/platform/env.mjs
 		/** Running in jsdom or HappyDOM (used by unit tests). */
 		const jsdom = /jsdom|happydom/.test(lowerUserAgent);
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/event.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/event.mjs
 		function stopEvent(event) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -2768,7 +2769,7 @@ window.__ModuleLoader__.load({
 			return win.parent && Object.getPrototypeOf(win.parent) ? win.frameElement : null;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/shadowDom.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/shadowDom.mjs
 		function activeElement(doc) {
 			let element = doc.activeElement;
 			while (element?.shadowRoot?.activeElement != null) element = element.shadowRoot.activeElement;
@@ -2804,7 +2805,7 @@ window.__ModuleLoader__.load({
 			return event.target;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/constants.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/constants.mjs
 		const FOCUSABLE_ATTRIBUTE = "data-base-ui-focusable";
 		const TYPEABLE_SELECTOR = "input:not([type='hidden']):not([disabled]),[contenteditable]:not([contenteditable='false']),textarea:not([disabled])";
 		const ARROW_LEFT$1 = "ArrowLeft";
@@ -2812,7 +2813,7 @@ window.__ModuleLoader__.load({
 		const ARROW_UP$1 = "ArrowUp";
 		const ARROW_DOWN$1 = "ArrowDown";
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/TransitionStatusDataAttributes.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/TransitionStatusDataAttributes.mjs
 		/**
 		* Present when the component begins animating in.
 		*/
@@ -2822,7 +2823,7 @@ window.__ModuleLoader__.load({
 		*/
 		const endingStyle = "data-ending-style";
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/stateAttributesMapping.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/stateAttributesMapping.mjs
 		const STARTING_HOOK = { [startingStyle]: "" };
 		const ENDING_HOOK = { [endingStyle]: "" };
 		const transitionStatusMapping = { transitionStatus(value) {
@@ -2831,7 +2832,7 @@ window.__ModuleLoader__.load({
 			return null;
 		} };
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/CommonPopupDataAttributes.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/CommonPopupDataAttributes.mjs
 		/**
 		* Present when the popup is open.
 		*/
@@ -2845,7 +2846,7 @@ window.__ModuleLoader__.load({
 		*/
 		const anchorHidden = "data-anchor-hidden";
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/popupStateMapping.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/popupStateMapping.mjs
 		const TRIGGER_HOOK = { ["data-popup-open"]: "" };
 		const POPUP_OPEN_HOOK = { [open]: "" };
 		const POPUP_CLOSED_HOOK = { [closed]: "" };
@@ -2873,7 +2874,7 @@ window.__ModuleLoader__.load({
 		*/
 		const triggerDisabled = "data-trigger-disabled";
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/element.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/element.mjs
 		function isTargetInsideEnabledTrigger(target, triggerElements) {
 			if (!isElement(target)) return false;
 			const targetElement = target;
@@ -2913,7 +2914,7 @@ window.__ModuleLoader__.load({
 			return floatingElement.hasAttribute("data-base-ui-focusable") ? floatingElement : floatingElement.querySelector(`[data-base-ui-focusable]`) || floatingElement;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverShared.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverShared.mjs
 		function resolveValue(value, pointerType) {
 			if (pointerType != null && !isMouseLikePointerType(pointerType)) return 0;
 			if (typeof value === "function") return value();
@@ -2935,7 +2936,7 @@ window.__ModuleLoader__.load({
 			return openEventType?.includes("mouse") && openEventType !== "mousedown";
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/createBaseUIEventDetails.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/createBaseUIEventDetails.mjs
 		/**
 		* Maps a change `reason` string to the corresponding native event type.
 		*/
@@ -2982,7 +2983,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/reason-parts.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/reason-parts.mjs
 		const none = "none";
 		const triggerPress = "trigger-press";
 		const triggerHover = "trigger-hover";
@@ -2998,7 +2999,7 @@ window.__ModuleLoader__.load({
 		const disabled = "disabled";
 		const imperativeAction = "imperative-action";
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingDelayGroup.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/components/FloatingDelayGroup.mjs
 		const FloatingDelayGroupContext = /*#__PURE__*/ react.createContext({
 			hasProvider: false,
 			timeoutMs: 0,
@@ -3123,7 +3124,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/addEventListener.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/addEventListener.mjs
 		/**
 		* Adds an event listener and returns a cleanup function to remove it.
 		*/
@@ -3134,7 +3135,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/mergeCleanups.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/mergeCleanups.mjs
 		/**
 		* Combines multiple cleanup functions into a single cleanup function.
 		*/
@@ -3147,7 +3148,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useMergedRefs.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useMergedRefs.mjs
 		/**
 		* Merges refs into a single memoized callback ref or `null`.
 		* This makes sure multiple refs are updated together and have the same value.
@@ -3232,7 +3233,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useValueAsRef.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useValueAsRef.mjs
 		/**
 		* Untracks the provided value by turning it into a ref to remove its reactivity.
 		*
@@ -3255,7 +3256,7 @@ window.__ModuleLoader__.load({
 			return latest;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/safeReact.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/safeReact.mjs
 		/**
 		* A clone of the React namespace for reading APIs that may be missing in older
 		* supported React versions. Bundlers can rewrite direct `React.someNewApi`
@@ -3266,7 +3267,7 @@ window.__ModuleLoader__.load({
 		*/
 		const SafeReact = { ...react };
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useStableCallback.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useStableCallback.mjs
 		const useInsertionEffect = SafeReact.useInsertionEffect;
 		const useSafeInsertionEffect = useInsertionEffect && useInsertionEffect !== SafeReact.useLayoutEffect ? useInsertionEffect : (fn) => fn();
 		/**
@@ -3298,7 +3299,7 @@ window.__ModuleLoader__.load({
 		}
 		function assertNotCalled() {}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useAnimationFrame.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useAnimationFrame.mjs
 		/** Unlike `setTimeout`, rAF doesn't guarantee a positive integer return value, so we can't have
 		* a monomorphic `uint` type with `0` meaning empty.
 		* See warning note at:
@@ -3380,12 +3381,12 @@ window.__ModuleLoader__.load({
 			return timeout;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/owner.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/owner.mjs
 		function ownerDocument(node) {
 			return node?.ownerDocument || document;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/visuallyHidden.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/visuallyHidden.mjs
 		const visuallyHiddenBase = {
 			clipPath: "inset(50%)",
 			overflow: "hidden",
@@ -3405,7 +3406,7 @@ window.__ModuleLoader__.load({
 		};
 		({ ...visuallyHiddenBase });
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/FocusGuard.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/FocusGuard.mjs
 		/**
 		* @internal
 		*/
@@ -3547,7 +3548,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/composite.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/composite.mjs
 		function isIndexOutOfListBounds(list, index) {
 			return index < 0 || index >= list.length;
 		}
@@ -3612,7 +3613,7 @@ window.__ModuleLoader__.load({
 			return styles.display !== "none" && styles.display !== "contents";
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/tabbable.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/tabbable.mjs
 		const CANDIDATE_SELECTOR = "a[href],button,input,select,textarea,summary,details,iframe,object,embed,[tabindex],[contenteditable]:not([contenteditable=\"false\"]),audio[controls],video[controls]";
 		function getParentElement(element) {
 			const assignedSlot = element.assignedSlot;
@@ -3742,7 +3743,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/nodes.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/nodes.mjs
 		function getNodeChildren(nodes, id, onlyOpenChildren = true) {
 			return nodes.filter((node) => node.parentId === id).flatMap((child) => [...!onlyOpenChildren || child.context?.open ? [child] : [], ...getNodeChildren(nodes, child.id, onlyOpenChildren)]);
 		}
@@ -3757,12 +3758,12 @@ window.__ModuleLoader__.load({
 			return allAncestors;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/createAttribute.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/createAttribute.mjs
 		function createAttribute(name) {
 			return `data-base-ui-${name}`;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/enqueueFocus.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/enqueueFocus.mjs
 		let rafId = 0;
 		function enqueueFocus(el, options = {}) {
 			const { preventScroll = false, sync = false, shouldFocus } = options;
@@ -3785,7 +3786,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/markOthers.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/markOthers.mjs
 		const markerName = "data-base-ui-inert";
 		let ariaHiddenCounterMap = /* @__PURE__ */ new WeakMap();
 		let uncontrolledElementsSet = /* @__PURE__ */ new WeakSet();
@@ -3878,7 +3879,7 @@ window.__ModuleLoader__.load({
 			return applyAttributeToOthers(avoidElements, body, ariaHidden, { mark });
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useForcedRerendering.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useForcedRerendering.mjs
 		/**
 		* Returns a function that forces a rerender.
 		*/
@@ -3889,7 +3890,7 @@ window.__ModuleLoader__.load({
 			}, []);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useId.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useId.mjs
 		let globalId = 0;
 		function useGlobalId(idOverride, prefix = "mui") {
 			const defaultId = react.useRef(void 0);
@@ -3924,13 +3925,13 @@ window.__ModuleLoader__.load({
 			return useGlobalId(idOverride, prefix);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/reactVersion.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/reactVersion.mjs
 		const majorVersion = parseInt(react.version, 10);
 		function isReactVersionAtLeast(reactVersionToCheck) {
 			return majorVersion >= reactVersionToCheck;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/getReactElementRef.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/getReactElementRef.mjs
 		/**
 		* Extracts the `ref` from a React element, handling different React versions.
 		*/
@@ -3941,7 +3942,7 @@ window.__ModuleLoader__.load({
 			return (isReactVersionAtLeast(19) ? propsWithRef?.ref : reactElement.ref) ?? null;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/mergeObjects.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/mergeObjects.mjs
 		function mergeObjects(a, b) {
 			if (a && !b) return a;
 			if (!a && b) return b;
@@ -3951,7 +3952,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/getStateAttributesProps.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/getStateAttributesProps.mjs
 		function getStateAttributesProps(state, customMapping) {
 			const props = {};
 			for (const key in state) {
@@ -3967,7 +3968,7 @@ window.__ModuleLoader__.load({
 			return props;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/resolveClassName.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/resolveClassName.mjs
 		/**
 		* If the provided className is a string, it will be returned as is.
 		* Otherwise, the function will call the className function with the state as the first argument.
@@ -3979,7 +3980,7 @@ window.__ModuleLoader__.load({
 			return typeof className === "function" ? className(state) : className;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/resolveStyle.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/resolveStyle.mjs
 		/**
 		* If the provided style is an object, it will be returned as is.
 		* Otherwise, the function will call the style function with the state as the first argument.
@@ -3991,7 +3992,7 @@ window.__ModuleLoader__.load({
 			return typeof style === "function" ? style(state) : style;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/merge-props/mergeProps.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/merge-props/mergeProps.mjs
 		const EMPTY_PROPS = {};
 		/**
 		* Merges multiple sets of React props. It follows the Object.assign pattern where the rightmost object's fields overwrite
@@ -4138,7 +4139,7 @@ window.__ModuleLoader__.load({
 			return event != null && typeof event === "object" && "nativeEvent" in event;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useRenderElement.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useRenderElement.mjs
 		/**
 		* Renders a Base UI element.
 		*
@@ -4212,7 +4213,7 @@ window.__ModuleLoader__.load({
 			return /*#__PURE__*/ react.createElement(Tag, props);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/constants.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/constants.mjs
 		const DISABLED_TRANSITIONS_STYLE = { style: { transition: "none" } };
 		/**
 		* Used for dropdowns that usually strictly prefer top/bottom placements and
@@ -4237,7 +4238,7 @@ window.__ModuleLoader__.load({
 			left: 0
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingPortal.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/components/FloatingPortal.mjs
 		const PortalContext = /*#__PURE__*/ react.createContext(null);
 		const usePortalContext = () => react.useContext(PortalContext);
 		const attr = createAttribute("portal");
@@ -4377,7 +4378,7 @@ window.__ModuleLoader__.load({
 			})] });
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/utils/createEventEmitter.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/utils/createEventEmitter.mjs
 		function createEventEmitter() {
 			const map = /* @__PURE__ */ new Map();
 			return {
@@ -4394,7 +4395,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingTreeStore.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/components/FloatingTreeStore.mjs
 		/**
 		* Stores and manages floating elements in a tree structure.
 		* This is a backing store for the `FloatingTree` component.
@@ -4411,7 +4412,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingTree.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/components/FloatingTree.mjs
 		const FloatingNodeContext = /*#__PURE__*/ react.createContext(null);
 		const FloatingTreeContext = /*#__PURE__*/ react.createContext(null);
 		const useFloatingParentNodeId = () => react.useContext(FloatingNodeContext)?.id || null;
@@ -4483,7 +4484,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/resolveRef.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/resolveRef.mjs
 		/**
 		* If the provided argument is a ref object, returns its `current` value.
 		* Otherwise, returns the argument itself.
@@ -4493,7 +4494,7 @@ window.__ModuleLoader__.load({
 			return "current" in maybeRef ? maybeRef.current : maybeRef;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs
 		function getEventType(event, lastInteractionType) {
 			const win = getWindow(getTarget(event));
 			if (event instanceof win.KeyboardEvent) return "keyboard";
@@ -4952,7 +4953,7 @@ window.__ModuleLoader__.load({
 			] });
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useClick.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useClick.mjs
 		/**
 		* Opens or closes the floating element when clicking the reference element.
 		* @see https://floating-ui.com/docs/useClick
@@ -5030,7 +5031,7 @@ window.__ModuleLoader__.load({
 			return react.useMemo(() => enabled ? { reference } : EMPTY_OBJECT, [enabled, reference]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useClientPoint.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useClientPoint.mjs
 		function createVirtualElement(domElement, data) {
 			let offsetX = null;
 			let offsetY = null;
@@ -5169,7 +5170,7 @@ window.__ModuleLoader__.load({
 			} : {}, [enabled, reference]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useDismiss.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useDismiss.mjs
 		function alwaysFalse() {
 			return false;
 		}
@@ -5529,7 +5530,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useSyncedFloatingRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useSyncedFloatingRootContext.mjs
 		/**
 		* Narrowed to the store members this hook uses so consumers do not need to provide
 		* unrelated store capabilities.
@@ -5566,7 +5567,7 @@ window.__ModuleLoader__.load({
 			return store;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useTransitionStatus.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useTransitionStatus.mjs
 		/**
 		* Provides a status string for CSS animations.
 		* @param open - a boolean that determines if the element is open.
@@ -5635,7 +5636,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/getFiniteAnimations.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/getFiniteAnimations.mjs
 		/**
 		* Excludes infinite animations, whose finished promises never resolve while they run.
 		*/
@@ -5646,7 +5647,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useAnimationsFinished.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useAnimationsFinished.mjs
 		let pendingCallbacks = null;
 		/**
 		* Runs the callback in a synchronous flush before the browser paints, so that the
@@ -5733,7 +5734,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useOpenChangeComplete.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useOpenChangeComplete.mjs
 		/**
 		* Calls the provided function when the CSS open/close animation or transition completes.
 		*/
@@ -5756,7 +5757,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useUnmountAfterClose.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useUnmountAfterClose.mjs
 		/**
 		* Keeps a popup mounted through its closing animation and unmounts it once the animation
 		* finishes, unless the close cycle opted out through `preventUnmountOnClose`.
@@ -5814,7 +5815,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/popups/popupStoreUtils.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/popups/popupStoreUtils.mjs
 		const FOCUSABLE_POPUP_PROPS = {
 			tabIndex: -1,
 			[FOCUSABLE_ATTRIBUTE]: ""
@@ -6176,7 +6177,7 @@ window.__ModuleLoader__.load({
 			}, [store]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/popups/popupTriggerMap.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/popups/popupTriggerMap.mjs
 		/**
 		* Data structure to keep track of popup trigger elements by their IDs.
 		*
@@ -6381,7 +6382,7 @@ window.__ModuleLoader__.load({
 			module.exports = require_with_selector_production();
 		}));
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/store/useStore.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/store/useStore.mjs
 		var import_shim = require_shim();
 		var import_with_selector = require_with_selector();
 		const useStoreImplementation = isReactVersionAtLeast(19) ? useStoreFast : useStoreLegacy;
@@ -6472,7 +6473,7 @@ window.__ModuleLoader__.load({
 			return (0, import_with_selector.useSyncExternalStoreWithSelector)(store.subscribe, store.getSnapshot, store.getSnapshot, (state) => selector(state, a1, a2, a3));
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/store/Store.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/store/Store.mjs
 		/**
 		* A data store implementation that allows subscribing to state changes and updating the state.
 		* It uses an observer pattern to notify subscribers when the state changes.
@@ -6572,7 +6573,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/store/ReactStore.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/store/ReactStore.mjs
 		/**
 		* A Store that supports controlled state keys, non-reactive values and provides utility methods for React.
 		*/
@@ -6733,7 +6734,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/components/FloatingRootStore.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/components/FloatingRootStore.mjs
 		const selectors$2 = {
 			open: (state) => state.open,
 			transitionStatus: (state) => state.transitionStatus,
@@ -6794,7 +6795,7 @@ window.__ModuleLoader__.load({
 			};
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/popups/store.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/popups/store.mjs
 		/**
 		* State common to all popup stores.
 		*/
@@ -6886,7 +6887,7 @@ window.__ModuleLoader__.load({
 		* that an inert store can be passed while detached.
 		*/
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/popups/usePopupHandleStore.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/popups/usePopupHandleStore.mjs
 		/**
 		* Reads the store currently exposed by a popup handle and subscribes to store-pointer changes.
 		* Detached triggers use this to follow a handle as a root attaches or detaches: while no root is
@@ -6908,7 +6909,7 @@ window.__ModuleLoader__.load({
 			return (0, import_shim.useSyncExternalStore)(subscribe, getSnapshot, () => handle?.serverStore);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useFocus.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useFocus.mjs
 		const isMacSafari = mac && webkit;
 		/**
 		* Opens the floating element while the reference element has focus, like CSS
@@ -7020,7 +7021,7 @@ window.__ModuleLoader__.load({
 			} : {}, [enabled, reference]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverInteractionSharedState.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverInteractionSharedState.mjs
 		var HoverInteraction = class HoverInteraction {
 			pointerType = void 0;
 			interactedInside = false;
@@ -7082,7 +7083,7 @@ window.__ModuleLoader__.load({
 			return data.hoverInteractionState;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverFloatingInteraction.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverFloatingInteraction.mjs
 		/**
 		* Provides hover interactions that should be attached to the floating element.
 		*/
@@ -7227,7 +7228,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverReferenceInteraction.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverReferenceInteraction.mjs
 		const EMPTY_REF = { current: null };
 		/**
 		* Provides hover interactions that should be attached to reference or trigger
@@ -7464,7 +7465,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useListNavigation.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useListNavigation.mjs
 		function isStationaryWebKitPointer(event) {
 			return webkit && event.movementX === 0 && event.movementY === 0;
 		}
@@ -7886,7 +7887,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useTypeahead.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useTypeahead.mjs
 		/**
 		* Provides a matching callback that can be used to focus an item as the user
 		* types, often used in tandem with `useListNavigation()`.
@@ -7989,7 +7990,7 @@ window.__ModuleLoader__.load({
 			} : {}, [enabled, sharedProps]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/safePolygon.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/safePolygon.mjs
 		const CURSOR_SPEED_THRESHOLD = .1;
 		const CURSOR_SPEED_THRESHOLD_SQUARED = CURSOR_SPEED_THRESHOLD * CURSOR_SPEED_THRESHOLD;
 		const POLYGON_BUFFER = .5;
@@ -9129,7 +9130,7 @@ window.__ModuleLoader__.load({
 			});
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@floating-ui+react-dom@2.1.9_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@floating-ui/react-dom/dist/floating-ui.react-dom.mjs
+		//#region node_modules/.pnpm/@floating-ui+react-dom@2.1._fada47ca3a4ccde8c4809a626646ce48/node_modules/@floating-ui/react-dom/dist/floating-ui.react-dom.mjs
 		var index = typeof document !== "undefined" ? react.useLayoutEffect : function noop() {};
 		function deepEqual(a, b) {
 			if (a === b) return true;
@@ -9386,7 +9387,7 @@ window.__ModuleLoader__.load({
 			};
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/store/TooltipStore.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/store/TooltipStore.mjs
 		const selectors$1 = {
 			...popupStoreSelectors,
 			disabled: (state) => state.disabled,
@@ -9444,7 +9445,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/root/TooltipRoot.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/root/TooltipRoot.mjs
 		/**
 		* Groups all parts of the tooltip.
 		* Doesn't render its own HTML element.
@@ -9550,7 +9551,7 @@ window.__ModuleLoader__.load({
 			return null;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useBaseUiId.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useBaseUiId.mjs
 		/**
 		* Wraps `useId` and prefixes generated `id`s with `base-ui-`
 		* @param {string | undefined} idOverride overrides the generated id when provided
@@ -9560,7 +9561,7 @@ window.__ModuleLoader__.load({
 			return useId$7(idOverride, "base-ui");
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/provider/TooltipProviderContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/provider/TooltipProviderContext.mjs
 		/**
 		* Holds the provider's `delay` value. `closeDelay` is handled by the delay group.
 		*/
@@ -9569,7 +9570,7 @@ window.__ModuleLoader__.load({
 			return react.useContext(TooltipProviderContext);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/trigger/TooltipTrigger.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/trigger/TooltipTrigger.mjs
 		const TOOLTIP_TRIGGER_IDENTIFIER = "data-base-ui-tooltip-trigger";
 		function getTargetElement(event) {
 			const target = getTarget(event);
@@ -9714,7 +9715,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/portal/TooltipPortalContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/portal/TooltipPortalContext.mjs
 		const TooltipPortalContext = /*#__PURE__*/ react.createContext(void 0);
 		function useTooltipPortalContext() {
 			const value = react.useContext(TooltipPortalContext);
@@ -9722,7 +9723,7 @@ window.__ModuleLoader__.load({
 			return value;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/FloatingPortalLite.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/FloatingPortalLite.mjs
 		/**
 		* `FloatingPortal` includes tabbable logic handling for focus management.
 		* For components that don't need tabbable logic, use `FloatingPortalLite`.
@@ -9740,7 +9741,7 @@ window.__ModuleLoader__.load({
 			return /*#__PURE__*/ (0, react_jsx_runtime.jsxs)(react.Fragment, { children: [portalSubtree, portalNode && /*#__PURE__*/ react_dom.createPortal(children, portalNode)] });
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/portal/TooltipPortal.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/portal/TooltipPortal.mjs
 		/**
 		* A portal element that moves the popup to a different part of the DOM.
 		* By default, the portal element is appended to `<body>`.
@@ -9760,7 +9761,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/positioner/TooltipPositionerContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/positioner/TooltipPositionerContext.mjs
 		const TooltipPositionerContext = /*#__PURE__*/ react.createContext(void 0);
 		function useTooltipPositionerContext() {
 			const context = react.useContext(TooltipPositionerContext);
@@ -9768,7 +9769,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/hooks/useFloating.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/hooks/useFloating.mjs
 		/**
 		* Provides data to position a floating element and context to add interactions.
 		* The caller supplies the root store, which owns the reference and floating elements.
@@ -9861,13 +9862,13 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/direction-context/DirectionContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/direction-context/DirectionContext.mjs
 		const DirectionContext = /*#__PURE__*/ react.createContext(void 0);
 		function useDirection() {
 			return react.useContext(DirectionContext)?.direction ?? "ltr";
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/floating-ui-react/middleware/arrow.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/floating-ui-react/middleware/arrow.mjs
 		/**
 		* Fork of the original `arrow` middleware from Floating UI that always uses the floating element
 		* as the arrow's offset parent.
@@ -9930,7 +9931,7 @@ window.__ModuleLoader__.load({
 			};
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/hideMiddleware.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/hideMiddleware.mjs
 		const hide = {
 			name: "hide",
 			async fn(state) {
@@ -9941,13 +9942,13 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/adaptiveOriginConstants.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/adaptiveOriginConstants.mjs
 		const DEFAULT_SIDES = {
 			sideX: "left",
 			sideY: "top"
 		};
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/CommonPositionerCssVars.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/CommonPositionerCssVars.mjs
 		/**
 		* The available width between the trigger and the edge of the viewport.
 		* @type {number}
@@ -9974,7 +9975,7 @@ window.__ModuleLoader__.load({
 		*/
 		const transformOrigin = "--transform-origin";
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useAnchorPositioning.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useAnchorPositioning.mjs
 		const AVAILABLE_WIDTH_VAR = availableWidth;
 		const AVAILABLE_HEIGHT_VAR = availableHeight;
 		function getLogicalSide(sideParam, renderedSide, isRtl) {
@@ -10301,12 +10302,12 @@ window.__ModuleLoader__.load({
 			return param != null && "current" in param;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/getDisabledMountTransitionStyles.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/getDisabledMountTransitionStyles.mjs
 		function getDisabledMountTransitionStyles(transitionStatus) {
 			return transitionStatus === "starting" ? DISABLED_TRANSITIONS_STYLE : EMPTY_OBJECT;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/usePositioner.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/usePositioner.mjs
 		/**
 		* Renders the shared outer Positioner element used by popup components.
 		* Applies the common role, hidden state, transition styles, state attributes, and optional inert styling.
@@ -10330,7 +10331,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/positioner/TooltipPositioner.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/positioner/TooltipPositioner.mjs
 		/**
 		* Positions the tooltip against the trigger.
 		* Renders a `<div>` element.
@@ -10393,7 +10394,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/tooltip/popup/TooltipPopup.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/tooltip/popup/TooltipPopup.mjs
 		/**
 		* A container for the tooltip contents.
 		* Renders a `<div>` element.
@@ -10446,7 +10447,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/inertValue.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/inertValue.mjs
 		function inertValue(value) {
 			if (isReactVersionAtLeast(19)) return value;
 			return value ? "true" : void 0;
@@ -11529,7 +11530,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/positioner/MenuPositionerContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/positioner/MenuPositionerContext.mjs
 		const MenuPositionerContext = /*#__PURE__*/ react.createContext(void 0);
 		function useMenuPositionerContext(optional) {
 			const context = react.useContext(MenuPositionerContext);
@@ -11537,7 +11538,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/root/MenuRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/root/MenuRootContext.mjs
 		const MenuRootContext = /*#__PURE__*/ react.createContext(void 0);
 		function useMenuRootContext(optional) {
 			const context = react.useContext(MenuRootContext);
@@ -11545,7 +11546,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/context-menu/root/ContextMenuRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/context-menu/root/ContextMenuRootContext.mjs
 		const ContextMenuRootContext = /*#__PURE__*/ react.createContext(void 0);
 		function useContextMenuRootContext(optional = true) {
 			const context = react.useContext(ContextMenuRootContext);
@@ -11553,7 +11554,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/filter-root/MenuFilterContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/filter-root/MenuFilterContext.mjs
 		/**
 		* The filter implementation that a filterable root hands to the parts below it. Only the roots
 		* `Menu.FilterProvider` renders import it, so a plain menu never bundles it. Parts whose whole
@@ -11599,7 +11600,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs
 		const CompositeRootContext = /*#__PURE__*/ react.createContext(void 0);
 		function useCompositeRootContext(optional = false) {
 			const context = react.useContext(CompositeRootContext);
@@ -11607,7 +11608,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs
 		function useFocusableWhenDisabled(parameters) {
 			const { focusableWhenDisabled, disabled, composite = false, tabIndex: tabIndexProp = 0, isNativeButton } = parameters;
 			const isFocusableComposite = composite && focusableWhenDisabled !== false;
@@ -11634,7 +11635,7 @@ window.__ModuleLoader__.load({
 			]) };
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/dispatchClickWithModifiers.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/dispatchClickWithModifiers.mjs
 		/**
 		* Dispatches a constructed click on the target so it carries the source event's
 		* modifier state, which `click()` always reports as unpressed. Like `click()`,
@@ -11659,7 +11660,7 @@ window.__ModuleLoader__.load({
 			}));
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/use-button/useButton.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/use-button/useButton.mjs
 		function useButton(parameters = {}) {
 			const { disabled = false, focusableWhenDisabled, tabIndex = 0, native: isNativeButton = true, composite: compositeProp } = parameters;
 			const elementRef = react.useRef(null);
@@ -11771,7 +11772,7 @@ window.__ModuleLoader__.load({
 			return isHTMLElement(elem) && elem.tagName === "A" && Boolean(elem.href);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/item/useMenuItemCommonProps.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/item/useMenuItemCommonProps.mjs
 		function preventMouseDownDefault(event) {
 			event.preventDefault();
 		}
@@ -11843,7 +11844,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/item/useMenuItem.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/item/useMenuItem.mjs
 		const REGULAR_ITEM = { type: "regular-item" };
 		function useMenuItem(params) {
 			const { closeOnClick, disabled, highlighted, id, store, typingRef = store.context.typingRef, nativeButton, itemMetadata, nodeId } = params;
@@ -11881,7 +11882,7 @@ window.__ModuleLoader__.load({
 			}), [getItemProps, mergedRef]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/composite/list/CompositeListContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/composite/list/CompositeListContext.mjs
 		const CompositeListContext = /*#__PURE__*/ react.createContext({
 			register: () => {},
 			unregister: () => {},
@@ -11892,7 +11893,7 @@ window.__ModuleLoader__.load({
 			return react.useContext(CompositeListContext);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/composite/list/useCompositeListItem.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/composite/list/useCompositeListItem.mjs
 		/**
 		* Used to register a list item and its index (DOM position) in the `CompositeList`.
 		*/
@@ -11941,7 +11942,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/item/MenuItem.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/item/MenuItem.mjs
 		const MenuItemPlain = /*#__PURE__*/ react.forwardRef(function MenuItemPlain(componentProps, forwardedRef) {
 			const { render, className, id: idProp, label, nativeButton = false, disabled: disabledProp = false, closeOnClick = true, style, ...elementProps } = componentProps;
 			const { store } = useMenuRootContext();
@@ -11991,7 +11992,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/toolbar/root/ToolbarRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/toolbar/root/ToolbarRootContext.mjs
 		const ToolbarRootContext = /*#__PURE__*/ react.createContext(void 0);
 		function useToolbarRootContext(optional) {
 			const context = react.useContext(ToolbarRootContext);
@@ -12007,13 +12008,13 @@ window.__ModuleLoader__.load({
 			"End"
 		]);
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/submenu-root/MenuSubmenuRootContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/submenu-root/MenuSubmenuRootContext.mjs
 		const MenuSubmenuRootContext = /*#__PURE__*/ react.createContext(void 0);
 		function useMenuSubmenuRootContext() {
 			return react.useContext(MenuSubmenuRootContext);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/resolveRenderedId.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/resolveRenderedId.mjs
 		/**
 		* Resolves an element's id using the same precedence as `useRenderElement`.
 		* Returns `''` when the element renders with an explicitly empty id, which consumers must treat
@@ -12044,7 +12045,7 @@ window.__ModuleLoader__.load({
 			return [id, react.useCallback((element) => setId?.(element ? registeredId : void 0), [registeredId, setId])];
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/resolvePopupLabel.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/resolvePopupLabel.mjs
 		function resolvePopupLabel(props, activeTriggerElement, activeTriggerId) {
 			const render = unwrapLazyRenderProp(props.render);
 			const renderedElementProps = /*#__PURE__*/ react.isValidElement(render) ? render.props : void 0;
@@ -12054,7 +12055,7 @@ window.__ModuleLoader__.load({
 			return ariaLabelledBy;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/popup/MenuPopup.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/popup/MenuPopup.mjs
 		/**
 		* @internal
 		*/
@@ -12189,7 +12190,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/portal/MenuPortalContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/portal/MenuPortalContext.mjs
 		const MenuPortalContext = /*#__PURE__*/ react.createContext(void 0);
 		function useMenuPortalContext() {
 			const value = react.useContext(MenuPortalContext);
@@ -12197,7 +12198,7 @@ window.__ModuleLoader__.load({
 			return value;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/portal/MenuPortal.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/portal/MenuPortal.mjs
 		/**
 		* A portal element that moves the popup to a different part of the DOM.
 		* By default, the portal element is appended to `<body>`.
@@ -12220,7 +12221,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/composite/list/CompositeList.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/composite/list/CompositeList.mjs
 		/**
 		* Provides context for a list of items in a composite component.
 		*/
@@ -12394,7 +12395,7 @@ window.__ModuleLoader__.load({
 			return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/InternalBackdrop.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/InternalBackdrop.mjs
 		/**
 		* @internal
 		*/
@@ -12420,7 +12421,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useTriggerSwitchTransition.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useTriggerSwitchTransition.mjs
 		/**
 		* Popover and Menu declare different `instantType` unions, so only the members
 		* this hook touches are typed.
@@ -12477,7 +12478,7 @@ window.__ModuleLoader__.load({
 			]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useScrollLock.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useScrollLock.mjs
 		let originalHtmlStyles = {};
 		let originalBodyStyles = {};
 		let originalHtmlScrollBehavior = "";
@@ -12673,7 +12674,7 @@ window.__ModuleLoader__.load({
 			}, [enabled, referenceElement]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/useAnchoredPopupScrollLock.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/useAnchoredPopupScrollLock.mjs
 		const VIEWPORT_WIDTH_TOLERANCE_PX = 20;
 		/**
 		* Manages scroll lock for anchored popups. For non-touch opens, scroll lock is applied when
@@ -12698,7 +12699,7 @@ window.__ModuleLoader__.load({
 			useScrollLock(enabled && (!touchOpen || touchOpenShouldLockScroll), referenceElement);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/positioner/MenuPositioner.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/positioner/MenuPositioner.mjs
 		/**
 		* Positions the menu popup against the trigger.
 		* Renders a `<div>` element.
@@ -12891,7 +12892,7 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menubar/MenubarContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menubar/MenubarContext.mjs
 		const MenubarContext = /*#__PURE__*/ react.createContext(null);
 		function useMenubarContext(optional) {
 			const context = react.useContext(MenubarContext);
@@ -12899,7 +12900,7 @@ window.__ModuleLoader__.load({
 			return context;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types+react@18.3.31_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/utils/useEnhancedClickHandler.mjs
+		//#region node_modules/.pnpm/@base-ui+utils@0.5.0_@types_dd4362218feb5166ae5907edc4746188/node_modules/@base-ui/utils/useEnhancedClickHandler.mjs
 		/**
 		* Provides a cross-browser way to determine the type of the pointer used to click.
 		* Safari and Firefox do not provide the PointerEvent to the click handler (they use MouseEvent) yet.
@@ -12928,7 +12929,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/internals/useValueChanged.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/internals/useValueChanged.mjs
 		function useValueChanged(value, onChange) {
 			const valueRef = react.useRef(value);
 			const onChangeCallback = useStableCallback(onChange);
@@ -12938,7 +12939,7 @@ window.__ModuleLoader__.load({
 			}, [value, onChangeCallback]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/useOpenInteractionType.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/useOpenInteractionType.mjs
 		function useOpenMethodTriggerProps(open, setOpenMethod) {
 			const { onClick, onPointerDown } = useEnhancedClickHandler(useStableCallback((_, interactionType) => {
 				if (!(typeof open === "function" ? open() : open)) setOpenMethod(interactionType || (ios ? "touch" : ""));
@@ -12965,7 +12966,7 @@ window.__ModuleLoader__.load({
 			}), [openMethod, triggerProps]);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/utils/getHighlightReason.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/utils/getHighlightReason.mjs
 		/**
 		* The `onItemHighlighted` reason for a list navigation event, matching the event type that the
 		* reason promises in its details.
@@ -12977,7 +12978,7 @@ window.__ModuleLoader__.load({
 			return none;
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/store/MenuStore.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/store/MenuStore.mjs
 		const selectors = {
 			...popupStoreSelectors,
 			disabled: (state) => state.parent.type === "menubar" ? state.parent.context.disabled || state.disabled : state.disabled,
@@ -13129,7 +13130,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/filter-provider/MenuFilterProviderContext.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/filter-provider/MenuFilterProviderContext.mjs
 		/**
 		* What `Menu.FilterProvider` hands to the root directly inside it: the filterable root
 		* implementations (the provider is their only importer) and the filter props.
@@ -13140,7 +13141,7 @@ window.__ModuleLoader__.load({
 		*/
 		const MenuFilterProviderContext = /*#__PURE__*/ react.createContext(null);
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/utils/isKeyboardOpen.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/utils/isKeyboardOpen.mjs
 		/**
 		* Keyboard and assistive-technology activations produce `detail === 0` clicks; mouse-gesture
 		* clicks (including the synthesized drag-release click from `useMenuItemCommonProps`) carry
@@ -13157,7 +13158,7 @@ window.__ModuleLoader__.load({
 			return reason === "list-navigation" || isKeyboardClick(reason, event);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/root/MenuRoot.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/root/MenuRoot.mjs
 		/**
 		* @internal
 		*/
@@ -13556,7 +13557,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/submenu-root/MenuSubmenuRoot.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/submenu-root/MenuSubmenuRoot.mjs
 		const EMPTY_SUBMENU_ROOT_CONTEXT = {};
 		/**
 		* Groups all parts of a submenu.
@@ -13586,7 +13587,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/submenu-trigger/MenuSubmenuTrigger.mjs
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-_0c296dae204f62f47d2bffe96f8ab7f0/node_modules/@base-ui/react/menu/submenu-trigger/MenuSubmenuTrigger.mjs
 		const VOICE_OVER_EXPANDED_PROPS = { "aria-expanded": void 0 };
 		const MenuSubmenuTriggerPlain = /*#__PURE__*/ react.forwardRef(function MenuSubmenuTriggerPlain(componentProps, forwardedRef) {
 			const { render, className, style, label, id: idProp, nativeButton = false, openOnHover = true, delay = 100, closeDelay = 0, disabled: disabledProp = false, ...elementProps } = componentProps;
@@ -14238,7 +14239,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/select.tsx
-		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false, reselect = false }) {
+		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false, reselect = false, appearance = "field" }) {
 			const [open, setOpen] = (0, react.useState)(false);
 			const [point, setPoint] = (0, react.useState)();
 			const trigger = (0, react.useRef)(null);
@@ -14302,11 +14303,14 @@ window.__ModuleLoader__.load({
 					if (active) close();
 					else setOpen(true);
 				},
-				className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxisypcw bhxocwxb3 bhx1lo940d bhxc342km bhxvz6vxc bhxym0p2z bhx1ikcoup bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1g40iwv",
+				...{
+					0: { className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxisypcw bhxocwxb3 bhx1lo940d bhxc342km bhxvz6vxc bhxym0p2z bhx1ikcoup bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1g40iwv" },
+					1: { className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxc342km bhxvz6vxc bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhxl56j7k bhx1p6s43a bhxzcxwfq bhxznlt97 bhxjbqb8w bhx19d7xsb bhx1gnnqk1 bhx18n8c13" }
+				}[!!(appearance === "cell") << 0],
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
-					children: current?.label
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					children: current?.display ?? current?.label
+				}), appearance === "cell" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx2lah0s bhx1axu3v7",
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
 						name: "chevron-down",
@@ -14321,7 +14325,8 @@ window.__ModuleLoader__.load({
 				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { "aria-hidden": "true" }),
 				items: options.map((option) => ({
 					id: option.value,
-					label: option.label
+					label: option.label,
+					...option.icon === void 0 ? {} : { icon: option.icon }
 				})),
 				selectedId: value,
 				onSelect: (id) => {
@@ -14993,7 +14998,9 @@ window.__ModuleLoader__.load({
 .bhx1xqv9of:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
+.bhxznlt97:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:2px}
 .bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
+.bhxzcxwfq:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:2px}
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
 .bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
@@ -15034,6 +15041,7 @@ window.__ModuleLoader__.load({
 .bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
 .bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}
+.bhx19d7xsb:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
 .bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
 @media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}
@@ -15062,6 +15070,7 @@ window.__ModuleLoader__.load({
 .bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
 .bhxt7dq6l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:auto}
+.bhx1p6s43a:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-chip-height)}
 .bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}
 .bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
 .bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}

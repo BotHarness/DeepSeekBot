@@ -10,12 +10,13 @@ import type {
 import { followConnection } from '../../host/follow-connection';
 import { useMounted } from '../mounted';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { SettingsRow } from '../primitives/settings-row';
+import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import type { ProfileRow, ProfileTabBody } from './profile-shell';
 
 const options = ['everyone', 'roles', 'admins'] as const;
+const ON = 'raised' as const;
 
 export function useGroupBotSettings(
   client: HostClient | undefined,
@@ -93,81 +94,104 @@ export function useGroupBotSettings(
     ));
   if (!view && !readFailed) add('loading', () => <LoadingIndicator />);
   if (view?.bots.length === 0) add('empty', () => <Text tone="muted">{t.channelBots.empty}</Text>);
-  if (!bot) {
-    for (const entry of view?.bots ?? [])
-      add(`bot:${entry.botSlug}`, () => (
-        <SettingsRow
-          title={entry.name}
-          control={{ kind: 'chevron' }}
-          testID={`channel-bot-${entry.botSlug}`}
-          onPress={() => chooseBot(entry.botSlug)}
-        />
-      ));
-  } else {
+  if (!bot && (view?.bots.length ?? 0) > 0)
+    add('bots', () => (
+      <SettingsSection title={t.profileSettingsBot} on={ON}>
+        {(view?.bots ?? []).map((entry) => (
+          <SettingsRow
+            key={entry.botSlug}
+            on={ON}
+            title={entry.name}
+            detail={t.channelBots[entry.audience.kind]}
+            control={{ kind: 'chevron' }}
+            testID={`channel-bot-${entry.botSlug}`}
+            onPress={() => chooseBot(entry.botSlug)}
+          />
+        ))}
+      </SettingsSection>
+    ));
+  if (bot) {
     const audience = draft ?? bot.audience;
+    const canSave = draft !== undefined && (draft.kind !== 'roles' || draft.roleIds.length > 0);
     add('back', () => (
-      <SettingsRow
-        title={t.back}
-        detail={bot.name}
-        testID="channel-bot-back"
-        onPress={() => chooseBot(undefined)}
-      />
+      <SettingsSection on={ON}>
+        <SettingsRow
+          on={ON}
+          title={t.back}
+          detail={bot.name}
+          testID="channel-bot-back"
+          onPress={() => chooseBot(undefined)}
+        />
+      </SettingsSection>
     ));
     add('audience', () => (
-      <SettingsRow
-        title={t.channelBots.audience}
-        detail={t.channelBots.intersection}
-        control={{ kind: 'value', text: t.channelBots[bot.audience.kind] }}
-      />
-    ));
-    if (bot.canSetAudience) {
-      for (const kind of options)
-        add(kind, () => (
-          <SettingsRow
-            title={t.channelBots[kind]}
-            selected={audience.kind === kind}
-            control={audience.kind === kind ? { kind: 'check' } : undefined}
-            testID={`channel-bot-audience-${kind}`}
-            onPress={
-              pending
-                ? undefined
-                : () =>
-                    setDraft(
-                      kind === 'roles'
-                        ? {
-                            kind,
-                            roleIds: bot.audience.kind === 'roles' ? bot.audience.roleIds : [],
-                          }
-                        : { kind },
-                    )
-            }
-          />
-        ));
-      if (audience.kind === 'roles')
-        for (const role of view?.roles ?? []) {
-          const checked = audience.roleIds.includes(role.roleId);
-          add(`role:${role.roleId}`, () => (
+      <SettingsSection title={t.channelBots.audience} footer={t.channelBots.intersection} on={ON}>
+        {bot.canSetAudience ? (
+          options.map((kind) => (
             <SettingsRow
-              title={role.name}
-              control={{
-                kind: 'switch',
-                value: checked,
-                disabled: pending,
-                testID: `channel-bot-role-${role.roleId}`,
-                onChange: (next) =>
-                  setDraft({
-                    kind: 'roles',
-                    roleIds: next
-                      ? [...audience.roleIds, role.roleId]
-                      : audience.roleIds.filter((id) => id !== role.roleId),
-                  }),
-              }}
+              key={kind}
+              on={ON}
+              title={t.channelBots[kind]}
+              selected={audience.kind === kind}
+              control={audience.kind === kind ? { kind: 'check' } : undefined}
+              testID={`channel-bot-audience-${kind}`}
+              onPress={
+                pending
+                  ? undefined
+                  : () =>
+                      setDraft(
+                        kind === 'roles'
+                          ? {
+                              kind,
+                              roleIds: bot.audience.kind === 'roles' ? bot.audience.roleIds : [],
+                            }
+                          : { kind },
+                      )
+              }
             />
-          ));
-        }
-      if (draft && (draft.kind !== 'roles' || draft.roleIds.length > 0))
-        add('save', () => (
+          ))
+        ) : (
           <SettingsRow
+            on={ON}
+            title={t.channelBots.audience}
+            control={{ kind: 'value', text: t.channelBots[bot.audience.kind] }}
+          />
+        )}
+      </SettingsSection>
+    ));
+    if (bot.canSetAudience && audience.kind === 'roles' && (view?.roles.length ?? 0) > 0)
+      add('roles', () => (
+        <SettingsSection title={t.channelBots.roles} on={ON}>
+          {(view?.roles ?? []).map((role) => {
+            const checked = audience.roleIds.includes(role.roleId);
+            return (
+              <SettingsRow
+                key={role.roleId}
+                on={ON}
+                title={role.name}
+                control={{
+                  kind: 'switch',
+                  value: checked,
+                  disabled: pending,
+                  testID: `channel-bot-role-${role.roleId}`,
+                  onChange: (next) =>
+                    setDraft({
+                      kind: 'roles',
+                      roleIds: next
+                        ? [...audience.roleIds, role.roleId]
+                        : audience.roleIds.filter((id) => id !== role.roleId),
+                    }),
+                }}
+              />
+            );
+          })}
+        </SettingsSection>
+      ));
+    if (canSave)
+      add('save', () => (
+        <SettingsSection on={ON}>
+          <SettingsRow
+            on={ON}
             title={t.groupRenameSave}
             testID="channel-bot-save"
             control={pending ? { kind: 'busy' } : undefined}
@@ -179,30 +203,33 @@ export function useGroupBotSettings(
                   }
             }
           />
-        ));
-    }
-    add('blocks', () => <Text>{t.channelBots.blocks}</Text>);
+        </SettingsSection>
+      ));
     const people = new Map(
       (view?.members ?? []).map(({ humanId, displayName }) => [humanId, displayName]),
     );
     for (const id of bot.blockedHumanIds) if (!people.has(id)) people.set(id, id);
-    for (const [humanId, displayName] of people) {
-      const blocked = bot.blockedHumanIds.includes(humanId);
-      add(`human:${humanId}`, () => (
-        <SettingsRow
-          title={displayName}
-          control={{
-            kind: 'switch',
-            value: blocked,
-            disabled: pending,
-            testID: `channel-bot-block-${humanId}`,
-            onChange: (next) => {
-              void save({ kind: 'block', humanId, blocked: next });
-            },
-          }}
-        />
+    if (people.size > 0)
+      add('blocks', () => (
+        <SettingsSection title={t.channelBots.blocks} on={ON}>
+          {[...people].map(([humanId, displayName]) => (
+            <SettingsRow
+              key={humanId}
+              on={ON}
+              title={displayName}
+              control={{
+                kind: 'switch',
+                value: bot.blockedHumanIds.includes(humanId),
+                disabled: pending,
+                testID: `channel-bot-block-${humanId}`,
+                onChange: (next) => {
+                  void save({ kind: 'block', humanId, blocked: next });
+                },
+              }}
+            />
+          ))}
+        </SettingsSection>
       ));
-    }
   }
   return { mount, body: { rows } };
 }
