@@ -50,11 +50,12 @@ it('lists active and offline App Bindings for the Host Owner within the existing
     ).toMatchObject({ ok: true });
   }
   const accounts = new Map<string, MessagingAccount>();
-  const inspectAccount = vi.fn(async (ref: string) => {
+  const readAccount = async (ref: string) => {
     const account = accounts.get(ref);
     if (!account) throw new MessagingError('rebind-required');
     return account;
-  });
+  };
+  const inspectAccount = vi.fn(readAccount);
   const provider: MessagingProvider = {
     id: 'qa/im',
     accounts: async () => [...accounts.values()],
@@ -67,7 +68,7 @@ it('lists active and offline App Bindings for the Host Owner within the existing
       throw new Error('The binding inventory does not send messages');
     },
   };
-  core.externalMessaging.register(provider);
+  const disconnectProvider = core.externalMessaging.register(provider);
   await setImmediate();
   const bind = async (botSlug: string, platform: string, fingerprint: string) => {
     const ref = `${platform}-app`;
@@ -142,5 +143,29 @@ it('lists active and offline App Bindings for the Host Owner within the existing
   expect(await methods(owner).messagingSnapshot({ slug: offline.botSlug })).toMatchObject({
     ok: false,
     error: { code: 'bot-not-found' },
+  });
+
+  const inspectionStarted = Promise.withResolvers<void>();
+  const releaseInspection = Promise.withResolvers<void>();
+  inspectAccount.mockImplementation(async (ref) => {
+    if (ref === offline.accountRef) {
+      inspectionStarted.resolve();
+      await releaseInspection.promise;
+    }
+    return readAccount(ref);
+  });
+  const pending = methods(owner).messagingConnections({ mode: 'status' });
+  await inspectionStarted.promise;
+  await setImmediate();
+  disconnectProvider();
+  releaseInspection.resolve();
+  expect(await pending).toMatchObject({
+    ok: true,
+    value: {
+      checks: 'complete',
+      bindings: expect.arrayContaining([
+        expect.objectContaining({ id: owned.id, availability: 'unavailable' }),
+      ]),
+    },
   });
 });

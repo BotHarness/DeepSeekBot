@@ -110,9 +110,10 @@ export function createOutboundSnapshot(context: {
     let availability: MessagingIdentityView['availability'] = value.enabled
       ? 'unavailable'
       : 'paused';
+    let providerToken: object | undefined;
     if (value.enabled && mode !== 'saved') {
       try {
-        await inspectIdentity(value, readAccount);
+        providerToken = (await inspectIdentity(value, readAccount)).token;
         availability = 'available';
       } catch (error) {
         if (error instanceof MessagingError && error.code === 'rebind-required')
@@ -125,14 +126,17 @@ export function createOutboundSnapshot(context: {
     const recovery = inbound.pairingRecovery(id);
     return {
       latest,
-      availability,
-      reception:
-        (mode === 'saved' && latest.enabled) || availability === 'available'
-          ? inbound.pairingReception(id)
-          : availability === 'paused'
-            ? ('off' as const)
-            : ('unavailable' as const),
-      ...(recovery ? { recovery } : {}),
+      providerToken,
+      status: {
+        availability,
+        reception:
+          (mode === 'saved' && latest.enabled) || availability === 'available'
+            ? inbound.pairingReception(id)
+            : availability === 'paused'
+              ? ('off' as const)
+              : ('unavailable' as const),
+        ...(recovery ? { recovery } : {}),
+      },
     };
   };
 
@@ -146,10 +150,14 @@ export function createOutboundSnapshot(context: {
           .all(),
       ) as { id: string }[];
       const statuses = await Promise.all(rows.map(({ id }) => identityStatus(id, mode)));
-      return statuses.flatMap(({ latest, ...status }) => {
+      return statuses.flatMap(({ latest, status, providerToken }) => {
         if (latest.revokedAt !== undefined || binding(latest.id).revokedAt !== undefined) return [];
         const { id, botSlug, providerId, platform, accountRef, name, enabled } = latest;
-        return [{ id, botSlug, providerId, platform, accountRef, name, enabled, ...status }];
+        const currentStatus =
+          status.availability === 'available' && providers.get(providerId)?.token !== providerToken
+            ? { availability: 'unavailable' as const, reception: 'unavailable' as const }
+            : status;
+        return [{ id, botSlug, providerId, platform, accountRef, name, enabled, ...currentStatus }];
       });
     },
     async channelBridges(channelId, mode) {
@@ -322,7 +330,7 @@ export function createOutboundSnapshot(context: {
       ) as { id: string }[];
       const identities: MessagingIdentityView[] = await Promise.all(
         identityRows.map(async ({ id }) => {
-          const { latest, ...status } = await identityStatus(id, mode, readAccount);
+          const { latest, status } = await identityStatus(id, mode, readAccount);
           const scopes = rows
             .map((r) => JSON.parse(r.body) as MessagingGrant)
             .filter((g) => g.bindingId === id && !g.revokedAt);
