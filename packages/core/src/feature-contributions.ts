@@ -86,8 +86,13 @@ type Intersection<T> = (T extends unknown ? (value: T) => void : never) extends 
 
 type HostHooks = Partial<ContributionTable<'host'>>;
 
+type BuiltInTable<Key extends keyof FeatureContribution> = Extract<
+  BuiltInFeatures[number],
+  Record<Key, object>
+>[Key];
+
 export type ContributionTable<Key extends keyof FeatureContribution> = Intersection<
-  Extract<BuiltInFeatures[number], Record<Key, object>>[Key]
+  BuiltInTable<Key>
 >;
 
 type BridgeFeature = Extract<
@@ -147,13 +152,15 @@ export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Int
 export function contributedRuntimeServices(
   features: RegisteredFeatures,
 ): ContributionTable<'runtimeServices'> {
-  return mergeFeatureMethods<object>(
-    features.flatMap((feature) =>
+  return mergeFeatureMethods(
+    features.flatMap<
+      BuiltInTable<'runtimeServices'> | NonNullable<AdditionalFeature['runtimeServices']>
+    >((feature) =>
       'runtimeServices' in feature && feature.runtimeServices !== undefined
         ? [feature.runtimeServices]
         : [],
     ),
-  ) as ContributionTable<'runtimeServices'>;
+  );
 }
 
 export type ContributedBridgeDeps = BridgeDependencies & {
@@ -164,11 +171,13 @@ export function contributedBridgeMethods(
   deps: ContributedBridgeDeps,
   invocation: BridgeInvocation,
 ): Intersection<ReturnType<BridgeFeature['bridgeMethods']>> {
-  return mergeFeatureMethods<object>(
-    (deps.featureContributions ?? featureContributions).flatMap((feature) =>
+  return mergeFeatureMethods(
+    (deps.featureContributions ?? featureContributions).flatMap<
+      ReturnType<BridgeFeature['bridgeMethods'] | NonNullable<AdditionalFeature['bridgeMethods']>>
+    >((feature) =>
       'bridgeMethods' in feature && feature.bridgeMethods !== undefined
         ? [feature.bridgeMethods({ ...invocation, deps })]
         : [],
     ),
-  ) as Intersection<ReturnType<BridgeFeature['bridgeMethods']>>;
+  );
 }

@@ -1,5 +1,5 @@
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
-import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
+import type { OrchestratorAgentRun } from '../sessions/agent-run-types.js';
 
 export interface TeamAgentContext {
   currentRun(): OrchestratorAgentRun | undefined;
