@@ -52,7 +52,7 @@ import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import { openPromptSettings } from './prompts/prompt-settings.js';
 import * as botSchedules from './features/schedules/plugin.js';
-import { createFeatureContributions } from './feature-contributions.js';
+import { createFeatureContributions, forEachHostFeature } from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -408,6 +408,7 @@ function initializeCore(
     options,
   );
   startup.enter('bot-runtime', 'initialize');
+  const featureContributions = createFeatureContributions({ scheduleWakeSource: wakeSource });
   runtime = personabotsFeature.createRuntime({
     options,
     modelPresets,
@@ -421,7 +422,7 @@ function initializeCore(
     registry,
     profileRecovery,
     schedules,
-    runtimeFeatures: createFeatureContributions({ scheduleWakeSource: wakeSource }),
+    runtimeFeatures: featureContributions,
     assignmentLimits,
     botHopLimit,
     states,
@@ -468,7 +469,9 @@ function initializeCore(
     startup,
   );
   startup.enter('bot-schedules', 'start');
-  botSchedules.start(schedules, operationalDatabase);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterCoreAssembly?.(schedules, operationalDatabase),
+  );
   return {
     voiceProviders,
     voiceMessages,

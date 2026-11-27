@@ -13,15 +13,13 @@ import { createMarketplaceContribution } from './features/marketplace/contributi
 import { createAppearanceContribution } from './features/appearance/contribution.js';
 import { createAvatarsContribution } from './features/avatars/contribution.js';
 import { createSkillsContribution } from './features/skills/contribution.js';
-import {
-  createGenuiContribution,
-  type GenuiContributionOptions,
-} from './features/genui/contribution.js';
+import { createGenuiContribution } from './features/genui/contribution.js';
+import type { GenuiToolOptions } from './features/genui/tools.js';
 import { createSchedulesContribution } from './features/schedules/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
 
 export function createFeatureContributions(options?: {
-  genui?: GenuiContributionOptions;
+  genui?: GenuiToolOptions;
   scheduleWakeSource?: InboxWakeSource;
 }) {
   return [

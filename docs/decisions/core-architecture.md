@@ -20,6 +20,8 @@ The [package boundary check](../../scripts/check-package-boundaries.mjs) enforce
 
 The RuntimeHost port registers sources of pending Bot Inbox work. The runtime owns readiness checks and subscription cleanup. Schedules supplies its database query and firing notifications through that port. Its Agent guidance stays inline in the Orchestrator role. GenUI contributes a named system prompt section and two tools. Both features keep their bridge handlers and RPC error conversion in the feature module.
 
+Schedules starts its store after Core assembly and registers disposal between the Bot Runtime and Channel live hub. GenUI resolves the image writer at preview time, preferring the current Agent's attachment service and falling back to the Host service when needed.
+
 For subsequent migrations, add the descriptor factory to the composition list and remove the matching legacy registration in the same change. Use the feature's own dependency types for its bridge and Agent adapter. Extend RuntimeHost when a feature needs a new capability from the runtime. The contract tests use the same descriptors as production.
 
 Host plugin hooks run at the existing Cordis lifecycle stages. Cloud registers its tool and messaging provider at the same stages as their other Host registrations. Diagnostics registers routes and telemetry observers, and Usage binds parent turns and reconciles Session logs. Host composition constructs the shared resources those hooks consume.

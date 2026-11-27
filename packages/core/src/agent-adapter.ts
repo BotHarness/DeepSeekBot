@@ -21,7 +21,7 @@ export function createDshBotAgentAdapter(
         genui: {
           browserPath: options.genuiPreviewBrowserPath,
           onDiagnostic: options.onGenuiDiagnostic,
-          attachmentContext: options.genuiAttachmentContext,
+          getFallbackAttachments: () => options.genuiAttachmentContext?.get('attachments'),
         },
       }),
   });

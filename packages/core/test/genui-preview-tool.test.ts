@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 
 const preview = vi.hoisted(() => vi.fn());
@@ -7,7 +7,7 @@ vi.mock('../src/runtime/genui-preview.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/runtime/genui-preview.js')>()),
   previewGenuiDocument: preview,
 }));
-import { createGenuiPreviewTool } from '../src/runtime/genui-preview-tool.js';
+import { createGenuiPreviewTool, registerGenuiTools } from '../src/features/genui/tools.js';
 
 const execution: ToolRunContext = {
   callId: ToolCallId('preview-test'),
@@ -34,6 +34,37 @@ beforeEach(() => {
 });
 
 describe('GenUI preview Tool', () => {
+  it('prefers the current Agent attachment service and uses the Host fallback when absent', async () => {
+    const agentSave = vi.fn().mockResolvedValue({ type: 'image', id: 'agent-image' });
+    const hostSave = vi.fn().mockResolvedValue({ type: 'image', id: 'host-image' });
+    const getAttachments = vi.fn().mockReturnValue({ saveImage: agentSave });
+    const getFallbackAttachments = vi.fn(() => ({ saveImage: hostSave }));
+    const tools: ToolDefinition[] = [];
+    registerGenuiTools(getAttachments, (tool) => tools.push(tool), {
+      scope: 'preview-test',
+      getFallbackAttachments,
+    });
+    const tool = tools.find(({ name }) => name === 'genui_preview');
+    if (!tool) throw new Error('Missing registered preview tool');
+    expect(getAttachments).not.toHaveBeenCalled();
+
+    await tool.execute({ genui_json: '{}' }, execution);
+    expect(agentSave).toHaveBeenCalledWith({
+      data: Buffer.from('synthetic-image'),
+      mediaType: 'image/png',
+      name: 'GenUI preview',
+    });
+    expect(getFallbackAttachments).not.toHaveBeenCalled();
+
+    getAttachments.mockReturnValue(undefined);
+    await tool.execute({ genui_json: '{}' }, execution);
+    expect(hostSave).toHaveBeenCalledWith({
+      data: Buffer.from('synthetic-image'),
+      mediaType: 'image/png',
+      name: 'GenUI preview',
+    });
+  });
+
   it('stores a native image attachment without returning raw screenshot bytes to the model', async () => {
     const saveImage = vi.fn().mockResolvedValue({ type: 'image', id: 'synthetic-image' });
     const tool = createGenuiPreviewTool({ saveImage, browserPath: '/controlled/browser' });
