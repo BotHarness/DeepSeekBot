@@ -31,7 +31,6 @@ import { initializeMemoryRepositoryAsync } from '../../memory/git.js';
 import { cloneMemoryRepository } from '../../memory/clone.js';
 import { migrateLegacySouls } from '../../memory/soul.js';
 import {
-  createBotRuntime,
   DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
   type BotAgentAdapter,
   type BotRuntime,
@@ -433,6 +432,7 @@ export function createRuntime(
     dshHome: string;
     assignmentLimits: { read: () => number }[];
     runtimeFeatures: NonNullable<BotRuntimeOptions['runtimeFeatures']>;
+    createRuntime(options: BotRuntimeOptions): BotRuntime;
     botHopLimit: () => number;
     orchestratorCwd: (bot: { slug: string }) => string | undefined;
     readonly runtime: BotRuntime | undefined;
@@ -466,7 +466,7 @@ export function createRuntime(
     dshHome,
     orchestratorCwd,
   } = deps;
-  return createBotRuntime({
+  return deps.createRuntime({
     ...(options.nativeSessions === undefined
       ? {}
       : {

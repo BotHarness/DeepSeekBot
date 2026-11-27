@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createBotRuntime } from '../src/core.js';
 import { FIXED_NOW } from './helpers.js';
 import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
 import { ManualAgents, setup } from './assignment-collaboration-fixtures.js';

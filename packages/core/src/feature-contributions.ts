@@ -22,6 +22,9 @@ import { createEnvironmentsContribution } from './features/environments/contribu
 import { createMessagingContribution } from './features/messaging/contribution.js';
 import { createChannelFilesContribution } from './features/channel-files/contribution.js';
 import { createChannelsContribution } from './features/channels/contribution.js';
+import { createMemoryContribution } from './features/memory/contribution.js';
+import { createWorkspacesContribution } from './features/workspaces/contribution.js';
+import { createApprovalsContribution } from './features/approvals/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
 
 export function createFeatureContributions(options?: {
@@ -51,6 +54,9 @@ export function createFeatureContributions(options?: {
     createEnvironmentsContribution(),
     createMessagingContribution(),
     createChannelFilesContribution(),
+    createMemoryContribution(),
+    createWorkspacesContribution(),
+    createApprovalsContribution(),
   ] as const;
 }
 
@@ -76,6 +82,22 @@ export function forEachHostFeature(
   }
 }
 
+export function requireHostFeatureHook<Name extends keyof HostHooks>(
+  features: RegisteredFeatures,
+  name: Name,
+): NonNullable<HostHooks[Name]> {
+  const hooks: NonNullable<HostHooks[Name]>[] = [];
+  forEachHostFeature(features, (feature) => {
+    const hook = feature[name];
+    if (hook !== undefined && hook !== null) hooks.push(hook);
+  });
+  const [hook] = hooks;
+  if (hooks.length !== 1 || hook === undefined) {
+    throw new Error(`Expected one Host feature hook for ${name}, found ${hooks.length}`);
+  }
+  return hook;
+}
+
 export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Intersection<T> {
   const methods = {};
   for (const table of tables) {
@@ -85,6 +107,12 @@ export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Int
     Object.assign(methods, table);
   }
   return methods as Intersection<T>;
+}
+
+export function contributedRuntimeServices(features: RegisteredFeatures) {
+  return mergeFeatureMethods(
+    features.flatMap((feature) => ('runtimeServices' in feature ? [feature.runtimeServices] : [])),
+  );
 }
 
 type RegisteredBridgeContext = Parameters<

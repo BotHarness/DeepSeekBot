@@ -52,7 +52,12 @@ import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import { openPromptSettings } from './prompts/prompt-settings.js';
 import * as botSchedules from './features/schedules/plugin.js';
-import { createFeatureContributions, forEachHostFeature } from './feature-contributions.js';
+import {
+  createFeatureContributions,
+  contributedRuntimeServices,
+  featureContributions as defaultFeatureContributions,
+  forEachHostFeature,
+} from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -62,14 +67,16 @@ import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 
 export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
-  if (options.runtimeFeatures !== undefined) return createRuntime(options);
+  if (options.runtimeFeatures !== undefined)
+    return createRuntime(options, contributedRuntimeServices(defaultFeatureContributions));
   const wakeSource = botSchedules.createWakeSource(
     attachOperationalModule(options.database, 'bot-runtime'),
   );
-  return createRuntime({
-    ...options,
-    runtimeFeatures: createFeatureContributions({ scheduleWakeSource: wakeSource }),
-  });
+  const features = createFeatureContributions({ scheduleWakeSource: wakeSource });
+  return createRuntime(
+    { ...options, runtimeFeatures: features },
+    contributedRuntimeServices(features),
+  );
 }
 
 export function createCore(options: CoreOptions = {}): BotHarnessCore {
@@ -123,7 +130,9 @@ function initializeCore(
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
-    workspacesFeature.relocateMemoryOnStartup(startup, operationalDatabase, dshHome);
+    forEachHostFeature(defaultFeatureContributions, (hooks) =>
+      hooks.beforeRegistry?.(startup, operationalDatabase, dshHome),
+    );
     startup.enter('bot-registry', 'initialize');
     registry = personabotsFeature.createRegistry({
       rootDir,
@@ -423,6 +432,8 @@ function initializeCore(
     profileRecovery,
     schedules,
     runtimeFeatures: featureContributions,
+    createRuntime: (options) =>
+      createRuntime(options, contributedRuntimeServices(featureContributions)),
     assignmentLimits,
     botHopLimit,
     states,

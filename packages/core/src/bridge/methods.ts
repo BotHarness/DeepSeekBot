@@ -31,21 +31,6 @@ import {
   type AssignmentsBridgeDeps,
 } from '../features/assignments/methods.js';
 import {
-  createMemoryBridgeMethods,
-  type MemoryBridgeMethods,
-  type MemoryBridgeDeps,
-} from '../features/memory/methods.js';
-import {
-  createApprovalsBridgeMethods,
-  type ApprovalsBridgeMethods,
-  type ApprovalsBridgeDeps,
-} from '../features/approvals/methods.js';
-import {
-  createWorkspacesBridgeMethods,
-  type WorkspacesBridgeMethods,
-  type WorkspacesBridgeDeps,
-} from '../features/workspaces/methods.js';
-import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
   createEngineSelectionBridge,
@@ -130,10 +115,6 @@ import {
   authorizeChannelBridgeMethods,
 } from '../features/channels/methods.js';
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
-import {
-  createWorkspacesAdapterMethods,
-  type WorkspacesAdapterMethods,
-} from '../features/workspaces/methods.js';
 import {
   createSessionsAdapterMethods,
   type SessionsAdapterMethods,
@@ -272,17 +253,13 @@ export interface BridgeMethods
     EngineAccountBridgeMethods,
     EngineSelectionBridgeMethods,
     ModelsBridgeMethods,
-    ApprovalsBridgeMethods,
-    WorkspacesBridgeMethods,
     SessionsBridgeMethods,
     AssignmentsBridgeMethods,
-    MemoryBridgeMethods,
     ActivityBridgeMethods,
     PersonaBotsBridgeMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
     ReturnType<typeof createSessionBotMethods>,
-    WorkspacesAdapterMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -294,13 +271,7 @@ export interface BridgeMethods
 }
 
 export interface BridgeMethodsDeps
-  extends
-    ContributedBridgeDeps,
-    ModelsBridgeDeps,
-    ApprovalsBridgeDeps,
-    WorkspacesBridgeDeps,
-    AssignmentsBridgeDeps,
-    MemoryBridgeDeps {
+  extends ContributedBridgeDeps, ModelsBridgeDeps, AssignmentsBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   botContext?(slug: string): Promise<BotContextWindow>;
@@ -482,17 +453,8 @@ function buildBridgeMethods(
     requireOwnedBot,
     modelRouting,
   );
-  const approvalsMethods = createApprovalsBridgeMethods(
-    human,
-    deps,
-    globalRegistry,
-    detailOf,
-    messagingCall,
-  );
-  const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
   const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
   const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
-  const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
   const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
   const personabotsMethods = createPersonaBotsBridgeMethods(
@@ -508,7 +470,6 @@ function buildBridgeMethods(
     modelRouting,
   );
   const tobAdapterMethods = createTobAdapterMethods(human, deps, isHostOwner);
-  const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
@@ -534,10 +495,6 @@ function buildBridgeMethods(
     ...createModelProviderBridge(human, deps),
     ...createEngineAccountBridge(human, deps),
     ...createEngineSelectionBridge(human, { ...deps, registry: globalRegistry }),
-    approvalRoute: approvalsMethods.approvalRoute,
-    approvalTest: approvalsMethods.approvalTest,
-    questionRetry: approvalsMethods.questionRetry,
-    approvalRetry: approvalsMethods.approvalRetry,
     ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
     ...modelInheritance,
@@ -573,15 +530,6 @@ function buildBridgeMethods(
     update: personabotsMethods.update,
     pause: personabotsMethods.pause,
     resume: personabotsMethods.resume,
-    approvalTemplates: approvalsMethods.approvalTemplates,
-    approvalTemplateCreate: approvalsMethods.approvalTemplateCreate,
-    approvalTemplateUpdate: approvalsMethods.approvalTemplateUpdate,
-    approvalTemplateDeletePreview: approvalsMethods.approvalTemplateDeletePreview,
-    approvalTemplateDelete: approvalsMethods.approvalTemplateDelete,
-    approvalTemplateGlobalSet: approvalsMethods.approvalTemplateGlobalSet,
-    botApprovalTemplateSet: approvalsMethods.botApprovalTemplateSet,
-    approvalReviewerModel: approvalsMethods.approvalReviewerModel,
-    approvalReviewerModelSet: approvalsMethods.approvalReviewerModelSet,
     idleCompaction: sessionsMethods.idleCompaction,
     idleCompactionSet: sessionsMethods.idleCompactionSet,
     idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
@@ -616,50 +564,13 @@ function buildBridgeMethods(
         : sessionsMethods.sessionModel(payload),
     sessionToolDetail: sessionsMethods.sessionToolDetail,
     sessionSubagents: assignmentsMethods.sessionSubagents,
-    workspaceOptions: workspacesAdapterMethods.workspaceOptions,
-    folderBrowse: workspacesAdapterMethods.folderBrowse,
-    folderCreate: workspacesAdapterMethods.folderCreate,
-    workspaceFileTarget: workspacesAdapterMethods.workspaceFileTarget,
-    grants: workspacesMethods.grants,
-    grantCreate: workspacesMethods.grantCreate,
-    grantRevoke: workspacesMethods.grantRevoke,
-    grantRequestApprove: workspacesMethods.grantRequestApprove,
-    grantWriteSet: workspacesMethods.grantWriteSet,
     assignmentAccessGet: assignmentsMethods.assignmentAccessGet,
     assignmentAccessSet: assignmentsMethods.assignmentAccessSet,
-    toolApprovalRules: approvalsMethods.toolApprovalRules,
-    toolApprovalRuleRevoke: approvalsMethods.toolApprovalRuleRevoke,
-    toolApprovalHistory: approvalsMethods.toolApprovalHistory,
-    toolApprovalStatus: approvalsMethods.toolApprovalStatus,
-    toolApprovalDecide: approvalsMethods.toolApprovalDecide,
-    toolAutoRejectionOverride: approvalsMethods.toolAutoRejectionOverride,
-    userQuestionStatus: approvalsMethods.userQuestionStatus,
-    userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     botToolTrace: sessionsMethods.botToolTrace,
     sessions: sessionsMethods.sessions,
     sessionArchiveSet: sessionsMethods.sessionArchiveSet,
-    memoryMove: memoryMethods.memoryMove,
     sessionOwner: sessionsMethods.sessionOwner,
     botSessionIds: sessionsMethods.botSessionIds,
-    memoryFileTarget: memoryMethods.memoryFileTarget,
-    memoryImage: memoryMethods.memoryImage,
-    memorySnapshot: memoryMethods.memorySnapshot,
-    memoryFile: memoryMethods.memoryFile,
-    memoryHistory: memoryMethods.memoryHistory,
-    memoryDiff: memoryMethods.memoryDiff,
-    memoryGitGraph: memoryMethods.memoryGitGraph,
-    memoryGitCommitDiff: memoryMethods.memoryGitCommitDiff,
-    memoryWorkingChanges: memoryMethods.memoryWorkingChanges,
-    memoryWorkingDiff: memoryMethods.memoryWorkingDiff,
-    memoryRecoveryHistory: memoryMethods.memoryRecoveryHistory,
-    memoryRestore: memoryMethods.memoryRestore,
-    memorySave: memoryMethods.memorySave,
-    memoryRestoreCommit: memoryMethods.memoryRestoreCommit,
-    memoryVersions: memoryMethods.memoryVersions,
-    memoryNameVersion: memoryMethods.memoryNameVersion,
-    memoryRemoveVersionName: memoryMethods.memoryRemoveVersionName,
-    memoryRepair: memoryMethods.memoryRepair,
-    overviewMemory: memoryMethods.overviewMemory,
     usageByMember: teamMethods.usageByMember,
     profileActivity: activityMethods.profileActivity,
     groupProfileActivity: activityMethods.groupProfileActivity,

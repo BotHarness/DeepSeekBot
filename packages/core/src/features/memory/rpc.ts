@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { OverviewMemory } from '../../memory/overview.js';
 import type { MemoryFileTarget } from '../../memory/file-actions.js';
@@ -232,7 +231,7 @@ export const memoryRpcMethods = {
   ): Promise<{ memoryDir: string; moved: boolean; leftover?: string }> {
     return memoryMove(this.methods, slug, location);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: MemoryBridgeMethods }>;
 
 export const memoryServiceRpc = {
   memoryFileTarget(slug: string, path: string): { target: MemoryFileTarget } {
@@ -358,4 +357,4 @@ export const memoryServiceRpc = {
   overviewMemory(after?: string): Promise<OverviewMemory> {
     return overviewMemory(this.methods, after);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: MemoryBridgeMethods }>;

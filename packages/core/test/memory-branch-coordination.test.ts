@@ -11,8 +11,8 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createMemoryService } from '../src/memory/service.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
+import { createBotRuntime } from '../src/core.js';
 import {
-  createBotRuntime,
   type AssignmentAgentRun,
   type BotAgentAdapter,
   type BotRuntime,

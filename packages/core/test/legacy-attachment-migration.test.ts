@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createBotRuntime } from '../src/core.js';
 import { createTestWorkspaceGrants } from './workspace-grant-fixture.js';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { createAttachmentHttp } from '../src/attachments/http.js';

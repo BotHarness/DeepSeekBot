@@ -6,8 +6,8 @@ import { expect } from 'vitest';
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { createBotRuntime } from '../src/core.js';
 import {
-  createBotRuntime,
   type AssignmentAgentRun,
   type AssignmentRequestDelivery,
   type BotAgentAdapter,

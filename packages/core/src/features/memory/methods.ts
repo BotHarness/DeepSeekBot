@@ -36,9 +36,15 @@ import type { MemoryService } from '../../memory/service.js';
 import { MemoryFileError, type MemoryFileTarget } from '../../memory/file-actions.js';
 import { MemoryPathError } from '../../memory/jail.js';
 import { WorkspaceGrantError } from '../../workspaces/grants.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { ChannelStore } from '../../channels/store.js';
+import type { BotRuntime } from '../../runtime/bot-runtime.js';
+import type { TeamService } from '../../team/service.js';
 
 export interface MemoryBridgeDeps {
+  registry: PersonaBotRegistry;
+  runtime?: BotRuntime;
+  team?: TeamService;
   memory?: MemoryService;
 }
 
@@ -88,7 +94,7 @@ export interface MemoryBridgeMethods {
 
 export function createMemoryBridgeMethods(
   human: HumanContext,
-  deps: MemoryBridgeDeps & Pick<BridgeMethodsDeps, 'registry' | 'runtime' | 'team'>,
+  deps: MemoryBridgeDeps,
   dmMemory: (payload: unknown) => { botSlug: string } | BridgeResult<never>,
 ): MemoryBridgeMethods {
   const memoryCall = <T>(operation: () => T): BridgeResult<T> => {
@@ -506,7 +512,10 @@ export function createMemoryBridgeMethods(
   };
 }
 
-export function createDmMemoryReader(deps: BridgeMethodsDeps) {
+export function createDmMemoryReader(deps: {
+  channels: ChannelStore;
+  registry: PersonaBotRegistry;
+}) {
   return (payload: unknown, historical = false): { botSlug: string } | BridgeResult<never> => {
     const channelId = asNonBlank(asObject(payload), 'channelId');
     if (channelId === undefined) return invalidInput('channelId is required');

@@ -2,7 +2,6 @@ import { reconcilePublicBotMemories } from '../../workspaces/bot-memory-placemen
 import { relocateTobWorkspaces, recoverSpaceTransfers } from '../../workspaces/space-lifecycle.js';
 import { relocateSpaceMemories } from '../../workspaces/space-memory.js';
 import { realpathSync } from 'node:fs';
-import type { createCoreStartup } from '../../diagnostics/core-startup.js';
 import type { OperationalDatabaseOwner } from '../../database/owner.js';
 import { randomUUID } from 'node:crypto';
 import { grantExecutionDenial, orchestratorPermission } from '../../workspaces/grant-execution.js';
@@ -13,9 +12,12 @@ import { createFolderBrowser } from '../../workspaces/folder-browse.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { attachOperationalModule } from '../../database/owner.js';
 import { createWorkspaceGrantStore } from '../../workspaces/grants.js';
-import type { BotHarnessCore, createCore } from '../../plugin.js';
-
-type CoreOptions = NonNullable<Parameters<typeof createCore>[0]>;
+import type { BotHarnessCore } from '../../plugin.js';
+import {
+  WORKSPACE_FAVICON_PATH,
+  createWorkspaceFaviconHttp,
+} from '../../workspaces/workspace-looks.js';
+import type { CoreOptions, HostFetchConnection } from '../../plugin-types.js';
 
 export function apply(
   operationalDatabase: BotHarnessCore['operationalDatabase'],
@@ -55,6 +57,24 @@ export function mountFolders(ctx: Context) {
   });
   ctx.effect(() => () => folders.close(), 'botharness: folder reader');
   return folders;
+}
+
+export function mountWorkspaceFavicon(
+  ctx: Context,
+  connection: HostFetchConnection,
+  core: Pick<BotHarnessCore, 'workspaceLooks'>,
+) {
+  const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
+  ctx.effect(
+    () =>
+      connection.fetch.register({
+        path: WORKSPACE_FAVICON_PATH,
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: workspaceFaviconHttp,
+      }),
+    'botharness: Workspace favicon',
+  );
 }
 
 export function mountPermissionTracking(
@@ -103,7 +123,7 @@ export function mountPermissionTracking(
 }
 
 export function relocateMemoryOnStartup(
-  startup: ReturnType<typeof createCoreStartup>,
+  startup: { enter(module: string, stage: string): void },
   operationalDatabase: OperationalDatabaseOwner,
   dshHome: string,
 ) {
