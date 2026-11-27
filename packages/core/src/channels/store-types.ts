@@ -135,8 +135,8 @@ export interface ChannelStore {
       db: import('node:sqlite').DatabaseSync,
       human: HumanContext,
       channelId: string,
-      mentioned: ReadonlySet<string>,
-    ): { blocked: ReadonlySet<string>; deniedMentions: ReadonlySet<string> };
+      candidates: ReadonlySet<string>,
+    ): ReadonlySet<string>;
     addInitialMembers?(
       db: import('node:sqlite').DatabaseSync,
       human: HumanContext,

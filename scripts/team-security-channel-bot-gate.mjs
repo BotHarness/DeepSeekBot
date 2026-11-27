@@ -19,26 +19,24 @@ export async function runChannelBotGate(s, fx, tag, check) {
   const b = create(`Studio B ${tag}`);
   const update = (id, as, ...args) =>
     s.cli(['channels', 'bots', id, fx.ledgerSlug, ...args], { as });
-  const send = (id, as, body) =>
+  const send = (id, as, body, mention = true) =>
     s.cli(
       [
         'channels',
         'send',
         id,
         '--body-stdin',
-        '--mention-bot',
-        fx.ledgerSlug,
-        '--mention-label',
-        `Ledger ${tag}`,
+        ...(mention ? ['--mention-bot', fx.ledgerSlug, '--mention-label', `Ledger ${tag}`] : []),
       ],
       { as, input: body },
     ).message.id;
   const delivered = (channelId, as, messageId) =>
     s.messages(channelId, as).find((message) => message.id === messageId);
-  const denied = (channelId, as, messageId) => {
+  const denied = (channelId, as, messageId, mention = true) => {
     const message = delivered(channelId, as, messageId);
     return (
-      message?.mentions?.some((mention) => mention.botSlug === fx.ledgerSlug) === true &&
+      !!message &&
+      (message.mentions?.some((item) => item.botSlug === fx.ledgerSlug) ?? false) === mention &&
       !message.deliveries?.some((delivery) => delivery.botSlug === fx.ledgerSlug)
     );
   };
@@ -67,7 +65,38 @@ export async function runChannelBotGate(s, fx, tag, check) {
   const admin = send(a, fx.users.carol, ask);
   check('channel admin @ starts and completes a Turn', await handled(a, fx.users.carol, admin));
   check('ordinary member @ is visible with no Turn', denied(a, fx.users.bob, member));
+  const channel = s.cli(['channel', a]);
+  s.cli([
+    'group-wake-set',
+    a,
+    '--bot',
+    fx.ledgerSlug,
+    '--mode',
+    'all',
+    '--expected-channel',
+    channel.channelFingerprint ?? channel.channel?.channelFingerprint,
+  ]);
+  const plainMember = send(a, fx.users.bob, ask, false);
+  const plainAdmin = send(a, fx.users.carol, ask, false);
+  check(
+    'channel admin plain message completes a Turn in all mode',
+    await handled(a, fx.users.carol, plainAdmin),
+  );
+  check(
+    'plain member message with an admins-only Bot stays visible without admission',
+    denied(a, fx.users.bob, plainMember, false),
+  );
   update(a, fx.users.carol, '--audience', 'everyone');
+  const { policy } = s.cli(['channels', 'policy', a]);
+  const setPolicy = (value) =>
+    s.cli(['channels', 'policy', a, '--policy-stdin'], { input: JSON.stringify(value) });
+  setPolicy({ ...policy, overrides: [{ roleId: 'member', actions: { wakeBot: 'deny' } }] });
+  const roleDenied = send(a, fx.users.bob, ask, false);
+  check(
+    'plain message from a role denied wakeBot stays visible without admission',
+    denied(a, fx.users.bob, roleDenied, false),
+  );
+  setPolicy(policy);
   update(a, fx.users.carol, '--block-human', fx.humans.bob.humanId);
   const blocked = send(a, fx.users.bob, ask);
   const permitted = send(b, fx.users.bob, ask);

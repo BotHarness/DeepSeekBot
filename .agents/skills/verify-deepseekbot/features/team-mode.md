@@ -45,7 +45,7 @@
 
 - S10 (M14 Host/CLI): `channels member-candidates <id> [--query <name>]` and `channels add-member <id> <username>` enforce `addMembers` as the explicit calling Human. An invitation opens private/roles/public Channels immediately in list, stream and search. A role-based join exits on role revoke; a named invitation remains. Bots in the Channel do not cause invitation refusal. The Add people picker UI is verified separately by its UI owner.
 
-- S12 (#5491): In Team → Channels → Permissions, set who has the Wake a Bot with @mention action. Open the Bots tab and set a Bot's audience or no-response list, then reopen it to verify the saved settings. Mobile exposes the per-Bot controls in Group profile → Bots. `node scripts/e2e-team-security.mjs --launch --scenario C9` drives the authenticated CLI and checks that a denied mention stays visible without a Bot delivery while an allowed mention completes a Turn. It also checks that the same member can wake the same Bot in a second Channel.
+- S12 (#5491): In Team → Channels → Permissions, set who has the Wake a Bot with @mention action. Open the Bots tab and set a Bot's audience or no-response list, then reopen it to verify the saved settings. Mobile exposes the per-Bot controls in Group profile → Bots. `node scripts/e2e-team-security.mjs --launch --scenario C9` uses the authenticated CLI to test mentions and plain messages in all-message wake mode. A denied message stays visible without a Bot delivery. An allowed message completes a Turn. The same member can still wake the Bot in a second Channel where they are eligible.
 
 ## How to get to it (user POV)
 

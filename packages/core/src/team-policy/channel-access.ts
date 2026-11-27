@@ -73,7 +73,10 @@ export function allowsBotMention(
   admin: boolean,
 ): boolean {
   return (
-    (admin || mergeChannelAction(policy, roleIds, 'wakeBot')) &&
+    (admin ||
+      (roleIds.size === 0
+        ? policy.everyone.wakeBot === 'allow'
+        : mergeChannelAction(policy, roleIds, 'wakeBot'))) &&
     (audience.kind === 'everyone' ||
       (audience.kind === 'admins' ? admin : audience.roleIds.some((id) => roleIds.has(id))))
   );

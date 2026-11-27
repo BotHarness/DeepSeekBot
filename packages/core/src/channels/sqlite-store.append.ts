@@ -525,44 +525,35 @@ export function createChannelAppender({
                         durable.botCausation.hop <= hopLimit
                       ? [{ botSlug: recipient, reason: 'bot-dm' }]
                       : [];
-          const reception =
-            channel.type === 'group' && durable.author.kind === 'human'
-              ? humanAccess.current?.botReception?.(
-                  db,
-                  human,
-                  id,
-                  new Set(mentions.map((mention) => mention.botSlug)),
-                )
-              : undefined;
-          const recipients = candidateRecipients.filter(
-            ({ botSlug }) =>
-              isBotActive(botSlug) &&
-              !reception?.deniedMentions.has(botSlug) &&
-              !reception?.blocked.has(botSlug),
-          );
-          const immediate = new Set(recipients.map((item) => item.botSlug));
           const ordinaryAllowed =
             (durable.author.kind === 'human' && durable.takeoverResolution === undefined) ||
             (senderSlug !== undefined &&
               durable.botCausation !== undefined &&
               durable.botCausation.hop <= hopLimit);
-          const ordinary =
+          const ordinaryBots =
             channel.type === 'group' && ordinaryAllowed
-              ? channel.members.flatMap((botSlug) => {
-                  if (
-                    botSlug === senderSlug ||
-                    immediate.has(botSlug) ||
-                    !isBotActive(botSlug) ||
-                    reception?.deniedMentions.has(botSlug) ||
-                    reception?.blocked.has(botSlug)
-                  )
-                    return [];
-                  const sourceRule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
-                  const policy =
-                    channel.wakePolicies?.[botSlug] ?? defaultGroupWakePolicy(sourceRule);
-                  return [{ botSlug, policy, sourceRule }];
-                })
+              ? channel.members.filter((botSlug) => botSlug !== senderSlug && isBotActive(botSlug))
               : [];
+          const activeRecipients = candidateRecipients.filter(({ botSlug }) =>
+            isBotActive(botSlug),
+          );
+          const denied =
+            channel.type === 'group' && durable.author.kind === 'human'
+              ? humanAccess.current?.botReception?.(
+                  db,
+                  human,
+                  id,
+                  new Set([...ordinaryBots, ...activeRecipients.map(({ botSlug }) => botSlug)]),
+                )
+              : undefined;
+          const recipients = activeRecipients.filter(({ botSlug }) => !denied?.has(botSlug));
+          const immediate = new Set(recipients.map(({ botSlug }) => botSlug));
+          const ordinary = ordinaryBots.flatMap((botSlug) => {
+            if (immediate.has(botSlug) || denied?.has(botSlug)) return [];
+            const sourceRule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
+            const policy = channel.wakePolicies?.[botSlug] ?? defaultGroupWakePolicy(sourceRule);
+            return [{ botSlug, policy, sourceRule }];
+          });
           for (const recipient of recipients)
             insertSourceAdmission(
               db,

@@ -16,6 +16,7 @@ import { TeamError } from '../team-policy/error.js';
 
 type Audience = z.infer<typeof channelBotAudienceSchema>;
 const everyone: Audience = { kind: 'everyone' };
+const noRoles: ReadonlySet<string> = new Set();
 
 const audienceRows = z.array(z.object({ bot_slug: z.string(), audience_json: z.string() }));
 const roleRows = z.array(z.object({ role_id: z.string() }));
@@ -40,12 +41,12 @@ export function channelBotReception(
   db: DatabaseSync,
   human: HumanContext,
   channelId: string,
-  mentioned: ReadonlySet<string>,
-) {
-  const blocked = channelBlockedBots(db, channelId, human.humanId);
-  const deniedMentions = new Set<string>();
-  if (mentioned.size === 0 || [...mentioned].every((slug) => blocked.has(slug)))
-    return { blocked, deniedMentions };
+  candidates: ReadonlySet<string>,
+): ReadonlySet<string> {
+  if (candidates.size === 0) return new Set();
+  const denied = channelBlockedBots(db, channelId, human.humanId);
+  const unblocked = [...candidates].filter((slug) => !denied.has(slug));
+  if (unblocked.length === 0) return denied;
 
   const row = z.object({ policy: z.string(), admin: z.number() }).parse(
     db
@@ -58,21 +59,24 @@ export function channelBotReception(
   const policy = channelPolicySchema.parse(JSON.parse(row.policy));
   const perBot = audiences(db, channelId);
   const hasRoles =
-    policy.overrides.length > 0 ||
-    [...mentioned].some((slug) => perBot.get(slug)?.kind === 'roles');
-  const roleIds = new Set(
-    hasRoles
-      ? roleRows
+    (!row.admin &&
+      policy.overrides.some(
+        ({ actions }) => actions.wakeBot === 'allow' || actions.wakeBot === 'deny',
+      )) ||
+    unblocked.some((slug) => perBot.get(slug)?.kind === 'roles');
+  const roleIds = hasRoles
+    ? new Set(
+        roleRows
           .parse(
             db.prepare('SELECT role_id FROM human_roles WHERE human_id = ?').all(human.humanId),
           )
-          .map((role) => role.role_id)
-      : [],
-  );
-  for (const slug of mentioned)
+          .map((role) => role.role_id),
+      )
+    : noRoles;
+  for (const slug of unblocked)
     if (!allowsBotMention(policy, perBot.get(slug) ?? everyone, roleIds, !!row.admin))
-      deniedMentions.add(slug);
-  return { blocked, deniedMentions };
+      denied.add(slug);
+  return denied;
 }
 
 export class TeamChannelBots {

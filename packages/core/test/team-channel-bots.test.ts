@@ -26,6 +26,50 @@ it('intersects the Bot audience with the Channel action and gives matching role 
   expect(allowsBotMention(denyWake, { kind: 'admins' }, new Set(['paused']), true)).toBe(true);
 });
 
+it.each(['admins-only audience', 'role denial'] as const)(
+  'applies the %s to plain messages when the Bot wakes on all messages',
+  async (restriction) => {
+    const f = await enabledFixture();
+    const botSlug = 'studio';
+    f.registry.create({ slug: botSlug, displayName: 'Studio', ownerHumanId: owner.humanId });
+    const channelId = f.channels.createGroup(owner, { name: 'Studio', members: [botSlug] }).id;
+    f.team.channelAccess.addMember(owner, channelId, f.human.humanId);
+    f.channels.setGroupWakePolicy!(channelId, botSlug, {
+      mode: 'all',
+      count: 1,
+      intervalSeconds: 1,
+    });
+    if (restriction === 'admins-only audience') {
+      expect(
+        await f.methods(owner).channelBotSettings({
+          channelId,
+          botSlug,
+          change: { kind: 'audience', audience: { kind: 'admins' } },
+        }),
+      ).toMatchObject({ ok: true });
+    } else {
+      f.team.roles.set(owner, f.human.humanId, ['member']);
+      f.team.channelAccess.policySet(owner, channelId, {
+        ...DEFAULT_CHANNEL_POLICY,
+        overrides: [{ roleId: 'member', actions: { wakeBot: 'deny' } }],
+      });
+    }
+
+    for (const [human, body] of [
+      [f.human, 'member message'],
+      [owner, 'admin message'],
+    ] as const)
+      expect(await f.methods(human).channelSend({ channelId, body })).toMatchObject({ ok: true });
+    const messages = f.channels.readMessages(channelId);
+    const member = messages.find((message) => message.body === 'member message');
+    expect(member).toBeDefined();
+    expect(member?.deliveries ?? []).toEqual([]);
+    expect(messages.find((message) => message.body === 'admin message')?.deliveries).toMatchObject([
+      { botSlug },
+    ]);
+  },
+);
+
 it('keeps denied mentions visible and keeps the no-response list local to one Channel', async () => {
   const f = await enabledFixture();
   const botSlug = 'studio';
