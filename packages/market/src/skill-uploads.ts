@@ -6,7 +6,7 @@ import {
   MAX_SKILL_FILES,
   MAX_SKILL_MD_CHARS,
   parseSkillFrontmatter,
-  scanSkillFiles,
+  scanSkillUpload,
 } from './skill-scan.js';
 import {
   contentMatchesKind,
@@ -113,20 +113,8 @@ function prepare(value: unknown) {
     }
   }
 
-  const scan = scanSkillFiles(
-    files.flatMap((file) => [
-      { path: file.path, text: file.text },
-      { path: file.path, text: file.path, filename: true },
-    ]),
-    { rejectSecrets: true },
-  );
-  if (scan.verdict === 'blocked') {
-    return refuse(
-      scan.findings.some((finding) => finding.kind === 'secret')
-        ? 'skill-secret-detected'
-        : 'skill-malicious-content',
-    );
-  }
+  const { scan, refusal } = scanSkillUpload(files);
+  if (refusal !== undefined) return refuse(refusal);
   if (unsupported) return refuse('invalid-skill-upload');
   const content = files.find((file) => file.path === 'SKILL.md')?.text;
   const frontmatter =

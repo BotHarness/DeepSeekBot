@@ -52,6 +52,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'skill-upload-limit': 'market.error.skillUploadLimit',
   'skill-upload-changed': 'market.error.skillChanged',
   'skill-files-changed': 'market.error.skillChanged',
+  'skill-scan-failed': 'market.error.skillScanFailed',
 };
 
 export type Phase = 'idle' | 'verifying' | 'sending';

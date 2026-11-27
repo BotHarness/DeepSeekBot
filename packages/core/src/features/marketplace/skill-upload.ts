@@ -11,6 +11,7 @@ import {
   MAX_SKILL_FILES,
   MAX_SKILL_NAME,
   SKILL_NAME,
+  scanSkillUpload,
 } from '../../../../market/src/skill-scan.js';
 import { listBotFiles } from '../../bots/bot-zip.js';
 import type { HumanContext } from '../../humans/context.js';
@@ -41,7 +42,24 @@ const refusalMessages: Record<string, string> = {
   'skill-too-large': 'A Skill may contain up to 100 files totaling 1 MiB.',
   'author-required': 'Set up your Marketplace Author ID before publishing.',
   'sign-in-required': 'Sign in to Connect before publishing.',
+  'skill-scan-failed': 'The safety scan could not check these files, so nothing was uploaded.',
 };
+
+const decoder = new TextDecoder();
+
+function scanBeforeUpload(files: readonly { path: string; data: string }[]) {
+  try {
+    const { refusal: code } = scanSkillUpload(
+      files.map(({ path, data }) => ({
+        path,
+        text: decoder.decode(Buffer.from(data, 'base64')),
+      })),
+    );
+    return code === undefined ? undefined : refusal(code, refusalMessages[code]);
+  } catch {
+    return refusal('skill-scan-failed', refusalMessages['skill-scan-failed']);
+  }
+}
 
 async function collectSkillFiles(memoryDir: string, name: string) {
   const root = await realpath(memoryDir);
@@ -143,6 +161,8 @@ export function createMarketplaceSkillUploadMethods(
       refusal('skill-files-unavailable'),
     );
     if (!files.ok) return files;
+    const refused = scanBeforeUpload(files.value);
+    if (refused !== undefined) return refused;
     const result = await uploads.writeSkill(
       {
         files: files.value,

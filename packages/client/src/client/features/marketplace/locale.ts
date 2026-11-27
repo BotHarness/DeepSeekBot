@@ -373,6 +373,7 @@ export const zh = {
   'market.error.skillMd': 'SKILL.md 缺少有效的 name 或 description。',
   'market.error.skillUploadLimit': '这个账号发布的 Skill 已达上限。',
   'market.error.skillChanged': '上传时文件有变化，再试一次。',
+  'market.error.skillScanFailed': '没能检查这些文件，所以没有上传。再试一次。',
 } as const;
 
 export const en = {
@@ -769,4 +770,6 @@ export const en = {
   'market.error.skillMd': 'SKILL.md needs a valid name and description.',
   'market.error.skillUploadLimit': 'This account has reached its Skill limit.',
   'market.error.skillChanged': 'The files changed during upload. Try again.',
+  'market.error.skillScanFailed':
+    'The files could not be checked, so nothing was uploaded. Try again.',
 } satisfies Record<keyof typeof zh, string>;
