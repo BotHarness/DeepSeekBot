@@ -135,6 +135,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#features = createBotRuntimeFeatures(options, state, this, (...args) =>
       this.#recordDirectToolSource(...args),
     );
+    for (const feature of options.runtimeFeatures ?? [])
+      feature.runtime?.(this.#features.runtimeHost);
     this.#features.recoverAtStartup();
   }
 

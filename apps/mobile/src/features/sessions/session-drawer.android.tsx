@@ -1,7 +1,7 @@
 import { Host, RNHostView } from '@expo/ui/jetpack-compose';
 import { requireNativeView, requireOptionalNativeModule } from 'expo';
 import type { ReactNode } from 'react';
-import { View, type ViewProps } from 'react-native';
+import { I18nManager, View, type ViewProps } from 'react-native';
 import { useDesignTheme } from '../../ui/design/theme';
 import { useSessionDrawerChrome } from './session-drawer-chrome';
 import { SessionDrawerContent } from './session-drawer-content';
@@ -16,13 +16,24 @@ type NativeDrawerProps = ViewProps & {
   onProgress(event: { nativeEvent: { progress: number } }): void;
 };
 
-const module = requireOptionalNativeModule<{ hasModalSessionDrawer?(): boolean }>(
-  'DismissibleDrawer',
-);
+type NativeDrawerContentProps = ViewProps & {
+  drawerSwipeEnabled?: boolean;
+  rtl?: boolean;
+};
+
+const module = requireOptionalNativeModule<{
+  hasModalSessionDrawer?(): boolean;
+  hasSessionDrawerContentGate?(): boolean;
+}>('DismissibleDrawer');
 const NativeDrawer =
   typeof module?.hasModalSessionDrawer === 'function'
     ? requireNativeView<NativeDrawerProps>('DismissibleDrawer', 'SessionDrawerView')
     : undefined;
+const NativeContentGate =
+  typeof module?.hasSessionDrawerContentGate === 'function'
+    ? requireNativeView<NativeDrawerContentProps>('DismissibleDrawer', 'SessionDrawerContentGate')
+    : undefined;
+const DrawerContent = NativeContentGate ?? View;
 const Slot = requireNativeView<{ slotName: string; children: ReactNode }>('ExpoUI', 'SlotView');
 
 export function SessionDrawer({ children }: { children: ReactNode }) {
@@ -41,6 +52,9 @@ function ComposeSessionDrawer({
   const state = useSessionDrawer();
   const place = useDrawerPlace();
   const holdBackWhileOpen = useSessionDrawerChrome();
+  const gateProps = NativeContentGate
+    ? { drawerSwipeEnabled: place.edge > 0 && !state.open && !state.shown, rtl: I18nManager.isRTL }
+    : {};
   return (
     <Host colorScheme={theme.scheme} seedColor={theme.color.accent} style={{ flex: 1 }}>
       <Native
@@ -60,12 +74,13 @@ function ComposeSessionDrawer({
         </Slot>
         <Slot slotName="content">
           <RNHostView>
-            <View
+            <DrawerContent
+              {...gateProps}
               style={{ flex: 1, backgroundColor: theme.color.base }}
               importantForAccessibility={state.open ? 'no-hide-descendants' : 'auto'}
             >
               {children}
-            </View>
+            </DrawerContent>
           </RNHostView>
         </Slot>
       </Native>

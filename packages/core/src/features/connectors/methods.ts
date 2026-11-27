@@ -14,7 +14,7 @@ export interface ConnectorsBridgeDeps {
   registry: { get(slug: string): { displayName: string } | undefined };
 }
 
-export interface ConnectorsBridgeMethods {
+export type ConnectorsBridgeMethods = {
   connectors(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorKeySet(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorKeyClear(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
@@ -37,7 +37,7 @@ export interface ConnectorsBridgeMethods {
   ): BridgeResult<{ changed: boolean; connectors: BotConnector[] }>;
   connectorAccountRemove(payload: unknown): Promise<BridgeResult<{ removed: boolean }>>;
   botConnectors(payload: unknown): BridgeResult<{ connectors: BotConnector[] }>;
-}
+};
 
 function failure(error: unknown): BridgeResult<never> {
   if (!(error instanceof ConnectorError)) throw error;

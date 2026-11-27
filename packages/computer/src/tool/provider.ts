@@ -11,6 +11,8 @@ import type {} from '@deepseek-ai/dsh-user-approval';
 
 import { COMPUTER_GUIDANCE, COMPUTER_TOOLS, FALLBACK_TOOLS, computerToolName } from './catalog.js';
 import type { CuaDriver, DriverToolDescriptor } from './driver.js';
+import type { DesktopAccessIssue } from '../desktop-availability.js';
+import { LocalVideoError } from '../local-video-contract.js';
 
 function modelVisibleDriverResult(result: unknown): unknown {
   if (
@@ -72,6 +74,7 @@ export interface ComputerToolProviderOptions {
   readonly ctx: Context;
   readonly driver: CuaDriver;
   readonly isComputerRunning: () => boolean;
+  readonly unavailable?: () => DesktopAccessIssue | undefined;
   readonly isPaused?: () => boolean;
   readonly isBotPaused?: (slug: string) => boolean;
 
@@ -152,10 +155,14 @@ export function createComputerToolProvider(
 ): ComputerToolProvider {
   const { ctx, driver, isComputerRunning, isAutoAllowed, audit, core } = options;
   const note = options.note ?? ((): void => undefined);
+  const assertAvailable = (): void => {
+    const issue = options.unavailable?.();
+    if (issue !== undefined) throw new LocalVideoError(issue.code, issue.detail);
+  };
   const assertNotPaused = (slug: string): void => {
     if (options.isPaused?.() === true)
       throw new Error(
-        'Computer Pause is active: the Human is using the desktop from the phone. Wait for them to hand it back, then take a fresh screenshot before acting',
+        'Computer Pause is active. Wait for the Human to Resume, then take a fresh screenshot before acting',
       );
     if (options.isBotPaused?.(slug) === true) {
       note(`phase=control-refused owner=browser-pause slug=${slug}`);
@@ -282,6 +289,7 @@ export function createComputerToolProvider(
             if (core().registry?.get(slug)?.computerAccess !== true) {
               throw new Error('Computer Access is off for this PersonaBot');
             }
+            assertAvailable();
             if (!isComputerRunning()) {
               throw new Error(
                 'The Computer is not running; ask the Human to start it from the Computer panel',
@@ -436,6 +444,7 @@ export function createComputerToolProvider(
       onActivity();
       if (core().registry?.get(slug)?.computerAccess !== true)
         throw new Error('Computer Access is off for this PersonaBot');
+      assertAvailable();
       if (!isComputerRunning())
         throw new Error('The Computer is not running; start it with computer-start first');
       const result = await botCall(slug, raw, args, signal);

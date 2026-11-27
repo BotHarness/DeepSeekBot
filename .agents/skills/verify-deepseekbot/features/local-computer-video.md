@@ -10,6 +10,10 @@ One Windows x64 primary display reaches one Android viewer through a supervised 
 - `apps/mobile/modules/computer-unlock/**`
 - `apps/mobile/src/ui/chat/computer-unlock.ios.tsx`
 - `packages/computer/src/computer-pause-store.ts`
+- `packages/computer/src/desktop-availability.ts`
+- `packages/computer/src/providers/wayland*.ts`
+- `packages/computer/native/wayland/portal-desktop.py`
+- `packages/host-client/src/current-desktop-viewer.ts`
 - `packages/computer/native/local-video/{main.cjs,preload.cjs,renderer.html,renderer.js,launcher.cs,launcher-macos.cjs}`
 - `apps/mobile/src/host/local-video-*.ts`
 - `apps/mobile/src/ui/chat/{local-video-notice.ts,local-computer-screen.android.tsx}`
@@ -154,6 +158,19 @@ Entry points: Bot Computer pane → Check permissions, or Bot Settings → Compu
 - Missing macOS permissions show localized copy and only the missing Accessibility / Screen Recording buttons. Each button opens that specific privacy pane on the Host, without granting access. Closing System Settings preserves the refusal until a fresh permission check succeeds. Failed opens retain a localized manual-navigation fallback.
 - The Human grants permissions, fully restarts the app running DSH if macOS requires it, then selects Check permissions again. Record Granted plus canonical running status; permission refusal is not successful readiness. Verify both English/Chinese and light/dark, and keep untested variants explicit.
 - CLI parity: `deepseekbot computer-open-permission-settings --permission accessibility --confirm` opens the same Host pane; `screen-recording` selects recording. Missing confirmation, other platforms/targets and unknown permission names refuse without launching anything. `computer-status` exposes coded failure and per-permission booleans; raw diagnostics are not user-facing copy.
+
+## Linux current desktop to Android (#5135)
+
+Start the isolated Host from the signed-in GNOME Wayland session. Use a clean desktop with a harmless local page and an editable field.
+
+1. In Computer settings, select **Use this computer’s desktop**. Cancel once and check that the target has its original value. Select again and read the whole-desktop notice before confirming. In the GNOME system dialog, select the monitor, enable **Allow Remote Interaction** and **Remember This Selection**. Enable **Allow Clipboard Access** for text entry, then press **Share**. Read `computer-target` and `computer-status` to confirm the selection and readiness.
+2. Have a Bot use Computer to open the harmless fixture and Bot Browser to load it in a visible profile window. Open Computer in the paired Android app on LAN and verify the same visible title and fixture before taking control.
+3. Choose **Pause Bots and take control**, enter a disposable marker, and confirm it appears in the desktop field. Query both direct tool paths and verify that both refuse while paused.
+4. Release and verify both refusals persist. Choose **Resume Bots** and verify both tools can observe again. Close the viewer and check the Host has released its grant.
+
+5. With Android watching, lock the Dell. The phone should lose the picture and report that the desktop is locked. Check that Computer and Bot Browser refuse. Have the Human unlock on the Dell and record whether GNOME asks for sharing again. Verify the phone returns to the same screen without restoring control. Require an explicit Resume for both Bot tools.
+
+Record Android video and separate X11 and Wayland view and input results. A virtual X11 fixture checks the driver and controller. A signed-in physical desktop qualifies the real journey. Keep secrets off the desktop throughout the recording.
 
 ## iPhone unlock on macOS
 

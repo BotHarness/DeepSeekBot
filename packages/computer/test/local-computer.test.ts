@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Config, DEFAULT_CONFIG } from '../src/index.js';
-import { createComputerTargetRuntime, type ComputerTarget } from '../src/target.js';
+import { computerTarget, createComputerTargetRuntime, type ComputerTarget } from '../src/target.js';
 import { createLocalComputerProvider } from '../src/providers/local.js';
 import { ensureLocalVideoHelper } from '../src/media/install.js';
 import {
@@ -16,7 +16,8 @@ import {
 } from '../src/tool/local-driver.js';
 import { LocalDesktopMissingError } from '../src/tool/local-display.js';
 import type { CuaDriver } from '../src/tool/driver.js';
-import type { ComputerProvider, ComputerRuntimeRunner } from '../src/provider.js';
+import type { ComputerProvider, ComputerRuntimeRunner, ComputerStatus } from '../src/provider.js';
+import { deferred } from './local-video-owner-fixture.js';
 
 vi.mock('../src/media/install-macos.js', () => ({
   ensureMacVideoHelper: vi.fn(async () => undefined),
@@ -31,7 +32,9 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-function fakeDriver(permissions = { accessibility: true, screen_recording: true }): CuaDriver {
+function fakeDriver(
+  permissions: Record<string, unknown> = { accessibility: true, screen_recording: true },
+): CuaDriver {
   return {
     ensure: vi.fn(async () => ({ status: 'present' as const, arch: 'darwin-universal' })),
     tools: vi.fn(async () => []),
@@ -168,6 +171,58 @@ describe('macOS Local Computer', () => {
 });
 
 describe('Local Computer on Linux and Windows', () => {
+  it('persists an explicit current-desktop target separately from the existing targets', () => {
+    expect(computerTarget(Config({ target: 'current-desktop' }).target.get())).toBe(
+      'current-desktop',
+    );
+    expect(computerTarget(Config({ target: 'local' }).target.get())).toBe('local');
+    expect(computerTarget(Config({}).target.get())).toBe('container');
+  });
+
+  it.each([
+    [
+      { XDG_SESSION_TYPE: 'wayland', WAYLAND_DISPLAY: 'wayland-0', DISPLAY: ':0' },
+      'x11-session-required',
+    ],
+    [{ XDG_SESSION_TYPE: 'tty', DISPLAY: ':0' }, 'desktop-unreachable'],
+    [{ XDG_SESSION_TYPE: 'x11', DISPLAY: 'localhost:10.0' }, 'desktop-unreachable'],
+  ])(
+    'refuses a non-local-X11 session before installing the Local driver (%j)',
+    async (environment, refusal) => {
+      const driver = fakeDriver();
+      const provider = createLocalComputerProvider({
+        driver,
+        runner: runner(),
+        platform: 'linux',
+        currentDesktop: true,
+        environment,
+      });
+      await expect(provider.start()).rejects.toMatchObject({ setupCode: refusal });
+      expect(await provider.status()).toMatchObject({ state: 'failed', refusal });
+      expect(driver.ensure).not.toHaveBeenCalled();
+    },
+  );
+
+  it('requires proof of capture before reporting the current X11 desktop ready', async () => {
+    const driver = fakeDriver({ x11: true });
+    const provider = createLocalComputerProvider({
+      driver,
+      runner: runner(),
+      platform: 'linux',
+      currentDesktop: true,
+      environment: { XDG_SESSION_TYPE: 'x11', DISPLAY: ':0' },
+    });
+    await expect(provider.start()).rejects.toMatchObject({ setupCode: 'desktop-unreachable' });
+    const failed = await provider.status();
+    expect(failed).toMatchObject({ state: 'failed', refusal: 'desktop-unreachable' });
+    vi.mocked(driver.call).mockImplementation(async (raw) =>
+      raw === 'check_permissions'
+        ? { structuredContent: { x11: true } }
+        : { content: [{ type: 'image', data: 'test-screen' }] },
+    );
+    await provider.start();
+    expect(await provider.status()).toMatchObject({ state: 'running' });
+  });
   it('pins one checksummed build per supported Host', () => {
     expect(localDriverBuild('darwin', 'arm64')?.id).toBe('darwin-universal');
     expect(localDriverBuild('darwin', 'x64')?.id).toBe('darwin-universal');
@@ -367,6 +422,42 @@ describe('Local Computer missing parts', () => {
 });
 
 describe('Profile Computer Target lifecycle', () => {
+  it.each(['status', 'start'] as const)(
+    'discards retired readiness through %s',
+    async (operation) => {
+      let target: ComputerTarget = 'local';
+      const old = fakeRuntime('local');
+      const next = fakeRuntime('current-desktop');
+      vi.mocked(next.provider.status).mockResolvedValue({ state: 'stopped' });
+      const reading = deferred<void>();
+      const complete = deferred<ComputerStatus>();
+      vi.mocked(old.provider.status).mockImplementationOnce(async () => {
+        reading.resolve();
+        return complete.promise;
+      });
+      const runtime = createComputerTargetRuntime({
+        target: () => target,
+        create: (selected) => (selected === 'local' ? old : next),
+        onChange: vi.fn(),
+      });
+      try {
+        const result = runtime.provider[operation]();
+        const checked =
+          operation === 'start'
+            ? expect(result).rejects.toThrow('Computer Target changed')
+            : expect(result).resolves.toMatchObject({ state: 'stopped' });
+        await reading.promise;
+        target = 'current-desktop';
+        await runtime.sync();
+        complete.resolve({ state: 'running' });
+        await checked;
+        expect(runtime.isRunning()).toBe(false);
+      } finally {
+        await runtime.dispose();
+      }
+    },
+  );
+
   it('creates only the selected strategy and refuses archive transfer in local mode', async () => {
     const factory = vi.fn(fakeRuntime);
     const runtime = createComputerTargetRuntime({

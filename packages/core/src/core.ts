@@ -20,11 +20,19 @@ import type { ModelFavoriteStore } from './models/favorites.js';
 import { createMediaVersions } from './attachments/media-versions.js';
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import type { ChannelLiveHub } from './channels/live.js';
-import { attachOperationalModule, mountOperationalDatabase } from './database/owner.js';
+import {
+  attachOperationalModule,
+  mountOperationalDatabase,
+  onOperationalDatabaseClose,
+} from './database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import type { RosterStore } from './roster/store.js';
-import type { BotRuntime } from './runtime/bot-runtime.js';
+import {
+  createBotRuntime as createRuntime,
+  type BotRuntime,
+  type BotRuntimeOptions,
+} from './runtime/bot-runtime.js';
 import { createInboxHistoryQuery } from './runtime/inbox-history.js';
 import { createBotSourcePolicyStore } from './runtime/source-policy.js';
 import { createAssignmentAccessStore } from './workspaces/assignment-access.js';
@@ -42,8 +50,9 @@ import * as activityFeature from './features/activity/plugin.js';
 import * as avatars from './features/avatars/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
-import * as promptPresets from './features/prompts/plugin.js';
+import { openPromptSettings } from './prompts/prompt-settings.js';
 import * as botSchedules from './features/schedules/plugin.js';
+import { createFeatureContributions } from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -51,6 +60,17 @@ import * as appearanceFeature from './features/appearance/plugin.js';
 import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
+
+export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
+  if (options.runtimeFeatures !== undefined) return createRuntime(options);
+  const wakeSource = botSchedules.createWakeSource(
+    attachOperationalModule(options.database, 'bot-runtime'),
+  );
+  return createRuntime({
+    ...options,
+    runtimeFeatures: createFeatureContributions({ scheduleWakeSource: wakeSource }),
+  });
+}
 
 export function createCore(options: CoreOptions = {}): BotHarnessCore {
   const startup = createCoreStartup(options.startupDiagnostic);
@@ -258,6 +278,7 @@ function initializeCore(
   const nativeAttentionChanged = () => {
     for (const listener of [...nativeAttentionListeners]) listener();
   };
+  onOperationalDatabaseClose(operationalDatabase, workspaceLooks.subscribe(nativeAttentionChanged));
   const onNativeSessionAttention = (listener: () => void) => {
     nativeAttentionListeners.add(listener);
     return () => {
@@ -280,6 +301,7 @@ function initializeCore(
     enabled: () =>
       (nativeAttentionSettings.at(-1)?.read() ?? DEFAULT_NATIVE_SESSION_ATTENTION) !== false,
     owner: (human) => human.caller !== 'bot' && team.isOwner(human),
+    folderLook: (cwd) => workspaceLooks.cached(cwd),
   });
   const spaces = workspacesFeature.apply(operationalDatabase, dshHome, team);
   startup.enter('channel-live', 'initialize');
@@ -368,16 +390,15 @@ function initializeCore(
   } = personabotsFeature.createAgentContributions();
 
   startup.enter('bot-schedules', 'initialize');
-  const schedules = botSchedules.apply({
+  const { schedules, wakeSource } = botSchedules.apply({
     operationalDatabase,
     registry,
-    onAdmitted: (slug) => runtime?.admitScheduleFiring?.(slug),
     warn: options.warn,
   });
   startup.enter('message-perf', 'initialize');
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
-  const prompts = promptPresets.apply({ dshHome, registry, ownership });
+  const prompts = openPromptSettings({ dshHome, registry, ownership });
   const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom } = voice.apply(
     startup,
     operationalDatabase,
@@ -400,6 +421,7 @@ function initializeCore(
     registry,
     profileRecovery,
     schedules,
+    runtimeFeatures: createFeatureContributions({ scheduleWakeSource: wakeSource }),
     assignmentLimits,
     botHopLimit,
     states,

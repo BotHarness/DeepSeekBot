@@ -36,6 +36,9 @@ export function harness(
     timeout?: number;
     points?: boolean;
     scrollMotion?: import('../src/macos-scroll.js').ScrollMotion;
+    frames?: Parameters<typeof createLocalVideoOwner>[0]['frames'];
+    supported?: () => boolean;
+    pauseRecovery?: () => boolean;
   } = {},
 ) {
   let time = 10_000;
@@ -89,8 +92,11 @@ export function harness(
               : driver.call(tool, args, signal),
     },
     media,
+    ...(options.frames === undefined ? {} : { frames: options.frames }),
     ...(options.scrollMotion === undefined ? {} : { scrollMotion: options.scrollMotion }),
     isRunning: () => true,
+    supported: options.supported ?? (() => true),
+    pauseRecovery: options.pauseRecovery ?? (() => false),
     driverPlatform: options.points ? 'darwin' : 'win32',
     now: () => time,
     onEvent: (detail) => events.push(detail),

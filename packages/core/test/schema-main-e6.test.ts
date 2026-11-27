@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -128,7 +129,13 @@ it('appends account150 after published Team models148 and usage149 while preserv
         ]),
       ),
     ),
-  ).toEqual(before);
+  ).toEqual({
+    ...before,
+    channel_records: before.channel_records?.map(({ policy_json: _, ...record }) => ({
+      ...record,
+      permission_table_json: JSON.stringify(DEFAULT_CHANNEL_POLICY),
+    })),
+  });
   expect(
     current.read((db) =>
       db

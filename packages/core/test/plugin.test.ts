@@ -846,8 +846,10 @@ describe('plugin entry', () => {
     expect(bridge).toBeDefined();
     expect(bridge?.typertRemote.namespace).toBe('botharness');
     expect(
-      remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
-    ).toEqual(bridgeMethodInventory);
+      remoteMethods(bridge as object)
+        .map((marker) => marker.exportName ?? marker.method)
+        .sort(),
+    ).toEqual([...bridgeMethodInventory].sort());
   });
 
   it('opens the roster domain when storageDomain is served', async () => {

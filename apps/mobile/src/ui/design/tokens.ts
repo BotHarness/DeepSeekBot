@@ -159,7 +159,7 @@ export const loadingIndicator = {
 export const materialButton = { icon: 18, iconGap: space.x3 } as const;
 export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
 
-export const creationAvatar = { size: 112 } as const;
+export const creationAvatar = { size: 112, columns: 4, largeColumns: 3 } as const;
 export const avatarEditor = {
   preview: 112,
   tile: 64,

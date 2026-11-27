@@ -125,9 +125,7 @@ it.each(['ios', 'android'])(
       };
       expect(native.screens.get('create-channel')).toEqual(sheet);
       expect(native.screens.get('(bot-creation)')).toEqual({ ...sheet, freezeOnBlur: true });
-      expect(native.screens.get('create-bot-avatar')).toEqual(
-        os === 'ios' ? { presentation: 'modal' } : {},
-      );
+      expect(native.screens.has('create-bot-avatar')).toBe(false);
       expect(native.screens.get('pair')).toMatchObject({ presentation: 'formSheet' });
     } finally {
       await act(async () => root.unmount());

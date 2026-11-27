@@ -9,6 +9,8 @@ import { elevation, layer, motion, space, style } from './tobs.stylex.js';
 import { viewportInsets } from './viewport-insets.stylex.js';
 import { useWindowClass } from './window-class.js';
 
+export const DialogDescription = BaseDialog.Description;
+
 const fadeIn = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
 
 const styles = stylex.create({

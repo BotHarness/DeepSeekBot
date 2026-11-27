@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { HostApiAnswer, HostApiInit } from '@botharness/host-client/client';
 import {
   addedText,
   createComputerViewer,
+  createPhoneComputerViewer,
   typedInputs,
   wheelInput,
   WHEEL_STEP,
@@ -47,6 +48,246 @@ const frame = (seq: number): HostApiAnswer => ({
 });
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+it.each(['transport', 'refusal'])(
+  'rediscovers the desktop after an initial %s failure',
+  async (failure) => {
+    let probeCount = 0;
+    const operations: string[] = [];
+    const binding = {
+      computerId: 'local',
+      runtimeId: 'runtime',
+      viewerId: 'viewer',
+      attemptId: 'attempt',
+    };
+    const viewer = createPhoneComputerViewer({
+      async api(path, init) {
+        const kind = String(init?.body?.['kind']);
+        operations.push(`${path} ${kind}`);
+        if (kind === 'status' && ++probeCount === 1) {
+          if (failure === 'transport') throw new Error('Connection interrupted');
+          return { status: 409, body: { ok: false, code: 'not-ready', error: 'Host is starting' } };
+        }
+        if (kind === 'frame' && init?.body?.['after'] === 1)
+          await new Promise<void>((resolve) =>
+            init?.signal?.addEventListener('abort', () => resolve(), { once: true }),
+          );
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            state: {
+              transport: 'frames',
+              binding,
+              paused: false,
+              controller: false,
+              ...(kind === 'frame'
+                ? {
+                    frame: { seq: 1, data: 'test', mimeType: 'image/jpeg', width: 100, height: 50 },
+                  }
+                : {}),
+            },
+          },
+        };
+      },
+    });
+    try {
+      const interrupted = watch(viewer, (state) => state.status === 'unreachable');
+      viewer.start();
+      expect(await interrupted).toMatchObject({ control: false, notice: expect.any(String) });
+      expect(operations).toEqual(['/api/computer/video status']);
+      const live = watch(viewer, (state) => state.status === 'live');
+      viewer.start();
+      await live;
+      expect(operations.slice(0, 4)).toEqual([
+        '/api/computer/video status',
+        '/api/computer/video status',
+        '/api/computer/video open',
+        '/api/computer/video frame',
+      ]);
+    } finally {
+      viewer.stop();
+    }
+  },
+);
+
+it('observes a current desktop without acquiring control and resumes separately from release', async () => {
+  const operations: string[] = [];
+  const binding = {
+    computerId: 'local',
+    runtimeId: 'runtime',
+    viewerId: 'viewer',
+    attemptId: 'attempt',
+  };
+  let paused = false;
+  let controller = false;
+  let releaseAttempts = 0;
+  let allowKeys = () => {};
+  const blockedKeys = new Promise<void>((resolve) => {
+    allowKeys = resolve;
+  });
+  const keys: unknown[] = [];
+  const viewer = createPhoneComputerViewer({
+    async api(_path, init) {
+      const kind = String(init?.body?.['kind']);
+      operations.push(kind);
+      if (kind === 'frame' && init?.body?.['after'] !== undefined) {
+        await new Promise<void>((resolve) => {
+          if (init.signal?.aborted) resolve();
+          else init.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }
+      if (kind === 'takeover') paused = controller = true;
+      if (kind === 'release') {
+        if (++releaseAttempts === 1) throw new Error('Release request lost');
+        controller = false;
+      }
+      if (kind === 'resume') paused = false;
+      const input = init?.body?.['input'];
+      if (kind === 'input' && typeof input === 'object' && input !== null && 'key' in input) {
+        await blockedKeys;
+        keys.push(input.key);
+      }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          state: {
+            binding,
+            runtimeId: 'runtime',
+            transport: 'frames',
+            paused,
+            controller,
+            ...(controller ? { grant: { generation: 1 }, lastInputSequence: 0 } : {}),
+            ...(kind === 'frame'
+              ? { frame: { seq: 1, data: 'test', mimeType: 'image/jpeg', width: 100, height: 50 } }
+              : {}),
+          },
+        },
+      };
+    },
+  });
+  const live = watch(viewer, (state) => state.status === 'live');
+  viewer.start();
+  try {
+    await live;
+    await viewer.send({ kind: 'click', x: 1, y: 2 });
+    expect(operations).not.toContain('takeover');
+    expect(operations).not.toContain('input');
+    await viewer.setControl(true);
+    await viewer.send({ kind: 'type', text: 'fixture' });
+    const accepted = Array.from({ length: 8 }, (_, i) =>
+      viewer.send({ kind: 'key', key: String(i) }),
+    );
+    await viewer.send({ kind: 'key', key: 'BackSpace' });
+    expect(viewer.getState().noticeCode).toBe('desktop-input-queue-full');
+    allowKeys();
+    await Promise.all(accepted);
+    expect(keys).toEqual(['0', '1', '2', '3', '4', '5', '6', '7']);
+    await viewer.setControl(false);
+    expect(viewer.getState()).toMatchObject({
+      paused: true,
+      control: true,
+      releasing: true,
+      notice: 'Release request lost',
+    });
+    await viewer.send({ kind: 'type', text: 'discard' });
+    await viewer.resume?.();
+    await viewer.setControl(false);
+    expect(viewer.getState()).toMatchObject({ paused: true, control: false });
+    await viewer.send({ kind: 'type', text: 'discard' });
+    await viewer.resume?.();
+    expect(viewer.getState()).toMatchObject({ paused: false, control: false });
+    expect(operations.filter((kind) => !['status', 'open', 'frame'].includes(kind))).toEqual([
+      'takeover',
+      'input',
+      ...Array.from({ length: 8 }, () => 'input'),
+      'release',
+      'release',
+      'resume',
+    ]);
+  } finally {
+    viewer.stop();
+  }
+});
+
+it('clears a locked Wayland frame and reconnects without taking control or resuming Bots', async () => {
+  vi.useFakeTimers();
+  let afterLock = 0;
+  let opened = 0;
+  const operations: string[] = [];
+  const locked = { code: 'desktop-locked', detail: 'Unlock this computer.' };
+  const viewing = { computerId: 'local', runtimeId: 'runtime', viewerId: 'phone' };
+  let endFirstFrame = () => {};
+  const firstFrameEnded = new Promise<void>((resolve) => {
+    endFirstFrame = resolve;
+  });
+  const viewer = createPhoneComputerViewer({
+    async api(_path, init) {
+      const kind = init?.body?.['kind'];
+      operations.push(String(kind));
+      if (kind === 'open') opened += 1;
+      if (kind === 'status' && opened > 0 && ++afterLock === 1)
+        throw new Error('Connection interrupted');
+      if (kind === 'frame' && init?.body?.['after'] === 1) {
+        await firstFrameEnded;
+        return { status: 409, body: { ok: false, code: locked.code, error: locked.detail } };
+      }
+      if (kind === 'frame' && init?.body?.['after'] === 2) {
+        await new Promise<void>((resolve) => {
+          if (init.signal?.aborted) resolve();
+          else init.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          state: {
+            binding: { ...viewing, attemptId: String(opened) },
+            transport: 'frames',
+            paused: opened > 1 || afterLock > 0,
+            controller: false,
+            ...(kind === 'status' && afterLock === 2 ? { unavailable: locked } : {}),
+            ...(kind === 'frame'
+              ? {
+                  frame: {
+                    seq: opened,
+                    data: 'test',
+                    mimeType: 'image/jpeg',
+                    width: 100,
+                    height: 50,
+                  },
+                }
+              : {}),
+          },
+        },
+      };
+    },
+  });
+  try {
+    const live = watch(viewer, (state) => state.frame?.seq === 1);
+    viewer.start();
+    await live;
+    const offline = watch(viewer, (state) => state.noticeCode === 'desktop-locked');
+    endFirstFrame();
+    expect(await offline).toMatchObject({ status: 'unreachable', paused: true, control: false });
+    expect(viewer.getState().frame).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(viewer.getState().frame).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(viewer.getState().frame).toBeUndefined();
+    const recovered = watch(viewer, (state) => state.frame?.seq === 2);
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(await recovered).toMatchObject({ status: 'live', paused: true, control: false });
+    expect(operations.filter((kind) => kind === 'open')).toHaveLength(2);
+    expect(operations).not.toContain('resume');
+    expect(operations).not.toContain('takeover');
+  } finally {
+    viewer.stop();
+    vi.useRealTimers();
+  }
+});
 
 function watch(
   viewer: ReturnType<typeof createComputerViewer>,

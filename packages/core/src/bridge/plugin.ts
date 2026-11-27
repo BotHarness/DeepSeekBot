@@ -9,7 +9,7 @@ import type { SessionLiveStreams } from '../runtime/session-live.js';
 import type { NativeSessions } from '../features/sessions/host-sessions.js';
 import { contextSources } from '../runtime/context-sources.js';
 import { contextCapacity } from '../runtime/context-window.js';
-import { messageText, systemPromptFromLog } from '../runtime/prompt-inspection.js';
+import { messageText, systemPromptFromLog } from '../prompts/prompt-inspection.js';
 import type { VoiceCalls } from '../voice/calls.js';
 import { createCallTextHarvest } from '../voice/call-text.js';
 import { onboardingNewsAvailable } from '../onboarding/search.js';
@@ -46,6 +46,7 @@ export function createHostBridgeDependencies(
   ctx: Context,
   deps: {
     core: BotHarnessCore;
+    featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
     skills: ReturnType<typeof skillsFeature.apply>;
     release: ReturnType<typeof releaseFeature.apply>['release'];
@@ -384,6 +385,7 @@ export function createHostBridgeDependencies(
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    featureContributions: deps.featureContributions,
     takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,

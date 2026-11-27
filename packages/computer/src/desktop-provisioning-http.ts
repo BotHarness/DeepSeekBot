@@ -28,6 +28,7 @@ interface DesktopProvisioningOptions {
   installState: DesktopInstallState;
   service: ComputerService;
   log(message: string): void;
+  onStart(language: unknown): void;
   toolProvider: Pick<ReturnType<typeof createComputerToolProvider>, 'reconcileAll'>;
   target(): ComputerTarget;
   resolveExportDir(): string;
@@ -41,6 +42,7 @@ export function createDesktopProvisioningHandlers({
   installState,
   service,
   log,
+  onStart,
   toolProvider,
   target,
   resolveExportDir,
@@ -76,6 +78,7 @@ export function createDesktopProvisioningHandlers({
       }
       return json({
         target: target(),
+        platform: process.platform,
         unlock: (await service.unlock?.status()) ?? { code: 'unavailable' },
         provider: service.providerName ?? null,
         probe,
@@ -86,6 +89,59 @@ export function createDesktopProvisioningHandlers({
           : { install: installState.packageInstall }),
         ...(target() === 'container' ? { resolution: config.resolution } : {}),
       });
+    },
+    start: async (request: Request): Promise<Response> => {
+      let authorize = false;
+      let body: { authorize?: unknown; language?: unknown; target?: unknown } = {};
+      try {
+        body = (await request.json()) as {
+          authorize?: unknown;
+          language?: unknown;
+          target?: unknown;
+        };
+        authorize = body.authorize === true;
+      } catch {}
+      if (!authorize) {
+        return json(
+          { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
+          400,
+        );
+      }
+      if (body.target !== undefined && body.target !== target())
+        return json(
+          {
+            ok: false,
+            code: 'target-changed',
+            error: 'Computer Target changed; check the selected Computer before retrying',
+          },
+          409,
+        );
+      onStart(body.language);
+      void service
+        .start()
+        .then(() => toolProvider.reconcileAll())
+        .catch(() => undefined);
+      return json({ ok: true, started: true });
+    },
+    stop: async (request: Request): Promise<Response> => {
+      let authorize = false;
+      try {
+        const body = (await request.json()) as { authorize?: unknown };
+        authorize = body.authorize === true;
+      } catch {}
+      if (!authorize) {
+        return json(
+          { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
+          400,
+        );
+      }
+      log('stop requested (panel)');
+      try {
+        await service.stop();
+        return json({ ok: true });
+      } catch (error) {
+        return json({ ok: false, error: String(error) }, 500);
+      }
     },
     install: async (request: Request): Promise<Response> => {
       const body = await request

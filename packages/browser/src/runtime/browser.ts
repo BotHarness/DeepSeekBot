@@ -36,7 +36,7 @@ import {
   selectorExpression,
   typeScript,
 } from './browser-page-scripts.js';
-import { waitForBrowserReady } from './browser-ready.js';
+import { waitForBrowserReady, watchBrowserTargets } from './browser-ready.js';
 import { connectCdp, type CdpClient } from './cdp.js';
 
 export {
@@ -61,9 +61,11 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let client: CdpClient | undefined;
   let starting: Promise<void> | undefined;
   let stopping: Promise<void> | undefined;
+  let stopRevision = 0;
   let binary: string | undefined;
   let lastUrl: string | undefined;
   let foreground = false;
+  let launchedHeadless: boolean | undefined;
   const sessions = new Map<string, string>();
   const closedChildren = new WeakSet<ChildProcess>();
 
@@ -74,20 +76,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       ? options.execution.isRunning()
       : child !== undefined && child.exitCode === null && !child.killed);
 
-  const watchTargets = (live: CdpClient): void => {
-    const changed = options.onObservationChanged;
-    if (changed === undefined) return;
-    for (const method of [
-      'Target.targetCreated',
-      'Target.targetDestroyed',
-      'Target.targetInfoChanged',
-    ])
-      live.subscribe(method, undefined, changed);
-    void live.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
-    changed();
-  };
-
-  const launch = async (): Promise<void> => {
+  const launch = async (headless: boolean): Promise<void> => {
     if (options.execution !== undefined) {
       const started = await options.execution.start();
       binary = started.binary;
@@ -97,7 +86,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         await options.execution.stop();
         throw error;
       }
-      watchTargets(client);
+      watchBrowserTargets(client, options.onObservationChanged);
       onEvent('ready target=container');
       return;
     }
@@ -156,9 +145,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       onEvent(`installed ${binary}`);
     }
     mkdirSync(options.userDataDir, { recursive: true });
-    const headless =
-      typeof options.headless === 'function' ? options.headless() : options.headless === true;
-    foreground = !headless && options.foregroundTabs?.() === true;
     onEvent(`launch ${binary} mode=${headless ? 'headless' : 'headed'}`);
     const proc = spawn(
       binary,
@@ -171,6 +157,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       { stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
     );
     child = proc;
+    launchedHeadless = headless;
     proc.once('close', () => {
       closedChildren.add(proc);
       options.onObservationChanged?.();
@@ -244,24 +231,36 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       proc.kill('SIGTERM');
       throw error;
     }
-    watchTargets(client);
+    watchBrowserTargets(client, options.onObservationChanged);
     onEvent('ready');
   };
 
   const ensure = async (): Promise<void> => {
+    const revision = stopRevision;
     if (stopping !== undefined) await stopping;
-    if (isRunning()) return;
-    if (starting === undefined && child !== undefined) {
-      if (closedChildren.has(child)) child = undefined;
-      else await stop();
-    }
+    if (starting !== undefined) await starting;
+    if (stopRevision !== revision) throw new Error('Browser start was cancelled');
+    const headless =
+      options.execution === undefined &&
+      (typeof options.headless === 'function' ? options.headless() : options.headless === true);
+    foreground = !headless && options.foregroundTabs?.() === true;
+    if (isRunning() && (options.execution !== undefined || launchedHeadless === headless)) return;
+    if (starting === undefined && child !== undefined && !closedChildren.has(child))
+      await shutdown();
+    if (stopRevision !== revision) throw new Error('Browser start was cancelled');
+    starting ??= launchAfterCleanup(headless);
+    await starting;
+    if (stopRevision !== revision) throw new Error('Browser start was cancelled');
+  };
+
+  const launchAfterCleanup = (headless: boolean): Promise<void> => {
+    child = undefined;
     client?.close();
     client = undefined;
     sessions.clear();
-    starting ??= launch().finally(() => {
+    return launch(headless).finally(() => {
       starting = undefined;
     });
-    await starting;
   };
 
   const attach = async (targetId: string): Promise<string> => {
@@ -952,7 +951,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     onEvent('stopped');
   };
 
-  const stop = (): Promise<void> => {
+  const shutdown = (): Promise<void> => {
     stopping ??= stopRuntime().finally(() => {
       stopping = undefined;
     });
@@ -993,6 +992,9 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     currentUrl: () => lastUrl,
     binaryPath: () => binary,
     viewerUrl: () => options.execution?.viewerUrl?.(),
-    stop,
+    stop() {
+      stopRevision += 1;
+      return shutdown();
+    },
   };
 }

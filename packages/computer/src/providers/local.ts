@@ -5,7 +5,12 @@ import {
   type SystemInstallAccess,
 } from '../../../core/src/system/system-packages.js';
 import type { CuaDriver } from '../tool/driver.js';
-import { LocalDesktopMissingError } from '../tool/local-display.js';
+import {
+  CurrentDesktopError,
+  currentDesktopDisplay,
+  LocalDesktopMissingError,
+} from '../tool/local-display.js';
+import { desktopCapture } from '../desktop-view.js';
 import { ensureMacVideoHelper } from '../media/install-macos.js';
 import { ensureLocalVideoHelper } from '../media/install.js';
 import {
@@ -73,6 +78,8 @@ export function createLocalComputerProvider(options: {
   dir?: string | undefined;
   platform?: string | undefined;
   arch?: string | undefined;
+  currentDesktop?: boolean;
+  environment?: NodeJS.ProcessEnv;
   installAccess?: (() => Promise<SystemInstallAccess>) | undefined;
   onEvent?: ((detail: string) => void) | undefined;
   onStatusChanged?: () => void;
@@ -107,6 +114,7 @@ export function createLocalComputerProvider(options: {
         updateStatus({ state: 'stopped', phase: 'starting' });
         let permissions: LocalPermissions | undefined;
         try {
+          if (options.currentDesktop) currentDesktopDisplay(platform, options.environment);
           await options.driver.ensure(signal, (progress) => {
             if (!signal.aborted) updateStatus({ state: 'stopped', phase: 'starting', progress });
           });
@@ -155,6 +163,18 @@ export function createLocalComputerProvider(options: {
             `phase=permissions platform=${platform} ${readiness.detail} durationMs=${String(Date.now() - started)}`,
           );
           if (!readiness.ready) throw new Error(readiness.refusal);
+          if (options.currentDesktop) {
+            const image = await options.driver.call(
+              'get_desktop_state',
+              { session: 'current-desktop-readiness', max_image_dimension: 320 },
+              signal,
+            );
+            if (desktopCapture(image) === undefined)
+              throw new CurrentDesktopError(
+                'desktop-unreachable',
+                'The Host could not capture the X11 desktop. Start it from your desktop session and check again.',
+              );
+          }
           if (signal.aborted) throw new Error('Local Computer setup cancelled');
           updateStatus({ state: 'running', phase: 'running' });
         } catch (error) {

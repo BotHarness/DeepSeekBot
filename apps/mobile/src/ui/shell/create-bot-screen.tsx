@@ -616,17 +616,16 @@ function CreationStepContent({ index }: { index: number }) {
               imported={importing}
               disabled={state.busy}
               onChange={(avatar) => edit({ avatar })}
-            />
-          ) : null}
-          {step === 'identity' ? (
-            <CardField
-              testID="create-bot-name"
-              accessibilityLabel={copy.name}
-              value={draft.displayName}
-              onChangeText={(displayName) => edit({ displayName })}
-              editable={!state.busy}
-              maxLength={120}
-            />
+            >
+              <CardField
+                testID="create-bot-name"
+                accessibilityLabel={copy.name}
+                value={draft.displayName}
+                onChangeText={(displayName) => edit({ displayName })}
+                editable={!state.busy}
+                maxLength={120}
+              />
+            </CreationAvatar>
           ) : null}
           {step === 'confirm' ? (
             <View style={{ gap: space.x2 }}>

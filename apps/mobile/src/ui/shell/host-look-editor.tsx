@@ -108,7 +108,7 @@ function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
   );
 }
 
-function Swatch({
+export function LookSwatch({
   label,
   selected,
   ring,
@@ -159,7 +159,7 @@ function Swatch({
   );
 }
 
-function Card({ children }: { children: ReactNode }) {
+export function LookCard({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
   return (
     <View
@@ -299,13 +299,13 @@ export function HostLookEditor({
               { value: 'emoji', label: t.hostIconEmoji },
             ]}
           />
-          <Card>
+          <LookCard>
             {set === 'symbol'
               ? HOST_SYMBOL_IDS.map((id) => {
                   const icon: HostIcon = { kind: 'symbol', id };
                   const selected = sameIcon(look.icon, icon);
                   return (
-                    <Swatch
+                    <LookSwatch
                       key={id}
                       testID={`host-icon-${id}`}
                       label={t.hostSymbol[id]}
@@ -319,14 +319,14 @@ export function HostLookEditor({
                         size={iconSize}
                         color={selected ? glyph : theme.color.muted}
                       />
-                    </Swatch>
+                    </LookSwatch>
                   );
                 })
               : HOST_EMOJI.map((emoji) => {
                   const icon: HostIcon = { kind: 'emoji', emoji };
                   const selected = sameIcon(look.icon, icon);
                   return (
-                    <Swatch
+                    <LookSwatch
                       key={emoji}
                       label={emoji}
                       selected={selected}
@@ -335,16 +335,16 @@ export function HostLookEditor({
                       onPress={() => setIcon(icon)}
                     >
                       <HostGlyph icon={icon} size={iconSize} color={glyph} />
-                    </Swatch>
+                    </LookSwatch>
                   );
                 })}
-          </Card>
+          </LookCard>
         </View>
 
         <View style={{ gap: space.x2 }}>
           <SettingsHeading>{t.hostAccent}</SettingsHeading>
-          <Card>
-            <Swatch
+          <LookCard>
+            <LookSwatch
               testID="host-color-default"
               label={t.hostColorDefault}
               selected={look.color === undefined}
@@ -355,12 +355,12 @@ export function HostLookEditor({
               {look.color === undefined ? (
                 <CheckIcon color={theme.color.onAccent} size={iconSize} />
               ) : null}
-            </Swatch>
+            </LookSwatch>
             {HOST_COLOR_IDS.map((id) => {
               const swatch = HOST_COLORS[id][theme.scheme];
               const selected = look.color === id;
               return (
-                <Swatch
+                <LookSwatch
                   key={id}
                   testID={`host-color-${id}`}
                   label={t.hostColorName[id]}
@@ -379,10 +379,10 @@ export function HostLookEditor({
                       size={iconSize}
                     />
                   ) : null}
-                </Swatch>
+                </LookSwatch>
               );
             })}
-          </Card>
+          </LookCard>
           <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>
             {t.hostColorHint}
           </Text>

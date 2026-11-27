@@ -12,8 +12,15 @@ export type ChannelVisibility =
   | { readonly kind: 'private' };
 
 export type PolicyKey = 'addMembers' | 'post' | 'mentionAll' | 'addBots' | 'editDetails';
-export type PolicyValue = 'everyone' | 'admins';
-export type ChannelPolicy = Readonly<Record<PolicyKey, PolicyValue>>;
+export type PolicyValue = 'allow' | 'deny' | 'inherit';
+export interface ChannelPolicy {
+  readonly version: 1;
+  readonly everyone: Readonly<Record<PolicyKey, PolicyValue>>;
+  readonly overrides: readonly {
+    roleId: string;
+    actions: Readonly<Partial<Record<PolicyKey, PolicyValue>>>;
+  }[];
+}
 
 export const POLICY_KEYS: readonly PolicyKey[] = [
   'addMembers',
@@ -24,11 +31,15 @@ export const POLICY_KEYS: readonly PolicyKey[] = [
 ];
 
 export const DEFAULT_POLICY: ChannelPolicy = {
-  addMembers: 'everyone',
-  post: 'everyone',
-  mentionAll: 'everyone',
-  addBots: 'admins',
-  editDetails: 'admins',
+  version: 1,
+  everyone: {
+    addMembers: 'allow',
+    post: 'allow',
+    mentionAll: 'allow',
+    addBots: 'deny',
+    editDetails: 'deny',
+  },
+  overrides: [],
 };
 
 export interface ChannelAccess {
@@ -37,6 +48,8 @@ export interface ChannelAccess {
   readonly policy: ChannelPolicy;
   readonly admins: readonly { humanId: string; displayName: string }[];
   readonly policyRevision?: string;
+  readonly canPost?: boolean;
+  readonly canEditDetails?: boolean;
 }
 
 export interface DirectoryEntry {
@@ -51,14 +64,37 @@ export function parseVisibility(value: unknown): ChannelVisibility {
   return { kind: 'private' };
 }
 
+function effect(value: unknown): PolicyValue {
+  return value === 'allow' || value === 'deny' ? value : 'inherit';
+}
+
 export function parsePolicy(value: unknown): ChannelPolicy {
-  const row = record(value) ?? {};
-  return Object.fromEntries(
-    POLICY_KEYS.map((key) => [
-      key,
-      row[key] === 'admins' || row[key] === 'everyone' ? row[key] : DEFAULT_POLICY[key],
-    ]),
-  ) as unknown as ChannelPolicy;
+  const row = record(value);
+  if (row?.version !== 1) return DEFAULT_POLICY;
+  const everyone = record(row.everyone);
+  return {
+    version: 1,
+    everyone: {
+      addMembers: effect(everyone?.addMembers),
+      post: effect(everyone?.post),
+      mentionAll: effect(everyone?.mentionAll),
+      addBots: effect(everyone?.addBots),
+      editDetails: effect(everyone?.editDetails),
+    },
+    overrides: list(row.overrides, (item) => {
+      const override = record(item);
+      if (typeof override?.roleId !== 'string') return undefined;
+      const actions = record(override.actions);
+      return {
+        roleId: override.roleId,
+        actions: Object.fromEntries(
+          POLICY_KEYS.flatMap((key) =>
+            actions?.[key] === undefined ? [] : [[key, effect(actions[key])]],
+          ),
+        ),
+      };
+    }),
+  };
 }
 
 export function parseChannelAccess(value: unknown): ChannelAccess | undefined {
@@ -89,6 +125,8 @@ export function parseChannelAccess(value: unknown): ChannelAccess | undefined {
     visibility: parseVisibility(row['visibility']),
     policy: parsePolicy(row['policy']),
     admins,
+    ...(typeof row.canPost === 'boolean' ? { canPost: row.canPost } : {}),
+    ...(typeof row.canEditDetails === 'boolean' ? { canEditDetails: row.canEditDetails } : {}),
     ...(typeof revision === 'string' && revision.length > 0 ? { policyRevision: revision } : {}),
   };
 }

@@ -1,6 +1,6 @@
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
-import type { GenuiPreviewDiagnostic } from './genui-preview.js';
+import type { AgentFeatureContribution } from './agent-feature-context.js';
 import type { ModelFreeTobCliInvocation } from '../tob/cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
@@ -93,9 +93,7 @@ export interface DshAgentPresetHost {
 
 export interface DshBotAgentAdapterOptions {
   tobCliInvocation?: ModelFreeTobCliInvocation;
-  onGenuiDiagnostic?: (event: GenuiPreviewDiagnostic) => void;
-  genuiPreviewBrowserPath?: string;
-  genuiAttachmentContext?: Pick<Context, 'get'>;
+  featureContributions?: readonly AgentFeatureContribution[];
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;

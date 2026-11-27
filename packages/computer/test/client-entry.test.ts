@@ -762,9 +762,10 @@ describe('live Computer status', () => {
       Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
       const events = resourceEvents();
       let phase = 'idle';
+      let target = 'container';
       const fetcher = vi.fn(async () =>
         Response.json({
-          target: 'container',
+          target,
           probe: { available: true },
           status: { state: 'stopped', phase },
         }),
@@ -794,6 +795,14 @@ describe('live Computer status', () => {
         await act(async () => vi.advanceTimersByTimeAsync(6_100));
         expect(fetcher).toHaveBeenCalledTimes(idle);
         expect(element.textContent).not.toContain(kind === 'panel' ? '正在启动' : '检查中');
+        if (kind === 'Local Computer') {
+          await act(async () => {
+            events.emit('computer');
+            await vi.advanceTimersByTimeAsync(30);
+          });
+          expect(element.textContent).not.toContain('检查中');
+          target = 'local';
+        }
         await act(async () => {
           events.emit('computer');
           await vi.advanceTimersByTimeAsync(30);

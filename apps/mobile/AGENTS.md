@@ -34,7 +34,7 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 - **Keep packages on the SDK's versions.** Add Expo and React Native packages with `npx expo install <pkg>`. Where the Expo API is unreachable (cloud sessions block `expo.dev`), take the range from `node_modules/expo/bundledNativeModules.json` and add it with `pnpm --filter @botharness/mobile add <pkg>@<range>`. Never hand-bump `expo`, `react`, `react-native` or `expo-*` versions; that is an `expo-upgrade` task.
 - **Use the SDK 58 dependency matrix.** Keep Hermes on the SDK default. SDK upgrades require native rebuilds; do not load this JavaScript into an SDK 57 development client.
 - **File writes are explicit.** SDK 58 `File.write()` is asynchronous. The existing synchronous persistence adapters use `File.writeSync()` so their failure handling and callers retain the same contract.
-- **A native change needs a new development build.** Adding a package with native code, a config plugin, or an `app.json` native field change means the installed dev build is stale; say so in the PR. JavaScript-only changes reload through Metro.
+- **Native changes need a compatible dev build.** Report native package, config plugin, or `app.json` native changes in the PR. Reload JS-only changes through Metro. For [Android QA builds](../../docs/agents/android-device-qa.md#machine-configuration-and-builds), check the APK cache first.
 - **No secrets in the bundle.** Anything in `EXPO_PUBLIC_*` variables or `app.json` ships inside the app. Tokens live only in `expo-secure-store` and are never logged.
 - **HTTPS for ordinary requests.** LAN uses only the restricted native `LanChannel` carrier for pinned-key Noise frames; it never sends ordinary HTTP or device credentials in plaintext. Keep general cleartext disabled. Tailscale uses HTTPS and Connect retains its encrypted carrier. See `docs/architecture/lan-phone-v1.md` at the repo root.
 - **Long lists virtualize.** Use `FlatList`/`SectionList` (or FlashList if measured), never `ScrollView` over `.map()`.
@@ -42,7 +42,7 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 
 ## Native UI verification
 
-Reserve [shared device QA](../../docs/agents/device-qa.md) before starting a Simulator, Metro, a build or a Host. Follow [mobile app verification](../../docs/agents/device-qa.md#mobile-app-verification-and-read-only-diagnostics) for native drives, regression flows, read-only diagnostics and cloud sessions. Keep [local QA evidence](../../docs/agents/qa-evidence.md).
+Reserve [shared device QA](../../docs/agents/device-qa.md) before starting a Simulator, Metro, a build or a Host. Follow [mobile app verification](../../docs/agents/device-qa.md#mobile-app-verification-and-read-only-diagnostics) and keep [local QA evidence](../../docs/agents/qa-evidence.md).
 
 Core controls carry a stable `testID` so flows and agents survive copy changes and the zh/en switch: `composer-input`, `composer-send`, `composer-attach`, `settings-button`, `approval-allow-once` / `approval-always-allow` / `approval-deny`, and `conversation-row-<key>` (`bot:<slug>`, `channel:<id>`, `cloud:<channelId>`). A new interactive control that a flow or agent will drive gets a kebab-case `testID` as well as its accessibility label; the label stays the user-facing contract and is never replaced by the `testID`.
 
