@@ -80,3 +80,14 @@ it('shows the current rules read-only to a member who cannot manage them', async
     '频道所有成员',
   );
 });
+
+it('lets a manager adopt the shown default on a legacy channel', async () => {
+  const onChange = await render(legacy, true);
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[data-channel-approval-row="seeApprovals"] button')!
+      .click(),
+  );
+  await act(async () => menuItem('频道所有成员').click());
+  expect(onChange).toHaveBeenCalledWith({ ...legacy, approvalMode: 'channel' });
+});

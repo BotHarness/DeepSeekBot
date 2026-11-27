@@ -153,3 +153,23 @@ it('locks the approval rows for someone who cannot change approval rules', async
     '谁能在这里审批 · 所有成员 · 拒绝',
   );
 });
+
+it('keeps a role with approval rules from being removed by someone who cannot change them', async () => {
+  await act(async () =>
+    root.render(
+      <ChannelPermissionTable
+        t={zhTranslate}
+        policy={{
+          ...policy,
+          overrides: [{ roleId: 'support', actions: { addBots: 'allow', seeApprovals: 'allow' } }],
+        }}
+        roles={roles}
+        disabled={false}
+        approvalLocked
+        onChange={() => undefined}
+      />,
+    ),
+  );
+  expect(host.querySelector('[data-permission-column="support"] button')).toBeNull();
+  expect(host.querySelector('[data-permission-column="support"]')?.textContent).toBe('Support');
+});

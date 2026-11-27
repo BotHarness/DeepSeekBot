@@ -56,6 +56,7 @@ export function ChannelApprovalSettings({
             label={title}
             value={choiceOf(policy, key)}
             disabled={disabled}
+            reselect={policy.approvalMode === 'legacy'}
             options={[
               { value: 'allow', label: labels.allow },
               { value: 'deny', label: labels.deny },

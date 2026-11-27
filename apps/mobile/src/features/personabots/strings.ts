@@ -225,6 +225,8 @@ export const en = {
       'This channel still uses the earlier approval behavior; the first rule you change here takes over.',
     managersOnly: 'Only channel admins can change approval rules.',
     saveFailed: 'The approval rule was not saved.',
+    refreshFailed: 'Saved, but the current rules could not be reloaded.',
+    readFailed: 'Could not load the approval rules.',
   },
   channelBots: {
     audience: 'Who can @mention this Bot',
@@ -485,6 +487,8 @@ export const zh: typeof en = {
     legacy: '这个频道还在用旧的审批方式；在这里改第一条规则后，改为按这些规则生效。',
     managersOnly: '只有频道管理员能修改审批规则。',
     saveFailed: '审批规则没有保存。',
+    refreshFailed: '已保存，但没能重新载入最新规则。',
+    readFailed: '审批规则没能载入。',
   },
   channelBots: {
     audience: '谁能 @ 它',

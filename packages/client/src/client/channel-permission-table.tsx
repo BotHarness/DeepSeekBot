@@ -11,6 +11,7 @@ import { Tag, type TagTone } from './ds/tag.js';
 import { ink, space, style, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
+  APPROVAL_KEYS,
   POLICY_KEYS,
   isApprovalKey,
   type ChannelPolicy,
@@ -161,7 +162,12 @@ export function ChannelPermissionTable({
                     {...stylex.props(styles.head)}
                     data-permission-column={column.roleId ?? 'everyone'}
                   >
-                    {column.roleId === undefined || disabled ? (
+                    {column.roleId === undefined ||
+                    disabled ||
+                    (approvalLocked &&
+                      APPROVAL_KEYS.some(
+                        (key) => column.actions[key] === 'allow' || column.actions[key] === 'deny',
+                      )) ? (
                       column.name
                     ) : (
                       <Menu

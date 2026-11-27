@@ -49,7 +49,7 @@ export function useGroupBotSettings(
   const latestSave = useRef(0);
   const [rules, setRules] = useState<ChannelApprovalRules>();
   const [rulesBusy, setRulesBusy] = useState(false);
-  const [rulesFailed, setRulesFailed] = useState(false);
+  const [rulesStatus, setRulesStatus] = useState<'readFailed' | 'saveFailed' | 'refreshFailed'>();
   const mount = useMounted<ViewInstance>(() => {
     if (!active || !client) return;
     let live = true;
@@ -57,10 +57,12 @@ export function useGroupBotSettings(
       const started = latestSave.current;
       void readChannelApprovalRules(client, channelId).then(
         (next) => {
-          if (live) setRules(next);
+          if (!live) return;
+          setRules(next);
+          setRulesStatus(undefined);
         },
         () => {
-          if (live) setRules(undefined);
+          if (live) setRulesStatus('readFailed');
         },
       );
       try {
@@ -139,19 +141,30 @@ export function useGroupBotSettings(
         </SettingsGroupItem>
       )),
     );
+  const reloadRules = async (afterSave: boolean) => {
+    if (!client) return;
+    try {
+      setRules(await readChannelApprovalRules(client, channelId));
+      if (!afterSave) setRulesStatus(undefined);
+    } catch {
+      setRulesStatus(afterSave ? 'refreshFailed' : 'readFailed');
+    }
+  };
   const saveRule = async (key: ChannelApprovalKey, value: ChannelApprovalChoice) => {
     if (!client || rules === undefined || rulesBusy) return;
     setRulesBusy(true);
-    setRulesFailed(false);
+    setRulesStatus(undefined);
     try {
       await setChannelApprovalRule(client, channelId, rules, key, value);
-      setRules(await readChannelApprovalRules(client, channelId));
     } catch {
-      setRulesFailed(true);
-      setRules(await readChannelApprovalRules(client, channelId).catch(() => rules));
-    } finally {
+      setRulesStatus('saveFailed');
+      await reloadRules(true).catch(() => undefined);
+      setRulesStatus('saveFailed');
       setRulesBusy(false);
+      return;
     }
+    await reloadRules(true);
+    setRulesBusy(false);
   };
   if (!bot && (view?.bots.length ?? 0) > 0) {
     heading('bots:heading', t.profileSettingsBot);
@@ -303,6 +316,23 @@ export function useGroupBotSettings(
       );
     }
   }
+  if (!bot && rules === undefined && rulesStatus === 'readFailed') {
+    const a = t.channelApprovals;
+    heading('approvals:heading', a.title);
+    add('approvals:error', () => <Text tone="danger">{a.readFailed}</Text>);
+    group(
+      ['retry'],
+      () => 'approvals:retry',
+      () => (
+        <SettingsRow
+          on={ON}
+          title={t.retry}
+          testID="channel-approvals-retry"
+          onPress={() => void reloadRules(false)}
+        />
+      ),
+    );
+  }
   if (!bot && rules !== undefined) {
     const a = t.channelApprovals;
     const labels = {
@@ -317,7 +347,14 @@ export function useGroupBotSettings(
       ] as const,
       ([key]) => `approvals:${key}`,
       ([key, title, value]) =>
-        rules.manager ? (
+        rules.manager && rulesBusy ? (
+          <SettingsRow
+            on={ON}
+            title={title}
+            detail={labels[key][value]}
+            control={{ kind: 'busy' }}
+          />
+        ) : rules.manager ? (
           <PreferenceRow
             on={ON}
             title={title}
@@ -348,7 +385,16 @@ export function useGroupBotSettings(
         />
       ),
     );
-    if (rulesFailed) add('approvals:error', () => <Text tone="danger">{a.saveFailed}</Text>);
+    if (rulesStatus !== undefined)
+      add('approvals:error', () => (
+        <Text tone="danger">
+          {rulesStatus === 'saveFailed'
+            ? a.saveFailed
+            : rulesStatus === 'refreshFailed'
+              ? a.refreshFailed
+              : a.readFailed}
+        </Text>
+      ));
     footer(
       'approvals:footer',
       !rules.manager ? a.managersOnly : rules.mode === 'legacy' ? a.legacy : a.byRole,
