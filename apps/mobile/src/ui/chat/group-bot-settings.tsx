@@ -24,23 +24,27 @@ export function useGroupBotSettings(
 ): { mount: (node: ViewInstance | null) => void; body: ProfileTabBody } {
   const t = useStrings();
   const [view, setView] = useState<ChannelBotsView>();
-  const [failed, setFailed] = useState(false);
+  const [readFailed, setReadFailed] = useState(false);
+  const [writeFailed, setWriteFailed] = useState(false);
+  const [readAttempt, setReadAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [draft, setDraft] = useState<ChannelBotAudience>();
   const writing = useRef(false);
+  const latestSave = useRef(0);
   const mount = useMounted<ViewInstance>(() => {
     if (!active || !client) return;
     let live = true;
     const unfollow = followConnection(client, async () => {
+      const started = latestSave.current;
       try {
         const value = await channelBotSettings(client, channelId);
-        if (live) {
+        if (live && started === latestSave.current) {
           setView(value);
-          setFailed(false);
+          setReadFailed(false);
         }
       } catch (error) {
-        if (live) setFailed(true);
+        if (live && started === latestSave.current) setReadFailed(true);
         throw error;
       }
     });
@@ -48,18 +52,21 @@ export function useGroupBotSettings(
       live = false;
       unfollow();
     };
-  }, [active, client, channelId]);
+  }, [active, client, channelId, readAttempt]);
   const bot = view?.bots.find((entry) => entry.botSlug === selected);
   const save = async (change: ChannelBotChange) => {
     if (bot === undefined || !client || writing.current) return;
     writing.current = true;
     setPending(true);
-    setFailed(false);
+    setWriteFailed(false);
     try {
-      setView(await channelBotSettings(client, channelId, { botSlug: bot.botSlug, change }));
+      const value = await channelBotSettings(client, channelId, { botSlug: bot.botSlug, change });
+      latestSave.current += 1;
+      setView(value);
+      setReadFailed(false);
       if (change.kind === 'audience') setDraft(undefined);
     } catch {
-      setFailed(true);
+      setWriteFailed(true);
     } finally {
       writing.current = false;
       setPending(false);
@@ -72,8 +79,19 @@ export function useGroupBotSettings(
   };
   const rows: ProfileRow[] = [];
   const add = (key: string, render: () => ReactNode) => rows.push({ key, render });
-  if (failed) add('error', () => <Text tone="danger">{t.channelBots.unavailable}</Text>);
-  if (!view && !failed) add('loading', () => <LoadingIndicator />);
+  if (readFailed || writeFailed)
+    add('error', () => <Text tone="danger">{t.channelBots.unavailable}</Text>);
+  if (readFailed)
+    add('retry', () => (
+      <SettingsRow
+        title={t.retry}
+        onPress={() => {
+          setReadFailed(false);
+          setReadAttempt((attempt) => attempt + 1);
+        }}
+      />
+    ));
+  if (!view && !readFailed) add('loading', () => <LoadingIndicator />);
   if (view?.bots.length === 0) add('empty', () => <Text tone="muted">{t.channelBots.empty}</Text>);
   if (!bot) {
     for (const entry of view?.bots ?? [])
