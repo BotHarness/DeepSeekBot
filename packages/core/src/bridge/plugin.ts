@@ -1,5 +1,4 @@
 import { sessionModelChoices } from '../runtime/session-model-choices.js';
-import type * as diagnosticsFeature from '../features/diagnostics/plugin.js';
 import type * as profileStorage from '../features/profile-storage/plugin.js';
 import type * as releaseFeature from '../features/release/plugin.js';
 import type * as approvalsFeature from '../features/approvals/plugin.js';
@@ -33,10 +32,14 @@ import {
 import type { createIdleCompactionSettings } from '../runtime/idle-compaction-settings.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 import { toolKindForView } from '../state/tool-activity.js';
-import type * as cloud from '../features/cloud/plugin.js';
+import type { CloudConnections } from '../cloud/connections.js';
+import type { CloudWork } from '../cloud/work.js';
+import type { ActiveDay } from '../telemetry/active-day.js';
+import type { TelemetryService } from '../telemetry/service.js';
 import type * as models from '../features/models/plugin.js';
 import * as marketplace from '../features/marketplace/plugin.js';
-import type * as skillsFeature from '../features/skills/plugin.js';
+import type { SkillCatalog } from '../skills/catalog.js';
+import type { DeveloperMode } from '../features/skills/plugin.js';
 import type { BotHarnessCore } from '../plugin-types.js';
 import type * as sessionsFeature from '../features/sessions/plugin.js';
 import type * as appearanceFeature from '../features/appearance/plugin.js';
@@ -48,14 +51,14 @@ export function createHostBridgeDependencies(
     core: BotHarnessCore;
     featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
-    skills: ReturnType<typeof skillsFeature.apply>;
+    skills: { catalog: SkillCatalog; reconcileBotMode(): void };
     release: ReturnType<typeof releaseFeature.apply>['release'];
     diagnosticEvents: DiagnosticEvents;
     liveAgent: ReturnType<typeof sessionsFeature.mountIdleCompaction>['liveAgent'];
     defaultModel: ReturnType<typeof models.createCatalog>['defaultModel'];
     compactionPolicy(): CompactionThresholdPolicy;
-    cloudConnections: ReturnType<typeof cloud.apply>['cloudConnections'];
-    cloudWork: ReturnType<typeof cloud.apply>['cloudWork'];
+    cloudConnections: CloudConnections;
+    cloudWork: CloudWork;
     approvalReviewer: ReturnType<typeof approvalsFeature.apply>['approvalReviewer'];
     botModes: ReturnType<typeof appearanceFeature.createBotModes>;
     idleCompactionSettings: ReturnType<typeof createIdleCompactionSettings>;
@@ -92,10 +95,10 @@ export function createHostBridgeDependencies(
     releaseService: ReturnType<typeof releaseFeature.mountServices>['releaseService'];
     pluginUpdates: ReturnType<typeof releaseFeature.mountServices>['pluginUpdates'];
     updateRuns: ReturnType<typeof releaseFeature.mountInstaller>['updateRuns'];
-    telemetry: ReturnType<typeof diagnosticsFeature.mountTelemetry>['telemetry'];
-    activeDay: ReturnType<typeof diagnosticsFeature.mountTelemetry>['activeDay'];
+    telemetry: Pick<TelemetryService, 'status' | 'setPreference' | 'capture'>;
+    activeDay: ActiveDay;
     git: ReturnType<typeof createGitService>;
-    developerMode: ReturnType<typeof skillsFeature.createDeveloperMode>;
+    developerMode: Pick<DeveloperMode, 'set'>;
     readonly voiceCalls: VoiceCalls | undefined;
   },
 ): BridgeMethodsDeps {

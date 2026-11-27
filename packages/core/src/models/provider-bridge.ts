@@ -9,7 +9,7 @@ import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { ModelPresetError } from './presets.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import {
   addModelProviderInput,
   editModelProviderInput,

@@ -26,7 +26,7 @@ describe('M9 member lifecycle', { timeout: 60_000 }, () => {
     '%s enforces permission, Owner protection, self protection and missing targets at the service boundary',
     async (method) => {
       const f = await enabledFixture();
-      const { createTeamBridge } = await import('../src/team/bridge.js');
+      const { createTeamBridge } = await import('../src/features/team/bridge.js');
       expect(await createTeamBridge(f.human, f.team)[method](payload('absent'))).toMatchObject({
         ok: false,
         error: { code: 'permission-required', details: { permission: 'members.manage' } },

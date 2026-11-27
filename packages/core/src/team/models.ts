@@ -3,8 +3,8 @@ import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { ModelRoute } from '../models/presets.js';
 import type { TeamService } from './service.js';
 import { requireEngineAccountGrant } from './roles.js';
-import { TeamError } from './error.js';
-import { allowsEngineAccount, allowsModel } from './permissions.js';
+import { TeamError } from '../team-policy/error.js';
+import { allowsEngineAccount, allowsModel } from '../team-policy/permissions.js';
 
 export function engineAccountFilter(team: TeamService | undefined, human: HumanContext) {
   const grants = team?.roles.modelsAllowed(human);

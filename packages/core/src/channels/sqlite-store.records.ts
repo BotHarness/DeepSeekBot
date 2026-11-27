@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import type { HumanContext } from '../humans/context.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { isValidSlug } from '../bots/slug.js';

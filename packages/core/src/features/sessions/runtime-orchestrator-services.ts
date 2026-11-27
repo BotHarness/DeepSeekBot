@@ -21,7 +21,7 @@ import type { InboxHistoryQuery } from '../../runtime/inbox-history.js';
 import type { InboxTriage, OrchestratorInboxTriage } from '../../runtime/inbox-triage.js';
 import { sessionDirectSpeaker } from '../../runtime/session-direct-message.js';
 import type { BotSourcePolicyStore } from '../../runtime/source-policy.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import type { TeamService } from '../../team/service.js';
 import { holdsManagementGrant } from '../../tob/management-grants.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';

@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { resolveBotMode } from '../src/runtime/bot-mode-settings.js';
+import { resolveBotMode } from '../src/appearance/bot-mode-settings.js';
 
 const MODES = ['deepseekbot', 'standard', 'minimal', 'ptc', 'acp', 'research'];
 const mode = fc.constantFrom(...MODES);

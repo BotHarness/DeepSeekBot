@@ -15,7 +15,7 @@ import {
   type ManagedPhoneRouteState,
   type RunCommand,
 } from '../src/devices/routes.js';
-import { memberRoutes } from '../src/team/member-urls.js';
+import { memberRoutes } from '../src/features/team/devices.js';
 
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {

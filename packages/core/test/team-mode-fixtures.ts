@@ -1,6 +1,6 @@
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { createMemberDevices } from '../src/team/devices.js';
-import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createMemberDevices } from '../src/features/team/devices.js';
+import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createChannelDiscovery } from '../src/devices/channel-discovery.js';
 import {
@@ -18,7 +18,7 @@ import { createChannelLiveHub } from '../src/channels/live.js';
 import { createChannelManagement } from '../src/channels/management.js';
 import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { stampConnectRoute } from '../src/devices/route-context.js';
-import { createTeamHttp, TEAM_PATH } from '../src/team/http.js';
+import { createTeamHttp, TEAM_PATH } from '../src/features/team/http.js';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
@@ -29,7 +29,7 @@ import { vi, type Mock } from 'vitest';
 import { z } from 'zod';
 import { mountContentPurge } from '../src/purge/owner.js';
 import { TeamService } from '../src/team/service.js';
-import { memberPolicy } from '../src/team/policy.js';
+import { memberPolicy } from '../src/features/team/member-remote-policy.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { composerRecoveryIdentity } from '../src/bridge/composer-recovery.js';

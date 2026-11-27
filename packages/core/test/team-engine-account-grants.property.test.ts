@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { it, expect } from 'vitest';
-import { allowsEngineAccount, type ModelsAllowed } from '../src/team/permissions.js';
+import { allowsEngineAccount, type ModelsAllowed } from '../src/team-policy/permissions.js';
 
 it('requires membership of the exact account ID regardless of API model scope', () => {
   fc.assert(

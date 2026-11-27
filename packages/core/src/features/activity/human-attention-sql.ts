@@ -1,6 +1,6 @@
 import { notChannelNoticeSql } from '../../channels/channel-notice.js';
-import { channelRoleEligibleSql } from '../../team/channel-contract.js';
-import { roleGrantsPermissionSql } from '../../team/host-permissions.js';
+import { channelRoleEligibleSql } from '../../team-policy/channel-contract.js';
+import { roleGrantsPermissionSql } from '../../team-policy/host-access.js';
 
 export const attentionBotOwner = (slug: string): string =>
   `coalesce((SELECT b.owner_human_id FROM persona_bots b WHERE b.slug = ${slug}), 'local-human') = $humanId`;

@@ -1,6 +1,6 @@
 import { canonicalCliCommandName } from './cli-command-names.js';
 import { CliLiveError } from './cli-live-error.js';
-import { INHERIT_BOT_MODE } from '../runtime/bot-mode-settings.js';
+import { INHERIT_BOT_MODE } from '../appearance/bot-mode-settings.js';
 
 type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown>;
 

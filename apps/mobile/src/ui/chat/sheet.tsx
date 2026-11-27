@@ -32,6 +32,7 @@ export function Sheet({
   animationType = 'fade',
   fill = false,
   resizable = false,
+  androidFill,
   trailing,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
@@ -46,6 +47,7 @@ export function Sheet({
   animationType?: 'none' | 'slide' | 'fade';
   fill?: boolean;
   resizable?: boolean;
+  androidFill?: boolean;
   trailing?: ReactNode;
 }) {
   if (Page !== undefined)
@@ -68,6 +70,7 @@ export function Sheet({
         animationType={animationType}
         fill={fill}
         resizable={resizable}
+        androidFill={androidFill}
       >
         {title === undefined ? null : (
           <SheetHeader

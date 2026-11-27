@@ -62,7 +62,7 @@
     {
       "id": "team.channel-auto-join",
       "label": "Members join every Channel they can see and leave it as soon as they no longer can",
-      "source": "packages/core/src/team/channel-contract.ts",
+      "source": "packages/core/src/team-policy/channel-contract.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
       "task": 4222,
       "gap": "Packaged Host, CLI member carrier and rendered member Web Client; native mobile and Human acceptance are separate."
@@ -86,7 +86,7 @@
     {
       "id": "team.member-sign-in",
       "label": "Host member sign-in, public Channels and local CLI member dispatch",
-      "source": "packages/core/src/team/http.ts",
+      "source": "packages/core/src/features/team/http.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
       "task": 4140,
       "gap": "Native mobile sign-in is M8; the member browser journey is qualified on a LAN address of the Host machine with a task-only certificate."

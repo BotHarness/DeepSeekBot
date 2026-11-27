@@ -8,7 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 
 import {
   CLAUDE_MIN_VERSION,

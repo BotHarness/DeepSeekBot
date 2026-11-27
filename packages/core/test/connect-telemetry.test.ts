@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 
-import { recordConnectTelemetry } from '../src/devices/mount.js';
+import { recordConnectTelemetry } from '../src/features/environments/mount.js';
 
 it('maps Connect sign-in phases to the tracking plan and ignores the rest', () => {
   const capture = vi.fn();

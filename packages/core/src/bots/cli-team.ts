@@ -1,16 +1,16 @@
 import { readTeamMode } from '@botharness/host-client/people';
 import { readChannel } from '@botharness/host-client/channel-management';
-import { channelBotAudienceSchema } from '../team/channel-bots.js';
 export { TEAM_OPTIONS } from './cli-option-spec.js';
-import { botVisibilitySchema, rolePolicySchema } from '../team/bot-contract.js';
+import { botVisibilitySchema, rolePolicySchema } from '../team-policy/bot-contract.js';
 
-import { privateKindSchema } from '../team/private-contract.js';
+import { privateKindSchema } from '../team-policy/private-content.js';
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import {
+  channelBotAudienceSchema,
   channelPolicySchema,
   channelVisibilitySchema,
   channelPolicyRevisionSchema,
-} from '../team/channel-contract.js';
+} from '../team-policy/channel-contract.js';
 import { closeSync, fchmodSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { CliLiveError } from './cli-live-error.js';

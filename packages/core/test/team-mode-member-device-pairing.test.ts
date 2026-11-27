@@ -1,7 +1,7 @@
 import { parsePairingLink, redeemPairing, pairHost } from '@botharness/host-client/pairing';
-import { memberRoutes } from '../src/team/member-urls.js';
+import { memberRoutes } from '../src/features/team/devices.js';
 import { WebSocket } from 'ws';
-import { TEAM_PATH } from '../src/team/http.js';
+import { TEAM_PATH } from '../src/features/team/http.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';

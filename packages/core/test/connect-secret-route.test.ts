@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { SECRET_ROUTE_METHODS } from '../src/bridge/secret-route.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
-import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { DEVICE_ROUTE_HEADER, stampConnectRoute } from '../src/devices/route-context.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';

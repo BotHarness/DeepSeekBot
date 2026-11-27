@@ -1,6 +1,7 @@
 import { toRemoteError } from '../kernel/rpc-result.js';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
-import { TeamError, type TeamService } from '../team/service.js';
+import { TeamError } from '../team-policy/error.js';
+import { type TeamService } from '../team/service.js';
 import { type HumanContext } from '../humans/context.js';
 import type { AllBotPreview } from '../channels/all-bot-mention.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -30,7 +31,6 @@ import {
 } from '../features/channels/rpc.js';
 import { sessionBotRpc } from '../features/sessions/session-bot-rpc.js';
 import { channelFilesRpcMethods } from '../features/channel-files/rpc.js';
-import { appearanceRpcMethods, botModeRpc } from '../features/appearance/rpc.js';
 import {
   privateInputRpc,
   externalApprovalRpc,
@@ -45,9 +45,7 @@ import {
   messagingPolicyRpc,
   messagingConnectionRpc,
 } from '../features/messaging/rpc.js';
-import { cloudServiceRpc } from '../features/cloud/rpc.js';
 import { tobRpcMethods, directBotToolRpc } from '../features/tob/rpc.js';
-import { diagnosticsRpcMethods, hostDiagnosticsRpc } from '../features/diagnostics/rpc.js';
 import { modelsRpcMethods, modelConfigurationRpc } from '../features/models/rpc.js';
 import {
   sessionsRpcMethods,
@@ -62,8 +60,6 @@ import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc
 import { marketplaceSkillRpc } from '../features/marketplace/skill-rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
 import { voiceProviderRpc, voiceSettingsRpc } from '../features/voice/rpc.js';
-import { avatarRpc } from '../features/avatars/rpc.js';
-import { skillRpc } from '../features/skills/rpc.js';
 import {
   assignmentsRpcMethods,
   assignmentRpc,
@@ -71,7 +67,6 @@ import {
 } from '../features/assignments/rpc.js';
 import { workspacesRpcMethods, workspaceGrantRpc } from '../features/workspaces/rpc.js';
 import { memoryRpcMethods, memoryServiceRpc } from '../features/memory/rpc.js';
-import { usageRpcMethods, overviewUsageRpc } from '../features/usage/rpc.js';
 import { releaseRpc } from '../features/release/rpc.js';
 import { takeoverRpc } from '../features/takeover/rpc.js';
 import {
@@ -163,19 +158,16 @@ const legacyRpcMethods = {
   channelJournalPage: channelsRpcMethods.channelJournalPage,
   channelFilesPage: channelFilesRpcMethods.channelFilesPage,
   ...channelChangeRpc,
-  followCompanion: appearanceRpcMethods.followCompanion,
   ...privateInputRpc,
   ...channelMessagingRpc,
   ...externalApprovalRpc,
   ...messagingPolicyRpc,
-  ...cloudServiceRpc,
   ...messagingConnectionRpc,
   tobHome: tobRpcMethods.tobHome,
   managementGrants: tobRpcMethods.managementGrants,
   managementGrantSet: tobRpcMethods.managementGrantSet,
   onboarding: personabotsRpcMethods.onboarding,
   onboardingModel: personabotsRpcMethods.onboardingModel,
-  telemetryEvent: diagnosticsRpcMethods.telemetryEvent,
   modelPlanInherit: modelsRpcMethods.modelPlanInherit,
   modelPlanReset: modelsRpcMethods.modelPlanReset,
   channelRetry: channelsRpcMethods.channelRetry,
@@ -193,19 +185,15 @@ const legacyRpcMethods = {
   ...approvalTemplateReadRpc,
   ...approvalTemplateWriteRpc,
   ...voiceProviderRpc,
-  ...botModeRpc,
   ...voiceSettingsRpc,
   ...approvalReviewerRpc,
   ...compactionSettingsRpc,
   standingLimitsSet: personabotsRpcMethods.standingLimitsSet,
-  ...avatarRpc,
   ...channelManagementRpc,
-  ping: diagnosticsRpcMethods.ping,
   composerValidate: channelsRpcMethods.composerValidate,
   ...channelDeletionRpc,
   ...profileStorageRpc,
   ...channelHistoryRpc,
-  ...skillRpc,
   channelAllBotPreview: channelsRpcMethods.channelAllBotPreview,
   tobCli: tobRpcMethods.tobCli,
   ...channelSendRpc,
@@ -226,16 +214,12 @@ const legacyRpcMethods = {
   memoryMove: memoryRpcMethods.memoryMove,
   ...sessionOwnerRpc,
   ...memoryServiceRpc,
-  ...overviewUsageRpc,
   profileActivity: activityRpcMethods.profileActivity,
-  profileSessionUsage: usageRpcMethods.profileSessionUsage,
   groupProfileActivity: activityRpcMethods.groupProfileActivity,
   ...rosterSettingsRpc,
-  developerModeSet: diagnosticsRpcMethods.developerModeSet,
   ...marketplaceServiceRpc,
   ...marketplaceSkillRpc,
   ...releaseRpc,
-  ...hostDiagnosticsRpc,
   ...takeoverRpc,
 };
 
@@ -245,8 +229,16 @@ function contributedRpcMethods(features: RegisteredFeatures) {
   );
 }
 
+function contributedRpcStreams(features: RegisteredFeatures) {
+  return mergeFeatureMethods(
+    features.flatMap((feature) => ('streams' in feature ? [feature.streams] : [])),
+  );
+}
+
 type PublicRpcMethods = Omit<
-  typeof legacyRpcMethods & ReturnType<typeof contributedRpcMethods>,
+  typeof legacyRpcMethods &
+    ReturnType<typeof contributedRpcMethods> &
+    ReturnType<typeof contributedRpcStreams>,
   'requireApproval' | 'requirePrivateOwner'
 >;
 
@@ -342,8 +334,6 @@ const legacyRemoteMethods = [
   'failureAlertsRetry',
   'pairingReview',
   'senderAccess',
-  'cloudConnections',
-  'cloudWork',
   'messagingApps',
   'messagingSnapshot',
   'messagingTargets',
@@ -361,7 +351,6 @@ const legacyRemoteMethods = [
   'managementGrantSet',
   'onboarding',
   'onboardingModel',
-  'telemetryEvent',
   'modelPlanInherit',
   'modelPlanReset',
   'channelRetry',
@@ -431,7 +420,6 @@ const legacyRemoteMethods = [
   'pause',
   'resume',
   'channels',
-  'ping',
   'composerValidate',
   'channelDm',
   'channelGet',
@@ -468,11 +456,6 @@ const legacyRemoteMethods = [
   'channelUnreadCounts',
   'channelAllBotPreview',
   'tobCli',
-  'channelSkillCatalog',
-  'sessionSkillCatalog',
-  'botSkills',
-  'skillShow',
-  'botSkillRemove',
   'channelSend',
   'channelSendStatus',
   'botAttention',
@@ -556,10 +539,7 @@ const legacyRemoteMethods = [
   'memoryVersions',
   'memoryRepair',
   'profileActivity',
-  'profileSessionUsage',
   'overviewMemory',
-  'overviewUsage',
-  'profileUsage',
   'groupProfileActivity',
   'rosterGet',
   'sectionCreate',
@@ -572,7 +552,6 @@ const legacyRemoteMethods = [
   'hiddenSet',
   'channelMuteSet',
   'rosterBatch',
-  'developerModeSet',
   'approvalTemplates',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
@@ -596,12 +575,6 @@ const legacyRemoteMethods = [
   'voiceTranscribe',
   'botAsrSet',
   'voiceDefaultSet',
-  'botModes',
-  'botModeDefaultSet',
-  'botModeSet',
-  'botModeTemplateSave',
-  'botModeTemplateDelete',
-  'botModeTemplateSet',
   'voiceSpeechThresholdSet',
   'voiceDictation',
   'idleCompaction',
@@ -609,15 +582,6 @@ const legacyRemoteMethods = [
   'idleCompactionCacheLifetimeSet',
   'compactionThresholdSet',
   'standingLimitsSet',
-  'botAvatarSet',
-  'botAppearanceSet',
-  'botPrimaryColorSet',
-  'partLibraryList',
-  'partLibraryAdd',
-  'partLibraryExport',
-  'partLibraryImport',
-  'partLibraryImportImage',
-  'botBannerSet',
   'marketplaceList',
   'marketplaceSubmit',
   'marketplaceTopics',
@@ -669,10 +633,6 @@ const legacyRemoteMethods = [
   'pluginRestart',
   'updateRun',
   'updateCancel',
-  'telemetryStatus',
-  'telemetrySet',
-  'gitStatus',
-  'gitInstall',
   'takeoverList',
   'takeoverStatus',
   'takeoverRequest',
@@ -687,7 +647,8 @@ const legacyRemoteMethods = [
 ];
 function installRemoteMethods(prototype: object, features: RegisteredFeatures): void {
   const contributions = contributedRpcMethods(features);
-  const methods = mergeFeatureMethods([legacyRpcMethods, contributions]);
+  const streams = contributedRpcStreams(features);
+  const methods = mergeFeatureMethods([legacyRpcMethods, contributions, streams]);
   for (const [name, method] of Object.entries(methods)) {
     Object.defineProperty(prototype, name, { configurable: true, writable: true, value: method });
   }
@@ -696,7 +657,7 @@ function installRemoteMethods(prototype: object, features: RegisteredFeatures): 
     'followRoster',
     'followActivity',
     'followChannel',
-    'followCompanion',
+    ...Object.keys(streams),
   ]);
 }
 

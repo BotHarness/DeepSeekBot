@@ -17,7 +17,7 @@ import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { sessionToolInputPreview } from './runtime/session-tool-detail.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
-import type { TeamError } from './team/error.js';
+import type { TeamError } from './team-policy/error.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { createPresence } from './push/presence.js';
 import type { VoiceCallMedia, VoiceCalls } from './voice/calls.js';
@@ -52,14 +52,14 @@ import type { PersonaBotActivityEvent } from './state/bot-state.js';
 import type { BotSubagentPresetConfig } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import * as activityFeature from './features/activity/plugin.js';
-import * as avatars from './features/avatars/plugin.js';
-import * as cloud from './features/cloud/plugin.js';
+import { createCloudResources } from './cloud/host-resources.js';
 import * as environments from './features/environments/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as marketplace from './features/marketplace/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import * as skillsFeature from './features/skills/plugin.js';
+import { nativeSkillHost } from './runtime/native-agent-compat.js';
 import * as voice from './features/voice/plugin.js';
 import type { HostFetchConnection } from './plugin-types.js';
 import { createHostCoreOptions } from './host-core-options.js';
@@ -71,11 +71,10 @@ import { createSessionListChanges } from './features/sessions/session-list-chang
 import * as channelsFeature from './features/channels/plugin.js';
 import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
-import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
-import { createFeatureContributions } from './feature-contributions.js';
+import { createFeatureContributions, forEachHostFeature } from './feature-contributions.js';
 import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
@@ -186,7 +185,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const { profile, releaseAnchors } = releaseFeature.resolveProfile(ctx, installedPackage);
   const dshHome = resolveDshHome();
   profileStorage.apply(ctx, dshHome);
-  diagnosticsFeature.mountClientDiagnostics(ctx, dshHome);
+  const featureContributions = createFeatureContributions({
+    genui: {
+      browserPath: config.genuiPreviewBrowserPath,
+      onDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
+      attachmentContext: ctx,
+    },
+  });
+  forEachHostFeature(featureContributions, (hooks) => hooks.profileStartup?.(ctx, dshHome));
   const botModes = appearanceFeature.createBotModes(
     ctx,
     dshHome,
@@ -262,13 +268,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     get templateInUse() {
       return templateInUse;
-    },
-  });
-  const featureContributions = createFeatureContributions({
-    genui: {
-      browserPath: config.genuiPreviewBrowserPath,
-      onDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
-      attachmentContext: ctx,
     },
   });
   const agentAdapter = personabotsFeature.createHostAgentAdapter(ctx, config, {
@@ -423,12 +422,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     packageAnchors: releaseAnchors,
     push: activityFeature.createPush(core, presence),
   });
-  diagnosticsFeature.mountTelemetryWatches(ctx, core, {
-    telemetry,
-    telemetryDir,
-    telemetryState,
-    activeDay,
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterEnvironments?.(ctx, core, { telemetry, telemetryDir, telemetryState, activeDay }),
+  );
   personabotsFeature.mountRosterCleanup(ctx, core);
   ctx.effect(() => {
     const controller = new AbortController();
@@ -475,9 +471,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   mountTakeoverTools(ctx, core, takeovers);
   messaging.mountCleanup(ctx, core);
-  const { cloudConnections, cloudWork } = cloud.apply(ctx, core);
+  const { cloudConnections, cloudWork } = createCloudResources(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeEngineTools?.(ctx, core, cloudWork),
+  );
   memoryFeature.mountEngineTools(ctx, core);
-  cloud.mount(ctx, core, cloudConnections, cloudWork);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeMessagingProviders?.(ctx, core, cloudConnections, cloudWork),
+  );
   messaging.mountProviders(ctx, core);
 
   const { permissionDenial, recordOrchestratorPermission, appliedPermission } =
@@ -538,14 +539,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const developerMode = skillsFeature.createDeveloperMode(
     () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
   );
-  ctx.inject(['settings'], (settingsCtx) => {
-    const events = settingsCtx as unknown as {
-      on(event: 'settings/document-updated', listener: (namespace: string) => void): void;
-    };
-    developerMode.mountSettings(settingsCtx, (listener) =>
-      events.on('settings/document-updated', listener),
-    );
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeReleaseInstaller?.(ctx, developerMode),
+  );
   const { releaseInstaller, updateRuns, releaseRestarter } = releaseFeature.mountInstaller(
     ctx,
     updateLifecycle,
@@ -589,7 +585,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     account: () => connectAccount,
   });
-  const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const skills = skillsFeature.createSkillResources(ctx, core, {
+    botModeOf,
+    diagnosticEvents,
+    nativeHost: nativeSkillHost,
+  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeSessionChangeTracking?.(skills.mountWatch),
+  );
   const sessionListChanges = createSessionListChanges(() =>
     core.live.publishResourceChanged('sessions'),
   );
@@ -753,11 +756,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     featureContributions,
   );
 
-  skills.mountNative({
-    developerMode,
-    getRegistrar: (skillsCtx) => (skillsCtx as unknown as { skills: SkillRegistrar }).skills,
-    localVoiceSkill: voice.localVoiceSkill,
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.beforeConnections?.(skills.mountNative, {
+      developerMode,
+      getRegistrar: (skillsCtx) => (skillsCtx as unknown as { skills: SkillRegistrar }).skills,
+      localVoiceSkill: voice.localVoiceSkill,
+    }),
+  );
 
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = (connectionCtx as unknown as { connection: HostFetchConnection }).connection;
@@ -771,18 +776,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return toolApproval;
       },
     });
-    appearanceFeature.mountDesktopRoutes(ctx, connectionCtx, connection, {
-      team,
-      presence,
-      dshHome,
-      profile,
-    });
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.beforeVoiceRoutes?.(ctx, connectionCtx, connection, {
+        team,
+        presence,
+        dshHome,
+        profile,
+      }),
+    );
     voice.mountFetch(connectionCtx, connection.fetch, () => voiceCalls);
     channelsFeature.mountLiveRoute(connectionCtx, connection, core);
-    appearanceFeature.mountCompanionRoute(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.afterLiveRoute?.(connectionCtx, connection, core),
+    );
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
     channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
-    avatars.mountRoutes(connectionCtx, () => connection.fetch, core.registry);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.beforeWorkspaceFavicon?.(connectionCtx, connection, core),
+    );
     const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
     connectionCtx.effect(
       () =>
@@ -803,11 +814,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       runningRelease,
       modelCatalog,
     });
-    diagnosticsFeature.mountFetch(ctx, connectionCtx, connection.fetch, core, {
-      dshHome,
-      dshSessions,
-      runningRelease,
-    });
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.connectionRoutes?.(ctx, connectionCtx, connection.fetch, core, {
+        dshHome,
+        dshSessions,
+        runningRelease,
+      }),
+    );
     marketplace.mountZipRoutes(connectionCtx, () => connection.fetch, botZipHttp);
   });
   const activity = activityFeature.apply(
@@ -818,14 +831,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
   );
 
-  ctx.on(
-    'subagent/start',
-    (info) => {
-      const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession;
-      if (parentSessionId) core.usage?.bindParentTurn(info.id, parentSessionId);
-    },
-    { global: true },
-  );
+  forEachHostFeature(featureContributions, (hooks) => hooks.beforeSessionLifecycle?.(ctx, core));
 
   const botTurnTelemetry = diagnosticsFeature.createTurnTelemetry(ctx, core, telemetry, liveAgent);
   const turnLog = diagnosticsFeature.createTurnDiagnostics(core, diagnosticEvents);
@@ -843,7 +849,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     openAssignmentRoutes,
     effectivePlan: routingDefaults.effectivePlan,
   });
-  usageFeature.mountReconciliation(ctx, core, dshSessions);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterSessionLifecycle?.(ctx, core, dshSessions),
+  );
 
   ctx.inject(['storageDomain'], (storageCtx) => {
     void core.roster.attach(storageCtx.storageDomain).catch(() => {

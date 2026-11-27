@@ -10,39 +10,12 @@ import {
   setChannelSenderBlock,
 } from '../messaging/permissions/sender-blocks.js';
 import type { TeamChannels } from './channels.js';
-import { mergeChannelAction } from './host-permissions.js';
-import { channelPolicySchema, type ChannelPolicy } from './channel-contract.js';
-import { TeamError } from './error.js';
-
-export const channelBotAudienceSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('everyone') }),
-  z.strictObject({ kind: z.literal('admins') }),
-  z.strictObject({
-    kind: z.literal('roles'),
-    roleIds: z.array(z.string().min(1)).min(1).max(100),
-  }),
-]);
-
-export const channelBotChangeSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('audience'), audience: channelBotAudienceSchema }),
-  z.strictObject({ kind: z.literal('block'), humanId: z.string().min(1), blocked: z.boolean() }),
-]);
+import { allowsBotMention } from '../team-policy/channel-access.js';
+import { channelBotAudienceSchema, channelPolicySchema } from '../team-policy/channel-contract.js';
+import { TeamError } from '../team-policy/error.js';
 
 type Audience = z.infer<typeof channelBotAudienceSchema>;
 const everyone: Audience = { kind: 'everyone' };
-
-export function allowsBotMention(
-  policy: ChannelPolicy,
-  audience: Audience,
-  roleIds: ReadonlySet<string>,
-  admin: boolean,
-): boolean {
-  return (
-    (admin || mergeChannelAction(policy, roleIds, 'wakeBot')) &&
-    (audience.kind === 'everyone' ||
-      (audience.kind === 'admins' ? admin : audience.roleIds.some((id) => roleIds.has(id))))
-  );
-}
 
 const audienceRows = z.array(z.object({ bot_slug: z.string(), audience_json: z.string() }));
 const roleRows = z.array(z.object({ role_id: z.string() }));

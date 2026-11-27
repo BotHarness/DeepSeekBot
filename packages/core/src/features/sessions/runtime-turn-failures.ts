@@ -16,7 +16,7 @@ import {
   RouteRestingError,
 } from '../../runtime/orchestrator-continuation.js';
 import type { createOrchestratorScheduling } from '../../runtime/orchestrator-scheduling.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 
 export function sessionFailureDetails(error: unknown): {
   code?: string;

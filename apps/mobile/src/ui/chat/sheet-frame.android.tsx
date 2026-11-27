@@ -8,11 +8,19 @@ import { useDesignTheme } from '../design/theme';
 import { SystemSheet } from '../primitives/system-sheet';
 import type { SheetFrameProps } from './sheet-frame';
 
-export function SheetFrame({ visible, label, onClose, children, resizable }: SheetFrameProps) {
+export function SheetFrame({
+  visible,
+  label,
+  onClose,
+  children,
+  resizable,
+  androidFill,
+}: SheetFrameProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const keyboard = useKeyboardState((state) => (state.isVisible ? state.height : 0));
+  const contentHeight = height - insets.top - insets.bottom - theme.touch * 2 - keyboard;
   if (!visible) return null;
   return (
     <Host
@@ -28,9 +36,10 @@ export function SheetFrame({ visible, label, onClose, children, resizable }: She
             onAccessibilityEscape={onClose}
             style={
               resizable === true
-                ? { height: height - insets.top - insets.bottom - theme.touch * 2 - keyboard }
+                ? { height: contentHeight }
                 : {
-                    maxHeight: height - insets.top - insets.bottom - theme.touch * 2 - keyboard,
+                    maxHeight: contentHeight,
+                    height: androidFill ? contentHeight : undefined,
                     paddingBottom: space.x5,
                   }
             }

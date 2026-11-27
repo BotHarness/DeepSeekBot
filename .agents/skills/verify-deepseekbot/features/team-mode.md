@@ -2,15 +2,15 @@
 
 ## Sources
 
-- `packages/core/src/features/team/plugin.ts`
+- `packages/core/src/features/team/**`
 - `packages/core/src/team/**`
+- `packages/core/src/team-policy/**`
 - `packages/client/src/client/team-*`
 - `packages/client/src/client/owner-password-dialog.tsx`
 - `packages/host-client/src/team-*.ts`
 - `packages/host-client/src/sign-in-discovery.ts`
 - `packages/host-client/src/shared/team-sign-in-page.ts`
 - `packages/host-client/src/connect-input.ts`
-- `packages/core/src/features/team/{methods,rpc}.ts`
 - `packages/client/src/client/features/team/bridge.ts`
 - `packages/core/src/features/humans/{methods,rpc}.ts`
 - `packages/client/src/client/features/humans/bridge.ts`

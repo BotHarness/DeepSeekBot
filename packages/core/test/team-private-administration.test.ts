@@ -16,14 +16,10 @@ import { registerBridge } from '../src/bridge/rpc.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
-import { memberPolicy } from '../src/team/policy.js';
-import { guardHumanBridge } from '../src/team/bridge-access.js';
-import {
-  botAdminActionSchema,
-  botMetadata,
-  administrativeResult,
-} from '../src/team/bot-administration.js';
-import { auditRecordSchema } from '../src/team/private-contract.js';
+import { memberPolicy } from '../src/features/team/member-remote-policy.js';
+import { guardHumanBridge } from '../src/features/team/bridge-access.js';
+import { botMetadata, administrativeResult } from '../src/features/team/bot-administration.js';
+import { auditRecordSchema, botAdminActionSchema } from '../src/team/private-contract.js';
 import { PrivateAudit } from '../src/team/audit.js';
 import {
   createTobBotProfileOperations,

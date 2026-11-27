@@ -173,6 +173,16 @@ export function hostAgentPresets<Presets>(ctx: Context): Presets | undefined {
     : undefined;
 }
 
+export const nativeSkillHost = {
+  agentFor: hostSkillAgent,
+  presets: hostAgentPresets,
+  registry: hostSkillRegistry,
+  degrade: degradeHostCapability,
+  installInvalidation: installHostSkillInvalidation,
+  onSkillsChange: onHostSkillsChange,
+  onAgentsChange: onHostSkillAgentsChange,
+};
+
 export function hostSessionStore<Store>(ctx: Context): Store | undefined {
   const sessions: unknown = Reflect.get(ctx, 'sessions');
   return typeof sessions === 'object' &&

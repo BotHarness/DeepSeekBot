@@ -1,4 +1,4 @@
-import { TeamError } from '../src/team/error.js';
+import { TeamError } from '../src/team-policy/error.js';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/agent-adapter.js';

@@ -21,6 +21,7 @@ const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlit
 
 const CLIENT_HOST_BASELINE = 'scripts/client-host-import-baseline.json';
 const KERNEL_SOURCE = `${CORE_SOURCE}/kernel/`;
+const TEAM_POLICY_SOURCE = `${CORE_SOURCE}/team-policy/`;
 
 function isRuntimeImport(node) {
   switch (node.type) {
@@ -96,6 +97,19 @@ function inspectPackageBoundaries(file, source, workspaces) {
         errors.push(
           `${file}:${input.loc.start.line}: Kernel must not depend on another Host core module (${staticSpecifier})`,
         );
+    }
+    if (staticSpecifier && file.startsWith(TEAM_POLICY_SOURCE)) {
+      const target = relativeTarget ?? staticSpecifier;
+      const internal =
+        target === CORE_SOURCE ||
+        target.startsWith(`${CORE_SOURCE}/`) ||
+        target === '@botharness/core' ||
+        target.startsWith('@botharness/core/');
+      if (internal && !target.startsWith(TEAM_POLICY_SOURCE) && !target.startsWith(KERNEL_SOURCE)) {
+        errors.push(
+          `${file}:${input.loc.start.line}: Team Policy may only depend on Kernel within Host core (${staticSpecifier})`,
+        );
+      }
     }
     if (coreRuntimeFile && relativeTarget && isRuntimeImport(node)) {
       const direction = coreLayerImport(file, relativeTarget);

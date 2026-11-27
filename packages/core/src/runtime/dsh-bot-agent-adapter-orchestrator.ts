@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { resetSendStreak } from './send-streak.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import {
   executeNativeTool,
   installNativeModelSelection,

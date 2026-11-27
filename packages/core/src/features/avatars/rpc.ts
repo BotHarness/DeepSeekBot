@@ -1,8 +1,7 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
 import type { PartLibraryEntry } from '../../bots/part-library.js';
-import type { BotMetadataResult } from '../../team/bot-administration.js';
+import type { BotMetadataResult } from '../team/bot-administration.js';
 import type { AvatarsBridgeMethods } from './methods.js';
 
 type AdminResult<T> = T | BotMetadataResult;
@@ -129,4 +128,4 @@ export const avatarRpc = {
   ): AdminResult<{ bot: PersonaBotDetail }> {
     return botPrimaryColorSet(this.methods, channelId, primaryColor);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: AvatarsBridgeMethods }>;

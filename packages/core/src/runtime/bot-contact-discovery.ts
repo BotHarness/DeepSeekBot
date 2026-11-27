@@ -1,4 +1,4 @@
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import { createHash } from 'node:crypto';
 
 import type { PersonaBotRegistry } from '../bots/registry.js';

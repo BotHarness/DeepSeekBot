@@ -6,7 +6,7 @@ import type { PersonaBotRegistry } from '../../bots/registry.js';
 import { dmChannelId } from '../../channels/channel.js';
 import type { ChannelStore } from '../../channels/store.js';
 import { humanContext } from '../../humans/context.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import type { TeamService } from '../../team/service.js';
 import { authorizedPathRoot } from '../../workspaces/grant-native-tools.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';

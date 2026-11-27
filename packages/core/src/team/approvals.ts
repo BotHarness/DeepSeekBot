@@ -1,5 +1,5 @@
 import type { TeamBots } from './bots.js';
-import { channelRoleEligibleSql } from './channel-contract.js';
+import { channelRoleEligibleSql } from '../team-policy/channel-contract.js';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -16,7 +16,7 @@ function approvalGate(toolName: string): ApprovalGate {
   return HOST_OWNER_TOOLS.has(toolName) ? 'host-owner' : isDshGovernedTool(toolName);
 }
 import type { TeamRoles } from './roles.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 
 import { type ApprovalKind, type ApprovalCard, type ApprovalDecider } from './approval-contract.js';
 export { maskedApprovalCardSchema, isMaskedApprovalCard } from './approval-contract.js';

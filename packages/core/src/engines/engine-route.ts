@@ -1,4 +1,4 @@
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import type { EngineHost } from './engine-host.js';
 import type { EngineSelectionBridgeMethods } from './engine-selection-bridge.js';
 import { EngineRefusal, isEngineId } from './engine-session.js';

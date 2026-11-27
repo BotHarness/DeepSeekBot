@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
-import { resolveGrants } from '../authorization/grants.js';
+import { resolveGrants } from '../kernel/grants.js';
 import {
   CONNECTOR_CATALOG,
   catalogEntry,

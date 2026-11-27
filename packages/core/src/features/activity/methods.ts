@@ -36,6 +36,7 @@ import {
 } from '../../runtime/human-attention.js';
 import type { AggregatedState } from '../../state/bot-state.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import { localDay } from '../../usage/overview.js';
 
 export interface ActivityOverview {
   actionCount: number;
@@ -139,14 +140,6 @@ const HUMAN_ATTENTION_DISMISS_KINDS: ReadonlySet<string> = new Set<HumanAttentio
 function localMidnight(day: string): Date {
   const [year, month, date] = day.split('-').map(Number);
   return new Date(year!, month! - 1, date!);
-}
-
-export function localDay(at: string): string | undefined {
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return undefined;
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function bucketByDay(instants: readonly string[]): ProfileActivityDay[] {

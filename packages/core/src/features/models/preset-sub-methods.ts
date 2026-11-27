@@ -31,7 +31,7 @@ import {
 import { EngineRefusal } from '../../engines/engine-session.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { RoutingGroupError } from '../../models/routing-groups.js';
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import { presetEnginesInput } from './inputs.js';
 import type { ModelsBridgeDeps } from './deps.js';
 import { routingGroupFailure, type createModelRoutingHelpers } from './routing.js';

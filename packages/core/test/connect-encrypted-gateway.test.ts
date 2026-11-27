@@ -12,7 +12,7 @@ import {
   createEncryptedGateway,
   type CallChannelDiagnostic,
 } from '../src/devices/encrypted-gateway.js';
-import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { createDevicePairing } from '../src/devices/pairing.js';

@@ -4,11 +4,11 @@ import {
   telemetryEventProperties,
   type TelemetrySurface,
 } from '../../telemetry/events.js';
-import type { TelemetryStatus } from '../../telemetry/service.js';
+import type { TelemetryCapture, TelemetryStatus } from '../../telemetry/service.js';
+import type { ActiveDay } from '../../telemetry/active-day.js';
 import { probeGit } from '../../memory/git-probe.js';
-import type { GitStatus } from '../../memory/managed-git.js';
+import type { GitService, GitStatus } from '../../memory/managed-git.js';
 import { MIN_PHONE_APP_VERSION } from '../../devices/client-compat.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 
 function unmanagedGitStatus(): GitStatus {
   const git = probeGit();
@@ -32,7 +32,7 @@ function telemetryUnavailable(): BridgeResult<never> {
   };
 }
 
-export interface DiagnosticsAdapterMethods {
+export type DiagnosticsAdapterMethods = {
   telemetryEvent(payload: unknown): BridgeResult<null>;
   ping(payload: unknown): BridgeResult<{ ok: true; version?: string; minAppVersion: string }>;
   developerModeSet(payload: unknown): BridgeResult<{ accepted: boolean }>;
@@ -40,10 +40,22 @@ export interface DiagnosticsAdapterMethods {
   gitStatus(): BridgeResult<GitStatus>;
   gitInstall(): BridgeResult<GitStatus>;
   telemetrySet(payload: unknown): BridgeResult<TelemetryStatus>;
+};
+
+export interface DiagnosticsBridgeDeps {
+  telemetry?: {
+    status(): TelemetryStatus;
+    setPreference(enabled: boolean): TelemetryStatus;
+    capture?: TelemetryCapture;
+  };
+  activeDay?: Pick<ActiveDay, 'mark'>;
+  git?: Pick<GitService, 'status' | 'install'>;
+  hostVersion?: () => string;
+  developerMode?: { set(enabled: boolean): void };
 }
 
 export function createDiagnosticsAdapterMethods(
-  deps: BridgeMethodsDeps,
+  deps: DiagnosticsBridgeDeps,
 ): DiagnosticsAdapterMethods {
   return {
     telemetryEvent(payload) {

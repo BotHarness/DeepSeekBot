@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import {
   canManageGrants,
   grantAllManagement,

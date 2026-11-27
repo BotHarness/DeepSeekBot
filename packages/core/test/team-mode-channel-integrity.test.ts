@@ -1,4 +1,4 @@
-import { channelPolicySchema } from '../src/team/channel-contract.js';
+import { channelPolicySchema } from '../src/team-policy/channel-contract.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';

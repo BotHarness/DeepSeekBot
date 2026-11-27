@@ -1,16 +1,15 @@
-import { rolePolicySchema, type RolePolicy } from './bot-contract.js';
+import { resolveHostPermissions, type RoleGrant } from '../team-policy/host-access.js';
+import { rolePolicySchema, type RolePolicy } from '../team-policy/bot-contract.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
+import { effectiveHostPermissions, type EffectiveHostPermissions } from './host-permissions.js';
 import {
-  effectiveHostPermissions,
-  resolveHostPermissions,
-  type EffectiveHostPermissions,
-  type RoleGrant,
-} from './host-permissions.js';
-import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
+  channelRoleMembershipEntrySql,
+  channelRoleMembershipExitSql,
+} from '../team-policy/channel-contract.js';
 import {
   ALL_PERMISSIONS,
   allowsEngineAccount,
@@ -23,7 +22,7 @@ import {
   type RoleModelsInput,
   type ModelsAllowed,
   roleModelsSchema,
-} from './permissions.js';
+} from '../team-policy/permissions.js';
 
 const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.denied_permissions_json AS denied, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;

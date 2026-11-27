@@ -11,7 +11,7 @@ import type {
   BotMetadataResult,
   AdminDeletionPreview,
   AdminDeletion,
-} from '../../team/bot-administration.js';
+} from '../team/bot-administration.js';
 import type { BotImportsService } from '../../bots/imports.js';
 import type { BotCreationReceipt } from '../../bots/creation.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../onboarding/service.js';

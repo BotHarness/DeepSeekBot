@@ -1,7 +1,7 @@
 import type * as releaseFeature from '../release/plugin.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from '../../window-zoom/control.js';
-import { createPresence, PRESENCE_PATH } from '../../push/presence.js';
+import { PRESENCE_PATH, type Presence } from '../../push/presence.js';
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from '../../window-zoom/setup.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from '../../appearance/control.js';
 import { DESKTOP_WINDOW_PATH, createDesktopWindowReveal } from '../../desktop-window/reveal.js';
@@ -15,8 +15,8 @@ import {
   isBotModeId,
   resolveBotMode,
   type BotModeOption,
-} from '../../runtime/bot-mode-settings.js';
-import type { createDshBotAgentAdapter } from '../../runtime/dsh-bot-agent-adapter.js';
+} from '../../appearance/bot-mode-settings.js';
+import type { AssignmentModeChoices } from '../assignments/loadout-parameter.js';
 import { personaBotActivitySnapshot } from '../../state/bot-state.js';
 import type { BotHarnessCore } from '../../plugin-types.js';
 import type { CoreOptions } from '../../plugin-types.js';
@@ -116,9 +116,7 @@ export function createBotModes(
       installedBotModeIds ??= new Set();
     });
   };
-  const assignmentModes: NonNullable<
-    Parameters<typeof createDshBotAgentAdapter>[0]['assignmentModes']
-  > = async (slug) => {
+  const assignmentModes = async (slug: string): Promise<AssignmentModeChoices> => {
     const installed = await installedBotModes();
     const allowed =
       botModeSettings.readError() === undefined ? botModeSettings.allowedModes(slug) : [];
@@ -157,7 +155,7 @@ export function mountDesktopRoutes(
     profile,
   }: {
     team: BotHarnessCore['team'];
-    presence: ReturnType<typeof createPresence>;
+    presence: Pick<Presence, 'fetch'>;
     dshHome: string;
     profile: ReturnType<typeof releaseFeature.resolveProfile>['profile'];
   },

@@ -6,8 +6,8 @@ import {
   unknownBot,
   type BridgeResult,
 } from '../../kernel/method-utils.js';
-import { TeamError } from '../../team/error.js';
-import { ownsBot } from '../../team/bot-access.js';
+import { TeamError } from '../../team-policy/error.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 import { BotNetworkDeliveryError } from '../../runtime/bot-network.js';
 import { TobError, type ManagementGrantChange, type TobHome } from '../../tob/service.js';
 import { isManagementCapability, type ManagementCapability } from '../../tob/management-grants.js';

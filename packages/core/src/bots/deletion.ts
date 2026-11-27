@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TobError } from '../tob/service.js';
 import { managementGrantHolders } from '../tob/management-grants.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';

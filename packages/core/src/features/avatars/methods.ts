@@ -38,7 +38,7 @@ export interface AvatarsBridgeDeps {
   partLibrary?: PartLibrary;
 }
 
-export interface AvatarsBridgeMethods {
+export type AvatarsBridgeMethods = {
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAppearanceSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -57,7 +57,7 @@ export interface AvatarsBridgeMethods {
     };
   }>;
   partLibraryImportImage(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
-}
+};
 
 function partImageMessage(error: PartImageError): string {
   switch (error) {

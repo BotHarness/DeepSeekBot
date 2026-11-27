@@ -24,7 +24,7 @@ import type {
 } from '../../runtime/bot-runtime.js';
 import type { sessionModelChoices } from '../../runtime/session-model-choices.js';
 import type { SessionOwnership } from '../../sessions/ownership.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createAssignmentRouting } from './runtime-routing.js';
 import type { AssignmentRow } from './events-types.js';

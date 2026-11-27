@@ -11,7 +11,7 @@ import {
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import { writeBotAvatar } from '../avatars/methods.js';
 import type { HumanContext } from '../../humans/context.js';
-import { ownsBot } from '../../team/bot-access.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 import type { MarketplaceClient, MarketplaceResult } from '../../marketplace/client.js';
 
 type ApplyResult = BridgeResult<{ applied: true }>;

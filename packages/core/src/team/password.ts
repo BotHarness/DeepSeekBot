@@ -1,4 +1,4 @@
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 import * as nodeCrypto from 'node:crypto';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Worker } from 'node:worker_threads';

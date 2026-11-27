@@ -1,6 +1,6 @@
-import { TeamError } from '../src/team/error.js';
+import { TeamError } from '../src/team-policy/error.js';
 import { host, run } from './cli-team-fixtures.js';
-import { mergeChannelAction } from '../src/team/host-permissions.js';
+import { mergeChannelAction } from '../src/team-policy/channel-access.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { DatabaseSync } from 'node:sqlite';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -11,7 +11,7 @@ import {
   channelPolicySchema,
   DEFAULT_CHANNEL_POLICY,
   type ChannelPolicy,
-} from '../src/team/channel-contract.js';
+} from '../src/team-policy/channel-contract.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { enabledFixture, cleanup } from './team-mode-fixtures.js';
 

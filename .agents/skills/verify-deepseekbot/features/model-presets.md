@@ -10,7 +10,7 @@
 - `packages/core/src/features/models/preset-sub-methods.ts`
 - `packages/core/src/features/assignments/tools.ts`
 - `packages/core/test/preset-sub-assignments.test.ts`
-- `packages/core/src/team/bridge-access.ts`
+- `packages/core/src/features/team/bridge-access.ts`
 - `scripts/e2e-team-security.mjs`
 - `scripts/team-security-model-configuration-gate.mjs`
 

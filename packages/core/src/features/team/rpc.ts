@@ -1,8 +1,8 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
-import type { PrivateKind } from '../../team/private-contract.js';
+import type { PrivateKind } from '../../team-policy/private-content.js';
 import type { SpaceAudience } from '../../workspaces/spaces.js';
-import type { ChannelVisibility, ChannelPolicy } from '../../team/channel-contract.js';
+import type { ChannelVisibility, ChannelPolicy } from '../../team-policy/channel-contract.js';
 import { type TeamService } from '../../team/service.js';
 import type { UsageOverviewPeriod } from '../../usage/overview.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -23,7 +23,7 @@ export function botVisibility(methods: TeamBridgeMethods, slug: string) {
 export function botVisibilitySet(
   methods: TeamBridgeMethods,
   slug: string,
-  visibility: import('../../team/bot-contract.js').BotVisibility,
+  visibility: import('../../team-policy/bot-contract.js').BotVisibility,
   confirm?: boolean,
 ) {
   return unwrapAsync(methods.botVisibilitySet({ slug, visibility, confirm }));
@@ -180,8 +180,8 @@ export function roleCreate(
   methods: TeamBridgeMethods,
   name: string,
   permissions: string[],
-  models?: import('../../team/permissions.js').RoleModels,
-  policy?: import('../../team/bot-contract.js').RolePolicy,
+  models?: import('../../team-policy/permissions.js').RoleModels,
+  policy?: import('../../team-policy/bot-contract.js').RolePolicy,
 ) {
   return unwrapAsync(methods.roleCreate({ name, permissions, models, policy }));
 }
@@ -191,8 +191,8 @@ export function roleUpdate(
   roleId: string,
   name?: string,
   permissions?: string[],
-  models?: import('../../team/permissions.js').RoleModels,
-  policy?: import('../../team/bot-contract.js').RolePolicy,
+  models?: import('../../team-policy/permissions.js').RoleModels,
+  policy?: import('../../team-policy/bot-contract.js').RolePolicy,
 ) {
   return unwrapAsync(methods.roleUpdate({ roleId, name, permissions, models, policy }));
 }
@@ -375,7 +375,7 @@ export const teamServiceRpc = {
 
   botVisibilitySet(
     slug: string,
-    visibility: import('../../team/bot-contract.js').BotVisibility,
+    visibility: import('../../team-policy/bot-contract.js').BotVisibility,
     confirm?: boolean,
   ) {
     return botVisibilitySet(this.methods, slug, visibility, confirm);
@@ -493,8 +493,8 @@ export const teamServiceRpc = {
   roleCreate(
     name: string,
     permissions: string[],
-    models?: import('../../team/permissions.js').RoleModels,
-    policy?: import('../../team/bot-contract.js').RolePolicy,
+    models?: import('../../team-policy/permissions.js').RoleModels,
+    policy?: import('../../team-policy/bot-contract.js').RolePolicy,
   ) {
     return roleCreate(this.methods, name, permissions, models, policy);
   },
@@ -503,8 +503,8 @@ export const teamServiceRpc = {
     roleId: string,
     name?: string,
     permissions?: string[],
-    models?: import('../../team/permissions.js').RoleModels,
-    policy?: import('../../team/bot-contract.js').RolePolicy,
+    models?: import('../../team-policy/permissions.js').RoleModels,
+    policy?: import('../../team-policy/bot-contract.js').RolePolicy,
   ) {
     return roleUpdate(this.methods, roleId, name, permissions, models, policy);
   },

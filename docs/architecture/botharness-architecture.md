@@ -1804,6 +1804,8 @@ The application-defined Devices private connection owner manages a Quick Tunnel 
 
 The [Team mode decisions](../decisions/team-mode.md) cover current member authorization and [Host-owned chat avatars](../decisions/team-mode.md#adr-0352).
 
+[Team Policy](../decisions/core-architecture.md#team-policy-and-administration) 持有权限目录，并依据 Team 服务提供的事实判定 Channel 访问。Team Feature 提供成员 HTTP 与设备登录、PersonaBot 元数据和 Workspace 管理入口。审计记录及跨模块数据库事务仍由 Team 服务协调。
+
 Desktop and mobile share the pure `host-protocol` contracts and the framework-independent `host-client` session logic. Native storage and transports stay in the mobile app behind injected interfaces. The desktop remote-host adapter drives member sign-in without creating relationship grants; see [Desktop Team sign-in contract](team-mode-desktop-sign-in.md) for states, identity persistence and ownership boundaries.
 
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. A disconnected member HTTP open or poll releases its stream slot and iterator. When the peer closes a keep-alive socket, the Host releases all streams still bound to it, including those between polls. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.

@@ -1,4 +1,4 @@
-import { TEAM_PATH } from '../src/team/http.js';
+import { TEAM_PATH } from '../src/features/team/http.js';
 import { createManagedTlsIngress } from '../src/devices/managed-tls-ingress.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';

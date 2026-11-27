@@ -1,11 +1,10 @@
-import { localDay } from '../activity/methods.js';
 import {
   asObject,
   invalidInput,
   unavailable,
   type BridgeResult,
 } from '../../kernel/method-utils.js';
-import { isUsageOverviewPeriod, usageOverviewPeriods } from '../../usage/overview.js';
+import { isUsageOverviewPeriod, localDay, usageOverviewPeriods } from '../../usage/overview.js';
 import { OperationalDatabaseError } from '../../database/owner.js';
 import {
   currentBotPrimaryColor,
@@ -13,20 +12,36 @@ import {
   resolveBotPrimaryColor,
 } from '../../bots/primary-color.js';
 import { usageFilterSchema, type UsageQueryResult } from '../../usage/query.js';
-import type {
-  BridgeMethodsDeps,
-  ProfileSessionUsage,
-  OverviewUsage,
-} from '../../bridge/methods.js';
+import type { ProfileSessionUsage, OverviewUsage } from '../../bridge/methods.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { SessionOwnership } from '../../sessions/ownership.js';
+import type { DshUsageSessionLogReader, UsageProjection } from '../../usage/usage.js';
 
-export interface UsageAdapterMethods {
+export type UsageAdapterMethods = {
   profileSessionUsage(payload: unknown): Promise<BridgeResult<ProfileSessionUsage>>;
   overviewUsage(payload: unknown): BridgeResult<OverviewUsage>;
   profileUsage(payload: unknown): BridgeResult<UsageQueryResult>;
+};
+
+interface UsageSessionAssignment {
+  sessionId: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface UsageBridgeDeps {
+  registry: Pick<PersonaBotRegistry, 'get' | 'getHistorical' | 'listHistorical'>;
+  usage?: Pick<UsageProjection, 'overview' | 'query' | 'sessionSummary'>;
+  readUsageSessionLog?: DshUsageSessionLogReader;
+  ownership: Pick<SessionOwnership, 'rootsFor'>;
+  runtime?: {
+    listAssignments(botSlug: string): readonly UsageSessionAssignment[];
+    currentOrchestratorSessionId?(botSlug: string): string | undefined;
+  };
 }
 
 export function createUsageAdapterMethods(
-  deps: BridgeMethodsDeps,
+  deps: UsageBridgeDeps,
   isHostOwner: () => boolean,
   dmMemory: (payload: unknown, historical?: boolean) => { botSlug: string } | BridgeResult<never>,
 ): UsageAdapterMethods {

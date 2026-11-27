@@ -2,8 +2,11 @@ import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import type { HumanContext } from '../humans/context.js';
 import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
-import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
-import { TeamError } from './error.js';
+import {
+  channelRoleMembershipEntrySql,
+  channelRoleMembershipExitSql,
+} from '../team-policy/channel-contract.js';
+import { TeamError } from '../team-policy/error.js';
 import type { TeamMember, TeamService } from './service.js';
 
 export type MemberLifecycleHost = {

@@ -9,7 +9,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { createTempRoot } from './helpers.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
-import { createTeamBridge } from '../src/team/bridge.js';
+import { createTeamBridge } from '../src/features/team/bridge.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';

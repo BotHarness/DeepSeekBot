@@ -12,7 +12,7 @@ import {
   type PersonaBotModelPlan,
 } from '../../models/presets.js';
 import type { RoutingTarget } from '../../models/routing-groups.js';
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import { assignmentLoadoutParameter, type AssignmentModeChoices } from './loadout-parameter.js';
 import type {
   AssignmentActivity,

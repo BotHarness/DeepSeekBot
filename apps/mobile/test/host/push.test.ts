@@ -11,7 +11,7 @@ import {
   mountOperationalDatabase,
 } from '../../../../packages/core/src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../../../../packages/core/src/database/schema-plan.js';
-import { createDeviceGateway } from '../../../../packages/core/src/devices/gateway.js';
+import { createDeviceGateway } from '../../../../packages/core/src/features/environments/gateway.js';
 import { createDevicePairing } from '../../../../packages/core/src/devices/pairing.js';
 import {
   createPushDelivery,

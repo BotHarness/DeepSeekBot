@@ -6,6 +6,18 @@ export const channelVisibilitySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('private') }),
 ]);
 export type ChannelVisibility = z.infer<typeof channelVisibilitySchema>;
+export const channelBotAudienceSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('everyone') }),
+  z.strictObject({ kind: z.literal('admins') }),
+  z.strictObject({
+    kind: z.literal('roles'),
+    roleIds: z.array(z.string().min(1)).min(1).max(100),
+  }),
+]);
+export const channelBotChangeSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('audience'), audience: channelBotAudienceSchema }),
+  z.strictObject({ kind: z.literal('block'), humanId: z.string().min(1), blocked: z.boolean() }),
+]);
 export const CHANNEL_ACTIONS = [
   'addMembers',
   'post',

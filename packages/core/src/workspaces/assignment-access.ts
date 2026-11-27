@@ -1,5 +1,5 @@
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export type AssignmentAccessMode = 'workspace-write' | 'danger-full-access';

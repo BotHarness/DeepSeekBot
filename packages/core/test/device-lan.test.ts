@@ -11,7 +11,7 @@ import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
-import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { pairHost, revokePairing } from '@botharness/host-client/pairing';
 import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import type { SavedHost } from '@botharness/host-client/hosts';

@@ -122,7 +122,7 @@ export const RULES = [
     MIGRATION,
   ),
   related(
-    'packages/core/src/{credentials/**,bridge/secret-route.ts,models/credential-*.ts,team/permissions.ts}',
+    'packages/core/src/{credentials/**,bridge/secret-route.ts,models/credential-*.ts,team-policy/permissions.ts}',
     'Host credential storage, private execution and permissions',
     true,
     AUTH,
