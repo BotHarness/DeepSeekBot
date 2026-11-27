@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import {
@@ -9,7 +10,9 @@ import {
 } from './prompt-parts.js';
 import type { PromptLimits } from './prompt-limits.js';
 import {
+  createPromptPresetLibrary,
   promptLimitValues,
+  promptPartTexts,
   resolvePromptLimits,
   resolvePromptParts,
   type ResolvedPromptLimit,
@@ -26,6 +29,28 @@ export interface PromptSettings {
   snapshotTexts(sessionId: string): PromptPartTexts | undefined;
   refreshAfterCompaction(sessionId: string): { refreshed: boolean };
   pending(botSlug: string, sessionId: string | undefined): boolean;
+}
+
+export function openPromptSettings({
+  dshHome,
+  registry,
+  ownership,
+}: Omit<Parameters<typeof createPromptSettings>[0], 'library'> & { dshHome: string }) {
+  return createPromptSettings({
+    library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
+    registry,
+    ownership,
+  });
+}
+
+export function promptTextForBot(
+  prompts: PromptSettings,
+  slug: string,
+  sessionId: string | undefined,
+): PromptText {
+  return sessionId === undefined
+    ? promptTextOf(promptPartTexts(prompts.resolved(slug)))
+    : prompts.textForSession(sessionId);
 }
 
 function parseTexts(body: string | undefined): PromptPartTexts | undefined {

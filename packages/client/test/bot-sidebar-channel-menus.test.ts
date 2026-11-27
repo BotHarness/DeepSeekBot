@@ -346,7 +346,7 @@ describe('bot sidebar rows', () => {
       value: {
         channel: { id: 'g1', type: 'group', name: 'Lobby', members: [] },
         role,
-        policy: { editDetails: 'admins' },
+        canEditDetails: role === 'admin' || role === 'owner',
       },
     });
     const viewer = {

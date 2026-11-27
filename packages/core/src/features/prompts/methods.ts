@@ -7,8 +7,8 @@ import {
   type BridgeResult,
 } from '../../kernel/method-utils.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import type { BotRuntime } from '../../runtime/bot-runtime.js';
-import type { BotSystemPromptView } from '../../runtime/prompt-inspection.js';
+import type { BotSystemPromptView, BotTurnInputView } from '@botharness/host-protocol/wire';
+import { summarizeTurnInput } from '../../prompts/prompt-inspection.js';
 import { PROMPT_PARTS, promptTextHash, type PromptPartId } from '../../prompts/prompt-parts.js';
 import {
   PROMPT_LIMITS,
@@ -24,8 +24,8 @@ import {
   type ResolvedPromptPart,
 } from '../../prompts/prompt-presets.js';
 import type { PromptSettings } from '../../prompts/prompt-settings.js';
-import { summarizeTurnInput, type TurnInputView } from '../../runtime/prompt-inspection.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { SessionOwnership } from '../../sessions/ownership.js';
+import type { DshUsageSessionLogReader } from '../../usage/usage.js';
 
 export interface PromptPartView {
   id: PromptPartId;
@@ -69,7 +69,7 @@ function promptPresetFailure(reason: PromptPresetFailure): BridgeResult<never> {
 
 interface PromptBotContext {
   registry: Pick<PersonaBotRegistry, 'get'>;
-  runtime?: Pick<BotRuntime, 'currentOrchestratorSessionId'>;
+  runtime?: { currentOrchestratorSessionId?(botSlug: string): string | undefined };
 }
 
 function botPromptView(
@@ -94,7 +94,7 @@ export interface PromptBridgeDeps {
   prompts?: PromptSettings;
 }
 
-export interface PromptBridgeMethods {
+export type PromptBridgeMethods = {
   botSystemPrompt(payload: unknown): Promise<BridgeResult<BotSystemPromptView>>;
   promptParts(
     payload: unknown,
@@ -108,7 +108,7 @@ export interface PromptBridgeMethods {
   promptGlobalSet(payload: unknown): BridgeResult<{ presetId: string | null }>;
   botPrompt(payload: unknown): BridgeResult<BotPromptView>;
   botPromptSet(payload: unknown): BridgeResult<BotPromptView>;
-}
+};
 
 export function createPromptBridgeMethods(
   deps: PromptBridgeDeps &
@@ -283,13 +283,18 @@ export function createPromptBridgeMethods(
   };
 }
 
-export interface PromptsAdapterMethods {
-  botTurnInput(
-    payload: unknown,
-  ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnInputView[] }>>;
+export type PromptsAdapterMethods = {
+  botTurnInput(payload: unknown): Promise<BridgeResult<BotTurnInputView>>;
+};
+
+export interface PromptsAdapterDeps {
+  registry: Pick<PersonaBotRegistry, 'getHistorical'>;
+  runtime?: PromptBotContext['runtime'];
+  ownership: Pick<SessionOwnership, 'rootsFor'>;
+  readUsageSessionLog?: DshUsageSessionLogReader;
 }
 
-export function createPromptsAdapterMethods(deps: BridgeMethodsDeps): PromptsAdapterMethods {
+export function createPromptsAdapterMethods(deps: PromptsAdapterDeps): PromptsAdapterMethods {
   return {
     async botTurnInput(payload) {
       const slug = asSlug(payload);

@@ -617,7 +617,7 @@ export function apply(ctx: ClientContext): void {
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
         ...(member ? [] : [dockPanels.register(createEnvironmentPanel(t))]),
-        ...(member ? [] : [dockPanels.register(createTeamWorkbenchPanel(call, t))]),
+        dockPanels.register(createTeamWorkbenchPanel(call, t)),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };

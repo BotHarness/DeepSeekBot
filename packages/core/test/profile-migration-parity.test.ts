@@ -32,7 +32,7 @@ function readDefaults(port: ReturnType<typeof attachOperationalModule>) {
   return port.read((db) => ({
     roles: db.prepare('SELECT role_id, permissions_json FROM host_roles ORDER BY role_id').all(),
     channel: db
-      .prepare("SELECT policy_json FROM channel_records WHERE channel_id = 'legacy'")
+      .prepare("SELECT permission_table_json FROM channel_records WHERE channel_id = 'legacy'")
       .get(),
   }));
 }
@@ -66,7 +66,10 @@ it('persists the same historical Role grants and Channel policy in fresh and upg
     const domain = await original<typeof import('../src/team-policy/channel-contract.js')>();
     return {
       ...domain,
-      DEFAULT_CHANNEL_POLICY: { ...domain.DEFAULT_CHANNEL_POLICY, post: 'admins' },
+      DEFAULT_CHANNEL_POLICY: {
+        ...domain.DEFAULT_CHANNEL_POLICY,
+        everyone: { ...domain.DEFAULT_CHANNEL_POLICY.everyone, post: 'deny' },
+      },
     };
   });
 
@@ -105,8 +108,8 @@ it('persists the same historical Role grants and Channel policy in fresh and upg
       { role_id: 'member', permissions_json: '["dm.humans"]' },
     ],
     channel: {
-      policy_json:
-        '{"addMembers":"everyone","post":"everyone","mentionAll":"everyone","addBots":"admins","editDetails":"admins"}',
+      permission_table_json:
+        '{"version":1,"everyone":{"addMembers":"allow","post":"allow","mentionAll":"allow","addBots":"deny","editDetails":"deny"},"overrides":[]}',
     },
   });
 });

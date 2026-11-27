@@ -1,6 +1,6 @@
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { humanContext } from '../src/humans/context.js';
-import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
+import { DEFAULT_CHANNEL_POLICY } from '../src/database/historical-migration-snapshots.js';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';

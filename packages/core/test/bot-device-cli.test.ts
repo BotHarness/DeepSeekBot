@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -108,6 +108,33 @@ async function invoke(argv: string[], url: string) {
 }
 
 describe('Agent Browser and Computer commands', () => {
+  it('reads and selects the current desktop through Host settings with explicit confirmation', async () => {
+    const ns = 'botharness-computer';
+    const live = await host(({ path }) => ({
+      json: {
+        ok: true,
+        value:
+          path === 'settings/describe'
+            ? { namespaces: [{ ns, revision: 2, value: { target: 'local' } }] }
+            : { revision: 3, value: { target: 'current-desktop' } },
+      },
+    }));
+    expect(await invoke(['computer-target'], live.url)).toMatchObject({
+      code: 0,
+      json: { value: { target: 'local' } },
+    });
+    const refused = await invoke(['computer-target', '--target', 'current-desktop'], live.url);
+    expect(refused.code).not.toBe(0);
+    expect(live.calls).toHaveLength(1);
+    expect(
+      await invoke(['computer-target', '--target', 'current-desktop', '--confirm'], live.url),
+    ).toMatchObject({ code: 0, json: { value: { target: 'current-desktop' } } });
+    expect(live.calls.at(-1)).toMatchObject({
+      path: 'settings/update',
+      body: { ns, expectedRevision: 2, patch: { target: 'current-desktop' } },
+    });
+  });
+
   it('uses the Local video owner command with private SDP output and no image request', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bh-video-'));
     dirs.push(dir);
@@ -154,6 +181,48 @@ describe('Agent Browser and Computer commands', () => {
     expect(live.calls).toEqual([
       { method: 'POST', path: '/api/computer/video', body: { kind: 'input', ...input } },
     ]);
+  });
+
+  it('only saves desktop video frames to new private files on the CLI machine', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'computer-frame-cli-'));
+    dirs.push(dir);
+    const frame = {
+      data: Buffer.from('fixture').toString('base64'),
+      seq: 1,
+      mimeType: 'image/jpeg',
+    };
+    const live = await host(() => ({ json: { ok: true, state: { frame } } }));
+    const invokeFrame = (out: string) =>
+      invokeWithStdin(['computer-video', 'frame', '--args-stdin', '--out', out], live.url, '{}');
+    const foreignPath =
+      process.platform === 'win32' ? 'C:captures\\frame.jpg' : 'C:\\captures\\frame.jpg';
+    expect((await invokeFrame(foreignPath)).code).not.toBe(0);
+    expect(live.calls).toHaveLength(0);
+    const existing = join(dir, 'existing.jpg');
+    writeFileSync(existing, 'keep', { mode: 0o644 });
+    const refused = await invokeFrame(existing);
+    expect(refused.json.error.code).toBe('output-exists');
+    expect(readFileSync(existing, 'utf8')).toBe('keep');
+    const path = join(dir, 'new.jpg');
+    const saved = await invokeFrame(path);
+    expect(saved.code).toBe(0);
+    expect(saved.json.state.frame).toEqual({ seq: 1, mimeType: 'image/jpeg', path });
+    expect(readFileSync(path, 'utf8')).toBe('fixture');
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
+  it('reports a video frame timeout without creating the output file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'computer-frame-cli-'));
+    dirs.push(dir);
+    const live = await host(() => ({ json: { ok: true, state: {} } }));
+    const path = join(dir, 'frame.jpg');
+    const result = await invokeWithStdin(
+      ['computer-video', 'frame', '--args-stdin', '--out', path],
+      live.url,
+      '{}',
+    );
+    expect(result.json.error.code).toBe('no-frame');
+    expect(statSync(path, { throwIfNoEntry: false })).toBeUndefined();
   });
 
   it('sends continuous scrolling and its explicit stop through the existing authenticated video input command', async () => {

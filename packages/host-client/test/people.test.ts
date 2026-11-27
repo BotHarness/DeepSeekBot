@@ -143,6 +143,16 @@ describe('Human attention', () => {
     const read = await readHumanAttention(host(page), { source: 'all' });
     expect(read).toEqual(page);
     expect(botAttentionItems(read.items)).toEqual([item]);
+    for (const folderLook of [
+      { color: 'purple' },
+      { favicon: '/api/botharness/workspace-favicon?w=abc&v=1' },
+      { icon: { kind: 'monogram' } },
+      { icon: { kind: 'symbol', id: 'globe' } },
+      { icon: { kind: 'emoji', emoji: '🧪' } },
+    ]) {
+      const items = [{ ...native, nativeSession: { ...native.nativeSession, folderLook } }];
+      await expect(readHumanAttention(host({ items }), {})).resolves.toMatchObject({ items });
+    }
     for (const bad of [
       { ...native, botSlug: 'tea' },
       { ...native, category: 'info' },
@@ -151,6 +161,20 @@ describe('Human attention', () => {
       { ...native, nativeSession: { input: 'approval' } },
       { ...native, nativeSession: { ...native.nativeSession, folderName: 7 } },
       { ...native, nativeSession: { ...native.nativeSession, cwd: 7 } },
+      ...[
+        null,
+        [],
+        { color: 7 },
+        { favicon: 7 },
+        { favicon: 'https://example.test/favicon.png' },
+        { icon: { kind: 'other' } },
+        { icon: { kind: 'symbol' } },
+        { icon: { kind: 'symbol', id: 7 } },
+        { icon: { kind: 'emoji', emoji: 7 } },
+      ].map((folderLook) => ({
+        ...native,
+        nativeSession: { ...native.nativeSession, folderLook },
+      })),
       { ...native, unreadCount: 'bad' },
       { ...native, isUnread: 'yes' },
       { ...native, snoozedUntil: 7 },

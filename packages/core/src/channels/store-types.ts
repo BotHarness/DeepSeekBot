@@ -1,5 +1,5 @@
 import type { ChannelQuote } from './quotes.js';
-import type { ChannelPolicy } from '../team-policy/channel-contract.js';
+import type { ChannelAction } from '../team-policy/channel-contract.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import type { AcceptedQuestionReference } from './accepted-question-answer.js';
 import type { HumanContext } from '../humans/context.js';
@@ -129,7 +129,7 @@ export interface CreateChannelGroupInput {
 }
 
 export interface ChannelStore {
-  requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
+  requireHumanPolicy?(human: HumanContext, id: string, key: ChannelAction): void;
   bindHumanAccess?(access: {
     addInitialMembers?(
       db: import('node:sqlite').DatabaseSync,
@@ -144,7 +144,7 @@ export interface ChannelStore {
     searchText?(human: HumanContext, channelId: string, messageId: string, text: string): string;
     canRead(human: HumanContext, id: string): boolean;
     requirePost(human: HumanContext, id: string, all: boolean, message?: ChannelMessage): void;
-    requirePolicy(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
+    requirePolicy(human: HumanContext, id: string, key: ChannelAction): void;
   }): void;
   getOrCreateHumanDm?(human: HumanContext, id: string, participants: string[]): ChannelRecord;
 

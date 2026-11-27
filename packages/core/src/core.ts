@@ -20,7 +20,11 @@ import type { ModelFavoriteStore } from './models/favorites.js';
 import { createMediaVersions } from './attachments/media-versions.js';
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import type { ChannelLiveHub } from './channels/live.js';
-import { attachOperationalModule, mountOperationalDatabase } from './database/owner.js';
+import {
+  attachOperationalModule,
+  mountOperationalDatabase,
+  onOperationalDatabaseClose,
+} from './database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import type { RosterStore } from './roster/store.js';
@@ -46,7 +50,7 @@ import * as activityFeature from './features/activity/plugin.js';
 import * as avatars from './features/avatars/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
-import * as promptPresets from './features/prompts/plugin.js';
+import { openPromptSettings } from './prompts/prompt-settings.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import { createFeatureContributions } from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
@@ -274,6 +278,7 @@ function initializeCore(
   const nativeAttentionChanged = () => {
     for (const listener of [...nativeAttentionListeners]) listener();
   };
+  onOperationalDatabaseClose(operationalDatabase, workspaceLooks.subscribe(nativeAttentionChanged));
   const onNativeSessionAttention = (listener: () => void) => {
     nativeAttentionListeners.add(listener);
     return () => {
@@ -296,6 +301,7 @@ function initializeCore(
     enabled: () =>
       (nativeAttentionSettings.at(-1)?.read() ?? DEFAULT_NATIVE_SESSION_ATTENTION) !== false,
     owner: (human) => human.caller !== 'bot' && team.isOwner(human),
+    folderLook: (cwd) => workspaceLooks.cached(cwd),
   });
   const spaces = workspacesFeature.apply(operationalDatabase, dshHome, team);
   startup.enter('channel-live', 'initialize');
@@ -392,7 +398,7 @@ function initializeCore(
   startup.enter('message-perf', 'initialize');
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
-  const prompts = promptPresets.apply({ dshHome, registry, ownership });
+  const prompts = openPromptSettings({ dshHome, registry, ownership });
   const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom } = voice.apply(
     startup,
     operationalDatabase,

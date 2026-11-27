@@ -3,22 +3,16 @@ import { expect, it } from 'vitest';
 import { canEditGroupDetails, readGroupDetailsEditable } from '../src/group-details';
 
 const member = { teamEnabled: true, owner: false, permissions: [] as string[] };
-const adminsOnly = { editDetails: 'admins' };
 
 it.each([
-  ['a member when only admins edit', member, { role: 'member', policy: adminsOnly }, false],
-  [
-    'a member when everyone edits',
-    member,
-    { role: 'member', policy: { editDetails: 'everyone' } },
-    true,
-  ],
-  ['a Channel admin', member, { role: 'admin', policy: adminsOnly }, true],
-  ['the Channel owner', member, { role: 'owner', policy: adminsOnly }, true],
+  ['a member when only admins edit', member, { role: 'member', canEditDetails: false }, false],
+  ['a member when everyone edits', member, { role: 'member', canEditDetails: true }, true],
+  ['a Channel admin', member, { role: 'admin', canEditDetails: true }, true],
+  ['the Channel owner', member, { role: 'owner', canEditDetails: true }, true],
   [
     'a member with manageAll',
     { ...member, permissions: ['channels.manageAll'] },
-    { role: 'member', policy: adminsOnly },
+    { role: 'member', canEditDetails: false },
     true,
   ],
   ['the Host owner', { ...member, owner: true }, undefined, true],
@@ -49,7 +43,7 @@ function teamMode(kind: 'owner' | 'member', permissions: string[] = []) {
   };
 }
 
-function host(kind: 'owner' | 'member', policy: Record<string, string>, role = 'member') {
+function host(kind: 'owner' | 'member', canEditDetails: boolean, role = 'member') {
   const calls: string[] = [];
   return {
     calls,
@@ -59,23 +53,23 @@ function host(kind: 'owner' | 'member', policy: Record<string, string>, role = '
       return {
         channel: { id: 'group-lobby', type: 'group', name: 'Lobby', members: [] },
         role,
-        policy,
+        canEditDetails,
       };
     },
   };
 }
 
 it('reads the Channel policy for a member and refuses edits it would refuse', async () => {
-  const reader = host('member', adminsOnly);
+  const reader = host('member', false);
   await expect(readGroupDetailsEditable(reader, 'group-lobby')).resolves.toBe(false);
   expect(reader.calls).toEqual(['teamMode', 'channelGet']);
 });
 
 it('lets a Channel admin edit and skips the Channel read for the Host owner', async () => {
   await expect(
-    readGroupDetailsEditable(host('member', adminsOnly, 'admin'), 'group-lobby'),
+    readGroupDetailsEditable(host('member', true, 'admin'), 'group-lobby'),
   ).resolves.toBe(true);
-  const owner = host('owner', adminsOnly);
+  const owner = host('owner', false);
   await expect(readGroupDetailsEditable(owner, 'group-lobby')).resolves.toBe(true);
   expect(owner.calls).toEqual(['teamMode']);
 });

@@ -27,7 +27,7 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     expect(
       await f.methods(owner).channelPolicySet({
         channelId: group.id,
-        policy: { ...first.policy, addMembers: 'admins' },
+        policy: { ...first.policy, everyone: { ...first.policy.everyone, addMembers: 'deny' } },
         expectedRevision: first.policyRevision,
       }),
     ).toEqual({ ok: true, value: null });
@@ -35,22 +35,22 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     expect(
       await f.methods(f.human).channelPolicySet({
         channelId: group.id,
-        policy: { ...second.policy, post: 'admins' },
+        policy: { ...second.policy, everyone: { ...second.policy.everyone, post: 'deny' } },
         expectedRevision: second.policyRevision,
       }),
     ).toMatchObject({ ok: false, error: { code: 'stale-channel-policy' } });
     expect(f.channels.changeCursor!()).toEqual(cursor);
     const current = observe(f.human);
-    expect(current.policy).toMatchObject({ addMembers: 'admins', post: 'everyone' });
+    expect(current.policy).toMatchObject({ everyone: { addMembers: 'deny', post: 'allow' } });
     expect(current.policyRevision).not.toBe(first.policyRevision);
     expect(
       await f.methods(f.human).channelPolicySet({
         channelId: group.id,
-        policy: { ...current.policy, post: 'admins' },
+        policy: { ...current.policy, everyone: { ...current.policy.everyone, post: 'deny' } },
         expectedRevision: current.policyRevision,
       }),
     ).toEqual({ ok: true, value: null });
-    expect(observe(owner).policy).toMatchObject({ addMembers: 'admins', post: 'admins' });
+    expect(observe(owner).policy).toMatchObject({ everyone: { addMembers: 'deny', post: 'deny' } });
     expect(
       await f.methods(owner).channelPolicySet({ channelId: group.id, policy: first.policy }),
     ).toEqual({ ok: true, value: null });
@@ -168,7 +168,10 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
         expect(f.channels.get(group.id)?.avatar).toBeUndefined();
         f.team.channelAccess.policySet(owner, group.id, {
           ...f.team.channelAccess.view(owner, group.id).policy,
-          editDetails: 'everyone',
+          everyone: {
+            ...f.team.channelAccess.view(owner, group.id).policy.everyone,
+            editDetails: 'allow',
+          },
         });
         await f.team.accessSettled();
         const allowed = await f.team.signIn('bob', 'avatar-password-1', 'avatar-allowed');
@@ -213,9 +216,10 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
     });
     const policy = f.team.channelAccess.view(owner, group.id).policy;
     let settled = false;
-    const mutation = f
-      .methods(owner)
-      .channelPolicySet({ channelId: group.id, policy: { ...policy, post: 'admins' } });
+    const mutation = f.methods(owner).channelPolicySet({
+      channelId: group.id,
+      policy: { ...policy, everyone: { ...policy.everyone, post: 'deny' } },
+    });
     void mutation.then(() => {
       settled = true;
     });

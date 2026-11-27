@@ -39,6 +39,7 @@ export function BrowserStage({
   onInput,
   cursor: sharedCursor,
   pointerShape = 'dot',
+  accessibilityLabel,
   onWheel,
 }: {
   frame: BrowserFrame;
@@ -47,6 +48,7 @@ export function BrowserStage({
   onInput(input: BrowserInput): void;
   cursor?: SharedValue<StagePoint>;
   pointerShape?: 'dot' | 'arrow';
+  accessibilityLabel?: string | undefined;
   onWheel?(dragY: number, at: StagePoint | undefined): void;
 }) {
   const t = useStrings();
@@ -229,7 +231,7 @@ export function BrowserStage({
       <View
         onLayout={layout}
         accessible
-        accessibilityLabel={t.browserView}
+        accessibilityLabel={accessibilityLabel ?? t.browserView}
         style={{
           flex: 1,
           overflow: 'hidden',

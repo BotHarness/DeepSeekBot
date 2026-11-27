@@ -36,16 +36,13 @@ function CreationFlowOwner({
   presented: boolean;
   header: (model: CreationModel) => ReactNode;
 }) {
-  const globalParams = useGlobalSearchParams<{
+  const params = useGlobalSearchParams<{
     flow?: string;
     step?: string;
     hostId?: string;
     entry?: string;
   }>();
   const pathname = usePathname();
-  const flowParams = useRef(globalParams);
-  if (pathname !== '/create-bot-avatar') flowParams.current = globalParams;
-  const params = flowParams.current;
   const initialSource = useRef<CreationEntrySource>(
     pathname === '/import-bot-git' ? 'git' : pathname === '/import-bot-zip' ? 'zip' : 'blank',
   ).current;

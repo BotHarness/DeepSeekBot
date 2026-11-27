@@ -93,3 +93,15 @@ export function effectiveHostPermissions(
     return { humanId, owner, active, permissions };
   });
 }
+
+export function channelActionRoleIds(
+  database: OperationalDatabaseModulePort,
+  humanId: string,
+): ReadonlySet<string> {
+  const roles = database.read((db) =>
+    z
+      .array(z.object({ role_id: z.string() }))
+      .parse(db.prepare('SELECT role_id FROM human_roles WHERE human_id = ?').all(humanId)),
+  );
+  return new Set(roles.map((role) => role.role_id));
+}

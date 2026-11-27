@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -63,7 +64,10 @@ it('classifies legacy memberships without changing Owner content and keeps the n
     const database = attachOperationalModule(current, 'm14-test');
     database.read((db) => {
       expect(db.prepare('SELECT * FROM channel_records ORDER BY channel_id').all()).toEqual(
-        records,
+        records.map(({ policy_json: _, ...record }) => ({
+          ...record,
+          permission_table_json: JSON.stringify(DEFAULT_CHANNEL_POLICY),
+        })),
       );
       expect(
         db.prepare("SELECT id FROM schema_migrations WHERE id = 'channel-membership-basis'").all(),

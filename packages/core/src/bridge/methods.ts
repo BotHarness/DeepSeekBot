@@ -10,7 +10,6 @@ import {
   type PersonaBotsBridgeMethods,
 } from '../features/personabots/methods.js';
 import { createBotDetails } from '../features/personabots/bot-details.js';
-import { createHumansBridgeMethods, type HumansBridgeMethods } from '../features/humans/methods.js';
 import {
   createTeamBridgeMethods,
   type TeamBridgeMethods,
@@ -52,16 +51,6 @@ import {
   type WorkspacesBridgeDeps,
 } from '../features/workspaces/methods.js';
 import {
-  createBrowserBridgeMethods,
-  type BrowserBridgeMethods,
-  type BrowserBridgeDeps,
-} from '../features/browser/methods.js';
-import {
-  createComputerBridgeMethods,
-  type ComputerBridgeMethods,
-  type ComputerBridgeDeps,
-} from '../features/computer/methods.js';
-import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
   createEngineSelectionBridge,
@@ -94,11 +83,6 @@ import {
   type ContributedBridgeDeps,
 } from '../feature-contributions.js';
 import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
-import {
-  createPromptBridgeMethods,
-  type PromptBridgeMethods,
-  type PromptBridgeDeps,
-} from '../features/prompts/methods.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team-policy/error.js';
@@ -181,18 +165,9 @@ import {
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
 import { createUsageAdapterMethods, type UsageAdapterMethods } from '../features/usage/methods.js';
 import {
-  createConnectorsBridgeMethods,
-  type ConnectorsBridgeDeps,
-  type ConnectorsBridgeMethods,
-} from '../features/connectors/methods.js';
-import {
   createTakeoverAdapterMethods,
   type TakeoverAdapterMethods,
 } from '../features/takeover/methods.js';
-import {
-  createPromptsAdapterMethods,
-  type PromptsAdapterMethods,
-} from '../features/prompts/methods.js';
 import {
   createWorkspacesAdapterMethods,
   type WorkspacesAdapterMethods,
@@ -201,10 +176,6 @@ import {
   createSessionsAdapterMethods,
   type SessionsAdapterMethods,
 } from '../features/sessions/methods.js';
-import {
-  createHumansAdapterMethods,
-  type HumansAdapterMethods,
-} from '../features/humans/methods.js';
 import {
   createReleaseAdapterMethods,
   type ReleaseAdapterMethods,
@@ -375,13 +346,10 @@ export interface BridgeMethods
     ModelProviderBridgeMethods,
     EngineAccountBridgeMethods,
     EngineSelectionBridgeMethods,
-    PromptBridgeMethods,
     SkillsBridgeMethods,
     AvatarsBridgeMethods,
     MarketplaceBridgeMethods,
     ModelsBridgeMethods,
-    ComputerBridgeMethods,
-    BrowserBridgeMethods,
     VoiceBridgeMethods,
     ApprovalsBridgeMethods,
     WorkspacesBridgeMethods,
@@ -392,7 +360,6 @@ export interface BridgeMethods
     ActivityBridgeMethods,
     CloudBridgeMethods,
     PersonaBotsBridgeMethods,
-    HumansBridgeMethods,
     ChannelsAdapterMethods,
     ChannelsManagementAdapterMethods,
     GroupMemberMethods,
@@ -401,15 +368,12 @@ export interface BridgeMethods
     ProfileStorageAdapterMethods,
     DiagnosticsAdapterMethods,
     ReleaseAdapterMethods,
-    HumansAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
     ReturnType<typeof createSessionBotMethods>,
     WorkspacesAdapterMethods,
-    PromptsAdapterMethods,
     TakeoverAdapterMethods,
     UsageAdapterMethods,
-    ConnectorsBridgeMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -429,19 +393,15 @@ export interface BridgeMethods
 
 export interface BridgeMethodsDeps
   extends
-    PromptBridgeDeps,
     ContributedBridgeDeps,
     SkillsBridgeDeps,
     AvatarsBridgeDeps,
     MarketplaceBridgeDeps,
     ModelsBridgeDeps,
-    ComputerBridgeDeps,
-    BrowserBridgeDeps,
     VoiceBridgeDeps,
     ApprovalsBridgeDeps,
     WorkspacesBridgeDeps,
     AssignmentsBridgeDeps,
-    ConnectorsBridgeDeps,
     MemoryBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
@@ -581,7 +541,6 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
-  const { botSystemPrompt, ...promptPresets } = createPromptBridgeMethods(deps, globalRegistry);
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   const channelSkillBots = (channel: ChannelRecord): string[] => {
@@ -644,8 +603,6 @@ function buildBridgeMethods(
     requireOwnedBot,
     modelRouting,
   );
-  const computerMethods = createComputerBridgeMethods(deps, detailOf);
-  const browserMethods = createBrowserBridgeMethods(deps, detailOf);
   const approvalsMethods = createApprovalsBridgeMethods(
     human,
     deps,
@@ -661,7 +618,6 @@ function buildBridgeMethods(
   const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
   const messagingMethods = createMessagingBridgeMethods(deps, messagingCall);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
-  const humansMethods = createHumansBridgeMethods(human, deps, channelView);
   const personabotsMethods = createPersonaBotsBridgeMethods(
     human,
     deps,
@@ -677,12 +633,10 @@ function buildBridgeMethods(
   const tobAdapterMethods = createTobAdapterMethods(human, deps, isHostOwner);
   const usageAdapterMethods = createUsageAdapterMethods(deps, isHostOwner, dmMemory);
   const takeoverAdapterMethods = createTakeoverAdapterMethods(human, deps);
-  const promptsAdapterMethods = createPromptsAdapterMethods(deps);
   const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
-  const humansAdapterMethods = createHumansAdapterMethods(deps);
   const releaseAdapterMethods = createReleaseAdapterMethods(deps);
   const diagnosticsAdapterMethods = createDiagnosticsAdapterMethods(deps);
   const profileStorageAdapterMethods = createProfileStorageAdapterMethods(human, deps);
@@ -722,7 +676,6 @@ function buildBridgeMethods(
       isHostOwner,
       log: deps.voiceLog,
     }),
-    ...createConnectorsBridgeMethods(deps, isHostOwner),
     ...createBotModeBridgeMethods({
       modes: deps.botModes,
       registry: deps.registry,
@@ -765,8 +718,6 @@ function buildBridgeMethods(
     messagingSend: messagingMethods.messagingSend,
     ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
-    acknowledgements: humansAdapterMethods.acknowledgements,
-    acknowledge: humansAdapterMethods.acknowledge,
     ...modelInheritance,
     telemetryEvent: diagnosticsAdapterMethods.telemetryEvent,
     onboardingModel: personabotsMethods.onboardingModel,
@@ -774,7 +725,6 @@ function buildBridgeMethods(
     botNewSession: sessionsMethods.botNewSession,
     botCompact: sessionsMethods.botCompact,
     botContext: sessionsMethods.botContext,
-    botSystemPrompt,
     channelBotStop: sessionsMethods.channelBotStop,
     botStop: sessionsMethods.botStop,
     sessionMessageSend: (payload) =>
@@ -821,12 +771,9 @@ function buildBridgeMethods(
     update: personabotsMethods.update,
     pause: personabotsMethods.pause,
     resume: personabotsMethods.resume,
-    ...computerMethods,
-    ...browserMethods,
     approvalTemplates: approvalsMethods.approvalTemplates,
     approvalTemplateCreate: approvalsMethods.approvalTemplateCreate,
     approvalTemplateUpdate: approvalsMethods.approvalTemplateUpdate,
-    ...promptPresets,
     approvalTemplateDeletePreview: approvalsMethods.approvalTemplateDeletePreview,
     approvalTemplateDelete: approvalsMethods.approvalTemplateDelete,
     approvalTemplateGlobalSet: approvalsMethods.approvalTemplateGlobalSet,
@@ -840,14 +787,7 @@ function buildBridgeMethods(
     standingLimitsSet: personabotsMethods.standingLimitsSet,
     ...avatarsMethods,
     ping: diagnosticsAdapterMethods.ping,
-    humanIdentity: humansMethods.humanIdentity,
-    composerIdentity: humansMethods.composerIdentity,
     composerValidate: channelsAdapterMethods.composerValidate,
-    humanNameSet: humansMethods.humanNameSet,
-    humanAvatarSet: humansMethods.humanAvatarSet,
-    humanProfileSetupFinish: humansMethods.humanProfileSetupFinish,
-    humanAvatars: humansMethods.humanAvatars,
-    channelHumanNameSet: humansMethods.channelHumanNameSet,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
     channelAccessState: channelsAdapterMethods.channelAccessState,
@@ -946,7 +886,6 @@ function buildBridgeMethods(
     userQuestionStatus: approvalsMethods.userQuestionStatus,
     userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     botToolTrace: sessionsMethods.botToolTrace,
-    botTurnInput: promptsAdapterMethods.botTurnInput,
     sessions: sessionsMethods.sessions,
     sessionArchiveSet: sessionsMethods.sessionArchiveSet,
     memoryMove: memoryMethods.memoryMove,
@@ -991,7 +930,10 @@ function buildBridgeMethods(
     developerModeSet: diagnosticsAdapterMethods.developerModeSet,
   };
   return authorizeChannelBridgeMethods(
-    mergeFeatureMethods([methods, contributedBridgeMethods(human, deps)]),
+    mergeFeatureMethods([
+      methods,
+      contributedBridgeMethods(deps, { human, detailOf, channelView, globalRegistry, isHostOwner }),
+    ]),
     human,
     deps,
     globalRegistry,

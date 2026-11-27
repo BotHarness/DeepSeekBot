@@ -16,7 +16,7 @@ export function visibilitySummary(
 }
 
 export function postRestricted(access: ChannelAccess | undefined): boolean {
-  return access !== undefined && access.role === 'member' && access.policy.post === 'admins';
+  return access?.canPost === false;
 }
 
 export function filterDirectory<T extends { readonly displayName: string }>(

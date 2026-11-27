@@ -47,7 +47,7 @@ import {
   type DshAgentPresetHost,
 } from '../../runtime/dsh-bot-agent-adapter.js';
 import * as models from '../models/plugin.js';
-import * as promptPresets from '../prompts/plugin.js';
+import { promptTextForBot } from '../../prompts/prompt-settings.js';
 import { createRosterStore } from '../../roster/store.js';
 import { createBotCreation } from '../../bots/creation.js';
 import { createBotImports } from '../../bots/imports.js';
@@ -505,7 +505,7 @@ export function createRuntime(
       : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) =>
-      promptPresets.promptText(prompts, slug, deps.runtime?.currentOrchestratorSessionId?.(slug)),
+      promptTextForBot(prompts, slug, deps.runtime?.currentOrchestratorSessionId?.(slug)),
     promptLimits: (slug) => prompts.limits(slug),
     tob,
     triageContinuation: options.triageContinuation === true,

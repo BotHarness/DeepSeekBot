@@ -23,8 +23,8 @@ retain valid workload, profiling and matched A/B evidence separately from visual
 | e2e Simulator           | `BotHarness e2e`, erased by `scripts/e2e-mobile-sim.mjs` on every run                             | Only the current runner    |
 | Physical iPhone         | The Human's phone, on the Mac's Tailscale tailnet                                                 | The device lane, see below |
 | QA Host                 | Port `39100`, home `~/.dsh-botharness-batch-qa`, its own worktree                                 | Only the current runner    |
-| Simulator dev build     | `~/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-shared`                                     | One rebuild at a time      |
-| Phone build             | `~/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-phone`                                      | One rebuild at a time      |
+| iOS builds              | `node scripts/ios-build.mjs` in your own worktree; DerivedData under `apps/mobile/ios/build/`     | Any agent, two at a time   |
+| Compilation cache (CAS) | `~/Library/Developer/Xcode/DerivedData/CompilationCache.noindex`, shared, capped at 25 GB         | `ios-build.mjs`            |
 | Cached e2e app          | `~/Library/Caches/botharness/mobile-sim/DeepSeekBotDev.app`                                       | `e2e-mobile-sim.mjs`       |
 | Maestro iOS driver port | One per Mac                                                                                       | One Maestro run at a time  |
 
@@ -104,16 +104,21 @@ A **native change** needs a new build. A change is native when it touches `app.j
 package with native code (an Expo SDK patch bump counts). Check every PR in the batch, and the
 `main` it is based on, before deciding a batch is JavaScript only.
 
-- Run `npx expo prebuild` and `LANG=en_US.UTF-8 pod install` (in `apps/mobile/ios`) before the
-  build. CocoaPods crashes without a UTF-8 locale.
-- Keep exactly one copy of each build. Before a rebuild, delete the previous DerivedData folder
-  and `apps/mobile/ios`. Build into the named folder with `-derivedDataPath`, never into a new
-  per-branch folder.
-- Check `df -h ~` before a build and stop if less than about 15 GB is free. Log the DerivedData
-  size and `df -h ~` after the build in the batch's results.
-- One build at a time. When another agent's build or profile uses a DerivedData folder (for
-  example a Release build on the phone for profiling), do not write to that folder until it is
-  done.
+- Build in your own worktree with `node scripts/ios-build.mjs --prebuild`. It runs
+  `expo prebuild` and `pod install`, builds into that worktree's own DerivedData with the shared
+  Xcode compilation cache, copies the `.app` to `apps/mobile/ios/build/` and deletes the
+  DerivedData. Builds do not queue: every worktree has its own DerivedData, and Xcode reads and
+  writes the cache safely from several builds at once. Prefix mapping makes cache keys
+  independent of the worktree path, so a new worktree reuses what any other worktree compiled.
+  Measured on Xcode 27.2: 21 minutes without the cache, about 5 minutes with a warm cache (about
+  95% cache hits). `pod install` still takes about 2 minutes per worktree.
+- A Debug build's DerivedData is about 17 GB even with a warm cache, so keep it only while you
+  need it (`--keep-derived-data`). The cache itself stays between builds; `ios-build.mjs` clears
+  it when it grows past 25 GB (`BOTHARNESS_IOS_CAS_MAX_GB`) and no other build is using it.
+- Check `df -h ~` before a build and stop if less than about 20 GB is free. Run at most two iOS
+  builds at once on the 24 GB Mac.
+- Install on the claimed Simulator with `xcrun simctl install <udid> apps/mobile/ios/build/DeepSeekBotDev.app`,
+  or pass that path to `e2e-mobile-sim.mjs --app`. Installing and running still follow the queue.
 
 ## QA Host
 
@@ -172,19 +177,17 @@ disk, Host and build folders.
 - **Build.** The phone runs a Release build of the batch branch, made in the batch worktree:
 
   ```bash
-  cd <batch-worktree>/apps/mobile && xcodebuild -workspace ios/DeepSeekBotDev.xcworkspace \
-    -scheme DeepSeekBotDev -configuration Release -destination id=<iphone-udid> \
-    -derivedDataPath ~/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-phone \
-    -allowProvisioningUpdates DEVELOPMENT_TEAM=<team-id> build
+  cd <batch-worktree> && node scripts/ios-build.mjs --prebuild --configuration Release \
+    --destination id=<iphone-udid> -- -allowProvisioningUpdates DEVELOPMENT_TEAM=<team-id>
   ```
 
-  When the batch has a native change since the phone's last build, run `npx expo prebuild` and
-  `LANG=en_US.UTF-8 pod install` first. A Release build carries its JavaScript, so a phone needs
+  `--prebuild` regenerates `apps/mobile/ios` and runs `pod install`, so a native change since
+  the phone's last build is picked up. A Release build carries its JavaScript, so a phone needs
   a new build for every JavaScript change too. Host-side changes, such as notification text, need
   only a QA Host restart.
 
 - **Install:**
-  `xcrun devicectl device install app --device <iphone-udid> ~/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-phone/Build/Products/Release-iphoneos/DeepSeekBotDev.app`.
+  `xcrun devicectl device install app --device <iphone-udid> <batch-worktree>/apps/mobile/ios/build/DeepSeekBotDev.app`.
   Then ask the Human to open the app once and keep it in the foreground for a few seconds, so it
   registers for push again.
 - **Simulator first.** Run every check that can run on a Simulator there, using iOS 27

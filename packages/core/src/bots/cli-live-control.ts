@@ -8,6 +8,7 @@ import { CliLiveError } from './cli-live-error.js';
 import { channelOperationKey } from './cli-channels.js';
 import { connectLiveHost, record } from './cli-live-host.js';
 import { timeoutMs, usage, type LiveValues } from './cli-live-input.js';
+import { COMPUTER_SETTINGS_NAMESPACE } from '../../../computer/src/settings.js';
 
 export const CONTROL_COMMANDS = [
   'browser-access-set',
@@ -16,6 +17,7 @@ export const CONTROL_COMMANDS = [
   'access-set',
   'settings',
   'settings-set',
+  'computer-target',
   'workspace-create',
   'group-create',
 ] as const;
@@ -26,8 +28,14 @@ export async function runControlCommand(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
-  if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target.`);
-  const target = rest[0].trim();
+  const computerTarget = command === 'computer-target';
+  if (computerTarget ? rest.length !== 0 : rest.length !== 1 || !rest[0]?.trim())
+    usage(
+      computerTarget
+        ? 'computer-target takes no positional arguments.'
+        : `${command} needs exactly one target.`,
+    );
+  const target = computerTarget ? COMPUTER_SETTINGS_NAMESPACE : rest[0]!.trim();
   let patch: Record<string, unknown> | undefined;
   let reviewed: ReviewedSettings | undefined;
   if (command === 'browser-access-set' || command === 'computer-access-set') {
@@ -56,6 +64,17 @@ export async function runControlCommand(
     }
     reviewed = parseReviewedSettings(values, patch);
   }
+  if (computerTarget && values.target !== undefined) {
+    if (!['current-desktop', 'local', 'container'].includes(values.target))
+      usage('--target must be current-desktop, local or container.');
+    patch = { target: values.target };
+  }
+  if (
+    target === COMPUTER_SETTINGS_NAMESPACE &&
+    patch?.['target'] === 'current-desktop' &&
+    values.confirm !== true
+  )
+    usage('Bots and paired phones can see the entire desktop. Pass --confirm to select it.');
   if (command === 'workspace-create' && !target.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(target))
     usage('workspace-create needs an absolute folder path.');
   const members = (values.member ?? []).map((member) => member.trim()).filter(Boolean);
@@ -106,7 +125,7 @@ export async function runControlCommand(
   const found = namespaces.map(record).find((entry) => entry['ns'] === target);
   if (found === undefined)
     throw new CliLiveError('unknown-settings', `The Host has no settings namespace ${target}.`);
-  if (command === 'settings')
+  if (patch === undefined)
     return { ns: target, revision: found['revision'], value: found['value'] };
   if (reviewed !== undefined) {
     const current = record(found['value']);

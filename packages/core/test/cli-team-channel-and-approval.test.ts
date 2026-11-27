@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { host, run } from './cli-team-fixtures.js';
 
 describe('M4 CLI parity', () => {
@@ -85,6 +86,27 @@ describe('M4 CLI parity', () => {
 });
 
 describe('M4 Channel policy CLI', () => {
+  it('reads and replaces a versioned permission table through the same Channel policy command', async () => {
+    const f = await host();
+    const args = ['channels', 'policy', 'group-1'];
+    expect(await run(f.url, args)).toMatchObject({
+      status: 0,
+      output: { policy: DEFAULT_CHANNEL_POLICY, policyRevision: 'a'.repeat(64) },
+    });
+    expect(f.calls.map(({ input }) => input.method)).toEqual(['botharness/channelGet']);
+    const policy = {
+      ...DEFAULT_CHANNEL_POLICY,
+      overrides: [{ roleId: 'member', actions: { post: 'deny' } }],
+    };
+    expect(await run(f.url, [...args, '--policy-stdin'], JSON.stringify(policy))).toMatchObject({
+      status: 0,
+    });
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: 'botharness/channelPolicySet',
+      payload: { args: { channelId: 'group-1', policy, expectedRevision: 'a'.repeat(64) } },
+    });
+  });
+
   it('patches the observed full policy without resetting omitted flags', async () => {
     const f = await host();
     expect(
@@ -94,9 +116,9 @@ describe('M4 Channel policy CLI', () => {
           'policy',
           'group-1',
           '--post',
-          'admins',
+          'deny',
           '--mention-all',
-          'admins',
+          'deny',
         ])
       ).status,
     ).toBe(0);
@@ -107,11 +129,15 @@ describe('M4 Channel policy CLI', () => {
           channelId: 'group-1',
           expectedRevision: 'a'.repeat(64),
           policy: {
-            addMembers: 'everyone',
-            post: 'admins',
-            mentionAll: 'admins',
-            addBots: 'admins',
-            editDetails: 'admins',
+            version: 1 as const,
+            everyone: {
+              addMembers: 'allow',
+              post: 'deny',
+              mentionAll: 'deny',
+              addBots: 'deny',
+              editDetails: 'deny',
+            },
+            overrides: [],
           },
         },
       },
@@ -122,7 +148,7 @@ describe('M4 Channel policy CLI', () => {
       code: 'stale-channel-policy',
       message: 'stale-channel-policy',
     });
-    const result = await run(f.url, ['channels', 'policy', 'group-1', '--post', 'admins']);
+    const result = await run(f.url, ['channels', 'policy', 'group-1', '--post', 'deny']);
     expect(result.status).toBe(1);
     expect(result.output).toMatchObject({ error: { code: 'stale-channel-policy' } });
     expect(f.calls.map((call) => call.input.method)).toEqual([
@@ -136,8 +162,7 @@ describe('M4 Channel policy CLI', () => {
   it('keeps both read and mutation on --as and never falls back after denial', async () => {
     const f = await host();
     expect(
-      (await run(f.url, ['channels', 'policy', 'group-1', '--post', 'admins', '--as', 'bob']))
-        .output,
+      (await run(f.url, ['channels', 'policy', 'group-1', '--post', 'deny', '--as', 'bob'])).output,
     ).toMatchObject({ error: { code: 'remote-access/denied' } });
     expect(f.calls).toHaveLength(1);
     expect(f.calls[0]).toMatchObject({

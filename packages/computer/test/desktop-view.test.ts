@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DesktopViewError,
+  createDesktopFrameStream,
   createDesktopView,
   desktopInputCall,
   jpegEncoder,
   parseDesktopInput,
 } from '../src/desktop-view.js';
+import { deferred } from './local-video-owner-fixture.js';
 
 const shot = (data: string) => ({
   content: [{ type: 'image', data, mimeType: 'image/png' }],
@@ -107,6 +109,30 @@ describe('desktop view input', () => {
 });
 
 describe('desktop view frames', () => {
+  it('starts a fresh capture immediately and drops old encoding after a target switch', async () => {
+    const encoding = deferred<void>();
+    const finishOld = deferred<undefined>();
+    let attempts = 0;
+    const view = createDesktopFrameStream({
+      driver: fakeDriver(['old', 'new']),
+      isRunning: () => true,
+      intervalMs: 0,
+      encode: async () => {
+        if (++attempts !== 1) return undefined;
+        encoding.resolve();
+        return finishOld.promise;
+      },
+    });
+    const old = view.next(undefined);
+    await encoding.promise;
+    view.clear();
+    const fresh = await view.next(undefined);
+    expect(fresh).toMatchObject({ seq: 1, data: 'new' });
+    finishOld.resolve(undefined);
+    await expect(old).resolves.toBeUndefined();
+    await expect(view.next(0)).resolves.toEqual(fresh);
+  });
+
   it('publishes a frame only when the screen changes', async () => {
     const driver = fakeDriver(['a', 'a', 'a', 'b']);
     const view = createDesktopView({

@@ -1,13 +1,20 @@
 import { deviceRefusal, type HostApiAnswer, type HostApiInit, type HostClient } from './client';
 import type { BrowserFrame, BrowserInput } from './browser-viewer';
+import { createCurrentDesktopViewer, currentDesktopAvailable } from './current-desktop-viewer';
+import type { WaylandIssueCode } from '../../computer/src/desktop-availability';
 
 export type ComputerViewerStatus = 'loading' | 'live' | 'not-running' | 'unreachable' | 'refused';
 
 export interface ComputerViewerState {
   status: ComputerViewerStatus;
-  frame?: BrowserFrame;
+  frame?: BrowserFrame | undefined;
   control: boolean;
+  explicit?: boolean;
+  releasing?: boolean;
+  paused?: boolean | undefined;
+  busy?: boolean;
   notice?: string | undefined;
+  noticeCode?: WaylandIssueCode | 'desktop-input-queue-full' | undefined;
 }
 
 export interface ComputerViewer {
@@ -16,8 +23,70 @@ export interface ComputerViewer {
   start(): void;
   stop(): void;
   setControl(active: boolean): Promise<void>;
+  resume?(): Promise<void>;
   hold(active: boolean): Promise<void>;
   send(input: BrowserInput): Promise<void>;
+}
+
+export function createPhoneComputerViewer(client: Pick<HostClient, 'api'>): ComputerViewer {
+  const idle: ComputerViewerState = { status: 'loading', control: false };
+  const listeners = new Set<() => void>();
+  let discovery: AbortController | undefined;
+  let discoveryState = idle;
+  let viewer: ComputerViewer | undefined;
+  const publish = () => {
+    for (const listener of listeners) listener();
+  };
+  return {
+    getState: () => viewer?.getState() ?? discoveryState,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    start() {
+      if (discovery !== undefined) return;
+      if (viewer !== undefined) {
+        viewer.start();
+        return;
+      }
+      const attempt = new AbortController();
+      discovery = attempt;
+      discoveryState = idle;
+      publish();
+      void currentDesktopAvailable(client, attempt.signal).then(
+        (current) => {
+          if (attempt.signal.aborted) return;
+          discovery = undefined;
+          viewer = current ? createCurrentDesktopViewer(client) : createComputerViewer({ client });
+          viewer.subscribe(publish);
+          viewer.start();
+          publish();
+        },
+        (error: unknown) => {
+          if (attempt.signal.aborted) return;
+          discovery = undefined;
+          discoveryState = {
+            status: deviceRefusal(error) === undefined ? 'unreachable' : 'refused',
+            explicit: true,
+            control: false,
+            notice: error instanceof Error ? error.message : String(error),
+          };
+          publish();
+        },
+      );
+    },
+    stop() {
+      discovery?.abort();
+      discovery = undefined;
+      discoveryState = idle;
+      viewer?.stop();
+      publish();
+    },
+    setControl: (active) => viewer?.setControl(active) ?? Promise.resolve(),
+    resume: () => viewer?.resume?.() ?? Promise.resolve(),
+    hold: (active) => viewer?.hold(active) ?? Promise.resolve(),
+    send: (input) => viewer?.send(input) ?? Promise.resolve(),
+  };
 }
 
 export interface ComputerViewerOptions {
@@ -98,7 +167,7 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
   const wait = options.wait ?? pause;
   const frameTimeoutMs = options.frameTimeoutMs ?? FRAME_TIMEOUT_MS;
   const listeners = new Set<() => void>();
-  let state: ComputerViewerState = { status: 'loading', control: false };
+  let state: ComputerViewerState = { status: 'loading', control: false, explicit: false };
   let run: AbortController | undefined;
   let queue: Promise<void> = Promise.resolve();
   const releaseMs = options.releaseMs ?? RELEASE_MS;

@@ -98,6 +98,7 @@ function ComputerScreen({
         ? undefined
         : createLocalVideoClient(client, {
             mediaAvailable: NativeLocalComputerVideo !== undefined,
+            desktopFrameFallback: true,
           }),
     [client, slug],
   );

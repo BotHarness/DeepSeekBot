@@ -18,6 +18,7 @@ import { delimiter } from 'node:path';
 import { dirname, join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { androidQaApkIdentity, resolveAndroidQaApk } from './android-qa-apk-cache.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -374,7 +375,18 @@ function actionEmulator(queueRoot, options, config, env, adb) {
   });
 }
 
-function actionMetro(options, env) {
+function checkoutSource() {
+  return {
+    commit: capture('git', ['-C', repoRoot, 'rev-parse', 'HEAD']).trim(),
+    dirty: capture('git', ['-C', repoRoot, 'status', '--porcelain=v1']).trim() !== '',
+  };
+}
+
+function evidenceDir(queueRoot, options) {
+  return join(queueRoot, 'evidence', options.batch, options.lane);
+}
+
+function actionMetro(queueRoot, options, env) {
   const metroEnv = {
     ...env,
     REACT_NATIVE_PACKAGER_HOSTNAME: '127.0.0.1',
@@ -389,19 +401,27 @@ function actionMetro(options, env) {
     '--port',
     String(options.metroPort),
   ]);
+  writeJsonAtomic(join(evidenceDir(queueRoot, options), 'metro.json'), {
+    ...checkoutSource(),
+    port: options.metroPort,
+    startedAt: new Date().toISOString(),
+  });
   run(exe, args, metroEnv);
 }
 
-function actionBuild(queueRoot, options, config, env, adb, serial) {
-  if (!process.env.NODE_ENV) process.env.NODE_ENV = 'development';
+function deviceAbi(env, adb, serial) {
+  const abi = capture(adb, ['-s', serial, 'shell', 'getprop', 'ro.product.cpu.abi'], env).trim();
+  if (!abis.has(abi)) throw new Error('Unsupported device ABI');
+  return abi;
+}
+
+function buildDebugApk(queueRoot, options, config, env, abi) {
   if (repoRoot.length > 30)
     throw new Error(
       'Use a short physical batch worktree path (at most 30 characters, e.g. D:/bhqa/1). AGP launches prefab_command.bat inside pnpm dependencies; short CMake staging and modern Ninja alone cannot fix that Windows path limit.',
     );
   if (!config.javaHome || !config.nativeRoot)
     throw new Error('Set javaHome (JDK 17) and a short nativeRoot in config.json before building.');
-  const abi = capture(adb, ['-s', serial, 'shell', 'getprop', 'ro.product.cpu.abi'], env).trim();
-  if (!abis.has(abi)) throw new Error('Unsupported device ABI');
   const ninja =
     process.platform === 'win32'
       ? join(config.sdk, 'cmake', config.cmakeVersion, 'bin', 'ninja.exe')
@@ -427,8 +447,7 @@ function actionBuild(queueRoot, options, config, env, adb, serial) {
     .toUpperCase()
     .slice(0, 8);
   const staging = join(config.nativeRoot, hash).replace(/\\/g, '/').replace(/'/g, "\\'");
-  const evidence = join(queueRoot, 'evidence', options.batch, options.lane);
-  const initScript = join(evidence, 'short-paths.gradle');
+  const initScript = join(evidenceDir(queueRoot, options), 'short-paths.gradle');
   writeFileSync(
     initScript,
     `allprojects { p ->
@@ -473,41 +492,50 @@ function actionBuild(queueRoot, options, config, env, adb, serial) {
   );
   if (gradleResult.error) throw gradleResult.error;
   if (gradleResult.status !== 0) throw new Error(`${gradle} exited ${gradleResult.status}`);
-  writeJsonAtomic(join(evidence, 'build.json'), {
-    commit: capture('git', ['-C', repoRoot, 'rev-parse', 'HEAD']).trim(),
-    abi,
-    time: new Date().toISOString(),
+  return join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+}
+
+async function actionApk(queueRoot, options, config, env, adb, serial) {
+  const abi = deviceAbi(env, adb, serial);
+  const identity = await androidQaApkIdentity({ repoRoot, abi, metroPort: options.metroPort });
+  const source = checkoutSource();
+  const build = async () => {
+    const apk = buildDebugApk(
+      queueRoot,
+      options,
+      config,
+      { ...process.env, ...env, NODE_ENV: process.env.NODE_ENV },
+      abi,
+    );
+    const current = await androidQaApkIdentity({ repoRoot, abi, metroPort: options.metroPort });
+    if (current.key !== identity.key)
+      throw new Error('Android build inputs changed during the build. Run build again.');
+    return { apk, ...source };
+  };
+  const { apk, reused, ...provenance } = await resolveAndroidQaApk({
+    queueRoot,
+    identity,
+    build: options.action === 'build' ? build : undefined,
+  });
+  if (options.action === 'install') {
+    run(adb, ['-s', serial, 'install', '-r', apk], env);
+  } else {
+    console.log(reused ? `Reused Android Debug APK ${apk}` : `Cached Android Debug APK ${apk}`);
+  }
+  const time = new Date().toISOString();
+  writeJsonAtomic(join(evidenceDir(queueRoot, options), `${options.action}.json`), {
+    ...source,
+    ...identity,
+    ...provenance,
+    apk,
+    reused,
+    time,
   });
   appendEvent(queueRoot, {
-    phase: 'build-completed',
+    phase: options.action === 'build' && reused ? 'build-reused' : `${options.action}-completed`,
     owner: options.owner,
     batch: options.batch,
   });
-}
-
-function actionInstall(env, adb, serial) {
-  run(
-    adb,
-    [
-      '-s',
-      serial,
-      'install',
-      '-r',
-      join(
-        repoRoot,
-        'apps',
-        'mobile',
-        'android',
-        'app',
-        'build',
-        'outputs',
-        'apk',
-        'debug',
-        'app-debug.apk',
-      ),
-    ],
-    env,
-  );
 }
 
 function actionOpen(options, env, adb, serial) {
@@ -636,7 +664,7 @@ async function runAction(queueRoot, options) {
     mkdirSync(join(queueRoot, 'evidence', lease.batch, lease.lane), { recursive: true });
     const scoped = { ...options, lane: lease.lane, metroPort: lease.metroPort };
     if (options.action === 'metro') {
-      actionMetro(scoped, env);
+      actionMetro(queueRoot, scoped, env);
       return;
     }
     let state = '';
@@ -657,12 +685,8 @@ async function runAction(queueRoot, options) {
     }
     if ((lease.lane === 'emulator') !== (qemu === '1'))
       throw new Error('Device type does not match the claimed lane.');
-    if (options.action === 'build') {
-      actionBuild(queueRoot, scoped, config, env, adb, serial);
-      return;
-    }
-    if (options.action === 'install') {
-      actionInstall(env, adb, serial);
+    if (options.action === 'build' || options.action === 'install') {
+      await actionApk(queueRoot, scoped, config, env, adb, serial);
       return;
     }
     if (options.action === 'open') {

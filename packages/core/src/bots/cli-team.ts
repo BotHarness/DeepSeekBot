@@ -556,14 +556,21 @@ export async function runTeamCommand(
       const snapshot = z
         .object({ policy: channelPolicySchema, policyRevision: channelPolicyRevisionSchema })
         .parse(await readChannel({ call: (method, args = {}) => rpc(method, args) }, argument));
-      const policy = channelPolicySchema.safeParse({
-        ...snapshot.policy,
-        ...(values.post === undefined ? {} : { post: values.post }),
+      const patch = {
         ...(values['add-members'] === undefined ? {} : { addMembers: values['add-members'] }),
+        ...(values.post === undefined ? {} : { post: values.post }),
         ...(values['mention-all'] === undefined ? {} : { mentionAll: values['mention-all'] }),
         ...(values['add-bots'] === undefined ? {} : { addBots: values['add-bots'] }),
         ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
-      });
+      };
+      if (!values['policy-stdin'] && Object.keys(patch).length === 0) return snapshot;
+      if (values['policy-stdin'] && Object.keys(patch).length > 0) return usage();
+      const policy = values['policy-stdin']
+        ? { success: true as const, data: secretJson(channelPolicySchema, await secret(io)) }
+        : channelPolicySchema.safeParse({
+            ...snapshot.policy,
+            everyone: { ...snapshot.policy.everyone, ...patch },
+          });
       if (!policy.success) return usage();
       return rpc('channelPolicySet', {
         channelId: argument,

@@ -12,12 +12,19 @@ function facts(overrides: Partial<ChannelAccessFacts> = {}): ChannelAccessFacts 
     active: () => true,
     joined: () => true,
     group: () => true,
-    groupPolicy: () => ({
-      ...DEFAULT_CHANNEL_POLICY,
-      addMembers: 'admins',
-      post: 'admins',
-      mentionAll: 'admins',
+    settings: () => ({
+      owner: 'owner',
+      policy: {
+        ...DEFAULT_CHANNEL_POLICY,
+        everyone: {
+          ...DEFAULT_CHANNEL_POLICY.everyone,
+          addMembers: 'deny',
+          post: 'deny',
+          mentionAll: 'deny',
+        },
+      },
     }),
+    roleIds: () => new Set(),
     role: () => 'member',
     managesAll: () => false,
     ...overrides,

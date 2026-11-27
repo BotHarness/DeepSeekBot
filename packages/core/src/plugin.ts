@@ -594,6 +594,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.live.publishResourceChanged('sessions'),
   );
   ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
+  ctx.effect(
+    () => core.workspaceLooks.subscribe(() => sessionListChanges.changedAll()),
+    'botharness: Workspace looks refresh Session lists',
+  );
   const nativeSessionInput = dshHostSessionInput(
     ctx,
     (id) => core.ownership.resolve(id) === undefined,

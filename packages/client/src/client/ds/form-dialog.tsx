@@ -75,6 +75,7 @@ export function FormDialog({
   onClose,
   showCancel = true,
   scroll = false,
+  scrollDialog = false,
   submitData,
   inline = false,
   footerContainer,
@@ -95,6 +96,7 @@ export function FormDialog({
   readonly onClose?: () => void;
   readonly showCancel?: boolean;
   readonly scroll?: boolean;
+  readonly scrollDialog?: boolean;
   readonly submitData?: Readonly<Record<`data-${string}`, string>>;
   readonly inline?: boolean;
   readonly footerContainer?: HTMLElement | null | undefined;
@@ -169,6 +171,7 @@ export function FormDialog({
       onClose={onClose ?? onCancel}
       closeLabel={labels.close}
       title={title}
+      scrollDialog={scrollDialog}
       {...(description === undefined ? {} : { description })}
       className={stylex.props(styles[size]).className ?? ''}
       footer={footer}
@@ -188,6 +191,7 @@ export function ConfirmDialog({
   busy = false,
   confirmDisabled = false,
   scroll = false,
+  scrollDialog = false,
   danger = true,
   error,
   children,
@@ -201,6 +205,7 @@ export function ConfirmDialog({
   readonly busy?: boolean;
   readonly confirmDisabled?: boolean;
   readonly scroll?: boolean;
+  readonly scrollDialog?: boolean;
   readonly danger?: boolean;
   readonly error?: ReactNode;
   readonly children?: ReactNode;
@@ -216,6 +221,7 @@ export function ConfirmDialog({
       busy={busy}
       submitDisabled={confirmDisabled}
       scroll={scroll}
+      scrollDialog={scrollDialog}
       danger={danger}
       error={error}
     >

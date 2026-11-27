@@ -3,6 +3,7 @@ import { createLocalVideoClient, type LocalVideoTransport } from '../src/local-v
 import {
   LOCAL_VIDEO_PATH,
   type LocalVideoBinding,
+  type LocalVideoResult,
   type LocalVideoState,
 } from '../src/local-video-contract.js';
 import { createLocalVideoOwner } from '../src/local-video-owner.js';
@@ -645,6 +646,29 @@ describe('Local Computer video consumer', () => {
       status: 'unavailable',
       code: 'native-module-unavailable',
     });
+    expect(calls.map(({ body }) => body['kind'])).toEqual(['status']);
+    await client.stop();
+  });
+
+  it('routes a frame-capable Host to the Android frame screen without opening video', async () => {
+    const { transport, calls } = fixture();
+    const client = createLocalVideoClient(
+      {
+        async api(path, init) {
+          const response = await transport.api(path, init);
+          const result = response.body as LocalVideoResult;
+          return {
+            ...response,
+            body: result.ok
+              ? { ...result, state: { ...result.state, transport: 'frames' } }
+              : result,
+          };
+        },
+      },
+      { desktopFrameFallback: true },
+    );
+    await client.start();
+    expect(client.getState()).toMatchObject({ status: 'unsupported', code: 'frame-transport' });
     expect(calls.map(({ body }) => body['kind'])).toEqual(['status']);
     await client.stop();
   });

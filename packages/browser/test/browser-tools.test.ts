@@ -4,12 +4,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
 
+import {
+  caller,
+  cleanup as cleanupComputer,
+  deferred,
+  harness as computerHarness,
+} from '../../computer/test/local-video-owner-fixture.js';
 import { readPublicToolDetail } from '../../core/src/state/tool-activity.js';
 import { auditSummary, formatAudit, ownsBrowserTool } from '../src/tool/provider.js';
 import { execution, harness, screenshotDirs } from './support/browser-tools.js';
 
-afterEach(() => {
+afterEach(async () => {
   for (const dir of screenshotDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  await cleanupComputer();
 });
 
 describe('curated catalog and audit redaction', () => {
@@ -215,6 +222,83 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
     await h.provider.runDirect('bot-a', 'observe', {});
     await h.provider.runDirect('bot-a', 'click', { ref: 'e1' });
     expect(h.runtime.click).toHaveBeenCalledTimes(2);
+  });
+
+  it('drains Computer and Bot Browser observations together before granting desktop input', async () => {
+    const computer = computerHarness({
+      frames: {
+        enabled: () => true,
+        next: async () => ({
+          seq: 1,
+          data: 'capture',
+          mimeType: 'image/jpeg',
+          width: 1920,
+          height: 1080,
+          capturedAt: 10_000,
+        }),
+      },
+    });
+    const { owner } = computer;
+    const opened = await owner.handle(caller, { kind: 'open' });
+    const binding = opened.binding!;
+    await owner.handle(caller, { kind: 'frame', binding });
+    const browser = harness({
+      access: true,
+      auto: true,
+      desktopControl: () => ({ held: owner.isPaused(), epoch: owner.controlEpoch() }),
+      runDesktopOperation: owner.runBotOperation,
+    });
+    browser.created();
+    await browser.provider.runDirect('bot-a', 'open', { url: 'https://example.com' });
+    const browserStarted = deferred<void>();
+    const finishBrowser = deferred<void>();
+    const originalObserve = browser.runtime.observe;
+    browser.runtime.observe = vi.fn(async (tab) => {
+      browserStarted.resolve();
+      await finishBrowser.promise;
+      return originalObserve(tab);
+    });
+    const finishComputer = deferred<string>();
+    const computerCall = expect(
+      owner.runBotOperation(() => finishComputer.promise),
+    ).rejects.toMatchObject({ code: 'control-required' });
+    const browserCall = expect(
+      browser.state.definitions.get('browser_observe')!.execute({}, execution('browser_observe')),
+    ).rejects.toMatchObject({ code: 'control-required' });
+    await browserStarted.promise;
+    let granted = false;
+    const taking = computer.take(binding).then((state) => {
+      granted = state.controller;
+      return state;
+    });
+    await vi.waitFor(() => expect(owner.isPaused()).toBe(true));
+    expect(granted).toBe(false);
+    finishComputer.resolve('private desktop capture');
+    await computerCall;
+    expect(granted).toBe(false);
+    await expect(browser.provider.runDirect('bot-a', 'observe', {})).rejects.toThrow(
+      'The Human holds the Computer',
+    );
+    finishBrowser.resolve();
+    await browserCall;
+    const controlled = await taking;
+    expect(controlled.controller).toBe(true);
+    const generation = controlled.grant!.generation;
+    await computer.input(binding, generation);
+    expect(computer.driver.call).toHaveBeenCalledWith('click', expect.anything(), undefined);
+    const released = await owner.handle(caller, { kind: 'release', binding, generation });
+    expect(released).toMatchObject({ paused: true, controller: false });
+    await expect(owner.runBotOperation(async () => 'desktop')).rejects.toMatchObject({
+      code: 'control-required',
+    });
+    await expect(browser.provider.runDirect('bot-a', 'observe', {})).rejects.toThrow(
+      'The Human holds the Computer',
+    );
+    await owner.handle(caller, { kind: 'resume', binding, runtimeId: opened.runtimeId });
+    expect(await owner.runBotOperation(async () => 'desktop')).toBe('desktop');
+    await expect(browser.provider.runDirect('bot-a', 'observe', {})).resolves.toMatchObject({
+      content: expect.any(Array),
+    });
   });
 
   it('runs the same tools directly for the Owner without a Session, model or approval card', async () => {

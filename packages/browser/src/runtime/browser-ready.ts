@@ -1,3 +1,4 @@
+import type { CdpClient } from './cdp.js';
 export async function waitForBrowserReady(
   readState: () => Promise<unknown>,
   assertCurrent: () => void = () => undefined,
@@ -36,4 +37,16 @@ const READY_POLL_MS = 200;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function watchBrowserTargets(live: CdpClient, changed: (() => void) | undefined): void {
+  if (changed === undefined) return;
+  for (const method of [
+    'Target.targetCreated',
+    'Target.targetDestroyed',
+    'Target.targetInfoChanged',
+  ])
+    live.subscribe(method, undefined, changed);
+  void live.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
+  changed();
 }
