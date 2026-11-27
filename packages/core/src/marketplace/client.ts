@@ -1,11 +1,4 @@
 import {
-  parseMarketplaceSkill,
-  parseMarketplaceSkillPage,
-  type MarketplaceSkill,
-  type MarketplaceSkillPage,
-  type MarketplaceSkillUploadInput,
-} from '@botharness/host-protocol/marketplace-skill';
-import {
   MAX_MARKETPLACE_AVATAR_BYTES,
   type MarketplaceAvatar as MarketplaceAvatarListing,
   type MarketplaceAvatarEdit,
@@ -18,6 +11,7 @@ import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-b
 
 import { canonicalRecipe, isAvatarRecipe, type AvatarRecipe } from '../bots/avatar-appearance.js';
 import { parseChallenge, type AltchaChallenge } from './altcha.js';
+import { createSkillUploadClient, type SkillUploadClient } from './client-skill-uploads.js';
 import { parseMarketplaceLanguage, type MarketplaceLanguage } from './language.js';
 
 export type MarketplaceBanner = { recipe: PixelBannerRecipe } | { image: string };
@@ -171,14 +165,7 @@ export type MarketplaceResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: string; path?: string };
 
-export interface MarketplaceClient {
-  skillWrite(
-    token: string,
-    input: MarketplaceSkillUploadInput,
-    replacing?: string,
-  ): Promise<MarketplaceResult<MarketplaceSkill>>;
-  skillMine(token: string): Promise<MarketplaceResult<MarketplaceSkillPage['skills']>>;
-  skillDelete(token: string, id: string): Promise<MarketplaceResult<{ deleted: true }>>;
+export interface MarketplaceClient extends SkillUploadClient {
   avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
   avatarTags(): Promise<MarketplaceResult<MarketplaceAvatarTag[]>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
@@ -724,30 +711,7 @@ export function createMarketplaceClient(options: {
   };
 
   return {
-    skillWrite: (token, input, replacing) =>
-      request(
-        replacing === undefined ? '/v1/skills' : `/v1/me/skills/${encodeURIComponent(replacing)}`,
-        {
-          method: replacing === undefined ? 'POST' : 'PUT',
-          headers: authorized(token, true),
-          body: JSON.stringify(input),
-        },
-        (value) => parseMarketplaceSkill(record(value)?.['skill']),
-      ),
-    skillMine: (token) =>
-      request(
-        '/v1/me/skills',
-        { method: 'GET', headers: authorized(token, false) },
-        (value) =>
-          parseMarketplaceSkillPage({ skills: record(value)?.['skills'], nextCursor: null })
-            ?.skills,
-      ),
-    skillDelete: (token, id) =>
-      request(
-        `/v1/me/skills/${encodeURIComponent(id)}`,
-        { method: 'DELETE', headers: authorized(token, false) },
-        (value) => (record(value)?.['deleted'] === true ? { deleted: true as const } : undefined),
-      ),
+    ...createSkillUploadClient(request, authorized),
     avatarList: ({ cursor, q, tag, sort }) => {
       const params = new URLSearchParams();
       if (cursor !== undefined) params.set('cursor', cursor);

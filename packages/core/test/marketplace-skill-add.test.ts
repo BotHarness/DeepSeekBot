@@ -64,6 +64,10 @@ it('publishes through the Host and CLI, replaces the listing, and preserves inst
     .object({ id: z.string() })
     .parse(await runSkillCommand('skills-publish', ['tidy-notes'], { bot: 'author' }, connect));
   const { id } = listed;
+  const revision = value(await bridge.marketplaceSkillDetail({ id })).skill.upload?.revision;
+  expect(revision).toBeDefined();
+  const originalFiles = `/v1/skills/${id}/files/${revision}`;
+  expect((await market.request(originalFiles)).status).toBe(200);
   expect(value(await bridge.marketplaceSkillList({ q: 'Alice' })).skills).toMatchObject([
     { id, upload: { author: { name: 'Alice', id: author.id } } },
   ]);
@@ -98,6 +102,8 @@ it('publishes through the Host and CLI, replaces the listing, and preserves inst
       connect,
     ),
   ).toMatchObject({ id });
+  expect((await market.request(originalFiles)).status).toBe(404);
+  expect(copy('old-copy')).toBe('original');
   await add('new-copy');
   expect(copy('old-copy')).toBe('original');
   expect(copy('new-copy')).toBe('revised');
