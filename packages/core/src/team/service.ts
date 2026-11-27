@@ -405,15 +405,19 @@ export class TeamService {
   }
 
   enabled(): boolean {
-    return readTeamSettings(this.db).enabled;
+    return this.settings().enabled;
   }
 
   isolation(): 'trial' | 'enforced' {
     return this.confinement()?.enforcement === 'full' ? 'enforced' : 'trial';
   }
 
+  private settings() {
+    return readTeamSettings(this.db);
+  }
+
   memberSettings(): TeamMemberSettings {
-    return readTeamSettings(this.db).memberSettings;
+    return this.settings().memberSettings;
   }
 
   setMemberSettings(human: HumanContext, patch: TeamMemberSettingsPatch): TeamMemberSettings {
@@ -500,7 +504,7 @@ export class TeamService {
   }
 
   mode(human: HumanContext): TeamModeView {
-    const settings = readTeamSettings(this.db);
+    const settings = this.settings();
     const member = this.member(human.humanId);
     if (!member) throw new TeamError('credentials-invalid');
     const confinement = this.confinement();
@@ -630,7 +634,7 @@ export class TeamService {
     roleIds?: string[],
   ): Promise<{ member: TeamMember; initialPassword: string; isolation: 'trial' | 'enforced' }> {
     this.roles.require(human, 'members.manage');
-    const settings = readTeamSettings(this.db);
+    const settings = this.settings();
     const requestedRoles = roleIds ?? [settings.memberSettings.defaultRoleId];
     this.roles.validateAssignments(human, requestedRoles);
     if (!settings.enabled) throw new TeamError('team-mode-off');
