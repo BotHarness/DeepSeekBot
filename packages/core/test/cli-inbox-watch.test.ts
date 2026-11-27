@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { runInboxCommand } from '../src/bots/cli-inbox.js';
-import { watchInbox } from '../src/bots/cli-inbox-watch.js';
+import { runInboxCommand } from '../src/cli/cli-inbox.js';
+import { watchInbox } from '../src/cli/cli-inbox-watch.js';
 
 it('subscribes before baseline, reports real invalidations, and releases the stream with one result', async () => {
   vi.useFakeTimers();

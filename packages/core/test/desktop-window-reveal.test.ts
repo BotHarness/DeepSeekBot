@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { runDesktopWindowCommand } from '../src/bots/cli-desktop-window.js';
+import { runDesktopWindowCommand } from '../src/cli/cli-desktop-window.js';
 import { createDesktopWindowReveal, userDataArgument } from '../src/desktop-window/reveal.js';
 
 function desktopInstall(): { dir: string; exe: string; host: string } {

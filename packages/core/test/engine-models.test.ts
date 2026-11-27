@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runEngineCommand } from '../src/bots/cli-engine.js';
+import { runEngineCommand } from '../src/cli/cli-engine.js';
 import { claudeModels } from '../src/engines/claude-engine.js';
 import {
   type CodexTransport,

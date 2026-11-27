@@ -11,7 +11,7 @@ import type { BotNetworkPort } from '../runtime/bot-network.js';
 import { BotNetworkDeliveryError } from './bot-network-error.js';
 import { BotHopLimitReached } from './hop-limit.js';
 import { SendReviewRequired, type GroupSendReview } from './send-review.js';
-import { isOwnerHumanDmSource } from '../tob/management-grants.js';
+import { isOwnerHumanDmSource } from '../tob/dm-source.js';
 import { TobError } from '../tob/service.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import { createHash } from 'node:crypto';

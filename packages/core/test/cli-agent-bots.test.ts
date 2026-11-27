@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseAgentManagement, TOB_AGENT_COMMAND_USAGE } from '../src/bots/cli-agent-management.js';
+import { parseAgentManagement } from '../src/cli/cli-agent-management.js';
 
 const fingerprint = 'a'.repeat(64);
 const directories: string[] = [];
@@ -256,3 +256,4 @@ describe('scoped Bot CLI parsing', () => {
     },
   );
 });
+import { TOB_AGENT_COMMAND_USAGE } from '../src/kernel/tob-cli-usage.js';

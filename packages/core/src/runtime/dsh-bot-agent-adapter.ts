@@ -1,7 +1,7 @@
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import type { AgentFeatureContribution } from './agent-feature-context.js';
-import type { ModelFreeTobCliInvocation } from '../tob/cli-invocation.js';
+import type { ModelFreeTobCliInvocation } from './tob-cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
   Agent,

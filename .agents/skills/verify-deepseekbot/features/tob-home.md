@@ -5,7 +5,7 @@
 - `packages/core/src/features/tob/plugin.ts`
 - `packages/core/src/features/tob/{cli-runtime,methods,rpc}.ts`
 - `packages/core/src/tob/**`
-- `packages/core/src/bots/cli-tob.ts`
+- `packages/core/src/cli/cli-tob.ts`
 - `packages/client/src/client/{tob-presentation,tob-requests}.ts`
 - `apps/mobile/src/features/pinned-tab/**`
 - `apps/mobile/src/ui/primitives/tab-order-list*`

@@ -19,7 +19,7 @@ import {
 } from '../channels/channel.js';
 import type { BotNetworkPort, NetworkBotMessage } from '../runtime/bot-network.js';
 import { BotNetworkDeliveryError as DeliveryError } from '../runtime/bot-network.js';
-import { requestListener } from '../http/request-listener.js';
+import { requestListener } from '../kernel/request-listener.js';
 
 const ROOT = '/botharness-bots/v1';
 const PORTS = [43191, 43192, 43193, 43194, 43195, 43196, 43197, 43198];

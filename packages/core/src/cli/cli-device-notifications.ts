@@ -1,0 +1,71 @@
+export { DEVICE_NOTIFICATION_OPTIONS } from '../kernel/cli-option-spec.js';
+import { readFileSync } from 'node:fs';
+import { parseSavedHost } from '@botharness/host-client/hosts';
+import { parseNotificationPreferences } from '@botharness/host-client/device-notification-preferences';
+import { createHostPush, PushRequestFailed } from '@botharness/host-client/push';
+import { CliLiveError } from './cli-live-error.js';
+
+export const DEVICE_NOTIFICATION_COMMANDS = [
+  {
+    command: 'phone-notifications',
+    description: 'read or change the phone owner in an assigned Metro development client',
+  },
+  {
+    command: 'device-notifications',
+    description:
+      'read or copy a paired device notification preference (--device-file, --preferences-stdin, --delivery push|in-app)',
+  },
+] as const;
+
+export async function runDeviceNotifications(
+  rest: string[],
+  values: { 'device-file'?: string; 'preferences-stdin'?: boolean; delivery?: string },
+  io: { readStdin?: () => Promise<string> },
+): Promise<unknown> {
+  if (rest.length || !values['device-file'])
+    throw new CliLiveError('usage', 'Provide --device-file with the saved pairing JSON.');
+  const delivery = values.delivery;
+  if (delivery !== undefined && delivery !== 'push' && delivery !== 'in-app')
+    throw new CliLiveError('usage', '--delivery must be push or in-app.');
+  if (delivery !== undefined && values['preferences-stdin'])
+    throw new CliLiveError('usage', 'Change --delivery and --preferences-stdin separately.');
+  let saved: unknown;
+  try {
+    saved = JSON.parse(readFileSync(values['device-file'], 'utf8'));
+  } catch {
+    throw new CliLiveError('invalid-input', 'Cannot read the saved pairing JSON.');
+  }
+  const host = parseSavedHost(saved);
+  if (!host) throw new CliLiveError('invalid-input', 'Invalid saved pairing JSON.');
+  let preferences;
+  if (values['preferences-stdin']) {
+    try {
+      preferences = parseNotificationPreferences(JSON.parse((await io.readStdin?.()) ?? ''));
+    } catch {}
+    if (!preferences)
+      throw new CliLiveError(
+        'invalid-input',
+        'Provide all four boolean notification kinds on stdin.',
+      );
+  }
+  const push = createHostPush({
+    async request(url, init) {
+      const response = await fetch(url, { ...init, redirect: 'error' });
+      return { status: response.status, text: () => response.text() };
+    },
+    openSocket() {
+      throw new Error('unary-only');
+    },
+  });
+  try {
+    if (delivery !== undefined) return await push.setDelivery(host, delivery);
+    return preferences === undefined
+      ? await push.settings(host)
+      : await push.setPreferences(host, preferences);
+  } catch (error) {
+    throw new CliLiveError(
+      error instanceof PushRequestFailed ? error.code : 'unreachable',
+      'Device notification request refused.',
+    );
+  }
+}

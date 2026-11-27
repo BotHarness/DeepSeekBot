@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTempRoot } from './helpers.js';
-import { runRelationshipCommand } from '../src/bots/cli-relationships.js';
+import { runRelationshipCommand } from '../src/cli/cli-relationships.js';
 import { enrollRelationshipClient } from '../src/devices/relationship-enrollment.js';
 
 const failure = vi.hoisted(() => ({ mode: 'none', writes: 0 }));

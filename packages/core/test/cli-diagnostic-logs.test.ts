@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runDiagnosticLogCommand } from '../src/bots/cli-diagnostic-logs.js';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
+import { runDiagnosticLogCommand } from '../src/cli/cli-diagnostic-logs.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
 import { readZip } from '../src/bots/zip-archive.js';
 import { DatabaseSync } from 'node:sqlite';
 

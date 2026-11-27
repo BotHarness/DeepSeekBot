@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import { parseImCommand } from '../src/messaging/im-commands.js';
-import { skillInvocationTokens } from '../src/bots/cli-skills.js';
+import { skillInvocationTokens } from '../src/cli/cli-skills.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';

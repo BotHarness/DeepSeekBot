@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 
-import { workspaceLookRequest } from '../src/bots/cli-workspace-look.js';
-import { cliEffects } from '../src/bots/cli-effects.js';
-import { isInboxCommand } from '../src/bots/cli-inbox.js';
+import { workspaceLookRequest } from '../src/cli/cli-workspace-look.js';
+import { cliEffects } from '../src/kernel/cli-effects.js';
+import { isInboxCommand } from '../src/cli/cli-inbox.js';
 
 it('reads, sets and clears a Session folder look', () => {
   const cwd = '/work/site';

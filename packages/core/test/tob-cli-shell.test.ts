@@ -13,8 +13,8 @@ import {
 } from '@deepseek-ai/dsh-shell';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installTobCliShell } from '../src/tob/cli-shell.js';
-import type { TobCliBrokerOptions } from '../src/tob/cli-broker.js';
+import { installTobCliShell } from '../src/features/tob/cli-shell.js';
+import type { TobCliBrokerOptions } from '../src/features/tob/cli-broker.js';
 
 const cleanup: Array<() => Promise<void> | void> = [];
 afterEach(async () => {

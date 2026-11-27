@@ -129,7 +129,7 @@ export const browserClientBundleOptions: UserConfig = clientBundle(
 );
 
 export const coreCliBundleOptions: UserConfig = {
-  entry: { index: 'packages/core/src/bots/bot-create-cli.ts' },
+  entry: { index: 'packages/core/src/cli/bot-create-cli.ts' },
   outDir: 'packages/core/cli',
   format: ['esm'],
   platform: 'node',

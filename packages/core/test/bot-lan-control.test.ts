@@ -3,7 +3,7 @@ import { createLanBotControl } from '../src/devices/bot-lan-control.js';
 import { createLanBotMembership } from '../src/devices/bot-lan-membership.js';
 import { createDevicesHttp } from '../src/devices/http.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { runDevicesCommand } from '../src/bots/cli-devices.js';
+import { runDevicesCommand } from '../src/cli/cli-devices.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';

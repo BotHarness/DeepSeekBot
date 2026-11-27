@@ -739,7 +739,7 @@
     {
       "id": "desktop.browser.lifecycle",
       "label": "Broader Browser lifecycle: profile isolation/reset, pause/takeover/resume and alternate targets",
-      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "source": "packages/core/src/cli/cli-browser-computer.ts",
       "guide": null,
       "task": 1976,
       "gap": "The separate default local open/observe/stop row does not qualify profile isolation/reset, takeover/resume or alternate targets."
@@ -747,7 +747,7 @@
     {
       "id": "desktop.browser.tools",
       "label": "Navigate/read/click/type/scroll/upload with stale-target refusals and redacted audit",
-      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "source": "packages/core/src/cli/cli-browser-computer.ts",
       "guide": null,
       "task": 1976,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -755,7 +755,7 @@
     {
       "id": "desktop.computer.lifecycle",
       "label": "Broader Computer lifecycle and export/restore container state",
-      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "source": "packages/core/src/cli/cli-browser-computer.ts",
       "guide": null,
       "task": 1977,
       "gap": "Container start/frame/stop has a separate bounded row; export/restore and broader lifecycle remain unmapped and unqualified."
@@ -763,7 +763,7 @@
     {
       "id": "desktop.computer.native",
       "label": "Observe real local Computer image/input and explicit driver failures",
-      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "source": "packages/core/src/cli/cli-browser-computer.ts",
       "guide": null,
       "task": 1977,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -803,7 +803,7 @@
     {
       "id": "cli.send-receipt",
       "label": "Send through CLI and correlate resumed receipt with committed model reply",
-      "source": "packages/core/src/bots/cli-channels.ts",
+      "source": "packages/core/src/cli/cli-channels.ts",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."

@@ -13,7 +13,7 @@ import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.js';
 import { managerShellAuthority } from '../src/features/tob/cli-runtime.js';
 import { TobError } from '../src/tob/service.js';
-import { alwaysAsksHuman } from '../src/tob/cli-approval.js';
+import { alwaysAsksHuman } from '../src/features/tob/cli-approval.js';
 import { createTempRoot } from './helpers.js';
 import { fixture, bob } from './team-member-lifecycle-fixtures.js';
 
@@ -79,7 +79,7 @@ it('writes one timeline marker per change into the Bot’s own Human DM only', a
   expect(core.channels.readMessages(home.channelId)).toEqual([]);
 });
 
-it('lets the built-in Tob be archived and deleted and warns about the last App manager', async () => {
+it('lets the built-in Tob be archived, refuses deletion and warns about the last App manager', async () => {
   const { core } = fixture();
   const home = await core.tob.ensure();
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -93,16 +93,17 @@ it('lets the built-in Tob be archived and deleted and warns about the last App m
     noAppManager: true,
   });
   const preview = core.deletions.preview(home.botSlug);
-  expect(await core.deletions.confirm(home.botSlug, preview.token, false)).toMatchObject({
-    phase: 'complete',
+  await expect(core.deletions.confirm(home.botSlug, preview.token, false)).rejects.toMatchObject({
+    code: 'protected-bot',
   });
+  expect(core.registry.get(home.botSlug)?.paused).toBe(true);
   expect(core.tob.managementGrantHolders()).toEqual([]);
   await expect(core.tob.ensure()).rejects.toThrow('tob-identity-unavailable');
 });
 
 it('revokes every grant on an Owner transfer and grants both to the incoming Owner’s Tob', async () => {
   const { core } = fixture();
-  await core.tob.ensure(owner);
+  const previous = await core.tob.ensure(owner);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   core.tob.setManagementGrant(owner, 'ada', 'manage-app', true);
   await core.team.setOwnerPassword(owner, 'owner-password-1');
@@ -112,6 +113,8 @@ it('revokes every grant on an Owner transfer and grants both to the incoming Own
   await core.team.transferOwner(owner, next.humanId, 'owner-password-1');
   await core.tob.onOwnerChanged();
   const target = await core.tob.ensure(next);
+  expect(core.registry.get(previous.botSlug)?.protection).toBeUndefined();
+  expect(core.registry.get(target.botSlug)?.protection?.deletion).toBe('deny');
   expect(core.tob.managementGrantHolders()).toEqual([
     { botSlug: target.botSlug, capabilities: both },
   ]);
@@ -139,6 +142,21 @@ it('migrates a Profile with an existing built-in Tob to both grants', () => {
   old.close();
   const upgraded = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   try {
+    expect(
+      attachOperationalModule(upgraded, 'grant-fixture').read((db) =>
+        db
+          .prepare(
+            "SELECT json_extract(body, '$.protection') AS protection FROM persona_bots WHERE slug = 'tob'",
+          )
+          .get(),
+      ),
+    ).toMatchObject({
+      protection: JSON.stringify({
+        deletion: 'deny',
+        presentation: 'retain-customizations',
+        lifetime: 'owner-tenure',
+      }),
+    });
     expect(
       attachOperationalModule(upgraded, 'grant-fixture').read((db) =>
         db

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTeamBridge } from '../src/features/team/bridge.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
-import { canManageGrants } from '../src/tob/management-grants.js';
+import { canManageGrants } from '../src/bots/management-grants.js';
 import { alice, bob, fixture } from './team-bot-visibility-fixtures.js';
 
 function setTeamMode(f: ReturnType<typeof fixture>, enabled: boolean) {

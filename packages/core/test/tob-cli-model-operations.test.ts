@@ -7,7 +7,7 @@ import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import {
   createTobModelOperations,
   type TobNativeSettings,
-} from '../src/tob/cli-model-operations.js';
+} from '../src/features/tob/cli-model-operations.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 

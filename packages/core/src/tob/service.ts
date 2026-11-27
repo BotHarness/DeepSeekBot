@@ -15,7 +15,7 @@ import {
   managementGrants,
   writeManagementGrant,
   type ManagementCapability,
-} from './management-grants.js';
+} from '../bots/management-grants.js';
 import type { ChannelMessage } from '../channels/channel.js';
 import type { WorkspaceGrantStore } from '../workspaces/grants.js';
 
@@ -135,6 +135,7 @@ export function createTobService(options: {
           );
           if (!identity) throw new TobError('tob-identity-unavailable');
         },
+        { deletion: 'deny', presentation: 'retain-customizations', lifetime: 'owner-tenure' },
       );
       if (!created.ok) throw new TobError(created.reason);
       bot = created.record;
