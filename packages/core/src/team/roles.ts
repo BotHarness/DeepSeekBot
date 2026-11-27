@@ -193,15 +193,15 @@ export class TeamRoles {
         .prepare('SELECT 1 FROM human_roles WHERE human_id = ? AND role_id = ?')
         .get(human.humanId, roleId),
     );
-    const canSetSelected =
+    const canEditRole =
       permissions.includes('roles.manage') &&
       !ownRole &&
       role.builtin !== 'admin' &&
-      !role.allPublicBots &&
       [...role.permissions, ...role.denied].every((id) =>
         permissions.some((permission) => permission === id),
       );
-    return { role, canSetAll: false, canSetSelected };
+    const canSetAll = canEditRole && this.hasAllPublicBots(human);
+    return { role, canSetAll, canSetSelected: canEditRole && (!role.allPublicBots || canSetAll) };
   }
 
   private name(name: string, roleId?: string): string {
@@ -279,18 +279,18 @@ export class TeamRoles {
       throw new TeamError('permission-not-grantable', undefined, { permission });
   }
 
+  private hasAllPublicBots(human: HumanContext): boolean {
+    return !!this.db.read((db) =>
+      db
+        .prepare(
+          `SELECT 1 FROM humans h WHERE h.human_id = ? AND ${allPublicBotsSql('h.human_id')}`,
+        )
+        .get(human.humanId),
+    );
+  }
+
   private checkBotScopeGrant(human: HumanContext, authority: RoleAuthority, role: HostRole): void {
-    if (
-      role.allPublicBots &&
-      authority.kind !== 'owner' &&
-      !this.db.read((db) =>
-        db
-          .prepare(
-            `SELECT 1 FROM humans h WHERE h.human_id = ? AND ${allPublicBotsSql('h.human_id')}`,
-          )
-          .get(human.humanId),
-      )
-    )
+    if (role.allPublicBots && authority.kind !== 'owner' && !this.hasAllPublicBots(human))
       throw new TeamError('permission-not-grantable', undefined, { permission: 'allPublicBots' });
   }
 

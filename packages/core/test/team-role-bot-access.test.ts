@@ -215,4 +215,29 @@ it('uses the same revision from either editing surface and restricts delegated C
     ok: true,
     value: { roles: [] },
   });
+  const adminScope = await api.roleBotScope({ roleId: 'admin' });
+  if (!adminScope.ok) throw new Error(adminScope.error.code);
+  expect(
+    await api.roleBotScopeSet({
+      roleId: 'admin',
+      expectedRevision: adminScope.value.revision,
+      scope: { kind: 'all' },
+    }),
+  ).toMatchObject({ ok: true });
+  const afterDelegation = await asAdmin('roles', 'bot-scope', role.roleId);
+  expect(afterDelegation).toMatchObject({
+    status: 0,
+    output: { canSetAll: true, canSetSelected: true },
+  });
+  expect(await asAdmin('roles', 'bot-scope', 'admin')).toMatchObject({
+    status: 0,
+    output: { canSetAll: false, canSetSelected: false },
+  });
+  const delegatedRevision = z
+    .object({ revision: z.number() })
+    .parse(afterDelegation.output).revision;
+  expect(await save('all', delegatedRevision)).toMatchObject({
+    status: 0,
+    output: { kind: 'all' },
+  });
 });
