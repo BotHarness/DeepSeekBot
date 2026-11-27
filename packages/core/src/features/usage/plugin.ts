@@ -1,25 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { DshSessionEvent, DshSessionStore } from '../../sessions/source.js';
-import { createUsageProjection } from '../../usage/usage.js';
 import type { BotHarnessCore } from '../../plugin-types.js';
-
-export function createUsage({
-  operationalDatabase,
-  ownership,
-  team,
-  registry,
-}: Pick<BotHarnessCore, 'operationalDatabase' | 'ownership' | 'team' | 'registry'>) {
-  return operationalDatabase.mode === 'ready'
-    ? createUsageProjection({
-        ownership,
-        database: operationalDatabase,
-        ownerHumanId: () => team.ownerContext().humanId,
-        botOwner: (slug) =>
-          registry.getHistorical(slug)?.ownerHumanId ?? team.ownerContext().humanId,
-        botCreatedAt: (slug) => registry.getHistorical(slug)?.createdAt,
-      })
-    : undefined;
-}
 
 export function mountReconciliation(
   ctx: Context,
@@ -71,4 +52,15 @@ export function mountReconciliation(
       );
     });
   }
+}
+
+export function bindParentTurnUsage(ctx: Context, core: Pick<BotHarnessCore, 'usage'>): void {
+  ctx.on(
+    'subagent/start',
+    (info) => {
+      const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession;
+      if (parentSessionId) core.usage?.bindParentTurn(info.id, parentSessionId);
+    },
+    { global: true },
+  );
 }

@@ -57,7 +57,7 @@ import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
-import * as usageFeature from './features/usage/plugin.js';
+import { createHostUsage } from './usage/host-projection.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 
@@ -335,7 +335,7 @@ function initializeCore(
   startup.enter('memory', 'initialize');
   const memory = memoryFeature.apply({ registry, ownership, operationalDatabase, team, options });
   startup.enter('usage', 'initialize');
-  usage = usageFeature.createUsage({ operationalDatabase, ownership, team, registry });
+  usage = createHostUsage({ operationalDatabase, ownership, team, registry });
   startup.enter('workspace-grants', 'initialize');
   const grants = workspacesFeature.createGrants(operationalDatabase, spaces, options);
   startup.enter('tool-rules', 'initialize');

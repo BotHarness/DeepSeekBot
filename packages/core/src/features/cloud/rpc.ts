@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { CloudManagementInput, CloudManagementResult } from '../../cloud/management.js';
 import type { CloudWork, CloudWorkInput } from '../../cloud/work.js';
@@ -27,4 +26,4 @@ export const cloudServiceRpc = {
   cloudWork(slug: string, input: CloudWorkInput): Promise<Awaited<ReturnType<CloudWork['run']>>> {
     return cloudWork(this.methods, slug, input);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: CloudBridgeMethods }>;

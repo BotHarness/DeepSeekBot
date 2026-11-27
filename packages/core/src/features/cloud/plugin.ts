@@ -1,46 +1,27 @@
 import type { Context } from '@deepseek-ai/cordis';
 
 import type { BotHarnessCore } from '../../plugin.js';
-import { CloudConnections } from '../../cloud/connections.js';
-import { CloudWork } from '../../cloud/work.js';
+import type { CloudConnections } from '../../cloud/connections.js';
+import type { CloudWork } from '../../cloud/work.js';
 import { createCloudProvider } from '../../cloud/provider.js';
 import { createCloudWorkTool } from '../../cloud/work-tool.js';
-import { attachOperationalModule } from '../../database/owner.js';
 
 type CloudOwner = Pick<
   BotHarnessCore,
   | 'operationalDatabase'
   | 'externalMessaging'
-  | 'registry'
-  | 'cloudConnections'
-  | 'cloudWork'
   | 'hostTools'
   | 'contributeBotAgentSetup'
   | 'ownership'
 >;
 
-export function apply(ctx: Context, core: CloudOwner) {
-  const cloudConnections = new CloudConnections(
-    attachOperationalModule(core.operationalDatabase, 'messaging'),
-    () => ctx.get('credentials'),
-    undefined,
-    (phase, id) => ctx.logger.info('cloud-connection %j', { phase, id }),
-  );
-  core.cloudConnections = cloudConnections;
-  const cloudWork = new CloudWork(
-    attachOperationalModule(core.operationalDatabase, 'messaging'),
-    cloudConnections,
-    core.externalMessaging.inbound,
-    (slug) => {
-      const bot = core.registry.get(slug);
-      return bot !== undefined && bot.paused !== true;
-    },
-    (phase, requestId) => ctx.logger.info('cloud-work %j', { phase, requestId }),
-  );
-  core.cloudWork = cloudWork;
+export function installCloudWorkLifetime(
+  ctx: Context,
+  core: Pick<CloudOwner, 'hostTools'>,
+  cloudWork: CloudWork,
+): void {
   ctx.effect(() => () => cloudWork.close(), 'botharness: cloud work');
   core.hostTools.add('cloud_work');
-  return { cloudConnections, cloudWork };
 }
 
 export function mount(

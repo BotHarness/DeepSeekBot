@@ -1,4 +1,4 @@
-import type * as diagnosticsFeature from './features/diagnostics/plugin.js';
+import type { TelemetryService } from './telemetry/service.js';
 import type * as releaseFeature from './features/release/plugin.js';
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { TobSettingsProvider } from './tob/service.js';
@@ -32,7 +32,7 @@ export function createHostCoreOptions(
     modelCatalog: ReturnType<typeof models.createCatalog>['modelCatalog'];
     diagnosticEvents: DiagnosticEvents;
     updateLifecycle: ReturnType<typeof releaseFeature.apply>['updateLifecycle'];
-    telemetry: ReturnType<typeof diagnosticsFeature.mountTelemetry>['telemetry'];
+    telemetry: Pick<TelemetryService, 'capture'>;
     readonly core: BotHarnessCore;
     readonly botNetwork: CoreOptions['botNetwork'];
     readonly userQuestions: ChannelUserQuestions | undefined;

@@ -33,6 +33,10 @@ export interface UsageOverviewResult {
 function dayOf(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+export function localDay(at: string): string | undefined {
+  const date = new Date(at);
+  return Number.isNaN(date.getTime()) ? undefined : dayOf(date);
+}
 export const usageOverviewColumns = [
   ...[
     ['input_tokens', 'unknown_input', 'inputTokens'],

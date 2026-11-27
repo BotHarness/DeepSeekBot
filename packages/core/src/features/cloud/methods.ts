@@ -8,14 +8,21 @@ import {
 } from '../../cloud/management.js';
 import { ClientError as CloudError } from '../../cloud/instance-contract.js';
 import { z } from 'zod';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { CloudConnections } from '../../cloud/connections.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
 
-export interface CloudBridgeMethods {
+export type CloudBridgeMethods = {
   cloudConnections(payload: unknown): Promise<BridgeResult<CloudManagementResult>>;
   cloudWork(payload: unknown): Promise<BridgeResult<Awaited<ReturnType<CloudWork['run']>>>>;
+};
+
+export interface CloudBridgeDeps {
+  cloudConnections?: CloudConnections;
+  cloudWork?: CloudWork;
+  registry: Pick<PersonaBotRegistry, 'get'>;
 }
 
-export function createCloudBridgeMethods(deps: BridgeMethodsDeps): CloudBridgeMethods {
+export function createCloudBridgeMethods(deps: CloudBridgeDeps): CloudBridgeMethods {
   return {
     async cloudWork(payload) {
       const parsed = z
