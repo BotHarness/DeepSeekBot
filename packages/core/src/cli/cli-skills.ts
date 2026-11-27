@@ -24,7 +24,8 @@ export interface SkillValues {
 export const SKILL_COMMANDS = [
   {
     command: 'skills-publish',
-    description: 'publish a Bot Skill to the Marketplace: skills publish <name> --bot <slug>',
+    description:
+      'publish a Project Skill from a Bot to the Marketplace: skills publish <name> --bot <slug>',
   },
   {
     command: 'skills-replace',
@@ -33,7 +34,7 @@ export const SKILL_COMMANDS = [
   },
   {
     command: 'skills-delete',
-    description: 'remove a Marketplace Skill listing: skills delete <id> --confirm',
+    description: 'delete a Marketplace Skill: skills delete <id> --confirm',
   },
   {
     command: 'skills-mine',

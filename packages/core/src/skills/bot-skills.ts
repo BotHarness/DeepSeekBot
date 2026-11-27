@@ -84,7 +84,8 @@ export async function removeBotSkill(
   const skill = skills.find((entry) => entry.name === name);
   if (skill === undefined) throw new BotSkillNotFoundError(name);
   const absolute = `${root}${sep}${skill.path.split('/').join(sep)}`;
-  const folder = basename(absolute) === 'SKILL.md' && basename(dirname(absolute)) !== 'skills';
+  const folder =
+    basename(absolute) === 'SKILL.md' && basename(dirname(dirname(absolute))) === 'skills';
   const target = folder ? dirname(absolute) : absolute;
   const skillsRoot = dirname(target);
   if (!inside(root, target) || basename(skillsRoot) !== 'skills')
