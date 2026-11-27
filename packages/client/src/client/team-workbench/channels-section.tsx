@@ -23,6 +23,7 @@ type Filter = Visibility | 'all';
 
 interface Entry extends ChannelListItem {
   readonly visibility?: Visibility | undefined;
+  readonly accessFailed?: boolean;
 }
 
 const VISIBILITY_LABEL = {
@@ -66,7 +67,9 @@ export function ChannelsSection({
             .filter((item) => item.type === 'group')
             .map(async (item): Promise<Entry> => {
               const access = await loadChannelAccess(call, item.id, signal).catch(() => undefined);
-              return access === undefined ? item : { ...item, visibility: access.visibility.kind };
+              return access === undefined
+                ? { ...item, accessFailed: true }
+                : { ...item, visibility: access.visibility.kind };
             }),
         );
         if (signal.aborted) return;
@@ -80,6 +83,11 @@ export function ChannelsSection({
       });
     return () => controller.abort();
   }, [call, attempt]);
+  const incomplete = channels.filter((item) => item.accessFailed === true).length;
+  const retry = (): void => {
+    setFailed(false);
+    setAttempt((value) => value + 1);
+  };
   const needle = query.trim().toLocaleLowerCase();
   const visible = channels.filter(
     (item) =>
@@ -104,25 +112,17 @@ export function ChannelsSection({
           value: filter,
           onChange: setFilter,
           options: [
-            { value: 'all', label: t('team.workbench.channels.all'), icon: null },
-            { value: 'public', label: t('channelAccess.public'), icon: null },
-            { value: 'roles', label: t('channelAccess.roles'), icon: null },
-            { value: 'private', label: t('channelAccess.private'), icon: null },
+            { value: 'all', label: t('team.workbench.channels.all') },
+            { value: 'public', label: t('channelAccess.public') },
+            { value: 'roles', label: t('channelAccess.roles') },
+            { value: 'private', label: t('channelAccess.private') },
           ],
         }}
         status={
           failed ? (
             <Note tone="danger">
               {t('team.error.load')}
-              <Button
-                size="sm"
-                variant="outline"
-                data-team-channels-retry=""
-                onClick={() => {
-                  setFailed(false);
-                  setAttempt((value) => value + 1);
-                }}
-              >
+              <Button size="sm" variant="outline" data-team-channels-retry="" onClick={retry}>
                 {t('team.workbench.retry')}
               </Button>
             </Note>
@@ -130,6 +130,13 @@ export function ChannelsSection({
             <PanelEmptyState icon="hash">{t('team.workbench.loading')}</PanelEmptyState>
           ) : visible.length === 0 ? (
             <PanelEmptyState icon="hash">{t('team.workbench.channels.empty')}</PanelEmptyState>
+          ) : incomplete > 0 ? (
+            <Note tone="warning">
+              {t('team.workbench.channels.incomplete', { count: incomplete })}
+              <Button size="sm" variant="outline" data-team-channels-retry="" onClick={retry}>
+                {t('team.workbench.retry')}
+              </Button>
+            </Note>
           ) : undefined
         }
       >

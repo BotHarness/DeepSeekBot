@@ -6,7 +6,7 @@ import { Note } from '../ds/note.js';
 import { PanelEmptyState } from '../ds/empty-state.js';
 import { SettingsRow, SettingsSection } from '../ds/settings-row.js';
 import { Tag } from '../ds/tag.js';
-import type { BotHarnessKey, BotHarnessTranslate } from '../locale.js';
+import type { BotHarnessTranslate } from '../locale.js';
 import type { TeamMember } from '../team-bridge.js';
 import type { PermissionEntry, TeamRole } from '../team-roles-bridge.js';
 import { roleLabel } from '../team-roles.js';
@@ -28,6 +28,7 @@ export function MembersSection({
   roles,
   catalog,
   inspected,
+  pending,
   error,
   onInspect,
 }: {
@@ -36,6 +37,7 @@ export function MembersSection({
   roles: readonly TeamRole[];
   catalog: readonly PermissionEntry[];
   inspected: Inspection | undefined;
+  pending?: string | undefined;
   error: string | undefined;
   onInspect(member: TeamMember): void;
 }): ReactElement {
@@ -93,7 +95,11 @@ export function MembersSection({
               <Tag tone="quiet">{member.username}</Tag>
               {member.status === 'active' ? null : (
                 <Tag tone="warning">
-                  {t(`team.workbench.status.${member.status}` as BotHarnessKey)}
+                  {t(
+                    member.status === 'suspended'
+                      ? 'team.members.suspended'
+                      : 'team.members.deactivated',
+                  )}
                 </Tag>
               )}
             </>
@@ -111,6 +117,7 @@ export function MembersSection({
               ))}
             />
           </SettingsSection>
+          {pending === member.humanId ? <Note>{t('team.workbench.loading')}</Note> : null}
           {inspected?.member.humanId === member.humanId ? (
             <EffectivePermissions
               t={t}

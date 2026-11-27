@@ -50,12 +50,10 @@ export function SectionNav({
                 onSelect={() => onSelect(section.id)}
               />
             );
-            return compact ? (
-              <Tooltip key={section.id} label={label} side="right">
+            return (
+              <Tooltip key={section.id} label={label} side="right" disabled={!compact}>
                 {item}
               </Tooltip>
-            ) : (
-              <div key={section.id}>{item}</div>
             );
           })}
         </div>
