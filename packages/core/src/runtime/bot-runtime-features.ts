@@ -1,5 +1,4 @@
 import { createChannelAccess } from './runtime-access.js';
-import { createRuntimeInputs } from '../features/approvals/runtime-inputs.js';
 import { createDirectTools } from '../features/sessions/direct-tools.js';
 import { createTobCliRuntime } from '../features/tob/cli-runtime.js';
 import { createGroupDigest } from './group-digest.js';
@@ -13,7 +12,6 @@ import { createActivityEvents } from '../features/activity/events.js';
 import { createAssignmentDelivery } from '../features/assignments/delivery.js';
 import { createAssignmentReporting } from '../features/assignments/reporting.js';
 import { createAssignmentEvents } from '../features/assignments/events.js';
-import { createMemoryEvents } from '../features/memory/events.js';
 import { randomUUID } from 'node:crypto';
 import { createInboxHistoryQuery } from './inbox-history.js';
 import { createInboxTriage } from './inbox-triage.js';
@@ -45,7 +43,7 @@ import { interruptedDmNotice } from '../features/activity/runtime-admission-supp
 import { createRuntimeAssignmentAccess } from '../features/assignments/runtime-access.js';
 import { createRuntimeAssignmentLifecycle } from '../features/assignments/runtime-lifecycle.js';
 import { pickSessionGroup } from '../features/models/runtime-session-group.js';
-import { createRuntimeMemoryChanges } from '../features/memory/runtime-changes.js';
+import type { RuntimeFeatureServices } from './feature-services.js';
 import { createRuntimeBotContacts } from '../features/personabots/runtime-contacts.js';
 import { createNativeOrchestratorStep } from '../features/sessions/native-orchestrator-step.js';
 import { createRuntimeMembership } from './runtime-membership.js';
@@ -80,6 +78,7 @@ export function createBotRuntimeFeatures(
   state: ReturnType<typeof createBotRuntimeState>,
   runtime: RuntimeInstancePorts,
   recordDirectToolSource: Parameters<typeof createDirectTools>[0]['recordDirectToolSource'],
+  { createRuntimeInputs, createMemoryEvents, createRuntimeMemoryChanges }: RuntimeFeatureServices,
 ) {
   const {
     activeSessionModels,

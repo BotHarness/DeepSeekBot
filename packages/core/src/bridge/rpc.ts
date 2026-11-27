@@ -22,14 +22,6 @@ import {
   humanAttentionDismissalRpc,
 } from '../features/activity/rpc.js';
 import { sessionBotRpc } from '../features/sessions/session-bot-rpc.js';
-import {
-  privateInputRpc,
-  externalApprovalRpc,
-  approvalTemplateReadRpc,
-  approvalTemplateWriteRpc,
-  approvalReviewerRpc,
-  toolApprovalRpc,
-} from '../features/approvals/rpc.js';
 import { tobRpcMethods, directBotToolRpc } from '../features/tob/rpc.js';
 import { modelsRpcMethods, modelConfigurationRpc } from '../features/models/rpc.js';
 import {
@@ -46,8 +38,6 @@ import {
   assignmentRpc,
   assignmentAccessRpc,
 } from '../features/assignments/rpc.js';
-import { workspacesRpcMethods, workspaceGrantRpc } from '../features/workspaces/rpc.js';
-import { memoryRpcMethods, memoryServiceRpc } from '../features/memory/rpc.js';
 import {
   featureContributions,
   mergeFeatureMethods,
@@ -134,8 +124,6 @@ const legacyRpcMethods = {
   ...teamServiceRpc,
   followRoster: personabotsRpcMethods.followRoster,
   followActivity: activityRpcMethods.followActivity,
-  ...privateInputRpc,
-  ...externalApprovalRpc,
   tobHome: tobRpcMethods.tobHome,
   managementGrants: tobRpcMethods.managementGrants,
   managementGrantSet: tobRpcMethods.managementGrantSet,
@@ -152,9 +140,6 @@ const legacyRpcMethods = {
   ...personaBotManagementRpc,
   ...sessionBotRpc,
   ...personaBotDeletionRpc,
-  ...approvalTemplateReadRpc,
-  ...approvalTemplateWriteRpc,
-  ...approvalReviewerRpc,
   ...compactionSettingsRpc,
   standingLimitsSet: personabotsRpcMethods.standingLimitsSet,
   tobCli: tobRpcMethods.tobCli,
@@ -163,16 +148,11 @@ const legacyRpcMethods = {
   ...humanAttentionDismissalRpc,
   ...assignmentRpc,
   ...sessionDetailsRpc,
-  workspaceOptions: workspacesRpcMethods.workspaceOptions,
-  ...workspaceGrantRpc,
   ...assignmentAccessRpc,
-  ...toolApprovalRpc,
   ...sessionListRpc,
   ...directBotToolRpc,
   sessionArchiveSet: sessionsRpcMethods.sessionArchiveSet,
-  memoryMove: memoryRpcMethods.memoryMove,
   ...sessionOwnerRpc,
-  ...memoryServiceRpc,
   profileActivity: activityRpcMethods.profileActivity,
   groupProfileActivity: activityRpcMethods.groupProfileActivity,
   ...rosterSettingsRpc,
@@ -190,12 +170,9 @@ function contributedRpcStreams(features: RegisteredFeatures) {
   );
 }
 
-type PublicRpcMethods = Omit<
-  typeof legacyRpcMethods &
-    ReturnType<typeof contributedRpcMethods> &
-    ReturnType<typeof contributedRpcStreams>,
-  'requireApproval' | 'requirePrivateOwner'
->;
+type PublicRpcMethods = typeof legacyRpcMethods &
+  ReturnType<typeof contributedRpcMethods> &
+  ReturnType<typeof contributedRpcStreams>;
 
 export interface BotharnessBridgeService extends PublicRpcMethods {}
 
@@ -259,19 +236,6 @@ const legacyRemoteMethods = [
   'memberPurgePreview',
   'memberPurgeConfirm',
   'channelPublicSet',
-  'privateInputStatus',
-  'privateInputSubmit',
-  'privateInputCancel',
-  'privateAccountStatus',
-  'privateInputReplace',
-  'privateAccountRevoke',
-  'privateAccounts',
-  'privateMcpServerRemove',
-  'privateMcpServerEnable',
-  'approvalRoute',
-  'approvalTest',
-  'approvalRetry',
-  'questionRetry',
   'tobHome',
   'managementGrants',
   'managementGrantSet',
@@ -372,53 +336,16 @@ const legacyRemoteMethods = [
   'sessionModel',
   'sessionLive',
   'sessionToolDetail',
-  'workspaceOptions',
-  'workspaceFileTarget',
-  'folderBrowse',
-  'folderCreate',
-  'grants',
-  'grantCreate',
-  'grantRevoke',
-  'grantWriteSet',
-  'grantRequestApprove',
   'assignmentAccessGet',
   'assignmentAccessSet',
-  'toolApprovalRules',
-  'toolApprovalRuleRevoke',
-  'toolApprovalHistory',
-  'toolApprovalStatus',
-  'toolApprovalDecide',
-  'toolAutoRejectionOverride',
-  'userQuestionStatus',
-  'userQuestionAnswer',
   'sessions',
   'botToolTrace',
   'botTools',
   'botToolRun',
   'sessionArchiveSet',
-  'memoryMove',
   'sessionOwner',
   'botSessionIds',
-  'memoryFileTarget',
-  'memoryImage',
-  'memorySnapshot',
-  'memoryFile',
-  'memoryHistory',
-  'memoryDiff',
-  'memoryGitGraph',
-  'memoryGitCommitDiff',
-  'memoryWorkingChanges',
-  'memoryWorkingDiff',
-  'memoryRecoveryHistory',
-  'memoryRestore',
-  'memorySave',
-  'memoryRestoreCommit',
-  'memoryNameVersion',
-  'memoryRemoveVersionName',
-  'memoryVersions',
-  'memoryRepair',
   'profileActivity',
-  'overviewMemory',
   'groupProfileActivity',
   'rosterGet',
   'sectionCreate',
@@ -431,15 +358,6 @@ const legacyRemoteMethods = [
   'hiddenSet',
   'channelMuteSet',
   'rosterBatch',
-  'approvalTemplates',
-  'approvalTemplateCreate',
-  'approvalTemplateUpdate',
-  'approvalTemplateDeletePreview',
-  'approvalTemplateDelete',
-  'approvalTemplateGlobalSet',
-  'botApprovalTemplateSet',
-  'approvalReviewerModel',
-  'approvalReviewerModelSet',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',

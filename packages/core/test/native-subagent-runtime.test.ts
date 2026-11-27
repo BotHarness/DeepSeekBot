@@ -5,11 +5,8 @@ import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
-import {
-  createBotRuntime,
-  type BotAgentAdapter,
-  type OrchestratorAgentRun,
-} from '../src/runtime/bot-runtime.js';
+import { createBotRuntime } from '../src/core.js';
+import { type BotAgentAdapter, type OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';

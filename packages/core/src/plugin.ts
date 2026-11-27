@@ -1,7 +1,3 @@
-import {
-  WORKSPACE_FAVICON_PATH,
-  createWorkspaceFaviconHttp,
-} from './workspaces/workspace-looks.js';
 import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -10,8 +6,6 @@ import * as releaseFeature from './features/release/plugin.js';
 import * as personabotsFeature from './features/personabots/plugin.js';
 import * as tobFeature from './features/tob/plugin.js';
 import * as approvalsFeature from './features/approvals/plugin.js';
-import * as memoryFeature from './features/memory/plugin.js';
-import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
@@ -70,7 +64,11 @@ import * as appearanceFeature from './features/appearance/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
-import { createFeatureContributions, forEachHostFeature } from './feature-contributions.js';
+import {
+  createFeatureContributions,
+  forEachHostFeature,
+  requireHostFeatureHook,
+} from './feature-contributions.js';
 import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
@@ -477,14 +475,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeEngineTools?.(ctx, core, cloudWork),
   );
-  memoryFeature.mountEngineTools(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.engineTools?.(ctx, core));
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeMessagingProviders?.(ctx, core, cloudConnections, cloudWork),
   );
   forEachHostFeature(featureContributions, (hooks) => hooks.messagingProviders?.(ctx, core));
 
   const { permissionDenial, recordOrchestratorPermission, appliedPermission } =
-    workspacesFeature.mountPermissionTracking(ctx, core);
+    requireHostFeatureHook(featureContributions, 'workspacePermissionTracking')(ctx, core);
   const reviewing = new Set<string>();
   const { idleCompactionSettings, compactionPolicy, applyCompactionPolicy } =
     sessionsFeature.createCompactionPolicy(ctx, core, dshHome);
@@ -508,7 +506,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     toolApproval: mountedToolApproval,
     userQuestions: mountedQuestions,
     templateInUse,
-  } = approvalsFeature.mount(ctx, core, {
+  } = requireHostFeatureHook(featureContributions, 'approvalHandlers')(ctx, core, {
     dshHome,
     approvalTemplates,
     approvalReviewer,
@@ -574,7 +572,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     git,
     releaseService,
   });
-  const folders = workspacesFeature.mountFolders(ctx);
+  const folders = requireHostFeatureHook(featureContributions, 'workspaceFolders')(ctx);
   const {
     marketplaceClient,
     marketplaceUploads,
@@ -795,23 +793,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.afterLiveRoute?.(connectionCtx, connection, core),
     );
-    memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.memoryRoutes?.(connectionCtx, connection.fetch, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.attachmentRoutes?.(connectionCtx, connection, core),
     );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.beforeWorkspaceFavicon?.(connectionCtx, connection, core),
     );
-    const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
-    connectionCtx.effect(
-      () =>
-        connection.fetch.register({
-          path: WORKSPACE_FAVICON_PATH,
-          methods: ['GET'],
-          requestBody: 'buffered',
-          fetch: workspaceFaviconHttp,
-        }),
-      'botharness: Workspace favicon',
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.workspaceFavicon?.(connectionCtx, connection, core),
     );
     const botZipHttp = marketplace.createZipTransfer(ctx, {
       registry: core.registry,

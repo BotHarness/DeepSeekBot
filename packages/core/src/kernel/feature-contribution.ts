@@ -3,6 +3,8 @@ import type { RuntimeHost } from './runtime-host.js';
 
 export type FeaturePromptSlot =
   | 'reply-contract'
+  | 'memory-working-tree'
+  | 'memory-branch'
   | 'group-collaboration'
   | 'channel-files'
   | 'reply-delivery'
@@ -45,6 +47,7 @@ export interface FeatureContribution<
   readonly rpc?: Readonly<Record<string, (...args: never[]) => unknown>>;
   readonly streams?: Readonly<Record<string, (...args: never[]) => AsyncIterable<unknown>>>;
   readonly runtime?: (host: RuntimeHost) => void;
+  readonly runtimeServices?: Readonly<Record<string, (...args: never[]) => unknown>>;
   readonly host?: HostHooks;
   readonly promptSections?: (context: AgentContext) => readonly FeaturePromptSection[];
   readonly tools?: (context: AgentContext, registrar: FeatureToolRegistrar) => void;

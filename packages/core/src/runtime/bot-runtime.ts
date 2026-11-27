@@ -27,6 +27,7 @@ import { BOT_BUSY } from '../features/sessions/runtime-orchestrator-sessions.js'
 import { createBotRuntimeFeatures } from './bot-runtime-features.js';
 import { createBotRuntimeState } from './bot-runtime-state.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
+import type { RuntimeFeatureServices } from './feature-services.js';
 import type {
   BotHoldCause,
   BotStopOutcome,
@@ -129,11 +130,15 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly groupSendReview: GroupSendReview;
   readonly #features: ReturnType<typeof createBotRuntimeFeatures>;
 
-  constructor(options: BotRuntimeOptions) {
+  constructor(options: BotRuntimeOptions, services: RuntimeFeatureServices) {
     const state = createBotRuntimeState(options);
     this.groupSendReview = state.groupSendReview;
-    this.#features = createBotRuntimeFeatures(options, state, this, (...args) =>
-      this.#recordDirectToolSource(...args),
+    this.#features = createBotRuntimeFeatures(
+      options,
+      state,
+      this,
+      (...args) => this.#recordDirectToolSource(...args),
+      services,
     );
     for (const feature of options.runtimeFeatures ?? [])
       feature.runtime?.(this.#features.runtimeHost);
@@ -588,6 +593,9 @@ class BotRuntimeImplementation implements BotRuntime {
 
 export { callTimelineNote, callVisualNote } from '../features/voice/events.js';
 
-export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
-  return new BotRuntimeImplementation(options);
+export function createBotRuntime(
+  options: BotRuntimeOptions,
+  services: RuntimeFeatureServices,
+): BotRuntime {
+  return new BotRuntimeImplementation(options, services);
 }

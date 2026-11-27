@@ -1,10 +1,10 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { WorkspaceGrant } from '../../workspaces/grants.js';
 import type { WorkspacesBridgeMethods } from './methods.js';
 import type { FolderListing } from '../../workspaces/folder-browse.js';
 import type { CreatedFolderWorkspace } from '../../workspaces/folder-create.js';
 import type { WorkspacesAdapterMethods } from './methods.js';
+import type { HumanContext } from '../../humans/context.js';
 
 export function grants(
   methods: WorkspacesBridgeMethods,
@@ -98,7 +98,7 @@ export const workspacesRpcMethods = {
   } {
     return workspaceOptions(this.methods);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: WorkspacesAdapterMethods }>;
 
 export const workspaceGrantRpc = {
   folderBrowse(path?: string, offset?: number): Promise<FolderListing> {
@@ -153,4 +153,7 @@ export const workspaceGrantRpc = {
   grantWriteSet(slug: string, grantId: string, enabled: boolean): { grant: WorkspaceGrant } {
     return grantWriteSet(this.methods, slug, grantId, enabled);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{
+  readonly methods: WorkspacesAdapterMethods & WorkspacesBridgeMethods;
+  invocationHuman(): HumanContext;
+}>;

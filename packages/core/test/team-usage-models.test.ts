@@ -10,8 +10,8 @@ import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
+import { createBotRuntime } from '../src/core.js';
 import {
-  createBotRuntime,
   type AssignmentAgentRun,
   type OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';

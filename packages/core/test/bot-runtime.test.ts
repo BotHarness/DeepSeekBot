@@ -6,7 +6,7 @@ import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createBotRuntime } from '../src/core.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { admit, DeterministicAgentAdapter, ownershipRows } from './support/bot-runtime.js';

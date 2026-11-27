@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
 import { type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { randomUUID } from 'node:crypto';
-import { createHostModelCatalog } from '../../models/host-models.js';
+import type { ModelCatalog } from '../../models/catalog.js';
 import { openLogDatabase, type LogDatabase } from '../../logs/log-db.js';
 import { attachOperationalModule } from '../../database/owner.js';
 import { resolveDshHome } from '../../im/config-store.js';
@@ -36,12 +36,16 @@ import {
   publishesBotMemory,
   publishesMarketplaceSkill,
   createApprovalTemplateLibrary,
+  type ApprovalTemplateLibrary,
 } from '../../workspaces/approval-templates.js';
 import {
   APPROVAL_REVIEW_SESSION_PREFIX,
   createApprovalReviewRunner,
 } from '../../workspaces/approval-reviewer.js';
-import { createApprovalReviewerSettings } from '../../workspaces/approval-reviewer-settings.js';
+import {
+  createApprovalReviewerSettings,
+  type ApprovalReviewerSettings,
+} from '../../workspaces/approval-reviewer-settings.js';
 import {
   ChannelUserQuestions,
   registerChannelUserQuestions,
@@ -102,10 +106,10 @@ export function mount(
     permissionDenial,
   }: {
     dshHome: string;
-    approvalTemplates: ReturnType<typeof createApprovalTemplateLibrary>;
-    approvalReviewer: ReturnType<typeof createApprovalReviewerSettings>;
+    approvalTemplates: ApprovalTemplateLibrary;
+    approvalReviewer: ApprovalReviewerSettings;
     defaultModel: DshDefaultModelHost;
-    modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'];
+    modelCatalog: ModelCatalog;
     reviewing: Set<string>;
     privateInputs: () => PrivateInputs | undefined;
     sessions: () => DshSessionStore;
