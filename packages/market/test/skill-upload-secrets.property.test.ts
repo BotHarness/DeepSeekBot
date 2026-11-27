@@ -16,7 +16,11 @@ const separators = fc.constantFrom('=', ': ', ' = ', '="', ": '");
 
 const randomValue = fc
   .tuple(
-    fc.stringMatching(/^[A-Za-z]{4,20}$/u),
+    fc
+      .stringMatching(/^[A-Za-z]{4,20}$/u)
+      .filter(
+        (letters) => !/^(?:your|my|example|placeholder|changeme|redacted|xxx)/iu.test(letters),
+      ),
     fc.stringMatching(/^[0-9]{2,8}$/u),
     fc.stringMatching(/^[A-Za-z0-9]{2,16}$/u),
   )
@@ -32,9 +36,10 @@ describe('Skill upload secrets (#5570)', () => {
       fc.property(names, separators, randomValue, (name, separator, value) => {
         const line = `${name}${separator}${value}`;
         expect(hasSecretField(line)).toBe(true);
-        expect(scanSkillUpload([{ path: 'SKILL.md', text: line }]).refusal).toBe(
-          'skill-secret-detected',
-        );
+        expect(scanSkillUpload([{ path: 'SKILL.md', text: line }])).toMatchObject({
+          kind: 'refused',
+          code: 'skill-secret-detected',
+        });
       }),
     );
   });
