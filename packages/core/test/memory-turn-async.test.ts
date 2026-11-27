@@ -185,7 +185,6 @@ describe('Memory turn Host responsiveness', () => {
     await expect(memory.prepareTurnAsync('atlas', 'session-atlas')).rejects.toMatchObject({
       code: 'memory-conflict',
     });
-    expect(() => memory.snapshot('atlas')).toThrow('in progress');
     expect(() => memory.scanChanges('atlas')).toThrow('in progress');
     expect(() => memory.nameVersionHuman({ botSlug: 'atlas', sha, name: 'Busy' })).toThrow(
       'in progress',
@@ -212,6 +211,45 @@ describe('Memory turn Host responsiveness', () => {
     expect(memory.preparedObservation('atlas', 'session-atlas')).toBeDefined();
     await memory.abortTurnAsync('atlas', 'session-atlas', true);
   });
+
+  it('reads the Memory snapshot after restart during asynchronous turn preparation', async () => {
+    const dshHome = createTempRoot('memory-snapshot-restart-');
+    const core = createCore({ dshHome });
+    let before;
+    try {
+      expect(core.registry.create({ slug: 'atlas', displayName: 'Atlas' }).ok).toBe(true);
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'atlas', 'Atlas');
+      if (dm === undefined) throw new Error('Missing DM');
+      core.ownership.claim({
+        sessionId: 'session-atlas',
+        botSlug: 'atlas',
+        rootRole: 'orchestrator',
+        at: FIXED_NOW().toISOString(),
+      });
+      before = { channelId: dm.id, snapshot: core.memory.snapshot('atlas') };
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+
+    const reopened = createCore({ dshHome });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, reopened);
+    const preparing = reopened.memory.prepareTurnAsync('atlas', 'session-atlas');
+    try {
+      expect(methods.memorySnapshot({ channelId: before.channelId })).toEqual({
+        ok: true,
+        value: { snapshot: before.snapshot },
+      });
+    } finally {
+      try {
+        await preparing;
+        await reopened.memory.abortTurnAsync('atlas', 'session-atlas');
+      } finally {
+        await reopened.runtime.close();
+        reopened.operationalDatabase.close();
+      }
+    }
+  }, 60_000);
 
   it('releases a failed preparation and preserves source authorization', async () => {
     const { memory } = fixture();

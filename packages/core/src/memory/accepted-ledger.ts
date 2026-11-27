@@ -180,9 +180,7 @@ export function createAcceptedLedger({
 
   const methods: Pick<MemoryAcceptance, 'snapshot' | 'sourceReferences' | 'history' | 'diff'> = {
     snapshot(botSlug) {
-      assertIdle(botSlug);
       const { root, repairing } = readRepository(botSlug);
-      bootstrap(botSlug, root);
       return {
         head: head(root),
         files: listCurrentFiles(root),
