@@ -77,11 +77,6 @@ import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext, type HumanId } from '../humans/context.js';
-import {
-  createVoiceBridgeMethods,
-  type VoiceBridgeMethods,
-  type VoiceBridgeDeps,
-} from '../features/voice/methods.js';
 import type { BotContact } from '../runtime/bot-contact-discovery.js';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
@@ -102,7 +97,6 @@ import { type PresentToolResult } from '../runtime/session-tool-detail.js';
 import { type PublicToolCall } from '../runtime/assignment-timeline.js';
 import type { AttachmentStore } from '../attachments/store.js';
 import { randomUUID } from 'node:crypto';
-import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import { type ChannelMessage, type ChannelRecord } from '../channels/channel.js';
 import { type BotBannerSummary } from '../bots/banner-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
@@ -140,10 +134,6 @@ import {
   authorizeChannelBridgeMethods,
 } from '../features/channels/methods.js';
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
-import {
-  createTakeoverAdapterMethods,
-  type TakeoverAdapterMethods,
-} from '../features/takeover/methods.js';
 import {
   createWorkspacesAdapterMethods,
   type WorkspacesAdapterMethods,
@@ -306,7 +296,6 @@ export interface BridgeMethods
     EngineAccountBridgeMethods,
     EngineSelectionBridgeMethods,
     ModelsBridgeMethods,
-    VoiceBridgeMethods,
     ApprovalsBridgeMethods,
     WorkspacesBridgeMethods,
     SessionsBridgeMethods,
@@ -324,7 +313,6 @@ export interface BridgeMethods
     HostSessionBridgeMethods,
     ReturnType<typeof createSessionBotMethods>,
     WorkspacesAdapterMethods,
-    TakeoverAdapterMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -339,7 +327,6 @@ export interface BridgeMethodsDeps
   extends
     ContributedBridgeDeps,
     ModelsBridgeDeps,
-    VoiceBridgeDeps,
     ApprovalsBridgeDeps,
     WorkspacesBridgeDeps,
     AssignmentsBridgeDeps,
@@ -391,7 +378,6 @@ export interface BridgeMethodsDeps
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
   sourcePolicy?: BotSourcePolicyStore;
-  takeovers?: TakeoverHandoffs;
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
   folders?: FolderBrowser;
@@ -553,7 +539,6 @@ function buildBridgeMethods(
     modelRouting,
   );
   const tobAdapterMethods = createTobAdapterMethods(human, deps, isHostOwner);
-  const takeoverAdapterMethods = createTakeoverAdapterMethods(human, deps);
   const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
@@ -588,12 +573,6 @@ function buildBridgeMethods(
     ...createModelProviderBridge(human, deps),
     ...createEngineAccountBridge(human, deps),
     ...createEngineSelectionBridge(human, { ...deps, registry: globalRegistry }),
-    ...createVoiceBridgeMethods({
-      providers: deps.voiceProviders,
-      registry: deps.registry,
-      isHostOwner,
-      log: deps.voiceLog,
-    }),
     channelBridges: messagingMethods.channelBridges,
     channelIngests: messagingMethods.channelIngests,
     channelIngest: messagingMethods.channelIngest,
@@ -713,11 +692,6 @@ function buildBridgeMethods(
     channelSendStatus: channelsAdapterMethods.channelSendStatus,
     channelSend: channelsSendAdapterMethods.channelSend,
     botAttention: activityMethods.botAttention,
-    takeoverList: takeoverAdapterMethods.takeoverList,
-    takeoverStatus: takeoverAdapterMethods.takeoverStatus,
-    takeoverRequest: takeoverAdapterMethods.takeoverRequest,
-    takeoverComplete: takeoverAdapterMethods.takeoverComplete,
-    takeoverCancel: takeoverAdapterMethods.takeoverCancel,
     botSourcePolicies: activityMethods.botSourcePolicies,
     botSourcePolicySet: activityMethods.botSourcePolicySet,
     botSourcePolicyReset: activityMethods.botSourcePolicyReset,

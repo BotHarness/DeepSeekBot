@@ -250,7 +250,6 @@
     "packages/core/src/channels/channel-message-validation.ts": {
       "channels -> bots": 1,
       "channels -> credentials": 2,
-      "channels -> takeover": 1,
       "channels -> workspaces": 1
     },
     "packages/core/src/channels/channel-record.ts": {
@@ -389,9 +388,6 @@
     },
     "packages/core/src/skills/entries.ts": {
       "skills -> bots": 1
-    },
-    "packages/core/src/takeover/mount.ts": {
-      "takeover -> channels": 1
     },
     "packages/core/src/telemetry/bot-turn.ts": {
       "telemetry -> usage": 1

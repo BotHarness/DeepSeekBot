@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 
-import type { BotHarnessCore, createCore } from '../../plugin.js';
+import type { BotHarnessCore, CoreOptions } from '../../plugin-types.js';
 import type { createCoreStartup } from '../../diagnostics/core-startup.js';
 import {
   LOCAL_VOICE_SKILL_CONTENT,
@@ -22,7 +22,7 @@ import { createVoiceCallHttp } from '../../voice/call-http.js';
 import { createTobVoiceOperations } from '../../tob/cli-voice-operations.js';
 import type { ChannelDraftEvent } from '../../channels/draft.js';
 import type { DiagnosticEvents } from '../../diagnostics/diagnostic-log.js';
-import type { createHostModelCatalog } from '../../models/host-models.js';
+import type { ModelCatalog } from '../../models/catalog.js';
 import type { BridgeMethods } from '../../bridge/methods.js';
 import { attachOperationalModule } from '../../database/owner.js';
 
@@ -34,10 +34,7 @@ export function apply(
   registry: Pick<BotHarnessCore['registry'], 'get'>,
   channels: BotHarnessCore['channels'],
   attachments: BotHarnessCore['attachments'],
-  options: Pick<
-    NonNullable<Parameters<typeof createCore>[0]>,
-    'credentials' | 'voiceFetch' | 'voiceLog'
-  >,
+  options: Pick<CoreOptions, 'credentials' | 'voiceFetch' | 'voiceLog'>,
 ) {
   startup.enter('voice-providers', 'initialize');
   const voiceProviders = new VoiceProviders({
@@ -68,7 +65,7 @@ export function mountCalls(
     BotHarnessCore,
     'voiceProviders' | 'registry' | 'attachments' | 'channels' | 'voiceSpeech' | 'voiceZoom' | 'tob'
   >,
-  modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'],
+  modelCatalog: Pick<ModelCatalog, 'defaultRoute'>,
   bridgeMethods: Pick<BridgeMethods, 'channelSend' | 'activityOverview'>,
   diagnosticEvents: DiagnosticEvents,
   media: NonNullable<Parameters<typeof createVoiceCalls>[0]['media']>,

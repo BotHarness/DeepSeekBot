@@ -4,11 +4,6 @@ import type {
 } from '../../voice/request-template.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
-import type {
-  VoiceProvidersView,
-  VoiceSynthesisView,
-  VoiceTranscriptionView,
-} from '../../voice/bridge.js';
 import type { VoiceDictationReadiness, VoiceDictationView } from '../../voice/dictation.js';
 import type {
   ProviderHealth,
@@ -17,7 +12,12 @@ import type {
   VoiceSpeechThreshold,
 } from '../../voice/providers.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
-import type { VoiceBridgeMethods } from './methods.js';
+import type {
+  VoiceBridgeMethods,
+  VoiceProvidersView,
+  VoiceSynthesisView,
+  VoiceTranscriptionView,
+} from './methods.js';
 
 export function voiceCatalog(
   methods: VoiceBridgeMethods,

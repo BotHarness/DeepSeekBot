@@ -28,4 +28,6 @@ Host plugin hooks run at the existing Cordis lifecycle stages. Cloud registers i
 
 Appearance contributes the Window Companion live stream in a separate descriptor table. Typert marks these entries as streams and still injects the abort signal after the positional request arguments.
 
+Environments mounts device pairing before the after-Environments hooks. Takeover registers Handoff recovery, disposal, and Orchestrator Tools after Team confinement. Voice registers its Call route between the desktop routes and Channel live route.
+
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.

@@ -56,7 +56,6 @@ import {
   sessionListRpc,
   sessionOwnerRpc,
 } from '../features/sessions/rpc.js';
-import { voiceProviderRpc, voiceSettingsRpc } from '../features/voice/rpc.js';
 import {
   assignmentsRpcMethods,
   assignmentRpc,
@@ -64,7 +63,6 @@ import {
 } from '../features/assignments/rpc.js';
 import { workspacesRpcMethods, workspaceGrantRpc } from '../features/workspaces/rpc.js';
 import { memoryRpcMethods, memoryServiceRpc } from '../features/memory/rpc.js';
-import { takeoverRpc } from '../features/takeover/rpc.js';
 import {
   featureContributions,
   mergeFeatureMethods,
@@ -178,8 +176,6 @@ const legacyRpcMethods = {
   ...personaBotDeletionRpc,
   ...approvalTemplateReadRpc,
   ...approvalTemplateWriteRpc,
-  ...voiceProviderRpc,
-  ...voiceSettingsRpc,
   ...approvalReviewerRpc,
   ...compactionSettingsRpc,
   standingLimitsSet: personabotsRpcMethods.standingLimitsSet,
@@ -210,7 +206,6 @@ const legacyRpcMethods = {
   profileActivity: activityRpcMethods.profileActivity,
   groupProfileActivity: activityRpcMethods.groupProfileActivity,
   ...rosterSettingsRpc,
-  ...takeoverRpc,
 };
 
 function contributedRpcMethods(features: RegisteredFeatures) {
@@ -537,32 +532,11 @@ const legacyRemoteMethods = [
   'botApprovalTemplateSet',
   'approvalReviewerModel',
   'approvalReviewerModelSet',
-  'voiceProviders',
-  'voiceCatalog',
-  'voiceCatalogImport',
-  'voiceProviderAdd',
-  'voiceProviderTemplate',
-  'voiceTemplateValidate',
-  'voiceProviderTemplateSet',
-  'voiceProviderRemove',
-  'voiceProviderTest',
-  'voiceSynthesize',
-  'botVoiceSet',
-  'voiceTranscribe',
-  'botAsrSet',
-  'voiceDefaultSet',
-  'voiceSpeechThresholdSet',
-  'voiceDictation',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
   'compactionThresholdSet',
   'standingLimitsSet',
-  'takeoverList',
-  'takeoverStatus',
-  'takeoverRequest',
-  'takeoverComplete',
-  'takeoverCancel',
   'channelJournalPage',
   'channelFilesPage',
   'channelChanges',

@@ -30,7 +30,7 @@ import { ProtectedExecution } from './credentials/protected-execution.js';
 import { privateInputLog } from './credentials/diagnostics.js';
 import { createBridgeMethodsForHumans } from './bridge/methods.js';
 import { registerBridge } from './bridge/rpc.js';
-import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
+import { createCoreTakeoverHandoffs } from './features/takeover/plugin.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import { installedRelease } from './release/service.js';
 import { stampReleaseComponent } from './release/component.js';
@@ -53,7 +53,6 @@ import type { BotSubagentPresetConfig } from './runtime/subagent-model-tools.js'
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import * as activityFeature from './features/activity/plugin.js';
 import { createCloudResources } from './cloud/host-resources.js';
-import * as environments from './features/environments/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as marketplace from './features/marketplace/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
@@ -407,20 +406,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.provide('botharnessResourcePublisher', (resource) =>
     core.live.publishResourceChanged(resource),
   );
-  environments.apply(ctx, core, {
-    team,
-    calls: () => voiceCalls,
-    onNetwork: (port) => {
-      botNetwork = port;
-    },
-    telemetry,
-    onAccount: (account) => {
-      connectAccount = account;
-    },
-    dshHome,
-    packageAnchors: releaseAnchors,
-    push: activityFeature.createPush(core, presence),
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.mountEnvironments?.(ctx, core, {
+      team,
+      calls: () => voiceCalls,
+      onNetwork: (port) => {
+        botNetwork = port;
+      },
+      telemetry,
+      onAccount: (account) => {
+        connectAccount = account;
+      },
+      dshHome,
+      packageAnchors: releaseAnchors,
+      push: activityFeature.createPush(core, presence),
+    }),
+  );
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.afterEnvironments?.(ctx, core, { telemetry, telemetryDir, telemetryState, activeDay }),
   );
@@ -470,7 +471,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   }
   teamFeature.mountConfinement(ctx, core, dshHome);
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
-  mountTakeoverTools(ctx, core, takeovers);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterConfinement?.(ctx, core, takeovers),
+  );
   messaging.mountCleanup(ctx, core);
   const { cloudConnections, cloudWork } = createCloudResources(ctx, core);
   forEachHostFeature(featureContributions, (hooks) =>
@@ -785,7 +788,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         profile,
       }),
     );
-    voice.mountFetch(connectionCtx, connection.fetch, () => voiceCalls);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.voiceRoutes?.(connectionCtx, connection.fetch, () => voiceCalls),
+    );
     channelsFeature.mountLiveRoute(connectionCtx, connection, core);
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.afterLiveRoute?.(connectionCtx, connection, core),
