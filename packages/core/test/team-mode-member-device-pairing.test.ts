@@ -1,4 +1,6 @@
 import { parsePairingLink, redeemPairing, pairHost } from '@botharness/host-client/pairing';
+import { createHostClient } from '@botharness/host-client/client';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { memberRoutes } from '../src/features/team/devices.js';
 import { WebSocket } from 'ws';
 import { TEAM_PATH } from '../src/features/team/http.js';
@@ -298,6 +300,79 @@ it('uses the member Peer for device mux, refuses native streams and closes the s
   await closed;
   expect(host.mintOwner).not.toHaveBeenCalled();
 }, 60_000);
+
+async function pairedPhone(
+  f: Awaited<ReturnType<typeof enabledFixture>>,
+  human: typeof owner,
+  carrier: Awaited<ReturnType<typeof memberDeviceHost>>['carrier'],
+) {
+  const offer = parsePairingLink((await f.team.pairingOffer(human)).link);
+  if (!offer.ok) throw new Error(offer.code);
+  const paired = await redeemPairing({
+    payload: offer.payload,
+    deviceName: 'Phone',
+    carrier,
+    confirmFingerprint: async (fingerprint) => fingerprint === f.encryption.fingerprint,
+  });
+  if (!paired.ok) throw new Error(paired.code);
+  const closed = vi.fn();
+  const openSocket = vi.fn<typeof carrier.openSocket>((url, events, headers) =>
+    carrier.openSocket(
+      url,
+      {
+        ...events,
+        closed: (reason) => {
+          closed(reason);
+          events.closed(reason);
+        },
+      },
+      headers,
+    ),
+  );
+  const client = createHostClient({
+    ...paired.host,
+    routes: ['https://habcdefghijkl.deepseekbot.dev'],
+    carrier: { ...carrier, openSocket },
+  });
+  closes.push(async () => client.stop());
+  return { client, openSocket, closed };
+}
+
+it('returns a Channel approval save reply and keeps the paired caller connected', async () => {
+  const f = await enabledFixture();
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const group = f.channels.createGroup(f.human, { name: 'Approvals', members: [] });
+  const { carrier } = await memberDeviceHost(f);
+  const { client, openSocket } = await pairedPhone(f, f.human, carrier);
+  const args = { channelId: group.id };
+  const policy = { ...DEFAULT_CHANNEL_POLICY, approvalMode: 'channel' };
+  await expect(client.call('channelGet', args)).resolves.toMatchObject({
+    policy: { approvalMode: 'legacy' },
+  });
+  const reply = await client.call('channelPolicySet', { ...args, policy }).catch(String);
+  expect(f.team.channelAccess.view(f.human, group.id).policy).toMatchObject(policy);
+  expect(reply).toBeNull();
+  await expect(client.call('channelGet', args)).resolves.toMatchObject({ policy });
+  expect(openSocket).toHaveBeenCalledTimes(1);
+});
+
+it('closes the paired connection of a member who loses Channel approval access', async () => {
+  const f = await enabledFixture();
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const group = f.channels.createGroup(owner, { name: 'Approvals', members: [] });
+  f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+  const policy = { ...DEFAULT_CHANNEL_POLICY, approvalMode: 'channel' } as const;
+  f.team.channelAccess.policySet(owner, group.id, policy);
+  const { carrier } = await memberDeviceHost(f);
+  const { client, closed, openSocket } = await pairedPhone(f, f.human, carrier);
+  const args = { channelId: group.id };
+  await expect(client.call('channelGet', args)).resolves.toMatchObject({ policy });
+  const restricted = { ...policy, everyone: { ...policy.everyone, seeApprovals: 'deny' } } as const;
+  f.team.channelAccess.policySet(owner, group.id, restricted);
+  await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
+  await expect(client.call('channelGet', args)).resolves.toMatchObject({ policy: restricted });
+  expect(openSocket).toHaveBeenCalledTimes(2);
+});
 
 it('redeems a member self-pairing QR on Host HTTPS through the existing Noise pair protocol without Owner approval', async () => {
   const f = await enabledFixture();
