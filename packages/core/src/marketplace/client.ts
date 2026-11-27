@@ -7,6 +7,7 @@ import {
   type MarketplaceAvatarQuery,
   type MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
+import { MARKETPLACE_SKILL_ID } from '@botharness/host-protocol/marketplace-skill';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
 import { canonicalRecipe, isAvatarRecipe, type AvatarRecipe } from '../bots/avatar-appearance.js';
@@ -161,9 +162,9 @@ export interface MarketplaceDetail {
   fileSummary?: MarketplaceFileSummary;
 }
 
-export type MarketplaceResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; code: string; path?: string };
+export type MarketplaceRefusal = { ok: false; code: string; path?: string; listingId?: string };
+
+export type MarketplaceResult<T> = { ok: true; value: T } | MarketplaceRefusal;
 
 export interface MarketplaceClient extends SkillUploadClient {
   avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
@@ -671,16 +672,20 @@ export function createMarketplaceClient(options: {
     }
   };
 
-  const refusal = async (
-    response: Response,
-  ): Promise<{ ok: false; code: string; path?: string }> => {
+  const refusal = async (response: Response): Promise<MarketplaceRefusal> => {
     const error = record(record(await response.json().catch(() => undefined))?.['error']);
     const code = error?.['code'];
     const path = error?.['path'];
+    const listingId = error?.['listingId'];
     return {
       ok: false,
       code: typeof code === 'string' ? code : 'marketplace-unavailable',
       ...(typeof path === 'string' ? { path } : {}),
+      ...(code === 'skill-name-taken' &&
+      typeof listingId === 'string' &&
+      MARKETPLACE_SKILL_ID.test(listingId)
+        ? { listingId }
+        : {}),
     };
   };
 

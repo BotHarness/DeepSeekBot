@@ -549,8 +549,14 @@ export function createApprovalsBridgeMethods(
         ...(after === undefined ? {} : { after }),
         limit: size + 1,
       });
-      const entries = read.slice(0, size);
-      const last = entries.at(-1);
+      const page = read.slice(0, size);
+      const last = page.at(-1);
+      const approvals = deps.team?.approvals;
+      const entries = approvals
+        ? page.filter((entry) =>
+            approvals.canReadToolHistory(human, entry.channelId, entry.requestMessageId),
+          )
+        : page;
       return {
         ok: true,
         value: {
@@ -583,10 +589,11 @@ export function createApprovalsBridgeMethods(
       const request = message?.toolApprovalRequest;
       if (!message || !request) return invalidInput('Unknown tool approval request');
       const state = readToolApprovalState(deps, { ...request, botSlug: asker, messageId });
+      const approval = deps.team?.approvals.card(human, channelId, message);
       const shellSuggestions =
         state.status === 'pending' &&
         (request.toolName === 'bash' || request.toolName === 'shell') &&
-        (!deps.team || deps.team.approvals.card(human, channelId, message)?.masked === false)
+        (!deps.team || (approval?.masked === false && approval.canDecide !== false))
           ? deps.toolApproval?.shellSuggestions(asker, messageId)
           : undefined;
       return {

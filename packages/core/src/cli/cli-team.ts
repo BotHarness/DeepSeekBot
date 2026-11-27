@@ -1,5 +1,6 @@
 import { readTeamMode } from '@botharness/host-client/people';
 import { readChannel } from '@botharness/host-client/channel-management';
+import { channelApprovalPolicy } from '@botharness/host-protocol/channel-policy';
 import {
   parseHostRoleRevisions,
   type HostRoleUpdatePrecondition,
@@ -13,6 +14,7 @@ import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import {
   channelBotAudienceSchema,
   channelPolicySchema,
+  channelPolicyInputSchema,
   channelVisibilitySchema,
   channelPolicyRevisionSchema,
 } from '../team-policy/channel-contract.js';
@@ -87,6 +89,9 @@ type TeamValues = {
   'mention-all'?: string;
   'add-bots'?: string;
   'wake-bot'?: string;
+  'see-approvals'?: string;
+  'decide-approvals'?: string;
+  'use-channel-approvals'?: boolean;
   'block-human'?: string;
   'unblock-human'?: string;
   'edit-details'?: string;
@@ -662,15 +667,22 @@ export async function runTeamCommand(
         ...(values.post === undefined ? {} : { post: values.post }),
         ...(values['mention-all'] === undefined ? {} : { mentionAll: values['mention-all'] }),
         ...(values['wake-bot'] === undefined ? {} : { wakeBot: values['wake-bot'] }),
+        ...(values['see-approvals'] === undefined ? {} : { seeApprovals: values['see-approvals'] }),
+        ...(values['decide-approvals'] === undefined
+          ? {}
+          : { decideApprovals: values['decide-approvals'] }),
         ...(values['add-bots'] === undefined ? {} : { addBots: values['add-bots'] }),
         ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
       };
-      if (!values['policy-stdin'] && Object.keys(patch).length === 0) return snapshot;
-      if (values['policy-stdin'] && Object.keys(patch).length > 0) return usage();
+      const change = Object.keys(patch).length > 0 || values['use-channel-approvals'];
+      if (!values['policy-stdin'] && !change)
+        return { ...snapshot, approvalPolicy: channelApprovalPolicy(snapshot.policy.approvalMode) };
+      if (values['policy-stdin'] && change) return usage();
       const policy = values['policy-stdin']
-        ? { success: true as const, data: secretJson(channelPolicySchema, await secret(io)) }
+        ? { success: true as const, data: secretJson(channelPolicyInputSchema, await secret(io)) }
         : channelPolicySchema.safeParse({
             ...snapshot.policy,
+            ...(values['use-channel-approvals'] ? { approvalMode: 'channel' } : {}),
             everyone: { ...snapshot.policy.everyone, ...patch },
           });
       if (!policy.success) return usage();

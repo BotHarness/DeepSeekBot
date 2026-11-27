@@ -2635,6 +2635,8 @@ role sources and active named invitees. A private Bot's access is visible to its
 
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 
+Read Channel approval rules with `deepseekbot --as <username> channels policy <channel-id>`. The `approvalPolicy` field reports the effective mode and who can see and decide. New and upgraded Channels start in `legacy` mode, where only eligible deciders can see approval details. A Channel manager can set the everyone row with `--see-approvals allow|deny|inherit` and `--decide-approvals allow|deny|inherit`. To edit role overrides, read the table and send the updated policy JSON through `--policy-stdin`. Use `--use-channel-approvals` to activate the table as configured. Changing an approval rule also activates it. `tool-approval-status` returns `approval.canDecide: false` when the request is visible to the caller but read-only. `tool-approval-decide` checks the caller's current authority again.
+
 `members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
 
 ```sh

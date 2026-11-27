@@ -33,7 +33,18 @@ const approvalAudience = (channel: string, humanId: string): string => `(
   AND (json_extract(${channel}.record_json, '$.humanParticipants') IS NULL OR EXISTS (
     SELECT 1 FROM json_each(${channel}.record_json, '$.humanParticipants') participant WHERE participant.value = ${humanId})))`;
 
-export const ACTION_ATTENTION_CTE = `WITH all_attention AS (
+const legacyApprovalDecider = `(
+  h.human_id = (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug)
+  OR h.human_id = (SELECT owner_human_id FROM team_settings)
+  OR ${roleGrantsPermissionSql('h.human_id', 'approvals.opaqueTools')}
+) AND (
+  candidate.kind <> 'tool-approval'
+  OR (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug) = (SELECT owner_human_id FROM team_settings)
+  OR h.human_id = (SELECT owner_human_id FROM team_settings)
+  OR ${roleGrantsPermissionSql('h.human_id', 'approvals.opaqueTools')}
+)`;
+
+export const actionAttentionCte = (hasApprovalAuthority: boolean) => `WITH all_attention AS (
           SELECT 'pairing:' || pairing.id AS id,
                  'action' AS category, 'pairing-request' AS kind,
                  json_extract(pairing.body, '$.createdAt') AS created_at,
@@ -297,13 +308,13 @@ export const ACTION_ATTENTION_CTE = `WITH all_attention AS (
               WHERE m.channel_id = candidate.channel_id AND m.left_at IS NULL AND h.status = 'active'
                 AND EXISTS (SELECT 1 FROM channel_records approval_channel WHERE approval_channel.channel_id = candidate.channel_id
                   AND ${approvalAudience('approval_channel', 'h.human_id')})
-                AND (h.human_id = (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug)
-                  OR h.human_id = (SELECT owner_human_id FROM team_settings)
-                  OR ${roleGrantsPermissionSql('h.human_id', 'approvals.opaqueTools')})
-                AND (candidate.kind <> 'tool-approval'
-                  OR (SELECT owner_human_id FROM persona_bots WHERE slug = candidate.bot_slug) = (SELECT owner_human_id FROM team_settings)
-                  OR h.human_id = (SELECT owner_human_id FROM team_settings)
-                  OR ${roleGrantsPermissionSql('h.human_id', 'approvals.opaqueTools')})
+                AND ${
+                  hasApprovalAuthority
+                    ? `coalesce(CASE WHEN candidate.kind = 'tool-approval'
+                  THEN botharness_activity_can_decide(h.human_id, candidate.channel_id, candidate.message_id)
+                  END, (${legacyApprovalDecider}))`
+                    : legacyApprovalDecider
+                }
             ))))
             OR (candidate.kind NOT IN ('tool-approval', 'user-question', 'private-input') AND (
               EXISTS (SELECT 1 FROM channel_records dm WHERE dm.channel_id = candidate.channel_id

@@ -66,7 +66,10 @@ it('classifies legacy memberships without changing Owner content and keeps the n
       expect(db.prepare('SELECT * FROM channel_records ORDER BY channel_id').all()).toEqual(
         records.map(({ policy_json: _, ...record }) => ({
           ...record,
-          permission_table_json: JSON.stringify(DEFAULT_CHANNEL_POLICY),
+          permission_table_json: JSON.stringify({
+            ...DEFAULT_CHANNEL_POLICY,
+            approvalMode: 'legacy',
+          }),
         })),
       );
       expect(

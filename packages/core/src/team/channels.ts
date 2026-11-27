@@ -1,5 +1,9 @@
 import { channelActionRoleIds } from './host-permissions.js';
 import {
+  CHANNEL_APPROVAL_ACTIONS,
+  channelApprovalPolicy,
+} from '@botharness/host-protocol/channel-policy';
+import {
   allowsChannelAction,
   allowsGroupAction,
   requireChannelAccess,
@@ -34,6 +38,41 @@ const policyRevision = (policy: ChannelPolicy): string =>
   createHash('sha256')
     .update(JSON.stringify(channelPolicySchema.parse(policy)))
     .digest('hex');
+
+function approvalRules(policy: ChannelPolicy): string {
+  return JSON.stringify(
+    CHANNEL_APPROVAL_ACTIONS.map((key) => [
+      policy.everyone[key],
+      policy.overrides
+        .flatMap(({ roleId, actions }) =>
+          actions[key] === 'allow' || actions[key] === 'deny' ? [[roleId, actions[key]]] : [],
+        )
+        .sort(([left], [right]) => (left ?? '').localeCompare(right ?? '')),
+    ]),
+  );
+}
+
+function keepApprovalRules(proposed: ChannelPolicy, previous: ChannelPolicy): ChannelPolicy {
+  const overrides = new Map(proposed.overrides.map(({ roleId, actions }) => [roleId, actions]));
+  for (const { roleId, actions } of previous.overrides) {
+    const { seeApprovals, decideApprovals } = actions;
+    if (seeApprovals === undefined && decideApprovals === undefined) continue;
+    overrides.set(roleId, {
+      ...overrides.get(roleId),
+      ...(seeApprovals === undefined ? {} : { seeApprovals }),
+      ...(decideApprovals === undefined ? {} : { decideApprovals }),
+    });
+  }
+  return {
+    ...proposed,
+    everyone: {
+      ...proposed.everyone,
+      seeApprovals: previous.everyone.seeApprovals,
+      decideApprovals: previous.everyone.decideApprovals,
+    },
+    overrides: Array.from(overrides, ([roleId, actions]) => ({ roleId, actions })),
+  };
+}
 
 export class TeamChannels {
   constructor(
@@ -151,6 +190,9 @@ export class TeamChannels {
   allowsAction(human: HumanContext, channelId: string, key: ChannelAction): boolean {
     return allowsChannelAction(key, this.accessFacts(human, channelId));
   }
+  usesChannelApprovalPolicy(channelId: string): boolean {
+    return channelApprovalPolicy(this.settings(channelId).policy.approvalMode).mode === 'channel';
+  }
   private accessFacts(human: HumanContext, channelId: string): ChannelAccessFacts {
     return {
       active: () => this.active(human),
@@ -207,11 +249,14 @@ export class TeamChannels {
         ),
       );
     const access = this.accessFacts(human, channelId);
+    const approvalPolicy = channelApprovalPolicy(settings.policy.approvalMode);
     return {
       role: this.roleForOwner(human, channelId, settings.owner),
-      policy: settings.policy,
+      policy: { ...settings.policy, approvalMode: approvalPolicy.mode },
+      approvalPolicy,
       canPost: allowsGroupAction('post', access, settings),
       canEditDetails: allowsGroupAction('editDetails', access, settings),
+      canManageApprovals: this.canManageBotSettings(human, channelId),
       policyRevision: policyRevision(settings.policy),
       visibility: settings.visibility,
       admins,
@@ -297,26 +342,35 @@ export class TeamChannels {
   policySet(
     human: HumanContext,
     channelId: string,
-    policy: ChannelPolicy,
+    proposed: ChannelPolicy,
     expectedRevision?: string,
+    hasApprovalRules = true,
   ): null {
     this.requireManage(human, channelId);
-    const updated = this.db.transaction(
-      (db) => {
-        if (
-          expectedRevision !== undefined &&
-          expectedRevision !== policyRevision(this.settings(channelId).policy)
-        )
-          return false;
+    const outcome = this.db.transaction(
+      (db): 'updated' | 'stale' | 'denied' | 'invalid' => {
+        const previous = this.settings(channelId).policy;
+        if (expectedRevision !== undefined && expectedRevision !== policyRevision(previous))
+          return 'stale';
+        const policy = hasApprovalRules ? proposed : keepApprovalRules(proposed, previous);
+        if (!channelPolicySchema.safeParse(policy).success) return 'invalid';
+        const rulesChanged = approvalRules(previous) !== approvalRules(policy);
+        const mode = channelApprovalPolicy(previous.approvalMode).mode;
+        const enabled = mode === 'legacy' && policy.approvalMode === 'channel';
+        if ((rulesChanged || enabled) && !this.canManageBotSettings(human, channelId))
+          return 'denied';
+        const approvalMode = rulesChanged || enabled ? 'channel' : previous.approvalMode;
         db.prepare('UPDATE channel_records SET permission_table_json = ? WHERE channel_id = ?').run(
-          JSON.stringify(policy),
+          JSON.stringify({ ...policy, approvalMode }),
           channelId,
         );
-        return true;
+        return 'updated';
       },
       ['channels', 'team'],
     );
-    if (!updated) throw new TeamError('stale-channel-policy');
+    if (outcome === 'stale') throw new TeamError('stale-channel-policy');
+    if (outcome === 'denied') throw new TeamError('permission-required');
+    if (outcome === 'invalid') throw new TeamError('invalid-input');
     this.changed(true);
     return null;
   }
