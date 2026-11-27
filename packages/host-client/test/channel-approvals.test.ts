@@ -23,6 +23,11 @@ describe('channel approval rules', () => {
     await expect(readChannelApprovalRules(client, 'g1')).resolves.toMatchObject({
       manager: true,
       mode: 'legacy',
+      effective: {
+        mode: 'legacy',
+        see: 'eligible-deciders',
+        decide: 'bot-owner-or-opaque-tools',
+      },
       see: 'deny',
       decide: 'deny',
       revision: 'abc',
@@ -42,6 +47,11 @@ describe('channel approval rules', () => {
     });
     const rules = await readChannelApprovalRules(client, 'g1');
     expect(rules?.manager).toBe(false);
+    expect(rules?.effective).toEqual({
+      mode: 'legacy',
+      see: 'eligible-deciders',
+      decide: 'bot-owner-or-opaque-tools',
+    });
     expect(rules?.see).toBe('allow');
     await setChannelApprovalRule(client, 'g1', rules!, 'decideApprovals', 'allow');
     expect(client.call).toHaveBeenLastCalledWith('channelPolicySet', {
@@ -52,6 +62,29 @@ describe('channel approval rules', () => {
         approvalMode: 'channel',
         everyone: { post: 'allow', decideApprovals: 'allow' },
         overrides: [{ roleId: 'r', actions: {} }],
+      },
+    });
+  });
+
+  it('reads the effective Channel policy separately from the everyone row', async () => {
+    const client = host({
+      channel,
+      role: 'member',
+      approvalPolicy: {
+        mode: 'channel',
+        see: 'channel-policy-or-eligible-deciders',
+        decide: 'channel-policy-or-bot-owner-or-opaque-tools',
+      },
+      policy: { everyone: { seeApprovals: 'allow', decideApprovals: 'deny' } },
+    });
+    await expect(readChannelApprovalRules(client, 'g1')).resolves.toMatchObject({
+      mode: 'channel',
+      see: 'allow',
+      decide: 'deny',
+      effective: {
+        mode: 'channel',
+        see: 'channel-policy-or-eligible-deciders',
+        decide: 'channel-policy-or-bot-owner-or-opaque-tools',
       },
     });
   });

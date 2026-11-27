@@ -1,5 +1,8 @@
 import { channelActionRoleIds } from './host-permissions.js';
-import { CHANNEL_APPROVAL_ACTIONS } from '@botharness/host-protocol/channel-policy';
+import {
+  CHANNEL_APPROVAL_ACTIONS,
+  channelApprovalPolicy,
+} from '@botharness/host-protocol/channel-policy';
 import {
   allowsChannelAction,
   allowsGroupAction,
@@ -188,7 +191,7 @@ export class TeamChannels {
     return allowsChannelAction(key, this.accessFacts(human, channelId));
   }
   usesChannelApprovalPolicy(channelId: string): boolean {
-    return this.settings(channelId).policy.approvalMode !== 'legacy';
+    return channelApprovalPolicy(this.settings(channelId).policy.approvalMode).mode === 'channel';
   }
   private accessFacts(human: HumanContext, channelId: string): ChannelAccessFacts {
     return {
@@ -246,9 +249,11 @@ export class TeamChannels {
         ),
       );
     const access = this.accessFacts(human, channelId);
+    const approvalPolicy = channelApprovalPolicy(settings.policy.approvalMode);
     return {
       role: this.roleForOwner(human, channelId, settings.owner),
-      policy: settings.policy,
+      policy: { ...settings.policy, approvalMode: approvalPolicy.mode },
+      approvalPolicy,
       canPost: allowsGroupAction('post', access, settings),
       canEditDetails: allowsGroupAction('editDetails', access, settings),
       policyRevision: policyRevision(settings.policy),
@@ -349,15 +354,11 @@ export class TeamChannels {
         const policy = hasApprovalRules ? proposed : keepApprovalRules(proposed, previous);
         if (!channelPolicySchema.safeParse(policy).success) return 'invalid';
         const rulesChanged = approvalRules(previous) !== approvalRules(policy);
-        const enabled = previous.approvalMode === 'legacy' && policy.approvalMode === 'channel';
+        const mode = channelApprovalPolicy(previous.approvalMode).mode;
+        const enabled = mode === 'legacy' && policy.approvalMode === 'channel';
         if ((rulesChanged || enabled) && !this.canManageBotSettings(human, channelId))
           return 'denied';
-        const approvalMode =
-          previous.approvalMode === 'legacy'
-            ? rulesChanged || enabled
-              ? 'channel'
-              : 'legacy'
-            : previous.approvalMode;
+        const approvalMode = rulesChanged || enabled ? 'channel' : previous.approvalMode;
         db.prepare('UPDATE channel_records SET permission_table_json = ? WHERE channel_id = ?').run(
           JSON.stringify({ ...policy, approvalMode }),
           channelId,

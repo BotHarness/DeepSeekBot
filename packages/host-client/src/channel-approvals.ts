@@ -1,6 +1,8 @@
 import {
   CHANNEL_APPROVAL_ACTIONS,
+  channelApprovalPolicy,
   DEFAULT_CHANNEL_POLICY,
+  type ChannelApprovalPolicy,
 } from '@botharness/host-protocol/channel-policy';
 import { readChannel } from './channel-management';
 import { record } from './host-answer';
@@ -10,7 +12,8 @@ export type ChannelApprovalChoice = 'allow' | 'deny';
 
 export interface ChannelApprovalRules {
   readonly manager: boolean;
-  readonly mode: 'legacy' | 'channel';
+  readonly mode: ChannelApprovalPolicy['mode'];
+  readonly effective: ChannelApprovalPolicy;
   readonly see: ChannelApprovalChoice;
   readonly decide: ChannelApprovalChoice;
   readonly policy: Record<string, unknown>;
@@ -38,9 +41,13 @@ export async function readChannelApprovalRules(
     return undefined;
   const everyone = record(policy['everyone']);
   const revision = answer['policyRevision'];
+  const effective = channelApprovalPolicy(
+    record(answer['approvalPolicy'])?.['mode'] ?? policy['approvalMode'],
+  );
   return {
     manager: role !== 'member',
-    mode: policy['approvalMode'] === 'legacy' ? 'legacy' : 'channel',
+    mode: effective.mode,
+    effective,
     see: choice(everyone?.['seeApprovals'], 'seeApprovals'),
     decide: choice(everyone?.['decideApprovals'], 'decideApprovals'),
     policy,

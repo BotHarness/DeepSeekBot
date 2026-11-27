@@ -1,5 +1,6 @@
 import { readTeamMode } from '@botharness/host-client/people';
 import { readChannel } from '@botharness/host-client/channel-management';
+import { channelApprovalPolicy } from '@botharness/host-protocol/channel-policy';
 import {
   parseHostRoleRevisions,
   type HostRoleUpdatePrecondition,
@@ -652,7 +653,8 @@ export async function runTeamCommand(
         ...(values['edit-details'] === undefined ? {} : { editDetails: values['edit-details'] }),
       };
       const change = Object.keys(patch).length > 0 || values['use-channel-approvals'];
-      if (!values['policy-stdin'] && !change) return snapshot;
+      if (!values['policy-stdin'] && !change)
+        return { ...snapshot, approvalPolicy: channelApprovalPolicy(snapshot.policy.approvalMode) };
       if (values['policy-stdin'] && change) return usage();
       const policy = values['policy-stdin']
         ? { success: true as const, data: secretJson(channelPolicyInputSchema, await secret(io)) }

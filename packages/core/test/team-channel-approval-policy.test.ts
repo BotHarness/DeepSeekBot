@@ -62,11 +62,9 @@ it('keeps a migrated Channel’s approval behavior and its existing role rules',
     policy: { ...policy, everyone: { ...policy.everyone, wakeBot: 'deny' } },
   });
   expect(await statuses()).toEqual(before);
-  const fresh = f.channels.createGroup(bob, { name: 'New channel', members: [] });
-  expect(f.team.channelAccess.view(bob, fresh.id).policy).toEqual(DEFAULT_CHANNEL_POLICY);
 });
 
-it('shares approval visibility across card, search, Activity and push without granting decisions', async () => {
+it('keeps new Channel approvals masked until a manager changes an approval rule', async () => {
   const f = fixture();
   await f.roster.attach(createFakeRosterDomain().facility);
   const group = f.channels.createGroup(owner, {
@@ -103,7 +101,40 @@ it('shares approval visibility across card, search, Activity and push without gr
     )
       .pending(bob)
       .items.find((item) => item.messageId === request.id);
+  const readRules = () => f.invoke(bob, 'channelGet', { channelId: group.id });
+  const legacy = {
+    mode: 'legacy',
+    see: 'eligible-deciders',
+    decide: 'bot-owner-or-opaque-tools',
+  };
+  const snapshot = f.team.channelAccess.view(owner, group.id);
+  expect(await readRules()).toMatchObject({
+    policy: { ...DEFAULT_CHANNEL_POLICY, approvalMode: 'legacy' },
+    approvalPolicy: legacy,
+  });
+  masked(await card());
+  await expect(attempt()).rejects.toMatchObject({ code: 'approval-not-allowed' });
+  expect(await f.invoke(bob, 'messageSearch', { text: 'CONFIDENTIAL' })).toMatchObject({
+    hits: [],
+  });
+  expect(f.attention.list(bob, { category: 'action', search: 'CONFIDENTIAL' }).items).toEqual([]);
+  masked(push(), request.id);
+  expect(push()).not.toHaveProperty('preview');
+
+  await f.invoke(owner, 'channelPolicySet', {
+    channelId: group.id,
+    policy: { ...snapshot.policy, everyone: { ...snapshot.policy.everyone, post: 'deny' } },
+    expectedRevision: snapshot.policyRevision,
+  });
+  expect(await readRules()).toMatchObject({
+    policy: { approvalMode: 'legacy', everyone: { post: 'deny' } },
+    approvalPolicy: legacy,
+  });
+  masked(await card());
+  await expect(attempt()).rejects.toMatchObject({ code: 'approval-not-allowed' });
+
   await policy('allow', 'deny');
+  expect(await readRules()).toMatchObject({ approvalPolicy: { mode: 'channel' } });
   expect(await card()).toMatchObject({ approval: { masked: false, canDecide: false } });
   expect(await f.invoke(bob, 'messageSearch', { text: 'CONFIDENTIAL' })).toMatchObject({
     hits: [{ message: { id: request.id } }],
@@ -161,6 +192,26 @@ it('shares approval visibility across card, search, Activity and push without gr
   });
 });
 
+it('enables Channel approval policy without changing any rules when explicitly requested', async () => {
+  const f = fixture();
+  const group = f.channels.createGroup(owner, { name: 'Opt in', members: [] });
+  f.team.channelAccess.addMember(owner, group.id, bob.humanId);
+  const { policy, policyRevision } = f.team.channelAccess.view(owner, group.id);
+  await f.invoke(owner, 'channelPolicySet', {
+    channelId: group.id,
+    policy: { ...policy, approvalMode: 'channel' },
+    expectedRevision: policyRevision,
+  });
+  expect(await f.invoke(bob, 'channelGet', { channelId: group.id })).toMatchObject({
+    policy: { ...DEFAULT_CHANNEL_POLICY, approvalMode: 'channel' },
+    approvalPolicy: {
+      mode: 'channel',
+      see: 'channel-policy-or-eligible-deciders',
+      decide: 'channel-policy-or-bot-owner-or-opaque-tools',
+    },
+  });
+});
+
 it('shows an unattended tool request in the Bot owner’s Activity with masked details', async () => {
   const f = fixture();
   f.team.bots.setVisibility(owner, 'alice-bot', {
@@ -172,6 +223,10 @@ it('shows an unattended tool request in the Bot owner’s Activity with masked d
   const group = f.channels.createGroup(bob, {
     name: 'Unattended requests',
     members: ['alice-bot'],
+  });
+  await f.invoke(bob, 'channelPolicySet', {
+    channelId: group.id,
+    policy: { ...DEFAULT_CHANNEL_POLICY, approvalMode: 'channel' },
   });
   f.team.channelAccess.visibilitySet(bob, group.id, { kind: 'roles', roleIds: [role.roleId] });
   const request = await seed(f, 'tool', 'alice-bot', group.id);

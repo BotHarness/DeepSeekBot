@@ -61,16 +61,28 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
   const group = newGroup(fx.ledgerSlug, `Approval review ${tag}`, [fx.humans.bob.humanId]);
   const bob = fx.users.bob;
   const roleId = fx.roles.creators.roleId;
-  const defaults = s.cli(['channels', 'policy', group], { as: bob }).policy.everyone;
+  const readPolicy = (channelId, as) => s.cli(['channels', 'policy', channelId], { as });
+  const card = await request(group, fx.ledgerSlug, join(s.dir, `owner-${tag}.txt`), 'Owner');
   check(
-    'new Channel defaults allow seeing and deny deciding',
-    defaults.seeApprovals === 'allow' && defaults.decideApprovals === 'deny',
+    'new Channel has legacy approval access with --as',
+    readPolicy(group, bob).approvalPolicy?.see === 'eligible-deciders' &&
+      status(group, card, bob).approval?.masked === true &&
+      status(group, card).approval?.masked === false,
+  );
+  decide(group, card, 'allowed-once', bob, 'approval-not-allowed');
+  s.cli(['channels', 'policy', group, '--post', 'deny']);
+  const afterPost = readPolicy(group, bob);
+  check(
+    'changing post keeps the legacy masked card',
+    afterPost.policy?.everyone?.post === 'deny' &&
+      afterPost.approvalPolicy?.mode === 'legacy' &&
+      status(group, card, bob).approval?.masked === true,
   );
   policy(group, roleId, { seeApprovals: 'allow', decideApprovals: 'deny' });
-  const card = await request(group, fx.ledgerSlug, join(s.dir, `owner-${tag}.txt`), 'Owner', bob);
   check(
-    'view-only member reads full contents with --as',
-    status(group, card, bob).approval?.canDecide === false &&
+    'changing approval rules enables view-only access with --as',
+    readPolicy(group, bob).approvalPolicy?.mode === 'channel' &&
+      status(group, card, bob).approval?.canDecide === false &&
       s
         .messages(group, bob)
         .find(({ id }) => id === card)
@@ -121,6 +133,11 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
       `Member approval ${tag}`,
       [fx.status.viewer.humanId],
       fx.users.alice,
+    );
+    s.cli(['channels', 'policy', memberGroup, '--use-channel-approvals'], { as: fx.users.alice });
+    check(
+      'explicit CLI opt-in enables channel approval policy',
+      readPolicy(memberGroup, fx.users.alice).approvalPolicy?.mode === 'channel',
     );
     policy(
       memberGroup,

@@ -132,7 +132,15 @@ describe('M4 Channel policy CLI', () => {
     const args = ['channels', 'policy', 'group-1'];
     expect(await run(f.url, args)).toMatchObject({
       status: 0,
-      output: { policy: DEFAULT_CHANNEL_POLICY, policyRevision: 'a'.repeat(64) },
+      output: {
+        policy: DEFAULT_CHANNEL_POLICY,
+        policyRevision: 'a'.repeat(64),
+        approvalPolicy: {
+          mode: 'legacy',
+          see: 'eligible-deciders',
+          decide: 'bot-owner-or-opaque-tools',
+        },
+      },
     });
     expect(f.calls.map(({ input }) => input.method)).toEqual(['botharness/channelGet']);
     const policy = {

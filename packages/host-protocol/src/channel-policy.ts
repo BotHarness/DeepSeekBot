@@ -13,9 +13,24 @@ export const CHANNEL_APPROVAL_ACTIONS = ['seeApprovals', 'decideApprovals'] as c
 
 export type ChannelAction = (typeof CHANNEL_ACTIONS)[number];
 export type ChannelPolicyEffect = 'allow' | 'deny' | 'inherit';
+const approvalPolicies = {
+  legacy: { mode: 'legacy', see: 'eligible-deciders', decide: 'bot-owner-or-opaque-tools' },
+  channel: {
+    mode: 'channel',
+    see: 'channel-policy-or-eligible-deciders',
+    decide: 'channel-policy-or-bot-owner-or-opaque-tools',
+  },
+} as const;
+
+export type ChannelApprovalPolicy = (typeof approvalPolicies)[keyof typeof approvalPolicies];
+
+export function channelApprovalPolicy(mode: unknown): ChannelApprovalPolicy {
+  return approvalPolicies[mode === 'channel' ? 'channel' : 'legacy'];
+}
+
 export interface ChannelPolicy {
   readonly version: 1;
-  readonly approvalMode?: 'legacy' | 'channel' | undefined;
+  readonly approvalMode?: ChannelApprovalPolicy['mode'] | undefined;
   readonly everyone: Readonly<Record<ChannelAction, ChannelPolicyEffect>>;
   readonly overrides: readonly {
     roleId: string;
