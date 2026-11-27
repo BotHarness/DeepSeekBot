@@ -1,5 +1,5 @@
-import { connect } from '../../../packages/core/src/bots/development-inspector.mjs';
-export { connect, targetSocket } from '../../../packages/core/src/bots/development-inspector.mjs';
+import { connect } from '../../../packages/core/src/cli/development-inspector.mjs';
+export { connect, targetSocket } from '../../../packages/core/src/cli/development-inspector.mjs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';

@@ -3,7 +3,7 @@
 ## Sources
 
 - `packages/client/src/client/wallpaper*.{ts,tsx}`
-- `packages/core/src/bots/cli-wallpaper.ts`
+- `packages/core/src/cli/cli-wallpaper.ts`
 
 ## Terms
 

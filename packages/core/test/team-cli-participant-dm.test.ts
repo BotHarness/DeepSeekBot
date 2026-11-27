@@ -3,7 +3,7 @@ import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createCore } from '../src/plugin.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createTempRoot } from './helpers.js';

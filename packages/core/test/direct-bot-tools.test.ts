@@ -248,7 +248,7 @@ describe('direct Bot tool runner', () => {
     ).rejects.toMatchObject({ code: 'tool-not-direct' });
     expect(botTools).toContain('cloud_work');
     expect(exempt).not.toContain('cloud_work');
-    expect(readFileSync(join(repo, 'packages/core/src/bots/cli-live.ts'), 'utf8')).toContain(
+    expect(readFileSync(join(repo, 'packages/core/src/cli/cli-live.ts'), 'utf8')).toContain(
       "command: 'cloud-work'",
     );
   });

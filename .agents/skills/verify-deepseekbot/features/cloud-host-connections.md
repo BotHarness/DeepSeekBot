@@ -3,7 +3,7 @@
 ## Sources
 
 - `packages/core/src/cloud/**`
-- `packages/core/src/bots/cli-cloud.ts`
+- `packages/core/src/cli/cli-cloud.ts`
 
 ## Terms
 

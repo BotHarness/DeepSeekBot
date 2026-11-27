@@ -4,7 +4,7 @@ import { setImmediate } from 'node:timers/promises';
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseDocument } from 'yaml';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createTempRoot } from './helpers.js';
 
 const fault = vi.hoisted(() => ({ path: '', failReread: false, written: false, readOnly: false }));

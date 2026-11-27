@@ -10,7 +10,7 @@ import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { z } from 'zod';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createBridgeMethods, createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { registerBridge } from '../src/bridge/rpc.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';

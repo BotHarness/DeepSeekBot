@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { brokerCliEffects, cliEffects } from '../src/bots/cli-effects.js';
+import { brokerCliEffects, cliEffects } from '../src/kernel/cli-effects.js';
 import { decideToolApproval } from '../src/workspaces/tool-effects.js';
-import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
+import { classifyTobHostCli } from '../src/features/tob/cli-host-commands.js';
 import { closeServers, host, invoke } from './cli-inbox-fixture.js';
 
 afterEach(async () => {
@@ -845,7 +845,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
 });
 
 it('CLI requests Host notification discovery and refuses unsupported Hosts', async () => {
-  const { runInboxCommand } = await import('../src/bots/cli-inbox.js');
+  const { runInboxCommand } = await import('../src/cli/cli-inbox.js');
   const rpc = vi.fn(async () => ({ notificationVersion: 1, items: [], nextCursor: 'next' }));
   const connect = async () => ({
     rpc: rpc as <T>(method: string, args: Record<string, unknown>) => Promise<T>,

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { createAppearanceControl } from '../src/appearance/control.js';
-import { runConnectionCommand } from '../src/bots/cli-connection.js';
+import { runConnectionCommand } from '../src/cli/cli-connection.js';
 
 it('requires the original plan revision for public private stop and rejects revision on other actions', async () => {
   let contacts = 0;

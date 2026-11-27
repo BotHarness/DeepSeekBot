@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
-import { createTobBotCreationOperations } from '../src/tob/cli-bot-create.js';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
+import { createTobBotCreationOperations } from '../src/features/tob/cli-bot-create.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 

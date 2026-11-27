@@ -10,10 +10,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { apply, type BotHarnessCore } from '../src/index.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { executeNativeTool, installAgentNativeTools } from '../src/runtime/native-agent-compat.js';
-import { approveTobCliOperation } from '../src/tob/cli-approval.js';
-import { createTobHostCliOperations, type TobHostCliRunner } from '../src/tob/cli-host-commands.js';
-import { ModelFreeTobCliInvocation } from '../src/tob/cli-invocation.js';
-import { installTobCliShell } from '../src/tob/cli-shell.js';
+import { approveTobCliOperation } from '../src/features/tob/cli-approval.js';
+import {
+  createTobHostCliOperations,
+  type TobHostCliRunner,
+} from '../src/features/tob/cli-host-commands.js';
+import { ModelFreeTobCliInvocation } from '../src/runtime/tob-cli-invocation.js';
+import { installTobCliShell } from '../src/features/tob/cli-shell.js';
 import { TobError } from '../src/tob/service.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import { createTempRoot } from './helpers.js';

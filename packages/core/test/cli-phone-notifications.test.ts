@@ -2,9 +2,9 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { createContext, runInContext, runInNewContext } from 'node:vm';
 import { expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { phoneNotificationExpression } from '../src/bots/cli-phone-notifications.js';
-import { connect } from '../src/bots/development-inspector.mjs';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { phoneNotificationExpression } from '../src/cli/cli-phone-notifications.js';
+import { connect } from '../src/cli/development-inspector.mjs';
 import {
   createDeviceNotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,

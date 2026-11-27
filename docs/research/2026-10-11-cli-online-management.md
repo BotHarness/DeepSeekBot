@@ -18,7 +18,7 @@ database writer. Product terminology follows [CONTEXT](../../GLOSSARY.md).
 capability.** Bot, model, Memory, Channel, Workspace Grant and Schedule operations
 already exist on the same remote Service used by the Client. The offline CLI
 currently rejects `--host` for those operations rather than forwarding them.
-[`bot-create-cli.ts:2384`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/bot-create-cli.ts#L2384),
+[`bot-create-cli.ts:2384`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/bot-create-cli.ts#L2384),
 [`rpc.ts:1145`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bridge/rpc.ts#L1145).
 
 There is already one exception useful for debugging: `channel-messages <channel>`
@@ -27,8 +27,8 @@ committed messages and a Channel revision, supports `--limit` and `--before`, an
 does not require browser interaction. Without a Host target it selects the
 offline store, which still requires the profile writer lease. Other currently
 offline verbs do not become online merely because that environment variable is
-set. [`CLI dispatch`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/bot-create-cli.ts#L2384),
-[`live message query`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/cli-live.ts#L344),
+set. [`CLI dispatch`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/bot-create-cli.ts#L2384),
+[`live message query`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/cli-live.ts#L344),
 [`Host message query`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bridge/methods.ts#L2873).
 
 The offline reader also mounts the full operational-database owner, so even
@@ -36,7 +36,7 @@ The offline reader also mounts the full operational-database owner, so even
 SQLite `BEGIN IMMEDIATE` lease on the dedicated writer-lock database; the
 diagnostic lease metadata contains process/instance identity, not an authenticated
 Host endpoint. This is not a stale timestamp lock that CLI discovery may bypass.
-[`openRegistry`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/bot-create-cli.ts#L505),
+[`openRegistry`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/bot-create-cli.ts#L505),
 [`lease implementation`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/database/owner.ts#L464),
 [`lease test`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/test/bot-create-cli.test.ts#L758) ([current lease test](../../packages/core/test/bot-offline-operations-cli.test.ts)).
 
@@ -65,7 +65,7 @@ needed; it does not mean behavior is guaranteed identical without that work.
 
 Sources for the important exceptions:
 [Registry creation](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/registry.ts#L366),
-[CLI preset application](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/bot-create-cli.ts#L902),
+[CLI preset application](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/bot-create-cli.ts#L902),
 [Zip upload/export](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/bot-zip-http.ts),
 [exact route registrations](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/plugin.ts#L1612),
 [DM Memory scope](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bridge/methods.ts#L1008),
@@ -88,7 +88,7 @@ The CLI accepts loopback HTTP(S) or tailnet HTTPS origins without embedded
 credentials, paths, queries or fragments. Tokens come from environment/private
 token-file input and cookies remain in memory. Host restarts rotate the launch
 token; auth failures are coded and do not trigger a database fallback.
-[`cli-live.ts:75`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/cli-live.ts#L75),
+[`cli-live.ts:75`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/cli-live.ts#L75),
 [ADR-0159](../decisions/release.md#adr-0159),
 [native browser auth](https://github.com/deepseek-ai/deepseek-harness/blob/4878cdabd87d4041bdaff61d04c966883b9fd07a/packages/client/connection/src/browser-auth.ts).
 
@@ -113,7 +113,7 @@ Sources: [Memory CAS and edit identity](https://github.com/BotHarness/DeepSeekBo
 [Registry Model Plan revisions](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/registry.ts#L670),
 [Preset revision check](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/models/presets.ts#L354),
 [Schedule contract](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/schedules/bot-schedules.ts#L91),
-[send receipt/poll implementation](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/cli-live.ts#L312),
+[send receipt/poll implementation](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/cli-live.ts#L312),
 [failure and no-retry tests](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/test/bot-live-cli.test.ts#L137).
 
 The live model owner provides more information than offline validation, but it is
@@ -157,7 +157,7 @@ when the tested scenario produces one. This goes through the production Host
 owners and does not need browser clicks. It can prove message admission, execution
 and committed output facts; it does not prove Client rendering or external IM
 ingress merely because the same Bot answered an internal DM.
-[Live CLI](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/cli-live.ts),
+[Live CLI](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/cli/cli-live.ts),
 [Channel send status](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bridge/methods.ts#L2949).
 
 Useful additional queries already exist at the Host seam: `botAttention` exposes

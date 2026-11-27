@@ -2,11 +2,20 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { atomicWriteFile } from '../fs/atomic-write.js';
+import {
+  COMPACTION_HEADROOM_TOKENS,
+  COMPACTION_THRESHOLD_RATIO,
+  MAX_CACHE_LIFETIME_SECONDS,
+} from '../kernel/compaction-limits.js';
+
+export {
+  COMPACTION_HEADROOM_TOKENS,
+  COMPACTION_THRESHOLD_RATIO,
+  MAX_CACHE_LIFETIME_SECONDS,
+} from '../kernel/compaction-limits.js';
 
 export const IDLE_COMPACTION_SETTINGS_FILE = 'idle-compaction.json';
 export const IDLE_COMPACTION_OBSERVATIONS_FILE = 'idle-compaction-observations.json';
-
-export const MAX_CACHE_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 
 export interface IdleCompactionRoute {
   provider: string;
@@ -19,9 +28,6 @@ export interface IdleCompactionSettingsValue {
   thresholdRatio?: number;
   headroomTokens?: number;
 }
-
-export const COMPACTION_THRESHOLD_RATIO = { defaultValue: 0.8, min: 0.5, max: 0.95 };
-export const COMPACTION_HEADROOM_TOKENS = { defaultValue: 65_536, min: 8_192, max: 262_144 };
 
 export function isCompactionThresholdRatio(value: unknown): value is number {
   return (

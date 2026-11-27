@@ -24,13 +24,13 @@ import { PrivateAudit } from '../src/team/audit.js';
 import {
   createTobBotProfileOperations,
   TOB_BOT_PROFILE_CAPABILITIES,
-} from '../src/tob/cli-bot-profile-operations.js';
+} from '../src/features/tob/cli-bot-profile-operations.js';
 import {
   authorizeTobBotTargets,
   authorizeTobHostCli,
   createTobHostCliOperations,
-} from '../src/tob/cli-host-commands.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+} from '../src/features/tob/cli-host-commands.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createPersonaBotDeletions } from '../src/bots/deletion.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';

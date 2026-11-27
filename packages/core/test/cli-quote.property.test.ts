@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { cliQuote } from '../src/bots/cli-live.js';
+import { cliQuote } from '../src/cli/cli-live.js';
 
 describe('deepseekbot send --quote', () => {
   it('reads a value without a separator as a whole-message quote', () => {

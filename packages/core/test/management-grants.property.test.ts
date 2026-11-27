@@ -5,7 +5,7 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { dmChannelId } from '../src/channels/channel.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
-import { authorizeTobHostCli } from '../src/tob/cli-host-commands.js';
+import { authorizeTobHostCli } from '../src/features/tob/cli-host-commands.js';
 import { createTempRoot } from './helpers.js';
 
 const capabilities = ['manage-app', 'manage-bots'] as const;

@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 
-import { runApprovalReviewerCommand } from '../src/bots/cli-approval-reviewer.js';
+import { runApprovalReviewerCommand } from '../src/cli/cli-approval-reviewer.js';
 import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 import type { ChannelMessage, ChannelRecord } from '../src/channels/channel.js';
 import type { ChannelStore } from '../src/channels/store.js';

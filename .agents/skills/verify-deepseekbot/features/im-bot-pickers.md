@@ -3,7 +3,7 @@
 ## Sources
 
 - `packages/client/src/client/im-apps-section.tsx`
-- `packages/core/src/bots/cli-im-authorization.ts`
+- `packages/core/src/cli/cli-im-authorization.ts`
 
 ## Terms
 

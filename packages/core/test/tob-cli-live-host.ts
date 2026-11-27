@@ -1,8 +1,11 @@
 import { createServer, type Server } from 'node:http';
 import { afterEach, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
-import { createTobHostCliOperations, type TobHostCliRunner } from '../src/tob/cli-host-commands.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
+import {
+  createTobHostCliOperations,
+  type TobHostCliRunner,
+} from '../src/features/tob/cli-host-commands.js';
 import { requestListener } from './async-listener.js';
 
 export const LAUNCH_TOKEN = 'synthetic-launch-token';

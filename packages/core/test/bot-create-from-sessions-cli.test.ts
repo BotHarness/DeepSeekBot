@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { parseBotCliArgs } from '../src/bots/cli-options.js';
-import { runCreate, validatedCreate } from '../src/features/personabots/cli-create.js';
+import { parseBotCliArgs } from '../src/kernel/cli-options.js';
+import { runCreate, validatedCreate } from '../src/cli/cli-create.js';
 
 const values = (...argv: string[]) => parseBotCliArgs(['create', ...argv]).values;
 const stdin = async () => '';

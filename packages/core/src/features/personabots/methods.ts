@@ -18,6 +18,7 @@ import {
 } from '../../kernel/method-utils.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
+import { HarnessError } from '@deepseek-ai/dsh-llm';
 
 import { botOwner } from '../../team-policy/bot-access.js';
 
@@ -370,6 +371,8 @@ export function createPersonaBotsBridgeMethods(
         deps.browserAccess?.changed(slug);
         return { ok: true, value: { deletion: await result } };
       } catch (error) {
+        if (error instanceof HarnessError && error.code === 'protected-bot')
+          return { ok: false, error: { code: error.code, message: error.message } };
         return invalidInput(error instanceof Error ? error.message : 'Deletion unavailable');
       }
     },

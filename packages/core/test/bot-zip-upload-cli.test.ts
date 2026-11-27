@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { writeZip } from '../src/bots/zip-archive.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';

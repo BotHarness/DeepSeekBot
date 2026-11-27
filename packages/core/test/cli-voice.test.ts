@@ -7,7 +7,7 @@ import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { runVoiceCommand, type VoiceValues } from '../src/bots/cli-voice.js';
+import { runVoiceCommand, type VoiceValues } from '../src/cli/cli-voice.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createVoiceBridgeMethods } from '../src/voice/bridge.js';

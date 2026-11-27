@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { isBotModeCommand, runBotModeCommand } from '../src/bots/cli-bot-modes.js';
-import { canonicalCliCommandName } from '../src/bots/cli-command-names.js';
-import { parseBotCliArgs } from '../src/bots/cli-options.js';
+import { isBotModeCommand, runBotModeCommand } from '../src/cli/cli-bot-modes.js';
+import { canonicalCliCommandName } from '../src/kernel/cli-command-names.js';
+import { parseBotCliArgs } from '../src/kernel/cli-options.js';
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../src/bots/registry.js';
 import { createBotModeBridgeMethods } from '../src/bridge/bot-modes.js';

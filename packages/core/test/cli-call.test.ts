@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { CALL_OPTIONS, runCallCommand, type CallValues } from '../src/bots/cli-call.js';
+import { CALL_OPTIONS, runCallCommand, type CallValues } from '../src/cli/cli-call.js';
 import { createVoiceCalls } from '../src/voice/calls.js';
 import { wavFromPcm16 } from '../src/voice/providers.js';
 import { readWavAs16kMono } from '../src/voice/wav.js';

@@ -7,7 +7,7 @@ import type { SessionModelChoice } from '@botharness/host-protocol/session-model
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { lastTurnTarget, readTurnTargets, type TurnTargetSegment } from './turn-targets.js';
 import type { ChannelAssignmentSummary } from '@botharness/host-protocol/wire';
-import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
+import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../kernel/tob-cli-request.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { SessionRecoveryAction } from './session-recovery.js';
 import type { GroupSendReview } from '../channels/send-review.js';

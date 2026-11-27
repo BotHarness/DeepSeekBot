@@ -22,7 +22,7 @@ import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { createPresence } from './push/presence.js';
 import type { VoiceCallMedia, VoiceCalls } from './voice/calls.js';
 import { followCompanion } from './companions/live.js';
-import type { TobNativeSettings } from './tob/cli-model-operations.js';
+import type { TobNativeSettings } from './features/tob/cli-model-operations.js';
 import { createSecretMcpStore } from './credentials/secret-mcp-store.js';
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
@@ -57,7 +57,6 @@ import * as environments from './features/environments/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as marketplace from './features/marketplace/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
-import * as botSchedules from './features/schedules/plugin.js';
 import * as skillsFeature from './features/skills/plugin.js';
 import { nativeSkillHost } from './runtime/native-agent-compat.js';
 import * as voice from './features/voice/plugin.js';
@@ -188,7 +187,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     genui: {
       browserPath: config.genuiPreviewBrowserPath,
       onDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
-      attachmentContext: ctx,
+      getFallbackAttachments: () => ctx.get('attachments'),
     },
   });
   forEachHostFeature(featureContributions, (hooks) => hooks.profileStartup?.(ctx, dshHome));
@@ -436,7 +435,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     return () => controller.abort();
   }, 'botharness: retained attachment migration');
   ctx.effect(() => () => core.runtime.close(), 'botharness: bot runtime');
-  botSchedules.mountCleanup(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterRuntimeCleanupRegistration?.(ctx, core),
+  );
   ctx.effect(() => () => core.live.close(), 'botharness: Channel live hub');
   ctx.effect(() => () => core.companions.close(), 'botharness: Window Companion feed');
   ctx.provide('botharness', core);

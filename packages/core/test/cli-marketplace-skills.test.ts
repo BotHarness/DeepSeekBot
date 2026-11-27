@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { cliEffects } from '../src/kernel/cli-effects.js';
 import { host, invoke, ok } from './cli-host-admin-fixture.js';
 
 it('dispatches the skills subcommands through the Host and requires confirmation for replacement and deletion', async () => {
@@ -7,6 +8,10 @@ it('dispatches the skills subcommands through the Host and requires confirmation
   const publish = ['skills', 'publish', 'tidy-notes', '--bot', 'author'];
   const replace = ['skills', 'replace', id, 'tidy-notes', '--bot', 'author'];
   const remove = ['skills', 'delete', id];
+  for (const command of [publish, replace, remove]) {
+    expect(cliEffects(command)).toMatchObject({ changes: 'irreversible', reach: 'external' });
+  }
+  expect(cliEffects(['skills', 'mine'])).toMatchObject({ changes: 'none', reach: 'external' });
   expect((await invoke(publish, live.url)).code).toBe(0);
   expect((await invoke(replace, live.url)).json.error.code).toBe('usage');
   expect((await invoke(remove, live.url)).json.error.code).toBe('usage');

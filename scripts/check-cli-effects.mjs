@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { cliDispatchInventory } from './cli-dispatch-inventory.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const source = readFileSync(
-  new URL('../packages/core/src/bots/cli-effects.ts', import.meta.url),
+  new URL('../packages/core/src/kernel/cli-effects.ts', import.meta.url),
   'utf8',
 );
 const declared = new Set();

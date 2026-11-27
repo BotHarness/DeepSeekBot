@@ -34,6 +34,28 @@ import {
 } from './team-member-lifecycle-fixtures.js';
 
 describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
+  it('refuses to accept a member purge for a protected PersonaBot', () => {
+    const f = fixture();
+    const bot = createBot(f);
+    f.db.transaction((db) => {
+      db.prepare("INSERT INTO deleted_humans VALUES ('bob', '2026-11-14T00:00:00Z')").run();
+      db.prepare(
+        "UPDATE persona_bots SET body = json_set(body, '$.protection.deletion', 'deny') WHERE slug = ?",
+      ).run(bot.bot.slug);
+      expect(() =>
+        acceptMemberBotPurge({
+          db,
+          humanId: 'bob',
+          slug: bot.bot.slug,
+          acceptedAt: '2026-11-15T00:00:00Z',
+          rootDir: f.core.registry.rootDir,
+        }),
+      ).toThrow('Protected PersonaBot cannot be deleted');
+    });
+    expect(f.core.deletions.get(bot.bot.slug)).toBeUndefined();
+    expect(existsSync(bot.memory)).toBe(true);
+  });
+
   it.each(['retained', 'pending', 'erased'] as const)(
     'preserves a pending acceptance without upgrading its intent, memory=%s',
     (memory) => {

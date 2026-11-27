@@ -1,10 +1,9 @@
-import type { Context } from '@deepseek-ai/cordis';
 import type { FeatureContribution } from '../../kernel/feature-contribution.js';
 import type { HumanContext } from '../../humans/context.js';
 import { createGenuiBridgeMethods } from './methods.js';
 import { GENUI_AUTHORING_SECTION } from './prompt.js';
 import { genuiServiceRpc } from './rpc.js';
-import { registerGenuiTools } from './tools.js';
+import { registerGenuiTools, type GenuiAttachmentReader, type GenuiToolOptions } from './tools.js';
 
 export interface GenuiBridgeContext {
   human: HumanContext;
@@ -12,24 +11,17 @@ export interface GenuiBridgeContext {
 }
 
 export interface GenuiAgentContext {
-  agentContext: Pick<Context, 'get'>;
+  getAttachments: GenuiAttachmentReader;
   botSlug: string;
 }
 
-export type GenuiContributionOptions = Omit<Parameters<typeof registerGenuiTools>[2], 'scope'>;
-
-export function createGenuiContribution(options?: GenuiContributionOptions) {
+export function createGenuiContribution(options?: GenuiToolOptions) {
   return {
     id: 'genui',
     bridgeMethods: ({ human, deps }) => createGenuiBridgeMethods(human, deps),
     rpc: genuiServiceRpc,
     promptSections: () => [{ placement: 'system', ...GENUI_AUTHORING_SECTION }],
-    tools: ({ agentContext, botSlug }, { register }) =>
-      registerGenuiTools(agentContext, register, {
-        browserPath: options?.browserPath,
-        onDiagnostic: options?.onDiagnostic,
-        attachmentContext: options?.attachmentContext,
-        scope: botSlug,
-      }),
+    tools: ({ getAttachments, botSlug }, { register }) =>
+      registerGenuiTools(getAttachments, register, { ...options, scope: botSlug }),
   } satisfies FeatureContribution<GenuiBridgeContext, GenuiAgentContext>;
 }

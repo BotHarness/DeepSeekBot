@@ -2,7 +2,7 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import {
   existsSync,

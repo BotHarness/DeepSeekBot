@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';

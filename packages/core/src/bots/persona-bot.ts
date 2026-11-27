@@ -13,11 +13,21 @@ import { isBotBanner, type BotBanner } from './bot-banner.js';
 import { isBotPrimaryColor, type BotPrimaryColor } from './primary-color.js';
 import type { PromptLimitValues } from '../prompts/prompt-limits.js';
 import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
+import { z } from 'zod';
+
+export const personaBotProtectionSchema = z.strictObject({
+  deletion: z.literal('deny').optional(),
+  presentation: z.literal('retain-customizations').optional(),
+  lifetime: z.literal('owner-tenure').optional(),
+});
+
+export type PersonaBotProtection = z.infer<typeof personaBotProtectionSchema>;
 
 export interface PersonaBotRecord {
   ownerHumanId?: string;
   slug: string;
   displayName: string;
+  protection?: PersonaBotProtection;
   displayNameCustomized?: true;
   avatarCustomized?: true;
   roles?: string[];
@@ -220,6 +230,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
     return false;
   if (typeof record['displayName'] !== 'string') return false;
   if (typeof record['createdAt'] !== 'string') return false;
+  if (
+    record['protection'] !== undefined &&
+    !personaBotProtectionSchema.safeParse(record['protection']).success
+  )
+    return false;
   for (const key of ['displayNameCustomized', 'avatarCustomized'])
     if (record[key] !== undefined && record[key] !== true) return false;
   if (record['paused'] !== undefined && typeof record['paused'] !== 'boolean') return false;

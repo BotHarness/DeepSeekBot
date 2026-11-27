@@ -1,5 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis';
-import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
+import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { GENUI_STYLE_GUIDANCE } from '../../channels/genui-appearance.js';
 import { compileGenuiDiagram } from '../../runtime/genui-diagram.js';
@@ -135,15 +134,18 @@ export function createGenuiPreviewTool(options: {
   });
 }
 
+export type GenuiAttachmentReader = () => Pick<AttachmentStore, 'saveImage'> | undefined;
+
+export interface GenuiToolOptions {
+  browserPath?: string | undefined;
+  onDiagnostic?: ((event: GenuiPreviewDiagnostic) => void) | undefined;
+  getFallbackAttachments?: GenuiAttachmentReader | undefined;
+}
+
 export function registerGenuiTools(
-  agentCtx: Pick<Context, 'get'>,
+  getAttachments: GenuiAttachmentReader,
   registerTool: (tool: ToolDefinition) => unknown,
-  options: {
-    browserPath: string | undefined;
-    onDiagnostic: ((event: GenuiPreviewDiagnostic) => void) | undefined;
-    attachmentContext: Pick<Context, 'get'> | undefined;
-    scope?: string | undefined;
-  },
+  options: GenuiToolOptions & { scope: string },
 ): void {
   registerTool(
     createGenuiDiagramTool({
@@ -156,8 +158,7 @@ export function registerGenuiTools(
       scope: options.scope,
       onDiagnostic: options.onDiagnostic,
       saveImage: async (data) => {
-        const attachments =
-          agentCtx.get('attachments') ?? options.attachmentContext?.get('attachments');
+        const attachments = getAttachments() ?? options.getFallbackAttachments?.();
         if (attachments === undefined) throw new Error('DSH attachment service is unavailable.');
         return attachments.saveImage({ data, mediaType: 'image/png', name: 'GenUI preview' });
       },

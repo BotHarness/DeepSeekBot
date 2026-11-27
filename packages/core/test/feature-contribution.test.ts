@@ -1,4 +1,3 @@
-import { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol';
 import { describe, expect, it, vi } from 'vitest';
@@ -132,7 +131,7 @@ describe('Feature Contribution', () => {
     );
 
     const { tools, guards, registrar } = toolRegistry();
-    feature.tools({ agentContext: new Context(), botSlug: 'ada' }, registrar);
+    feature.tools({ getAttachments: () => undefined, botSlug: 'ada' }, registrar);
     expect(tools.map((tool) => tool.name)).toEqual(['genui_diagram', 'genui_preview']);
     expect(guards).toEqual([]);
     expect(feature.promptSections()).toEqual([

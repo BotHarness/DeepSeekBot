@@ -59,13 +59,13 @@ export { rosterDomainSpec, rosterDomainState, rosterSectionRecord } from './rost
 export type { RosterDomainState, RosterSectionRecord } from './roster/spec.js';
 export { createPersonaBotRegistry } from './bots/registry.js';
 export type { PersonaBotRegistry, PersonaBotRegistryOptions } from './bots/registry.js';
-export { runBotCreateCli, BOT_CREATE_HELP } from './bots/bot-create-cli.js';
+export { runBotCreateCli, BOT_CREATE_HELP } from './cli/bot-create-cli.js';
 export type {
   BotCreateCliIo,
   BotCreateFailure,
   BotCreateResult,
   BotCreateStep,
-} from './bots/bot-create-cli.js';
+} from './cli/bot-create-cli.js';
 export {
   dmChannelId,
   groupChannelIdBase,
