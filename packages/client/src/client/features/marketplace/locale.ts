@@ -305,7 +305,7 @@ export const zh = {
   'market.skills.noMatch': '没有匹配的 Skill。',
   'market.skills.more': '加载更多',
   'market.skills.publishHint':
-    '想上架自己的 Skill？给公开 GitHub 仓库加上 tobs-skill topic，仓库里每个含 SKILL.md 的文件夹会在一天内收录。',
+    '想上架自己的 Skill？在 Bot 资料的 Skills 里发布，或给公开 GitHub 仓库加上 tobs-skill topic，一天内收录。',
   'market.skills.warningTitle': '扫描发现可疑内容',
   'market.skills.blockedTitle': '扫描判为恶意，不能添加',
   'market.skills.scriptsTitle': '这个 Skill 含脚本',
@@ -696,7 +696,7 @@ export const en = {
   'market.skills.noMatch': 'No Skills match.',
   'market.skills.more': 'Load more',
   'market.skills.publishHint':
-    'To list your own Skills, add the tobs-skill topic to a public GitHub repository. Each folder with a SKILL.md is listed within a day.',
+    'To list your own Skill, publish it from Skills in a Bot profile, or add the tobs-skill topic to a public GitHub repository to list it within a day.',
   'market.skills.warningTitle': 'The scan found suspicious content',
   'market.skills.blockedTitle': 'The scan found malicious content, so this Skill can’t be added',
   'market.skills.scriptsTitle': 'This Skill has scripts',
