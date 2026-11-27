@@ -91,6 +91,7 @@ export const bridgeMethodInventory = [
   'cloudConnections',
   'cloudWork',
   'messagingApps',
+  'messagingConnections',
   'messagingSnapshot',
   'messagingTargets',
   'messagingReachable',
