@@ -167,7 +167,12 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
       value: {
         channel: expect.any(Object),
         role: 'member',
-        policy: allAdmins,
+        policy: { ...allAdmins, approvalMode: 'channel' },
+        approvalPolicy: {
+          mode: 'channel',
+          see: 'channel-policy-or-eligible-deciders',
+          decide: 'channel-policy-or-bot-owner-or-opaque-tools',
+        },
         canPost: false,
         canEditDetails: false,
         policyRevision: expect.any(String),
@@ -775,7 +780,10 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
         everyone: { ...restrictedPolicy.everyone, post: 'allow' },
       }),
     ).toThrow('permission-required');
-    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual(restrictedPolicy);
+    expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual({
+      ...restrictedPolicy,
+      approvalMode: 'legacy',
+    });
   });
 
   it.each(['owner', 'admin'] as const)(
