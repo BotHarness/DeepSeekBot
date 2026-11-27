@@ -75,7 +75,7 @@ const styles = stylex.create({
   description: { whiteSpace: 'pre-wrap' },
 });
 
-type BrowseActions = AvatarApplyActions &
+export type BrowseActions = AvatarApplyActions &
   Pick<
     BridgeActions,
     | 'marketplaceAvatarList'
@@ -431,7 +431,7 @@ export function MarketAvatars({
   );
 }
 
-function MarketAvatarDetail({
+export function MarketAvatarDetail({
   initial,
   actions,
   onRead,

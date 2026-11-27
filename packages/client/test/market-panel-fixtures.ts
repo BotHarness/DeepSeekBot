@@ -104,6 +104,7 @@ export async function withPanel(
     registry: { open: ReturnType<typeof vi.fn> };
   }) => Promise<void>,
   extra: Record<string, ReturnType<typeof vi.fn>> = {},
+  section: 'all' | 'bots' = 'bots',
 ) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const host = document.createElement('div');
@@ -125,6 +126,8 @@ export async function withPanel(
     openBot: vi.fn(async () => undefined),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceSkillMine: vi.fn(async () => ({ skills: [] })),
+    marketplaceSkillList: vi.fn(async () => ({ skills: [], nextCursor: null })),
+    marketplaceAvatarList: vi.fn(async () => ({ avatars: [], nextCursor: null })),
     telemetryEvent: vi.fn(),
     ...extra,
   };
@@ -147,6 +150,8 @@ export async function withPanel(
         ),
       ),
     );
+    if (section === 'bots')
+      await act(async () => document.getElementById('bh-market-section-bots')?.click());
     await test({ host, list, actions, registry });
   } finally {
     await act(async () => root.unmount());

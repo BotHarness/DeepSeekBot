@@ -40,6 +40,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'replace-limit': 'market.error.replaceLimit',
   'skill-not-found': 'market.error.skillNotFound',
   'skill-exists': 'market.error.skillExists',
+  'skill-name-taken': 'market.error.skillNameTaken',
   'skill-blocked': 'market.error.skillBlocked',
   'review-expired': 'market.error.reviewExpired',
   'skill-too-large': 'market.error.skillTooLarge',

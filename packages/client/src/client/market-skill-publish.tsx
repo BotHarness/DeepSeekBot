@@ -26,6 +26,7 @@ import {
   type MarketAuthorActions,
 } from './market-author-session.js';
 import { FindingList, ScriptList } from './market-skill-dialog.js';
+import type { MarketSkillActions } from './market-skills.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -41,6 +42,11 @@ export type SkillReplaceActions = Pick<
   BridgeActions,
   'marketplaceSkillReplace' | 'marketplaceSkillAddCandidates' | 'botSkills'
 >;
+
+export type SkillListingActions = SkillPublishActions &
+  SkillReplaceActions &
+  MarketSkillActions &
+  Pick<BridgeActions, 'marketplaceSkillMine'>;
 
 export function skillFilesLabel(count: number, t: BotHarnessTranslate): string {
   return count === 1 ? t('market.skills.filesOne') : t('market.skills.files', { count });
@@ -249,12 +255,14 @@ type BotSkills =
 export function MarketSkillReplaceDialog({
   actions,
   skill,
+  from,
   t,
   onClose,
   onReplaced,
 }: {
   actions: SkillReplaceActions;
   skill: MarketplaceSkill;
+  from?: string | undefined;
   t: BotHarnessTranslate;
   onClose: () => void;
   onReplaced: (skill: MarketplaceSkill) => void;
@@ -274,7 +282,10 @@ export function MarketSkillReplaceDialog({
       ({ bots }) => {
         if (!live) return;
         setSources({ kind: 'ready', bots });
-        setBot((current) => current ?? bots[0]?.slug);
+        setBot(
+          (current) =>
+            current ?? bots.find((candidate) => candidate.slug === from)?.slug ?? bots[0]?.slug,
+        );
       },
       (cause: unknown) => {
         if (live) setSources({ kind: 'failed', error: cause });
