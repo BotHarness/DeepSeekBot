@@ -369,3 +369,31 @@ it('keeps the retry for unread Bots visible when a filter matches nothing', asyn
   expect(host.querySelector('[data-team-bot]')).toBeNull();
   expect(host.querySelector('[data-team-bots-retry]')).not.toBeNull();
 });
+
+it('keeps Save disabled after Discard until the stale-role reload succeeds', async () => {
+  let reads = 0;
+  let release: (() => void) | undefined;
+  const call = workbench({
+    roleBotScope: async () => {
+      reads++;
+      if (reads === 2) await new Promise<void>((done) => (release = done));
+      return { ok: true, value: scope({ revision: 3 + reads - 1 }) };
+    },
+    roleBotScopeSet: () => ({
+      ok: false,
+      error: { code: 'stale-role', message: 'stale', details: {} },
+    }),
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => toggle('dispatch').click());
+  await act(async () => save()!.click());
+  const discard = [
+    ...host.querySelectorAll<HTMLButtonElement>('[data-team-bot-scope-actions] button'),
+  ].find((node) => node.textContent === '放弃');
+  await act(async () => discard!.click());
+  await act(async () => toggle('dispatch').click());
+  expect(save()!.disabled).toBe(true);
+  await act(async () => release!());
+  expect(save()!.disabled).toBe(false);
+  expect(call.mock.calls.filter(([method]) => method === 'roleBotScopeSet')).toHaveLength(1);
+});

@@ -266,7 +266,7 @@ export function RoleBotScope({
             disabled={busy}
             onClick={() => {
               setDraft(undefined);
-              setStale('none');
+              setStale((value) => (value === 'reloaded' ? 'none' : value));
               setError(undefined);
             }}
           >
