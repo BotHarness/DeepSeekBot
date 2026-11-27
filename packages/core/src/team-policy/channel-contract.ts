@@ -35,9 +35,9 @@ export const channelPolicySchema = z.strictObject({
     addMembers: effect,
     post: effect,
     mentionAll: effect,
-    wakeBot: effect.default('allow'),
     addBots: effect,
     editDetails: effect,
+    wakeBot: effect.default('allow'),
   }),
   overrides: z
     .array(
@@ -57,9 +57,9 @@ export const DEFAULT_CHANNEL_POLICY: ChannelPolicy = {
     addMembers: 'allow',
     post: 'allow',
     mentionAll: 'allow',
-    wakeBot: 'allow',
     addBots: 'deny',
     editDetails: 'deny',
+    wakeBot: 'allow',
   },
   overrides: [],
 };
