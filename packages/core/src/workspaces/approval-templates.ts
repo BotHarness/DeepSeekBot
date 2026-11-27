@@ -333,9 +333,20 @@ const POLICY_CHANGE_PATTERNS: readonly RegExp[] = [
   /botharness\.db|persona_bots|tool_approval_rules/iu,
 ];
 
+const SKILL_PUBLISH_PATTERNS: readonly RegExp[] = [
+  /\bskills(?:-|[\s"'\\,]+)(?:publish|replace)\b/iu,
+  /\bmarketplaceSkill(?:Publish|Replace)\b/u,
+];
+
+const SKILL_DELETE_PATTERNS: readonly RegExp[] = [
+  /\bskills(?:-|[\s"'\\,]+)delete\b/iu,
+  /\bmarketplaceSkillDelete\b/u,
+];
+
 const PUBLISH_PATTERNS: readonly RegExp[] = [
   /marketplace-(?:upload|avatar-publish)\b/iu,
   /\bmarketplace(?:Upload|AvatarPublish)\b/u,
+  ...SKILL_PUBLISH_PATTERNS,
 ];
 
 export function publishesBotMemory(input: string): boolean {
@@ -345,7 +356,16 @@ export function publishesBotMemory(input: string): boolean {
 const MARKETPLACE_DELETE_PATTERNS: readonly RegExp[] = [
   /marketplace-delete\b/iu,
   /\bmarketplaceDelete\b/u,
+  ...SKILL_DELETE_PATTERNS,
 ];
+
+export function publishesMarketplaceSkill(input: string): boolean {
+  return SKILL_PUBLISH_PATTERNS.some((pattern) => pattern.test(input));
+}
+
+export function deletesMarketplaceSkill(input: string): boolean {
+  return SKILL_DELETE_PATTERNS.some((pattern) => pattern.test(input));
+}
 
 export function deletesMarketplaceBot(input: string): boolean {
   return MARKETPLACE_DELETE_PATTERNS.some((pattern) => pattern.test(input));

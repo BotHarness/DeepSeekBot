@@ -30,7 +30,9 @@ import {
 import {
   approvalTemplate,
   changesApprovalPolicy,
+  deletesMarketplaceBot,
   listApprovalTemplates,
+  publishesBotMemory,
 } from '../src/workspaces/approval-templates.js';
 import { requiresHumanToolApproval } from '../src/workspaces/grant-execution.js';
 import { ChannelToolApproval, type ToolAutoApproval } from '../src/workspaces/tool-approval.js';
@@ -226,6 +228,33 @@ describe('Approval Templates', () => {
       false,
     );
   });
+
+  it.each([
+    ['skills-publish', 'skills publish', 'marketplaceSkillPublish'],
+    ['skills-replace', 'skills replace', 'marketplaceSkillReplace'],
+    ['skills-delete', 'skills delete', 'marketplaceSkillDelete'],
+  ])('protects every %s spelling', (flat, split, method) => {
+    const deleting = flat === 'skills-delete';
+    for (const input of [
+      `deepseekbot ${flat}`,
+      `deepseekbot ${split}`,
+      JSON.stringify({ command: `deepseekbot "skills" "${split.split(' ')[1]}"` }),
+      JSON.stringify({ argv: split.split(' ') }),
+      JSON.stringify({ method: `botharness/${method}` }),
+    ]) {
+      expect(publishesBotMemory(input)).toBe(!deleting);
+      expect(deletesMarketplaceBot(input)).toBe(deleting);
+      expect(requiresHumanToolApproval('bash', { command: input })).toBe(true);
+    }
+    expect(requiresHumanToolApproval('deepseekbot_cli', { argv: split.split(' ') })).toBe(true);
+  });
+
+  it.each(['marketplace-skill-report', 'marketplaceSkillReport', 'skills mine'])(
+    'leaves %s outside the publication and deletion gate',
+    (command) => {
+      expect(requiresHumanToolApproval('bash', { command })).toBe(false);
+    },
+  );
 });
 
 describe('Approval Reviewer input', () => {

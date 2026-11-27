@@ -104,6 +104,23 @@ function fixture(fullAccess?: () => boolean) {
 }
 
 describe('two-outcome Reviewer Human control', () => {
+  it.each(['marketplace-avatar-publish', 'skills publish', 'skills-replace', 'skills delete'])(
+    'asks the Human and rejects a Bot Shell call for %s under Full Access',
+    async (command) => {
+      const f = fixture(() => true);
+      const answer = f.call(`deepseekbot ${command}`);
+      const card = await vi.waitFor(() => {
+        const card = f.messages().find((message) => message.toolApprovalRequest);
+        expect(card?.toolApprovalRequest).toMatchObject({ toolName: 'bash' });
+        return card;
+      });
+      if (!card) throw new Error('Missing Shell approval');
+      expect(f.review).not.toHaveBeenCalled();
+      expect(await f.broker.decide(OWNER_HUMAN_CONTEXT, 'ada', card.id, 'rejected')).toBe(true);
+      expect(await answer).toBe('rejected');
+    },
+  );
+
   it('keeps a native global-policy edit behind Human approval despite Full Access and a broad tool rule', async () => {
     let fullAccess = false;
     const f = fixture(() => fullAccess);

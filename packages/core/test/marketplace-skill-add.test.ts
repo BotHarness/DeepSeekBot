@@ -50,6 +50,13 @@ it('publishes a folder named skills through the Host and CLI and preserves insta
   expect(await caller.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' })).toMatchObject(
     { ok: false, error: { code: 'permission-required' } },
   );
+  expect(await caller.marketplaceSkillReplace({ bot: 'author', name: 'tidy-notes' })).toMatchObject(
+    { ok: false, error: { code: 'permission-required' } },
+  );
+  expect(await caller.marketplaceSkillDelete({})).toMatchObject({
+    ok: false,
+    error: { code: 'permission-required' },
+  });
   const connect = async () => async (method: string, payload: Record<string, unknown>) => {
     if (method === 'marketplaceSkillPublish')
       return value(await bridge.marketplaceSkillPublish(payload));
