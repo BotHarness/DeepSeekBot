@@ -64,6 +64,7 @@ export function ExternalRolesSection({
   const [stale, setStale] = useState(false);
   const [dialog, setDialog] = useState<Dialog>();
   const [dialogError, setDialogError] = useState<string>();
+  const [staleRoles, setStaleRoles] = useState<ReadonlySet<string>>(new Set());
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
@@ -100,6 +101,7 @@ export function ExternalRolesSection({
     setBusy(true);
     try {
       setRoles(await readExternalRoles(bridgeHost(call)));
+      setStaleRoles(new Set());
       setStale(false);
       setError(undefined);
     } catch (failure) {
@@ -175,6 +177,12 @@ export function ExternalRolesSection({
     const latest = await readExternalRoles(bridgeHost(call)).catch(() => undefined);
     const fresh = latest?.find((item) => item.id === target.id);
     if (latest !== undefined) setRoles(latest);
+    setStaleRoles((current) => {
+      const next = new Set(current);
+      if (fresh === undefined) next.add(target.id);
+      else next.delete(target.id);
+      return next;
+    });
     setDialog(
       fresh === undefined
         ? { kind: 'rename', role: target, stale: true }
@@ -302,8 +310,9 @@ export function ExternalRolesSection({
                 disabled={busy}
                 data-external-role-rename=""
                 onClick={() => {
-                  setDialogError(undefined);
-                  setDialog({ kind: 'rename', role });
+                  const stale = staleRoles.has(role.id);
+                  setDialogError(stale ? t('team.externalRoles.error.reloadFailed') : undefined);
+                  setDialog({ kind: 'rename', role, stale });
                 }}
               >
                 <Icon name="pencil" />

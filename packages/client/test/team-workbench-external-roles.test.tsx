@@ -331,7 +331,27 @@ it('keeps Save off and offers a retry when the reload after a stale rename fails
   expect(submit()?.disabled).toBe(true);
   expect(document.querySelector<HTMLInputElement>('[data-external-role-name]')?.value).toBe('VIP');
 
+  const cancel = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (node) => node.textContent === '取消',
+  );
+  await act(async () => cancel?.click());
+  await settle();
+  expect(document.querySelector('[data-external-role-name]')).toBeNull();
+  await act(async () => find('[data-external-role-rename]').click());
+  expect(submit()?.disabled).toBe(true);
+  expect(document.querySelector('[data-external-role-dialog-reload]')).not.toBeNull();
+  expect(renames).toHaveLength(1);
+
   readFails = false;
+  await act(async () => {
+    const reopened = document.querySelector<HTMLInputElement>('[data-external-role-name]');
+    if (!reopened) throw new Error('Missing name field');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+      reopened,
+      'VIP',
+    );
+    reopened.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[data-external-role-dialog-reload]')?.click(),
   );
