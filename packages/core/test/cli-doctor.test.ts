@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runDoctor } from '../src/bots/cli-doctor.js';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
+import { runDoctor } from '../src/cli/cli-doctor.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
 import { openLogDatabase } from '../src/logs/log-db.js';
 import { createLogHealth } from '../src/diagnostics/log-health.js';
 
@@ -190,7 +190,7 @@ describe('doctor CLI', () => {
 
 describe('doctor through the tobs entry point', () => {
   it('accepts --home for doctor and the offline log export', async () => {
-    const { runBotCreateCli } = await import('../src/bots/bot-create-cli.js');
+    const { runBotCreateCli } = await import('../src/cli/bot-create-cli.js');
     const home = homeWithErrors(['boot-failed'], Date.now);
     const lines: string[] = [];
     const cli = {
@@ -241,7 +241,7 @@ describe('doctor against a real Host response', () => {
     [404, 'not found', { id: 'plugin', status: 'fail', code: 'plugin-not-loaded' }],
     [503, 'busy', { id: 'host', status: 'fail', code: 'host-refused' }],
   ])('maps a plain-text %i from the log route', async (status, body, expected) => {
-    const { runBotCreateCli } = await import('../src/bots/bot-create-cli.js');
+    const { runBotCreateCli } = await import('../src/cli/bot-create-cli.js');
     const home = homeWithErrors(['boot-failed'], Date.now);
     const host = await fakeHost(status, body);
     try {

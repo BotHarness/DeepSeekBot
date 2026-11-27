@@ -4,7 +4,7 @@ import {
   canManageGrants,
   grantAllManagement,
   managementGrantHolders,
-} from '../src/tob/management-grants.js';
+} from '../src/bots/management-grants.js';
 import { alice, bob, carol, fixture } from './team-bot-visibility-fixtures.js';
 
 const LEGACY_AUTHORIZED = `SELECT 1 FROM team_settings s WHERE (?1 = s.owner_human_id OR (s.enabled = 1 AND EXISTS (

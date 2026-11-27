@@ -5,7 +5,7 @@ import type {
   DmContinuation,
 } from './orchestrator-continuation.js';
 import { GROUP_MENTION_REMINDER } from './inbound-envelope.js';
-import type { TobCliTurn } from '../tob/cli-request.js';
+import type { TobCliTurn } from '../kernel/tob-cli-request.js';
 import type { TeamService } from '../team/service.js';
 import { botOwner } from '../team-policy/bot-access.js';
 import type { HumanContext } from '../humans/context.js';

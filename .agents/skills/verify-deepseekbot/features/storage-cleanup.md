@@ -5,7 +5,7 @@
 - `packages/core/src/features/profile-storage/{methods,rpc}.ts`
 - `packages/client/src/client/features/profile-storage/bridge.ts`
 - `packages/core/src/storage/**`
-- `packages/core/src/bots/cli-storage.ts`
+- `packages/core/src/cli/cli-storage.ts`
 - `packages/client/src/client/storage-settings.tsx`
 - `packages/host-client/src/storage.ts`
 - `apps/mobile/src/ui/storage-settings.tsx`

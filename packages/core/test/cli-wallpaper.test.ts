@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
-import { runWallpaperCommand } from '../src/bots/cli-wallpaper.js';
+import { runWallpaperCommand } from '../src/cli/cli-wallpaper.js';
 const io = { env: {}, stdout: () => {}, stderr: () => {} };
 describe('directed wallpaper CLI', () => {
   it('requires a Client and revision before reading or connecting', async () => {

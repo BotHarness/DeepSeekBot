@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { runBrowserNotifications } from '../src/bots/cli-browser-notifications.js';
+import { runBrowserNotifications } from '../src/cli/cli-browser-notifications.js';
 
 it('targets the selected live Client and Host with a revision, without requesting OS permission', async () => {
   const http = vi.fn(async () => ({ bytes: new TextEncoder().encode('{"enabled":false}') }));

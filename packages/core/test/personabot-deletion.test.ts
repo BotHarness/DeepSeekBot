@@ -83,6 +83,33 @@ afterEach(async () => {
 });
 
 describe('confirmed terminal PersonaBot deletion', () => {
+  it('honors a PersonaBot record’s protection policy without a built-in role', async () => {
+    const { core, deletion, create, stop } = fixture();
+    const memory = create('caretaker');
+    attachOperationalModule(core.operationalDatabase, 'bots').transaction((db) => {
+      db.prepare('UPDATE persona_bots SET body = json_set(body, ?, json(?)) WHERE slug = ?').run(
+        '$.protection',
+        JSON.stringify({ deletion: 'deny', presentation: 'retain-customizations' }),
+        'caretaker',
+      );
+    });
+    const avatar = 'data:image/png;base64,iVBORw0KGgo=';
+    expect(core.registry.update('caretaker', { displayName: 'Caretaker', avatar }).ok).toBe(true);
+    expect.soft(core.registry.get('caretaker')).toMatchObject({
+      displayName: 'Caretaker',
+      displayNameCustomized: true,
+      avatar,
+      avatarCustomized: true,
+    });
+    const review = deletion.preview('caretaker');
+    await expect(deletion.confirm('caretaker', review.token, false)).rejects.toMatchObject({
+      code: 'protected-bot',
+    });
+    expect(stop).not.toHaveBeenCalled();
+    expect(core.registry.get('caretaker')).toBeDefined();
+    expect(existsSync(memory)).toBe(true);
+  });
+
   it('removes a deleted Bot from every Group and leaves member management usable', async () => {
     const fixtureState = fixture();
     fixtureState.create('a');

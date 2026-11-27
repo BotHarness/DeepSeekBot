@@ -19,7 +19,7 @@ import { callVisualMessage } from '../../voice/call-text.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from '../../channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from '../../voice/call-contract.js';
 import { createVoiceCallHttp } from '../../voice/call-http.js';
-import { createTobVoiceOperations } from '../../tob/cli-voice-operations.js';
+import { createTobVoiceOperations } from '../tob/cli-voice-operations.js';
 import type { ChannelDraftEvent } from '../../channels/draft.js';
 import type { DiagnosticEvents } from '../../diagnostics/diagnostic-log.js';
 import type { ModelCatalog } from '../../models/catalog.js';

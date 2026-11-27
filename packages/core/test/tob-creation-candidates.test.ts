@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { TOB_BOT_CREATE_CAPABILITIES } from '../src/tob/cli-bot-create.js';
-import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
+import { TOB_BOT_CREATE_CAPABILITIES } from '../src/features/tob/cli-bot-create.js';
+import { classifyTobHostCli } from '../src/features/tob/cli-host-commands.js';
 import { host, invoke, ok } from './cli-host-admin-fixture.js';
 
 const creation = TOB_BOT_CREATE_CAPABILITIES.find(

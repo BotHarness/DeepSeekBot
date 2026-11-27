@@ -22,7 +22,7 @@ import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
 import { createPresence } from './push/presence.js';
 import type { VoiceCallMedia, VoiceCalls } from './voice/calls.js';
 import { followCompanion } from './companions/live.js';
-import type { TobNativeSettings } from './tob/cli-model-operations.js';
+import type { TobNativeSettings } from './features/tob/cli-model-operations.js';
 import { createSecretMcpStore } from './credentials/secret-mcp-store.js';
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';

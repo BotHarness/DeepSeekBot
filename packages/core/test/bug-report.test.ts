@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runBugReport } from '../src/bots/cli-bug-report.js';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
+import { runBugReport } from '../src/cli/cli-bug-report.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
 import { readZip } from '../src/bots/zip-archive.js';
 import {
   BUG_REPORT_LIMITS,

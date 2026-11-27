@@ -3,7 +3,7 @@ import { createVoiceBridgeMethods, type VoiceBridgeDeps } from './methods.js';
 import { mountFetch } from './plugin.js';
 import { voiceProviderRpc, voiceSettingsRpc } from './rpc.js';
 
-interface VoiceBridgeContext {
+export interface VoiceBridgeContext {
   deps: VoiceBridgeDeps & { registry: Parameters<typeof createVoiceBridgeMethods>[0]['registry'] };
   isHostOwner: () => boolean;
 }

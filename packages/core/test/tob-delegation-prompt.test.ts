@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest';
 import { DEFAULT_PROMPT_TEXT } from '../src/prompts/prompt-parts.js';
 import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter.js';
-import { TOB_CHANNEL_CAPABILITIES } from '../src/tob/cli-channel-operations.js';
-import { TOB_DIAGNOSTIC_CAPABILITIES } from '../src/tob/cli-diagnostic-operations.js';
-import { TOB_HOST_CLI_CAPABILITY } from '../src/tob/cli-host-commands.js';
-import { TOB_SHARE_DRAFT_CAPABILITIES } from '../src/tob/cli-share-draft-operations.js';
+import { TOB_CHANNEL_CAPABILITIES } from '../src/features/tob/cli-channel-operations.js';
+import { TOB_DIAGNOSTIC_CAPABILITIES } from '../src/features/tob/cli-diagnostic-operations.js';
+import { TOB_HOST_CLI_CAPABILITY } from '../src/features/tob/cli-host-commands.js';
+import { TOB_SHARE_DRAFT_CAPABILITIES } from '../src/features/tob/cli-share-draft-operations.js';
 
 it('gives an App management grant holder one short management instruction', () => {
   const manager = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;

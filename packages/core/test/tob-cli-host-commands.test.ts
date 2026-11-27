@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
 import {
   authorizeTobHostCli,
   classifyTobHostCli,
@@ -10,7 +10,7 @@ import {
   spawnHostCli,
   TOB_HOST_CLI_READS,
   type TobHostCliRunner,
-} from '../src/tob/cli-host-commands.js';
+} from '../src/features/tob/cli-host-commands.js';
 import { TobError } from '../src/tob/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';

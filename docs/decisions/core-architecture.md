@@ -31,3 +31,9 @@ Appearance contributes the Window Companion live stream in a separate descriptor
 Environments mounts device pairing before the after-Environments hooks. Takeover registers Handoff recovery, disposal, and Orchestrator Tools after Team confinement. Voice registers its Call route between the desktop routes and Channel live route.
 
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
+
+## CLI adapters and PersonaBot protection
+
+[#5524](https://github.com/BotHarness/DeepSeekBot/issues/5524) puts command dispatch and adapters in [the CLI module](../../packages/core/src/cli/). Online commands call the existing Host bridge through Host Client. The [offline Profile bridge](../../packages/core/src/bridge/cli-offline.ts) opens the established owners for commands that support offline Profiles. Kernel owns CLI parsing, request schemas, and effect declarations shared with the Tob feature. The Tob feature binds typed commands and exact-argv dispatch to its existing source checks, approvals, and Host owners.
+
+The PersonaBot record carries its lifecycle and presentation policy. The Registry preserves explicit display-name and avatar customizations when the policy asks it to, and the deletion owner refuses confirmation for a protected identity. Tob sets both policies when it creates its identity. The migration backfills the current Owner's existing Tob, and Owner transfer expires policies tied to the outgoing tenure in the same transaction that clears the identity. The protected Tob identity cannot be deleted during that tenure. This supersedes the deletion provision for built-in Tob in [ADR-0314](tob.md#adr-0314).

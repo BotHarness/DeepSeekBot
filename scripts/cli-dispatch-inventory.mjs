@@ -10,7 +10,7 @@ export function cliDispatchInventory(root) {
     'ssh-tunnel',
     'create',
   ]);
-  const dir = join(root, 'packages/core/src/bots');
+  const dir = join(root, 'packages/core/src/cli');
   for (const file of readdirSync(dir).filter(
     (x) => (x.startsWith('cli-') && x.endsWith('.ts')) || x === 'bot-create-cli.ts',
   )) {

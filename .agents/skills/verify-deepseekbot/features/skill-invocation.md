@@ -7,7 +7,7 @@ A Human types `/` in a PersonaBot DM or Group Channel, picks a Skill, and sends 
 - `packages/core/src/features/skills/plugin.ts`
 - `packages/core/src/skills/**`
 - `packages/core/src/runtime/{channel-prompts,group-digest}.ts`
-- `packages/core/src/bots/cli-skills.ts`
+- `packages/core/src/cli/cli-skills.ts`
 - `packages/client/src/client/skill-refs.ts`
 - `packages/host-client/src/skill-catalog.ts`
 - `apps/mobile/src/ui/chat/{skill-*,use-skill-catalog}.{ts,tsx}`

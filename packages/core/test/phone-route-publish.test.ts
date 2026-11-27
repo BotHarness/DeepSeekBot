@@ -9,7 +9,7 @@ import {
   type ManagedPhoneRouteState,
   type RunCommand,
 } from '../src/devices/routes.js';
-import { runPhoneRouteCommand } from '../src/bots/cli-phone-route.js';
+import { runPhoneRouteCommand } from '../src/cli/cli-phone-route.js';
 
 const RUNNING = JSON.stringify({
   BackendState: 'Running',

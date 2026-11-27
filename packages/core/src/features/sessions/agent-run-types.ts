@@ -2,7 +2,7 @@ import type { OrchestratorChannelAccess } from '../../runtime/runtime-access-typ
 import { type DirectBotToolSpec } from './direct-tools.js';
 import type { TurnTarget, TurnTargetSwitchReason } from '@botharness/host-protocol/turn-target';
 import { type TurnTargetSegment } from '../../runtime/turn-targets.js';
-import type { TobCliTurn } from '../../tob/cli-request.js';
+import type { TobCliTurn } from '../../kernel/tob-cli-request.js';
 import type { TeamService } from '../../team/service.js';
 import type { externalMemberWake } from '../../messaging/defaults.js';
 import type {

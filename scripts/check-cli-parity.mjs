@@ -232,11 +232,15 @@ function main(root) {
     })
     .flatMap(sourceFiles)
     .map((file) => readFileSync(file, 'utf8'));
-  const cliDirectory = join(root, 'packages/core/src/bots');
+  const cliDirectory = join(root, 'packages/core/src/cli');
   const cliSources = readdirSync(cliDirectory)
     .filter((name) => /^(cli.*|bot-create-cli)\.ts$/.test(name))
     .map((name) => readFileSync(join(cliDirectory, name), 'utf8'));
-  const cliSource = cliSources.join('\n');
+  const cliSource = [
+    ...cliSources,
+    read('packages/core/src/kernel/cli-command-names.ts'),
+    read('packages/core/src/kernel/cli-effects.ts'),
+  ].join('\n');
   const readerMethods = bridgeMethodsFromSharedReaders(cliSources, (module) =>
     read(`packages/host-client/src/${module}.ts`),
   );

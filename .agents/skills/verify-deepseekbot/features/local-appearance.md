@@ -4,7 +4,7 @@
 
 - `packages/client/src/client/appearance{,-context,-control,-scope,-settings,-pickers,-primitives}.{ts,tsx}`
 - `packages/core/src/appearance/**`
-- `packages/core/src/bots/cli-appearance.ts`
+- `packages/core/src/cli/cli-appearance.ts`
 
 ## Terms
 

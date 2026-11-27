@@ -15,7 +15,8 @@ import {
   unclassifiedCoreTopLevelFile,
 } from './core-layer-order.mjs';
 
-const cliAdapter = /^packages\/core\/src\/bots\/cli-[^/]+\.[cm]?[jt]s$/u;
+const cliSource = `${CORE_SOURCE}/cli/`;
+const personaBotLifecycle = /^packages\/core\/src\/bots\/(?:registry|deletion)\.ts$/u;
 const permissionsModule = 'packages/core/src/messaging/permissions/';
 const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlite-store\.)/u;
 
@@ -140,13 +141,17 @@ function inspectPackageBoundaries(file, source, workspaces) {
           `${file}:${input.loc.start.line}: core must not import client source (${specifier})`,
         );
       if (
-        (cliAdapter.test(file) || file.startsWith('packages/host-client/src/')) &&
+        (file.startsWith(cliSource) || file.startsWith('packages/host-client/src/')) &&
         ((target && operationalDatabase.test(target)) ||
           name === 'node:sqlite' ||
           name === 'better-sqlite3')
       )
         errors.push(
           `${file}:${input.loc.start.line}: CLI adapters must use the Host for operational database access (${specifier})`,
+        );
+      if (personaBotLifecycle.test(file) && target?.startsWith(`${CORE_SOURCE}/tob/`))
+        errors.push(
+          `${file}:${input.loc.start.line}: PersonaBot lifecycle must use record protection policy (${specifier})`,
         );
       const permissionsEntry = file.startsWith('packages/client/')
         ? `${permissionsModule}client.js`

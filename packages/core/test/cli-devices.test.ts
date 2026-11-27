@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runDevicesCommand } from '../src/bots/cli-devices.js';
-import { parseBotCliArgs } from '../src/bots/cli-options.js';
+import { runDevicesCommand } from '../src/cli/cli-devices.js';
+import { parseBotCliArgs } from '../src/kernel/cli-options.js';
 
 const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),

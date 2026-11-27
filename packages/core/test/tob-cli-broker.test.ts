@@ -4,7 +4,7 @@ import {
   type TobCliBroker,
   type TobCliBrokerOptions,
   type TobCliProposal,
-} from '../src/tob/cli-broker.js';
+} from '../src/features/tob/cli-broker.js';
 import { TobError } from '../src/tob/service.js';
 
 const brokers: TobCliBroker[] = [];

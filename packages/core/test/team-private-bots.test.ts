@@ -9,7 +9,7 @@ import { attachOperationalModule } from '../src/database/owner.js';
 import { MEMBER_BOT_METHODS } from '../src/team/member-methods.js';
 import { privateBotRegistry } from '../src/features/team/private-bot-registry.js';
 import { privateBotCreations } from '../src/bots/creation.js';
-import { createMemberTobOperations } from '../src/tob/member-operations.js';
+import { createMemberTobOperations } from '../src/features/tob/member-operations.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { createFakeRosterDomain, createTestRosterStore } from './roster-fixture.js';

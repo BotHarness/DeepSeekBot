@@ -5,13 +5,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { parseAgentManagement } from '../src/bots/cli-agent-management.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { parseAgentManagement } from '../src/cli/cli-agent-management.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createShareDrafts, shareDraftFlags } from '../src/marketplace/share-draft.js';
 import { observeWorktree } from '../src/memory/accepted-observation.js';
 import { createCore } from '../src/plugin.js';
-import { createTobShareDraftOperations } from '../src/tob/cli-share-draft-operations.js';
+import { createTobShareDraftOperations } from '../src/features/tob/cli-share-draft-operations.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';

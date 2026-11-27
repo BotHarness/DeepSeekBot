@@ -9,7 +9,7 @@ vi.mock('@botharness/host-client/owner-sign-in', () => ({ signInOwnerDevice: own
 vi.mock('../src/devices/connect-identity-fetch.js', () => ({
   requestConnectIdentity: (url: string, init?: RequestInit) => fetch(url, init),
 }));
-import { runDeviceClientCommand } from '../src/bots/cli-device-client.js';
+import { runDeviceClientCommand } from '../src/cli/cli-device-client.js';
 
 it('writes Owner sign-in credentials to a private file and emits only connection metadata', async () => {
   const out = join(createTempRoot('owner-sign-in-cli-'), 'device.json');
