@@ -47,6 +47,21 @@ function many(count: number, created: (index: number) => string): FakeRepository
   );
 }
 
+async function finishDiscovery(
+  market: ReturnType<typeof createMarket>,
+  maxRuns: number,
+): Promise<Record<string, unknown>> {
+  let added = 0;
+  for (let run = 0; run < maxRuns; run += 1) {
+    const requests = market.queries.requests;
+    const report = await market.scheduled(DISCOVERY_CRON);
+    expect(market.queries.requests - requests).toBeLessThanOrEqual(800);
+    added += Number(report['added']);
+    if (report['complete'] === true) return { ...report, added };
+  }
+  throw new Error(`Discovery did not complete after ${maxRuns} runs`);
+}
+
 describe('Marketplace scheduled discovery', () => {
   it('lists topic repositories without a paste and fills head commit and README', async () => {
     const market = createMarket();
@@ -74,12 +89,12 @@ describe('Marketplace scheduled discovery', () => {
       market.publish(repository);
     }
 
-    const report = await market.scheduled(DISCOVERY_CRON);
+    const report = await finishDiscovery(market, 65);
 
     expect(report).toMatchObject({ complete: true, found: 1500, added: 1500 });
     expect(Number(report['slices'])).toBeGreaterThan(2);
     expect(await listed(market)).toHaveLength(1500);
-  });
+  }, 45_000);
 
   it('reports an incomplete scan and hides nothing when one second holds 1,000 repositories', async () => {
     const market = createMarket();
@@ -129,7 +144,7 @@ describe('Marketplace hourly refresh', () => {
   it('refreshes metadata in GraphQL batches of 100', async () => {
     const market = createMarket();
     for (const repository of many(250, () => '2024-01-01T00:00:00Z')) market.publish(repository);
-    await market.scheduled(DISCOVERY_CRON);
+    await finishDiscovery(market, 12);
     market.github.nodeBatches.length = 0;
     const target = market.github.repositories.get('alice/bot-0007')!;
     market.publish({

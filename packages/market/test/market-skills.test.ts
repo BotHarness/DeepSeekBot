@@ -56,6 +56,52 @@ async function list(market: Market, query = ''): Promise<ListedSkill[]> {
 }
 
 describe('Marketplace Skills', () => {
+  it('shares the discovery query budget, resumes 600 Skill repositories, and skips unchanged writes', async () => {
+    const market = createMarket();
+    for (let index = 0; index < 600; index += 1) {
+      const name = `skill-${String(index).padStart(3, '0')}`;
+      market.publish(skillRepository({ 'SKILL.md': skillMd(name) }, { name }));
+    }
+    for (let index = 0; index < 100; index += 1) {
+      market.publish(fakeRepository({ name: `bot-${String(index).padStart(3, '0')}` }));
+    }
+    const invoked = (name: string) =>
+      market.github.requests.includes(`/repos/carol/${name}/commits/main`);
+    const run = async () => {
+      market.github.requests.length = 0;
+      Object.assign(market.queries, {
+        requests: 0,
+        batches: 0,
+        skillWrites: 0,
+        unbatchedSkillWrites: 0,
+      });
+      await market.scheduled(DISCOVERY_CRON);
+      expect(market.queries.requests).toBeLessThanOrEqual(800);
+      expect(market.queries.unbatchedSkillWrites).toBe(0);
+      return { ...market.queries };
+    };
+
+    const first = await run();
+    expect(invoked('skill-000')).toBe(true);
+    expect(invoked('skill-599')).toBe(false);
+    expect(first.skillWrites).toBeGreaterThan(0);
+    expect(first.batches).toBeGreaterThan(0);
+
+    const second = await run();
+    expect(invoked('skill-000')).toBe(false);
+    expect(invoked('skill-300')).toBe(true);
+    expect(second.skillWrites).toBeGreaterThan(0);
+
+    const third = await run();
+    expect(invoked('skill-000')).toBe(false);
+    expect(invoked('skill-599')).toBe(true);
+    expect(first.skillWrites + second.skillWrites + third.skillWrites).toBe(600);
+
+    const wrapped = await run();
+    expect(invoked('skill-000')).toBe(true);
+    expect(wrapped.skillWrites).toBe(0);
+  });
+
   it('discovers tobs-skill repositories and lists every SKILL.md folder', async () => {
     const market = createMarket();
     market.publish(
@@ -73,6 +119,7 @@ describe('Marketplace Skills', () => {
       listed: 2,
       complete: true,
     });
+    expect(market.queries).toMatchObject({ batches: 1, skillWrites: 2, unbatchedSkillWrites: 0 });
     const skills = await list(market);
     expect(skills.map((skill) => skill.name).sort()).toEqual(['notes', 'pdf-tools']);
     const pdf = skills.find((skill) => skill.name === 'pdf-tools')!;
@@ -152,6 +199,11 @@ describe('Marketplace Skills', () => {
     market.publish({ ...repository, topics: [] });
     await market.scheduled(DISCOVERY_CRON);
     expect(await list(market)).toEqual([]);
+    const writes = market.queries.skillWrites;
+    market.publish({ ...repository, archived: true });
+    await market.scheduled(DISCOVERY_CRON);
+    expect(market.queries.skillWrites).toBe(writes);
+    expect(await list(market)).toEqual([]);
   });
 
   it('counts one Install Receipt per target', async () => {
@@ -211,6 +263,12 @@ describe('Marketplace Skills', () => {
     expect(await list(market)).toEqual([]);
     await market.scheduled(DISCOVERY_CRON);
     expect(await list(market)).toHaveLength(1);
+    market.github.repositories.delete('carol/skills');
+    await market.scheduled(DISCOVERY_CRON);
+    expect(await list(market)).toEqual([]);
+    const writes = market.queries.skillWrites;
+    await market.scheduled(DISCOVERY_CRON);
+    expect(market.queries.skillWrites).toBe(writes);
     expect(
       (
         await adminSkills(market, {

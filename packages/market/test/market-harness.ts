@@ -48,28 +48,39 @@ export const testVerifier: AccessTokenVerifier = {
     ),
 };
 
-export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
+export function createLocalD1() {
   const sqlite = new DatabaseSync(':memory:');
   const migrations = new URL('../migrations/', import.meta.url);
   for (const file of readdirSync(migrations).sort()) {
     sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
   }
-  const statement = (query: string, values: D1Value[]): D1PreparedStatement => ({
-    bind: (...next) => statement(query, next),
-    first: <T>() =>
-      Promise.resolve(
-        (sqlite.prepare(query).get(...(values as SQLInputValue[])) ?? null) as T | null,
-      ),
-    all: <T>() =>
-      Promise.resolve({
-        results: sqlite.prepare(query).all(...(values as SQLInputValue[])) as T[],
-      }),
-    run: () => Promise.resolve(sqlite.prepare(query).run(...(values as SQLInputValue[]))),
-  });
+  const queries = { requests: 0, batches: 0, skillWrites: 0, unbatchedSkillWrites: 0 };
+  let inBatch = false;
+  const statement = (query: string, values: D1Value[]): D1PreparedStatement => {
+    const execute = () => {
+      if (!inBatch) queries.requests += 1;
+      if (/^(INSERT INTO|UPDATE) marketplace_skills\b/u.test(query)) {
+        queries.skillWrites += 1;
+        if (!inBatch) queries.unbatchedSkillWrites += 1;
+      }
+      return sqlite.prepare(query);
+    };
+    return {
+      bind: (...next) => statement(query, next),
+      first: <T>() =>
+        Promise.resolve((execute().get(...(values as SQLInputValue[])) ?? null) as T | null),
+      all: <T>() =>
+        Promise.resolve({ results: execute().all(...(values as SQLInputValue[])) as T[] }),
+      run: () => Promise.resolve(execute().run(...(values as SQLInputValue[]))),
+    };
+  };
   const db: D1Database = {
     prepare: (query) => statement(query, []),
     async batch<T>(statements: D1PreparedStatement[]) {
+      queries.requests += 1;
+      queries.batches += 1;
       sqlite.exec('BEGIN');
+      inBatch = true;
       try {
         const results = statements.map((item) => item.all<T>());
         sqlite.exec('COMMIT');
@@ -77,10 +88,12 @@ export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
       } catch (error) {
         sqlite.exec('ROLLBACK');
         throw error;
+      } finally {
+        inBatch = false;
       }
     },
   };
-  return { db, sqlite };
+  return { db, sqlite, queries };
 }
 
 export interface FakeRepository extends GitHubRepository {
@@ -313,6 +326,7 @@ export function createMarket(
   request: (path: string, init?: RequestInit) => Promise<Response>;
   github: ReturnType<typeof createFakeGitHub>;
   sqlite: DatabaseSync;
+  queries: ReturnType<typeof createLocalD1>['queries'];
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
@@ -320,7 +334,7 @@ export function createMarket(
   logs: Record<string, unknown>[];
   bucket: ReturnType<typeof createMemoryBucket>;
 } {
-  const { db, sqlite } = createLocalD1();
+  const { db, sqlite, queries } = createLocalD1();
   const bucket = createMemoryBucket();
   const clock = { value: new Date('2026-10-05T12:00:00Z') };
   const github = createFakeGitHub();
@@ -350,6 +364,7 @@ export function createMarket(
     request: (path, init) => handler(new Request(`https://market.test${path}`, init)),
     github,
     sqlite,
+    queries,
     clock,
     scheduled: async (cron) => {
       const lines: string[] = [];

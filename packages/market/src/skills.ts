@@ -1,4 +1,5 @@
-import type { D1Database } from './d1.js';
+import type { D1Database, D1PreparedStatement } from './d1.js';
+import { continueDiscovery, findTopicRepositories } from './discovery.js';
 import {
   parseRepositoryUrl,
   type GitHubClient,
@@ -26,7 +27,6 @@ export const SKILL_PAGE_SIZE = 24;
 export const MAX_SKILLS_PER_REPOSITORY = 50;
 const MAX_SCANNED_FILES = 30;
 const MAX_SCANNED_FILE_BYTES = 256 * 1024;
-const MAX_SEARCH_PAGES = 10;
 const OFFICIAL_OWNERS = new Set(['botharness']);
 
 export interface MarketplaceSkillFile {
@@ -93,6 +93,14 @@ interface SkillRow {
 const COLUMNS =
   'id, repo_node_id, owner, repo, path, name, description, skill_md, files, scripts, scan, findings, commit_sha, stars, pushed_at, curated, visibility, installs';
 
+type IndexedSkill = Pick<
+  SkillRow,
+  'id' | 'owner' | 'repo' | 'scan' | 'commit_sha' | 'stars' | 'pushed_at' | 'curated' | 'visibility'
+>;
+type SkillOutcome =
+  | { kind: 'listed' | 'rejected' | 'skipped' | 'retry' }
+  | { kind: 'write'; statement: D1PreparedStatement };
+
 function parseJson<T>(value: string, fallback: T): T {
   try {
     return JSON.parse(value) as T;
@@ -158,12 +166,13 @@ export function createMarketSkills(deps: {
   const { db, github } = deps;
   const stamp = () => deps.now().toISOString();
 
-  const rowsFor = async (repositoryId: string): Promise<SkillRow[]> =>
+  const rowsFor = async (repositoryId: string): Promise<IndexedSkill[]> =>
     (
       await db
-        .prepare(`SELECT ${COLUMNS} FROM marketplace_skills WHERE repo_node_id = ?`)
+        .prepare(`SELECT id, owner, repo, scan, commit_sha, stars, pushed_at, curated, visibility
+          FROM marketplace_skills WHERE repo_node_id = ?`)
         .bind(repositoryId)
-        .all<SkillRow>()
+        .all<IndexedSkill>()
     ).results;
 
   const hideRepository = async (repositoryId: string): Promise<number> =>
@@ -193,23 +202,34 @@ export function createMarketSkills(deps: {
     sha: string;
     folder: string;
     blobs: readonly GitHubTreeBlob[];
-    existing: SkillRow | undefined;
+    existing: IndexedSkill | undefined;
     curated: boolean;
-  }): Promise<'listed' | 'rejected' | 'skipped' | 'retry'> => {
+  }): Promise<SkillOutcome> => {
     const files = blobs
       .filter((blob) => within(folder, blob.path))
       .map((blob) => ({ path: relativeTo(folder, blob.path), size: blob.size }))
       .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
-    if (files.length > MAX_SKILL_FILES) return 'skipped';
-    if (files.reduce((total, file) => total + file.size, 0) > MAX_SKILL_BYTES) return 'skipped';
+    if (files.length > MAX_SKILL_FILES) return { kind: 'skipped' };
+    if (files.reduce((total, file) => total + file.size, 0) > MAX_SKILL_BYTES)
+      return { kind: 'skipped' };
     const at = (path: string) => (folder === '' ? path : `${folder}/${path}`);
     if (existing !== undefined && existing.commit_sha === sha) {
-      await db
+      if (
+        existing.owner === repository.owner &&
+        existing.repo === repository.name &&
+        existing.stars === repository.stars &&
+        existing.pushed_at === repository.pushedAt &&
+        (!curated || existing.curated === 1) &&
+        !(existing.visibility === 'hidden_missing' && existing.scan !== 'blocked')
+      ) {
+        return { kind: existing.visibility === 'listed' ? 'listed' : 'rejected' };
+      }
+      const statement = db
         .prepare(
           `UPDATE marketplace_skills SET owner = ?, repo = ?, stars = ?, pushed_at = ?, curated = MAX(curated, ?),
              last_refreshed_at = ?,
              visibility = CASE WHEN visibility = 'hidden_missing' AND scan != 'blocked' THEN 'listed' ELSE visibility END
-           WHERE id = ?`,
+           WHERE id = ? AND commit_sha = ? RETURNING visibility`,
         )
         .bind(
           repository.owner,
@@ -219,16 +239,17 @@ export function createMarketSkills(deps: {
           curated ? 1 : 0,
           stamp(),
           id,
-        )
-        .run();
-      return existing.scan === 'blocked' ? 'rejected' : 'listed';
+          sha,
+        );
+      return { kind: 'write', statement };
     }
     const content = await github.fileAt(locator, at('SKILL.md'), sha);
-    if (!content.ok) return 'retry';
-    if (content.value === null || content.value.length > MAX_SKILL_MD_CHARS) return 'skipped';
+    if (!content.ok) return { kind: 'retry' };
+    if (content.value === null || content.value.length > MAX_SKILL_MD_CHARS)
+      return { kind: 'skipped' };
     const skillMd = content.value;
     const frontmatter = parseSkillFrontmatter(skillMd);
-    if (frontmatter === undefined) return 'skipped';
+    if (frontmatter === undefined) return { kind: 'skipped' };
     const scanned: { path: string; text: string | null }[] = [{ path: 'SKILL.md', text: skillMd }];
     let budget = MAX_SCANNED_FILES;
     for (const file of files) {
@@ -241,7 +262,7 @@ export function createMarketSkills(deps: {
       ) {
         budget -= 1;
         const read = await github.fileAt(locator, at(file.path), sha);
-        if (!read.ok) return 'retry';
+        if (!read.ok) return { kind: 'retry' };
         scanned.push({ path: file.path, text: read.value });
       } else {
         scanned.push({ path: file.path, text: null });
@@ -250,7 +271,7 @@ export function createMarketSkills(deps: {
     const scan = scanSkillFiles(scanned);
     const visibility = scan.verdict === 'blocked' ? 'rejected' : 'listed';
     const now = stamp();
-    const written = await db
+    const statement = db
       .prepare(
         `INSERT INTO marketplace_skills (${COLUMNS}, first_seen_at, last_refreshed_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
@@ -284,9 +305,8 @@ export function createMarketSkills(deps: {
         visibility,
         now,
         now,
-      )
-      .first<{ visibility: string }>();
-    return written?.visibility === 'listed' ? 'listed' : 'rejected';
+      );
+    return { kind: 'write', statement };
   };
 
   const indexRepository = async (
@@ -302,18 +322,20 @@ export function createMarketSkills(deps: {
     };
     const existing = await rowsFor(repository.nodeId);
     const curated = options.curated || existing.some((row) => row.curated === 1);
+    const hasListing = existing.some((row) => row.visibility === 'listed');
     if (
       repository.private ||
       repository.archived ||
       (!curated && !repository.topics.includes(SKILL_TOPIC))
     ) {
-      report.hidden = await hideRepository(repository.nodeId);
+      if (hasListing) report.hidden = await hideRepository(repository.nodeId);
       return report;
     }
     const locator = { owner: repository.owner, name: repository.name };
     const head = await github.headCommit(locator, repository.defaultBranch);
     if (!head.ok) {
-      if (head.reason === 'not-found') report.hidden = await hideRepository(repository.nodeId);
+      if (head.reason === 'not-found' && hasListing)
+        report.hidden = await hideRepository(repository.nodeId);
       return report;
     }
     const tree = await github.tree(locator, head.value.sha);
@@ -325,6 +347,7 @@ export function createMarketSkills(deps: {
       .sort()
       .slice(0, MAX_SKILLS_PER_REPOSITORY);
     const seen = new Set<string>();
+    const writes: D1PreparedStatement[] = [];
     for (const folder of folders) {
       const id = await skillId(repository.nodeId, folder);
       const outcome = await indexSkill({
@@ -337,27 +360,33 @@ export function createMarketSkills(deps: {
         existing: existing.find((row) => row.id === id),
         curated,
       });
-      if (outcome === 'retry') {
-        seen.add(id);
-        report.skipped += 1;
-        continue;
-      }
-      if (outcome === 'skipped') {
+      if (outcome.kind === 'retry' || outcome.kind === 'skipped') {
+        if (outcome.kind === 'retry') seen.add(id);
         report.skipped += 1;
         continue;
       }
       seen.add(id);
-      report[outcome] += 1;
+      if (outcome.kind === 'write') writes.push(outcome.statement);
+      else report[outcome.kind] += 1;
     }
     for (const row of existing) {
       if (seen.has(row.id) || row.visibility !== 'listed') continue;
-      await db
-        .prepare(
-          `UPDATE marketplace_skills SET visibility = 'hidden_missing', last_refreshed_at = ? WHERE id = ?`,
-        )
-        .bind(stamp(), row.id)
-        .run();
-      report.hidden += 1;
+      writes.push(
+        db
+          .prepare(
+            `UPDATE marketplace_skills SET visibility = 'hidden_missing', last_refreshed_at = ?
+           WHERE id = ? AND visibility = 'listed' AND commit_sha = ? RETURNING visibility`,
+          )
+          .bind(stamp(), row.id, row.commit_sha),
+      );
+    }
+    if (writes.length === 0) return report;
+    for (const { results } of await db.batch<Pick<SkillRow, 'visibility'>>(writes)) {
+      for (const row of results) {
+        if (row.visibility === 'hidden_missing') report.hidden += 1;
+        else if (row.visibility === 'listed') report.listed += 1;
+        else report.rejected += 1;
+      }
     }
     return report;
   };
@@ -389,7 +418,7 @@ export function createMarketSkills(deps: {
       };
     },
 
-    async discover(): Promise<SkillIndexReport & { complete: boolean }> {
+    async discover(remaining: () => number): Promise<SkillIndexReport & { complete: boolean }> {
       const report = {
         repositories: 0,
         listed: 0,
@@ -398,56 +427,54 @@ export function createMarketSkills(deps: {
         skipped: 0,
         complete: false,
       };
-      const found = new Map<string, GitHubRepository>();
-      let complete = false;
-      for (let page = 1; page <= MAX_SEARCH_PAGES; page += 1) {
-        const result = await github.searchTopicPage(SKILL_TOPIC, page);
-        if (!result.ok) break;
-        for (const repository of result.value.repositories)
-          found.set(repository.nodeId, repository);
-        if (result.value.incomplete === true) break;
-        if (result.value.repositories.length === 0 || found.size >= result.value.totalCount) {
-          complete = true;
-          break;
-        }
-      }
+      const search = await findTopicRepositories(github, SKILL_TOPIC, deps.now());
+      const { found } = search;
       const known = (
         await db
-          .prepare(`SELECT DISTINCT repo_node_id, owner, repo, curated FROM marketplace_skills`)
+          .prepare(`SELECT repo_node_id, owner, repo, MAX(curated) AS curated,
+            SUM(visibility = 'listed') AS listed FROM marketplace_skills
+            WHERE visibility = 'listed' OR curated = 1 GROUP BY repo_node_id`)
           .all<{
             repo_node_id: string;
             owner: string;
             repo: string;
             curated: number;
+            listed: number;
           }>()
       ).results;
-      for (const row of known) {
-        if (found.has(row.repo_node_id)) continue;
-        if (row.curated === 1) {
-          const repository = await github.repository({
-            owner: row.owner,
-            name: row.repo,
-          });
-          if (repository.ok) found.set(repository.value.nodeId, repository.value);
-          else if (repository.reason === 'not-found')
-            report.hidden += await hideRepository(row.repo_node_id);
-        } else if (complete) {
-          report.hidden += await hideRepository(row.repo_node_id);
-        }
-      }
-      for (const repository of found.values()) {
-        const one = await indexRepository(repository, { curated: false }).catch(() => undefined);
-        report.repositories += 1;
-        if (one === undefined) {
-          report.skipped += 1;
-          continue;
-        }
-        report.listed += one.listed;
-        report.rejected += one.rejected;
-        report.hidden += one.hidden;
-        report.skipped += one.skipped;
-      }
-      report.complete = complete;
+      const absent = new Map(
+        known
+          .filter((row) => !found.has(row.repo_node_id) && (row.curated === 1 || search.complete))
+          .map((row) => [row.repo_node_id, row]),
+      );
+      const complete = await continueDiscovery({
+        db,
+        phase: 'skills',
+        ids: [...found.keys(), ...absent.keys()],
+        async visit(id) {
+          if (remaining() < 3) return false;
+          let repository = found.get(id);
+          const missing = absent.get(id);
+          if (missing?.curated === 1) {
+            const lookup = await github.repository({ owner: missing.owner, name: missing.repo });
+            if (lookup.ok) repository = lookup.value;
+            else if (lookup.reason === 'unavailable') return true;
+          }
+          if (repository === undefined) {
+            if (missing !== undefined && missing.listed > 0)
+              report.hidden += await hideRepository(id);
+            return true;
+          }
+          const one = await indexRepository(repository, { curated: false });
+          report.repositories += 1;
+          report.listed += one.listed;
+          report.rejected += one.rejected;
+          report.hidden += one.hidden;
+          report.skipped += one.skipped;
+          return true;
+        },
+      });
+      report.complete = search.complete && complete;
       return report;
     },
 

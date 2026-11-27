@@ -1025,6 +1025,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 ### Bot Marketplace（已接受设计，待实现）
 
+每日定时发现 Bot 与 Skill 时，Marketplace Worker 共享 D1 请求预算。两个阶段各自在 D1 保存已处理的仓库节点 ID，下次从该位置继续，到末尾后回到起点。Skill 以仓库为单位批量写入，提交和展示元数据都未变化时复用现有记录。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
+
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。
 
 [ADR-0131](../decisions/marketplace.md#adr-0131) 与 #18 让 Bot Marketplace 先作为 GitHub 索引目录上线：作者给公开仓库加 `botharness-bot` topic 即同意收录，也可在 Marketplace 贴链接立即抓取。独立的 Cloudflare Worker 与 D1 每日按 topic 切片发现、每小时用 GraphQL 批量刷新，README 进入 FTS5 索引；浏览用 keyset cursor，搜索只取前 200 条。harness 的 Marketplace modal 展示 README 详情；安装复用 #298 的 Git URL 创建路径，确认框显示最新提交并提示第三方仓库风险。贴链接与一键举报共用 ALTCHA 和限流。之后 [ADR-0267](../decisions/marketplace.md#adr-0267) 允许已登录 Connect 的作者在同一目录发布 Uploaded Bot，并统计完成的安装次数。另外，[ADR-0135](../decisions/bots.md#adr-0135) 提供 Bot Zip 这种可携带形式：把单个 Bot 交给别人或换设备时，在 harness 里导出 Bot Zip（默认只含 Memory 文件和 `.botharness/bot.json`，整包导出时可选带 Git 历史），对方从创建菜单的「从 zip 导入」得到新的 PersonaBot。
