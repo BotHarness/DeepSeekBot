@@ -11,6 +11,7 @@ import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipTabs } from './ds/chip-tabs.js';
 import { space } from './ds/tokens.stylex.js';
+import { MarketAll } from './market-all.js';
 import { MarketAvatars } from './market-avatars.js';
 import { MarketAppConnections } from './app-connections-catalog.js';
 import { MarketSkills } from './market-skills.js';
@@ -67,7 +68,7 @@ export function openMarketplaceAvatarPublish(
   registry.open(MARKET_PANEL);
 }
 
-type MarketSection = 'bots' | 'skills' | 'avatars' | 'apps';
+type MarketSection = 'all' | 'bots' | 'skills' | 'avatars' | 'apps';
 type MarketNavigationState = {
   section: MarketSection;
   dialog: 'upload' | 'mine' | undefined;
@@ -76,7 +77,7 @@ type MarketNavigationState = {
 };
 
 function createMarketNavigation() {
-  let state: MarketNavigationState = { section: 'bots', dialog: undefined, visitedAvatars: false };
+  let state: MarketNavigationState = { section: 'all', dialog: undefined, visitedAvatars: false };
   const listeners = new Set<() => void>();
   const set = (value: MarketNavigationState) => {
     state = value;
@@ -123,10 +124,11 @@ function MarketHeaderAction({
   const owner =
     useTeamMode(section === 'avatars' || section === 'skills' ? actions.teamCall : undefined)
       ?.viewer.kind === 'owner';
-  const uploadLabel = t(section === 'bots' ? 'market.panel.upload' : 'market.avatar.publish');
+  const bots = section === 'bots' || section === 'all';
+  const uploadLabel = t(bots ? 'market.panel.upload' : 'market.avatar.publish');
   return (
     <>
-      {(section === 'bots' || owner) && (
+      {(bots || owner) && (
         <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
           <IconButton
             size="row"
@@ -139,7 +141,7 @@ function MarketHeaderAction({
           </IconButton>
         </Tooltip>
       )}
-      {(section === 'bots' || (owner && section === 'avatars')) && (
+      {(bots || (owner && section === 'avatars')) && (
         <Tooltip label={uploadLabel} side="bottom" delayMs={500}>
           <IconButton
             size="row"
@@ -245,6 +247,11 @@ function MarketPanelView({
         value={section}
         options={[
           {
+            value: 'all',
+            label: t('market.all'),
+            icon: <ChannelSidebarIcon name="store" />,
+          },
+          {
             value: 'bots',
             label: t('market.avatar.bots'),
             icon: <ChannelSidebarIcon name="bot" />,
@@ -255,20 +262,36 @@ function MarketPanelView({
             icon: <ChannelSidebarIcon name="sparkles" />,
           },
           {
-            value: 'avatars',
-            label: t('market.avatar.title'),
-            icon: <ChannelSidebarIcon name="user" />,
-          },
-          {
             value: 'apps',
             label: t('botSettings.section.connectors'),
             icon: <ChannelSidebarIcon name="plug" />,
+          },
+          {
+            value: 'avatars',
+            label: t('market.avatar.title'),
+            icon: <ChannelSidebarIcon name="user" />,
           },
         ]}
         label={t('market.panel.title')}
         className={stylex.props(styles.tabs).className}
         onChange={navigation.select}
       />
+      <div
+        {...stylex.props(styles.panel)}
+        id="bh-market-section-all-panel"
+        aria-labelledby="bh-market-section-all"
+        role="tabpanel"
+        hidden={section !== 'all' || pages.length > 0}
+      >
+        {section === 'all' ? (
+          <MarketAll
+            actions={actions}
+            t={t}
+            onSeeAll={navigation.select}
+            onOpenBot={(bot) => start(bot, 'detail', 'hot')}
+          />
+        ) : null}
+      </div>
       <div
         {...stylex.props(styles.panel)}
         id="bh-market-section-avatars-panel"
@@ -361,7 +384,7 @@ function MarketPanelView({
         </div>
       </div>
       {pages.map((page, index) => {
-        const hidden = section !== 'bots' || index !== pages.length - 1;
+        const hidden = (section !== 'bots' && section !== 'all') || index !== pages.length - 1;
         switch (page.kind) {
           case 'bot':
             return (
@@ -434,7 +457,7 @@ function MarketPanelView({
           onInstalled={installed}
         />
       )}
-      {(section === 'bots' || section === 'skills') && dialog === 'mine' ? (
+      {(section === 'all' || section === 'bots' || section === 'skills') && dialog === 'mine' ? (
         <MyUploadsDialog
           actions={actions}
           registry={registry}
@@ -444,7 +467,7 @@ function MarketPanelView({
           onClose={() => navigation.open(undefined)}
         />
       ) : null}
-      {section === 'bots' && dialog === 'upload' ? (
+      {(section === 'all' || section === 'bots') && dialog === 'upload' ? (
         <MarketUploadDialog
           actions={actions}
           registry={registry}
