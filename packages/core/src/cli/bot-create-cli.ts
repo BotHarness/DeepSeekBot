@@ -91,6 +91,10 @@ const LOCAL_LOG_COMMANDS = new Set([
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'bots', description: 'bots list|create|show|delete' },
   {
+    command: 'skills',
+    description: 'skills publish|replace|delete|mine: Marketplace Skill uploads',
+  },
+  {
     command: 'engine',
     description:
       'engine list|status|accounts|account-add|account-rename|account-remove|approvals|tools|tool|login|models|use: Subscription Engines',
