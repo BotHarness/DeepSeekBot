@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 
 export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
   const newGroup = (bot, name, humans, as) => {
@@ -18,8 +17,8 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
     });
   };
   const marker = `approvalfixture${tag.replaceAll('-', '')}`;
-  const request = async (channelId, bot, path, label, viewer) => {
-    const command = `printf %s ${marker}${label} > ${shellQuote(path)}`;
+  const request = async (channelId, bot, label, viewer) => {
+    const command = `printf %s ${shellQuote(marker + label)}`;
     const before = new Set(s.messages(channelId, viewer).map(({ id }) => id));
     s.cli(
       [
@@ -33,7 +32,7 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
         label,
       ],
       {
-        input: `Disposable QA fixture. Run exactly this native Bash command: ${command}. If it requires a one-shot approval, ask and wait. Never change standing permissions or use a different command.`,
+        input: `Disposable QA fixture for one-shot approval. Call native Bash exactly once with command ${command}, sandbox_permissions "danger-full-access", and justification "Show the one-shot approval for this harmless test marker." Wait for the Human's decision. Do not run the command without approval, change standing permissions, or retry.`,
       },
     );
     const deadline = Date.now() + s.options.timeout * 1000;
@@ -62,7 +61,7 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
   const bob = fx.users.bob;
   const roleId = fx.roles.creators.roleId;
   const readPolicy = (channelId, as) => s.cli(['channels', 'policy', channelId], { as });
-  const card = await request(group, fx.ledgerSlug, join(s.dir, `owner-${tag}.txt`), 'Owner');
+  const card = await request(group, fx.ledgerSlug, 'Owner');
   check(
     'new Channel has legacy approval access with --as',
     readPolicy(group, bob).approvalPolicy?.see === 'eligible-deciders' &&
@@ -145,13 +144,7 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
       { seeApprovals: 'allow', decideApprovals: 'allow' },
       fx.users.alice,
     );
-    const memberCard = await request(
-      memberGroup,
-      fx.bots.alice,
-      join(s.dir, `member-${tag}.txt`),
-      'Member',
-      fx.users.alice,
-    );
+    const memberCard = await request(memberGroup, fx.bots.alice, 'Member', fx.users.alice);
     const refusal = decide(
       memberGroup,
       memberCard,
