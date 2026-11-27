@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TakeoverHandoff } from '../../takeover/contracts.js';
 import type { TakeoverAdapterMethods } from './methods.js';
@@ -96,4 +95,4 @@ export const takeoverRpc = {
   ): Promise<{ takeover: TakeoverHandoff }> {
     return takeoverCancel(this.methods, channelId, messageId, surface, bot);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: TakeoverAdapterMethods }>;
