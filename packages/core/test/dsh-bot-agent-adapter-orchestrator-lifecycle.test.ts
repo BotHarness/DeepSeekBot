@@ -1,8 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import {
-  createDshBotAgentAdapter,
-  type DshBotAgentAdapterOptions,
-} from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
+import { type DshBotAgentAdapterOptions } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { deferred } from './deferred.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { reportRun } from './support/dsh-bot-agent-adapter.js';

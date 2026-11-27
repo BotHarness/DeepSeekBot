@@ -47,7 +47,7 @@ import {
 } from '../../skills/catalog.js';
 import { isValidSlug } from '../../bots/slug.js';
 import type { DmAdmissionFailure } from '../../runtime/bot-runtime.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { ChannelsBridgeDeps } from './bridge-deps.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { ChannelRecord } from '../../channels/channel.js';
 
@@ -104,14 +104,14 @@ function ownAttachments(
     : attachments;
 }
 
-export interface ChannelsSendAdapterMethods {
+export type ChannelsSendAdapterMethods = {
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
-}
+};
 
 export function createChannelsSendAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
-  globalRegistry: BridgeMethodsDeps['registry'],
+  deps: ChannelsBridgeDeps,
+  globalRegistry: ChannelsBridgeDeps['registry'],
   channelSkillBots: (channel: ChannelRecord) => string[],
 ): ChannelsSendAdapterMethods {
   return {

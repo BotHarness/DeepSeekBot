@@ -30,7 +30,7 @@ import { ProtectedExecution } from './credentials/protected-execution.js';
 import { privateInputLog } from './credentials/diagnostics.js';
 import { createBridgeMethodsForHumans } from './bridge/methods.js';
 import { registerBridge } from './bridge/rpc.js';
-import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
+import { createCoreTakeoverHandoffs } from './features/takeover/plugin.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import { installedRelease } from './release/service.js';
 import { stampReleaseComponent } from './release/component.js';
@@ -53,7 +53,6 @@ import type { BotSubagentPresetConfig } from './runtime/subagent-model-tools.js'
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import * as activityFeature from './features/activity/plugin.js';
 import { createCloudResources } from './cloud/host-resources.js';
-import * as environments from './features/environments/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as marketplace from './features/marketplace/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
@@ -67,8 +66,6 @@ import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
 import { createSessionListChanges } from './features/sessions/session-list-changes.js';
-import * as channelsFeature from './features/channels/plugin.js';
-import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
@@ -407,20 +404,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.provide('botharnessResourcePublisher', (resource) =>
     core.live.publishResourceChanged(resource),
   );
-  environments.apply(ctx, core, {
-    team,
-    calls: () => voiceCalls,
-    onNetwork: (port) => {
-      botNetwork = port;
-    },
-    telemetry,
-    onAccount: (account) => {
-      connectAccount = account;
-    },
-    dshHome,
-    packageAnchors: releaseAnchors,
-    push: activityFeature.createPush(core, presence),
-  });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.mountEnvironments?.(ctx, core, {
+      team,
+      calls: () => voiceCalls,
+      onNetwork: (port) => {
+        botNetwork = port;
+      },
+      telemetry,
+      onAccount: (account) => {
+        connectAccount = account;
+      },
+      dshHome,
+      packageAnchors: releaseAnchors,
+      push: activityFeature.createPush(core, presence),
+    }),
+  );
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.afterEnvironments?.(ctx, core, { telemetry, telemetryDir, telemetryState, activeDay }),
   );
@@ -470,8 +469,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   }
   teamFeature.mountConfinement(ctx, core, dshHome);
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
-  mountTakeoverTools(ctx, core, takeovers);
-  messaging.mountCleanup(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.afterConfinement?.(ctx, core, takeovers),
+  );
+  forEachHostFeature(featureContributions, (hooks) => hooks.messagingCleanup?.(ctx, core));
   const { cloudConnections, cloudWork } = createCloudResources(ctx, core);
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeEngineTools?.(ctx, core, cloudWork),
@@ -480,7 +481,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   forEachHostFeature(featureContributions, (hooks) =>
     hooks.beforeMessagingProviders?.(ctx, core, cloudConnections, cloudWork),
   );
-  messaging.mountProviders(ctx, core);
+  forEachHostFeature(featureContributions, (hooks) => hooks.messagingProviders?.(ctx, core));
 
   const { permissionDenial, recordOrchestratorPermission, appliedPermission } =
     workspacesFeature.mountPermissionTracking(ctx, core);
@@ -785,13 +786,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         profile,
       }),
     );
-    voice.mountFetch(connectionCtx, connection.fetch, () => voiceCalls);
-    channelsFeature.mountLiveRoute(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.voiceRoutes?.(connectionCtx, connection.fetch, () => voiceCalls),
+    );
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.channelLiveRoute?.(connectionCtx, connection, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.afterLiveRoute?.(connectionCtx, connection, core),
     );
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
-    channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
+    forEachHostFeature(featureContributions, (hooks) =>
+      hooks.attachmentRoutes?.(connectionCtx, connection, core),
+    );
     forEachHostFeature(featureContributions, (hooks) =>
       hooks.beforeWorkspaceFavicon?.(connectionCtx, connection, core),
     );

@@ -25,6 +25,7 @@ import { type ActiveRun, untilAborted } from './dsh-bot-agent-adapter-shared.js'
 import { directToolDefinitions, orchestratorTools } from './dsh-bot-agent-adapter-tools.js';
 import { UNREPORTED_FINAL_PREFIX } from '../features/assignments/prompt.js';
 import { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
+import { agentFeatureContext } from './agent-feature-context.js';
 import type { DshBotEngines } from './dsh-bot-agent-adapter.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 
@@ -112,6 +113,10 @@ export async function runEngineTurn(
     ].filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name));
     const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
     const promptText = adapter.promptText(run.sessionId);
+    const featureContext = agentFeatureContext(adapter, run);
+    const featurePrompts = adapter.featureContributions.flatMap(
+      (feature) => feature.promptSections?.(featureContext) ?? [],
+    );
     const persona = adapter.enginePersona?.(run.bot) ?? {};
     const sessionCwd = adapter.orchestratorCwd?.(run.bot);
     const pendingReplies = new Set<string>();
@@ -153,7 +158,7 @@ export async function runEngineTurn(
       instructions: engineInstructions({
         name: run.bot.displayName,
         ...persona,
-        replyDelivery: orchestratorPromptSections(promptText).replyDelivery,
+        replyDelivery: orchestratorPromptSections(promptText, false, featurePrompts).replyDelivery,
       }),
       tools,
       execute: async (name, args, signal, context) => {

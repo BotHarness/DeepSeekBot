@@ -17,7 +17,7 @@ import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import { createTestRosterStore } from './roster-fixture.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 
 describe('M7 Bot principal and participant authority', () => {

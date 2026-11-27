@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AssignmentAgentRun } from '../src/runtime/bot-runtime.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost, FAKE_BOT } from './dsh-agent-host-fixture.js';
 
 const textOnly = 'Reply with Markdown as your final answer and nothing else. Do NOT call any tool.';

@@ -20,7 +20,7 @@ import { EngineTurnLog } from '../src/engines/engine-log.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { memoryDsh } from './fixtures/engine-dsh.js';

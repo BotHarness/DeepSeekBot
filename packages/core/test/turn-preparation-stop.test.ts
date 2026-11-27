@@ -1,7 +1,7 @@
 import { setImmediate } from 'node:timers/promises';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';

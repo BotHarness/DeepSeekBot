@@ -12,7 +12,7 @@ import {
   withoutSessionMentions,
 } from '../src/runtime/bot-message-tool.js';
 import { describe, expect, it, vi } from 'vitest';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { inboxFixture, type TurnHook } from './inbox-fixture.js';
 

@@ -15,14 +15,15 @@ import { z } from 'zod';
 import { isGroupAvatar, type ChannelRecord } from '../../channels/channel.js';
 import { isValidSlug } from '../../bots/slug.js';
 import { TeamError } from '../../team-policy/error.js';
-import type { BridgeMethodsDeps, PersonaBotDetail, ChannelListItem } from '../../bridge/methods.js';
+import type { PersonaBotDetail, ChannelListItem } from '../../bridge/methods.js';
+import type { ChannelsBridgeDeps } from './bridge-deps.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import { purgeFailure } from '../profile-storage/methods.js';
 
 const initialHumanIds = z.array(z.string()).max(100).optional();
 
-export interface ChannelsManagementAdapterMethods {
+export type ChannelsManagementAdapterMethods = {
   channelCreate(
     payload: unknown,
   ): BridgeResult<{ channel: ChannelRecord } | ChannelManagementResult>;
@@ -38,12 +39,12 @@ export interface ChannelsManagementAdapterMethods {
   channelGroupWakePolicies(payload: unknown): BridgeResult<{ members: GroupMemberWakePolicy[] }>;
   channelGroupWakeSet(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGroupDelete(payload: unknown): BridgeResult<{ deleted: boolean } & GroupDisbandResult>;
-}
+};
 
 export function createChannelsManagementAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
-  globalRegistry: BridgeMethodsDeps['registry'],
+  deps: ChannelsBridgeDeps,
+  globalRegistry: ChannelsBridgeDeps['registry'],
   channelView: (channel: ChannelRecord) => ChannelListItem,
   detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
 ): ChannelsManagementAdapterMethods {

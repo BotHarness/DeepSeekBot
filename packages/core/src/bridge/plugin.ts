@@ -23,7 +23,7 @@ import type { BridgeMethodsDeps } from './methods.js';
 import { composerRecoveryIdentity } from './composer-recovery.js';
 import { homedir } from 'node:os';
 import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
-import type { createCoreTakeoverHandoffs } from '../takeover/mount.js';
+import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import type { createGitService } from '../memory/managed-git.js';
 import { attachOperationalModule } from '../database/owner.js';
 import {
@@ -82,7 +82,7 @@ export function createHostBridgeDependencies(
     sessionLive: SessionLiveStreams;
     nativeSessions: NativeSessions;
     externalSessions: import('../features/sessions/external-sessions.js').ExternalSessionReader;
-    takeovers: ReturnType<typeof createCoreTakeoverHandoffs>;
+    takeovers: TakeoverHandoffs;
     folders: ReturnType<typeof workspacesFeature.mountFolders>;
     mountedToolApproval: ReturnType<typeof approvalsFeature.mount>['toolApproval'];
     mountedQuestions: ReturnType<typeof approvalsFeature.mount>['userQuestions'];

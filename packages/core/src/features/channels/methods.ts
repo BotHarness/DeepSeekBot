@@ -57,6 +57,8 @@ import type {
 } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 
+import type { ChannelsBridgeDeps } from './bridge-deps.js';
+
 export function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
   return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
 }
@@ -66,7 +68,7 @@ export interface ChannelAccessState {
   state: 'readable' | 'removed' | 'unavailable';
 }
 
-export interface ChannelsAdapterMethods {
+export type ChannelsAdapterMethods = {
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   composerValidate(payload: unknown): BridgeResult<{
     reply?: ChannelMessage;
@@ -100,11 +102,11 @@ export interface ChannelsAdapterMethods {
   channelMessages(payload: unknown): BridgeResult<ChannelMessagePage>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
-}
+};
 
 export function createChannelsAdapterMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: ChannelsBridgeDeps,
   isHostOwner: () => boolean,
   channelView: (channel: ChannelRecord) => ChannelListItem,
   listedChannels: () => Promise<ChannelRecord[]>,

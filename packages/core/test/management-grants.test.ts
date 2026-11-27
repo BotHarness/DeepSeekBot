@@ -10,7 +10,7 @@ import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/contex
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { createCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.js';
+import { orchestratorPromptSections } from './fixtures/orchestrator-prompt.js';
 import { managerShellAuthority } from '../src/features/tob/cli-runtime.js';
 import { TobError } from '../src/tob/service.js';
 import { alwaysAsksHuman } from '../src/features/tob/cli-approval.js';

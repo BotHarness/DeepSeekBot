@@ -1,7 +1,7 @@
 import { SessionId, type TurnEndCancelCause } from '@deepseek-ai/dsh-session';
 import { type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it, vi } from 'vitest';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { sessionRefusalMessage } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';

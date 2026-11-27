@@ -22,7 +22,7 @@ import {
 } from '../src/prompts/prompt-presets.js';
 import { createPromptSettings } from '../src/prompts/prompt-settings.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
-import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { orchestratorPromptSections } from './fixtures/orchestrator-prompt.js';
 import { createTempRoot } from './helpers.js';
 
 const AT = '2026-10-26T00:00:00.000Z';
