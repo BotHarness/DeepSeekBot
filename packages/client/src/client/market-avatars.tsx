@@ -13,10 +13,7 @@ import {
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { formatStars } from './community-links.js';
-import { startConnectSignIn, type ConnectSignInCode } from './connect-sign-in.js';
-import { ConnectSignInBlock } from './connect-sign-in-block.js';
 import { Button } from './ds/button.js';
-import { Checkbox } from './ds/checkbox.js';
 import { joinClass } from './ds/class-name.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { HiddenFileInput } from './ds/input.js';
@@ -29,6 +26,11 @@ import { layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketAvatarApplyDialog, type AvatarApplyActions } from './market-avatar-apply.js';
 import { MyAvatarsDialog, type AvatarMineActions } from './market-avatar-mine.js';
+import {
+  MarketAuthorAccount,
+  MarketAuthorFields,
+  useMarketAuthorSession,
+} from './market-author-session.js';
 import { MarketPage } from './market-page.js';
 import { SECTION_TITLES } from './market-rankings.js';
 import { MarketplaceSearchField, MarketplaceSortTabs } from './marketplace-browse-controls.js';
@@ -43,7 +45,6 @@ import {
   useMarketplaceReport,
 } from './marketplace-report.js';
 import { proveHuman } from './marketplace.js';
-import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
 
@@ -90,7 +91,6 @@ type PublishActions = Pick<
   | 'marketplaceAvatarPublish'
   | 'marketplaceAvatarSource'
 >;
-type MarketplaceAccount = Awaited<ReturnType<BridgeActions['marketplaceAccount']>>;
 
 type Read<T> =
   | { kind: 'loading' }
@@ -592,14 +592,8 @@ export function MarketAvatarPublishDialog({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
-  const [account, setAccount] = useState<Read<MarketplaceAccount>>({ kind: 'loading' });
-  const [authorName, setAuthorName] = useState<string>();
-  const [terms, setTerms] = useState(false);
-  const [signIn, setSignIn] = useState<ConnectSignInCode>();
-  const [error, setError] = useState<unknown>();
-  const [busy, setBusy] = useState(false);
-  const [reload, setReload] = useState(0);
-  const lock = useRef(false);
+  const session = useMarketAuthorSession(actions);
+  const { account, signedIn, readyAuthor, busy, error, run } = session;
   const requestKey = useRef<string>();
   const input = useRef<HTMLInputElement>(null);
   const sourceMount = useMountedResource<HTMLSpanElement>(() => {
@@ -625,69 +619,18 @@ export function MarketAvatarPublishDialog({
       subscribed = false;
     };
   }, [actions, avatarSource, sourceAttempt]);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    let subscribed = true;
-    void actions.marketplaceAccount().then(
-      (value) => {
-        if (subscribed) setAccount({ kind: 'ready', value });
-      },
-      (cause: unknown) => {
-        if (subscribed) setAccount({ kind: 'failed', error: cause });
-      },
-    );
-    return () => {
-      subscribed = false;
-    };
-  }, [actions, reload]);
-  const signedIn = account.kind === 'ready' && account.value.signedIn;
-  const issue = account.kind === 'ready' ? account.value.issue : undefined;
-  const signInResource = useMountedResource<HTMLSpanElement>(
-    () =>
-      observeResource(
-        'account',
-        () => {
-          if (!lock.current) setReload((value) => value + 1);
-        },
-        15_000,
-        15_000,
-        true,
-      ),
-    [actions, signIn],
-  );
-  const author = account.kind === 'ready' ? account.value.author : null;
-  const readyAuthor = signedIn && author?.termsAcceptedAt != null ? author : undefined;
-  const draftName = authorName ?? author?.name ?? '';
   const text = parseMarketplaceAvatarText({
     name,
     description,
     tags: tags.trim() ? tags.split(/[,，]/u) : [],
   });
   const allowed =
-    readyAuthor !== undefined
-      ? image !== undefined && text !== undefined
-      : terms && draftName.trim().length > 0;
+    readyAuthor !== undefined ? image !== undefined && text !== undefined : session.authorAllowed;
 
-  const run = async (submit: () => Promise<void>) => {
-    if (lock.current) return;
-    lock.current = true;
-    setError(undefined);
-    setBusy(true);
-    try {
-      await submit();
-    } catch (cause) {
-      setError(cause);
-    } finally {
-      lock.current = false;
-      setBusy(false);
-    }
-  };
   const submit = () => {
     if (account.kind !== 'ready' || !signedIn || !allowed) return;
     if (readyAuthor === undefined) {
-      void run(async () => {
-        const saved = await actions.marketplaceAuthorSave(draftName.trim(), true);
-        setAccount({ kind: 'ready', value: { ...account.value, author: saved } });
-      });
+      session.saveAuthor();
     } else if (image !== undefined && text !== undefined) {
       const key = (requestKey.current ??= crypto.randomUUID());
       void run(async () =>
@@ -704,7 +647,7 @@ export function MarketAvatarPublishDialog({
     }
   };
   const close = () => {
-    if (!lock.current) onClose();
+    if (!session.locked()) onClose();
   };
 
   return (
@@ -716,7 +659,7 @@ export function MarketAvatarPublishDialog({
         closeLabel={t('common.close')}
         onClose={close}
         scroll
-        bodyRef={mount}
+        bodyRef={session.mount}
         data={{ 'data-market-avatar-publish': readyAuthor === undefined ? 'account' : 'details' }}
         actions={
           signedIn ? (
@@ -738,53 +681,7 @@ export function MarketAvatarPublishDialog({
           step={readyAuthor === undefined ? 0 : 1}
           titles="current"
         />
-        {account.kind === 'loading' && <Note>{t('market.direct.loading')}</Note>}
-        {account.kind === 'failed' && (
-          <ReadFailure
-            retryLabel={t('market.retry')}
-            onRetry={() => {
-              setAccount({ kind: 'loading' });
-              setReload((value) => value + 1);
-            }}
-          >
-            {t('market.direct.accountFailed', { error: marketplaceError(account.error, t) })}
-          </ReadFailure>
-        )}
-        {account.kind === 'ready' && !signedIn && (
-          <ConnectSignInBlock
-            t={t}
-            code={issue === undefined ? signIn : undefined}
-            title={t('accountProfile.signInTitle')}
-            body={t('market.direct.signInHint')}
-            signInLabel={t('market.direct.signIn')}
-            busy={busy}
-            onSignIn={() =>
-              void run(async () => {
-                setSignIn(await startConnectSignIn());
-                setAccount((current) =>
-                  current.kind === 'ready'
-                    ? {
-                        kind: 'ready',
-                        value: { signedIn: false, author: null },
-                      }
-                    : current,
-                );
-              })
-            }
-            codeMarker="data-market-sign-in"
-            {...(issue === undefined
-              ? {}
-              : {
-                  failed: t(
-                    issue === 'relay-unavailable' || issue === 'relay-full'
-                      ? 'accountProfile.signInRelay'
-                      : 'accountProfile.signInFailed',
-                  ),
-                })}
-          >
-            {signIn !== undefined && issue === undefined && <span ref={signInResource} hidden />}
-          </ConnectSignInBlock>
-        )}
+        <MarketAuthorAccount session={session} t={t} />
         {signedIn && (
           <form
             id={formId}
@@ -795,17 +692,7 @@ export function MarketAvatarPublishDialog({
           >
             <FieldStack>
               {readyAuthor === undefined ? (
-                <>
-                  <TextField
-                    label={t('market.author.name')}
-                    value={draftName}
-                    maxLength={40}
-                    initialFocus
-                    onChange={setAuthorName}
-                    disabled={busy}
-                  />
-                  <Checkbox checked={terms} onChange={setTerms} label={t('market.author.terms')} />
-                </>
+                <MarketAuthorFields session={session} t={t} />
               ) : (
                 <>
                   <span className="bh-market-owner">

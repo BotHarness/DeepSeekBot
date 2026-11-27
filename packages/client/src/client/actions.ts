@@ -21,6 +21,7 @@ import {
   loadGenuiDocumentView,
   saveGenuiDocumentView,
   BridgeCallError,
+  bridgeHost,
   type PartImageInfo,
   loadPrivateInputStatus,
   submitPrivateInput,
@@ -535,7 +536,7 @@ export function createActions(
     conversationActions.openChannelById,
   );
   const actions: BridgeActions = {
-    ...createMarketplaceSkillActions(invoke),
+    ...createMarketplaceSkillActions(invoke, bridgeHost(call)),
     ...botModeActions(call),
     teamCall: call,
     ...(folderAccess?.openModelPresets === undefined

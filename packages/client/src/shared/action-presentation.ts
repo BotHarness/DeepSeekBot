@@ -11,4 +11,5 @@ export type ActionSymbol =
   | 'folder-key'
   | 'external-link'
   | 'terminal'
+  | 'upload'
   | 'info';

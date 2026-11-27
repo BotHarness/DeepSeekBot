@@ -25,6 +25,14 @@ import { markdownBody } from './market-files.js';
 import type { MarketSkillActions } from './market-skills.js';
 import { installsLabel, SkillLogo } from './market-skills.js';
 import { marketplaceError } from './marketplace-feedback.js';
+import {
+  ReportActions,
+  ReportButton,
+  ReportPanel,
+  useMarketplaceReport,
+} from './marketplace-report.js';
+import { proveHuman } from './marketplace.js';
+import { SkillAuthor } from './market-skill-publish.js';
 import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -64,7 +72,7 @@ function bytes(size: number): string {
   return size < 1024 ? `${size} B` : `${(size / 1024).toFixed(1)} KB`;
 }
 
-function FindingList({
+export function FindingList({
   findings,
   t,
 }: {
@@ -85,7 +93,7 @@ function FindingList({
   );
 }
 
-function ScriptList({ scripts }: { scripts: readonly string[] }): ReactElement {
+export function ScriptList({ scripts }: { scripts: readonly string[] }): ReactElement {
   return (
     <ul {...stylex.props(styles.list)} data-market-skill-scripts>
       {scripts.map((script) => (
@@ -112,9 +120,18 @@ function SkillDetailBody({
         <SkillLogo />
         <div {...stylex.props(styles.stack)}>
           <span>{skill.description}</span>
-          <a href={skill.htmlUrl} target="_blank" rel="noreferrer" {...stylex.props(styles.source)}>
-            {skill.path === '' ? skill.fullName : `${skill.fullName} · ${skill.path}`}
-          </a>
+          {skill.upload === undefined ? (
+            <a
+              href={skill.htmlUrl}
+              target="_blank"
+              rel="noreferrer"
+              {...stylex.props(styles.source)}
+            >
+              {skill.path === '' ? skill.fullName : `${skill.fullName} · ${skill.path}`}
+            </a>
+          ) : (
+            <SkillAuthor skill={skill} t={t} />
+          )}
         </div>
       </div>
       <div {...stylex.props(styles.tags)}>
@@ -244,6 +261,9 @@ export function MarketSkillDialog({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MarketplaceSkillAddResult>();
   const submitting = useRef(false);
+  const report = useMarketplaceReport(() => proveHuman(actions), actions.marketplaceSkillReport);
+  const reportable = step === 'detail' && skill.upload !== undefined;
+  const reporting = reportable && report.state.status === 'open';
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
@@ -339,14 +359,21 @@ export function MarketSkillDialog({
             ? t('market.skills.add')
             : t('common.close')
       }
-      showCancel={step !== 'done'}
+      showCancel={step !== 'done' && !reporting}
+      secondary={
+        !reportable ? undefined : reporting ? (
+          <ReportActions report={report} id={skill.id} t={t} />
+        ) : (
+          <ReportButton report={report} t={t} disabled={detail === undefined} />
+        )
+      }
       submitDisabled={
         step === 'add' && (review === undefined || blocked || (bots.length === 0 && !global))
       }
       submitData={{ 'data-market-skill-submit': step }}
       busy={busy}
       onCancel={onClose}
-      onSubmit={() => void submit()}
+      onSubmit={reporting ? undefined : () => void submit()}
       error={
         writeError === undefined
           ? undefined
@@ -359,7 +386,10 @@ export function MarketSkillDialog({
             detail === undefined ? (
               <Note>{t('market.skills.loading')}</Note>
             ) : (
-              <SkillDetailBody skill={skill} detail={detail} t={t} />
+              <>
+                <SkillDetailBody skill={skill} detail={detail} t={t} />
+                {reportable ? <ReportPanel report={report} t={t} kind="skill" /> : null}
+              </>
             )
           ) : step === 'add' ? (
             review === undefined || candidates === undefined ? (
