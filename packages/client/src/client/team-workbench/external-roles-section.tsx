@@ -346,7 +346,9 @@ export function ExternalRolesSection({
               ? () => void retryDialogReload()
               : undefined
           }
-          onCancel={() => setDialog(undefined)}
+          onCancel={() => {
+            if (!busy) setDialog(undefined);
+          }}
           onSubmit={(draft) => void submitDialog(draft)}
         />
       )}

@@ -56,6 +56,25 @@ const bots = [
   { slug: 'sales', displayName: '销售助手' },
 ];
 
+function renameInput(value: unknown): { id: string; expectedRevision: number; name: string } {
+  const input = value as Record<string, unknown> | null;
+  if (
+    typeof input !== 'object' ||
+    input === null ||
+    input['kind'] !== 'update' ||
+    typeof input['id'] !== 'string' ||
+    !Number.isSafeInteger(input['expectedRevision']) ||
+    typeof input['name'] !== 'string' ||
+    Object.keys(input).some((key) => !['kind', 'id', 'expectedRevision', 'name'].includes(key))
+  )
+    throw new Error(`Unexpected rename input: ${JSON.stringify(value)}`);
+  return {
+    id: input['id'],
+    expectedRevision: input['expectedRevision'] as number,
+    name: input['name'],
+  };
+}
+
 async function settle(): Promise<void> {
   for (let i = 0; i < 6; i++) await act(async () => Promise.resolve());
 }
@@ -256,7 +275,7 @@ it('reloads the role and keeps the typed name when a rename lands on a stale rev
     if (method === 'externalRoles') return { ok: true, value: { roles: [current] } };
     if (method === 'list') return { ok: true, value: { bots } };
     if (method === 'externalRoleChange') {
-      const input = args['input'] as { expectedRevision: number; name: string };
+      const input = renameInput(args['input']);
       renames.push(input);
       if (input.expectedRevision !== current.revision)
         return { ok: false, error: { code: 'role-stale', message: 'role-stale', details: {} } };
@@ -303,7 +322,7 @@ it('keeps Save off and offers a retry when the reload after a stale rename fails
         : { ok: true, value: { roles: [current] } };
     if (method === 'list') return { ok: true, value: { bots } };
     if (method === 'externalRoleChange') {
-      const input = args['input'] as { expectedRevision: number; name: string };
+      const input = renameInput(args['input']);
       renames.push(input);
       if (input.expectedRevision !== current.revision)
         return { ok: false, error: { code: 'role-stale', message: 'role-stale', details: {} } };
