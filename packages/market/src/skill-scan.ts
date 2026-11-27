@@ -95,14 +95,14 @@ export function isScriptPath(path: string): boolean {
 }
 
 export function scanSkillFiles(
-  files: readonly { path: string; text: string | null }[],
+  files: readonly { path: string; text: string | null; filename?: true }[],
   options: { rejectSecrets?: boolean } = {},
 ): SkillScan {
   const findings: SkillFinding[] = [];
   const scripts: string[] = [];
   let malicious = false;
   for (const file of files) {
-    if (isScriptPath(file.path)) scripts.push(file.path);
+    if (!file.filename && isScriptPath(file.path)) scripts.push(file.path);
     if (file.text === null) continue;
     const lines = file.text.split(/\r?\n/u);
     for (const [index, line] of lines.entries()) {
@@ -114,6 +114,16 @@ export function scanSkillFiles(
         const own = rule.test(line);
         const across = !own && rule.test(`${line} ${next}`) && !rule.test(next);
         if (!own && !across) continue;
+        if (
+          file.filename &&
+          findings.some(
+            (finding) =>
+              finding.path === file.path &&
+              finding.line === index + 1 &&
+              finding.kind === rule.kind,
+          )
+        )
+          continue;
         if (severity === 'malicious') malicious = true;
         findings.push({
           kind: rule.kind,

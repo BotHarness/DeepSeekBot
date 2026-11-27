@@ -28,13 +28,13 @@ type Market = ReturnType<typeof createMarket>;
 
 const SKILL_MD = '---\nname: tidy-notes\ndescription: Keep meeting notes tidy.\n---\n\n# Tidy\n';
 
-it('publishes through the Host and CLI, replaces the listing, and preserves installed copies', async () => {
+it('publishes a folder named skills through the Host and CLI and preserves installed copies on replacement', async () => {
   const market = createMarket();
   const host = makeHost(market);
   host.bot('author');
   host.bot('old-copy');
   host.bot('new-copy');
-  const source = join(host.core.registry.memoryDirFor('author')!, '.agents/skills/tidy-notes');
+  const source = join(host.core.registry.memoryDirFor('author')!, '.agents/skills/skills');
   mkdirSync(source, { recursive: true });
   writeFileSync(join(source, 'SKILL.md'), SKILL_MD);
   const reference = join(source, 'reference.txt');
@@ -64,7 +64,9 @@ it('publishes through the Host and CLI, replaces the listing, and preserves inst
     .object({ id: z.string() })
     .parse(await runSkillCommand('skills-publish', ['tidy-notes'], { bot: 'author' }, connect));
   const { id } = listed;
-  const revision = value(await bridge.marketplaceSkillDetail({ id })).skill.upload?.revision;
+  const detail = value(await bridge.marketplaceSkillDetail({ id }));
+  expect(detail.files.map((file) => file.path)).toEqual(['SKILL.md', 'reference.txt']);
+  const revision = detail.skill.upload?.revision;
   expect(revision).toBeDefined();
   const originalFiles = `/v1/skills/${id}/files/${revision}`;
   expect((await market.request(originalFiles)).status).toBe(200);
@@ -115,6 +117,22 @@ it('publishes through the Host and CLI, replaces the listing, and preserves inst
   expect(copy('old-copy')).toBe('original');
   expect(copy('new-copy')).toBe('revised');
   await Promise.all(host.pending);
+});
+
+it('publishes a standalone SKILL.md without sibling files from the project Skill root', async () => {
+  const host = makeHost(createMarket());
+  host.bot('author');
+  const source = join(host.core.registry.memoryDirFor('author')!, '.dsh/skills');
+  mkdirSync(source, { recursive: true });
+  writeFileSync(join(source, 'SKILL.md'), SKILL_MD);
+  writeFileSync(join(source, 'reference.txt'), 'unrelated');
+  const bridge = host.methods(owner);
+  value(await bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }));
+  const uploaded = value(
+    await bridge.marketplaceSkillPublish({ bot: 'author', name: 'tidy-notes' }),
+  );
+  const detail = value(await bridge.marketplaceSkillDetail({ id: uploaded.id }));
+  expect(detail.files.map((file) => file.path)).toEqual(['SKILL.md']);
 });
 
 function publishSkill(market: Market, files: Record<string, string>) {

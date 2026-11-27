@@ -116,7 +116,7 @@ function prepare(value: unknown) {
   const scan = scanSkillFiles(
     files.flatMap((file) => [
       { path: file.path, text: file.text },
-      { path: '', text: file.path },
+      { path: file.path, text: file.path, filename: true },
     ]),
     { rejectSecrets: true },
   );
@@ -144,7 +144,7 @@ function prepare(value: unknown) {
       JSON.stringify(files.map(({ path, size }) => ({ path, size }))),
       JSON.stringify(scan.scripts),
       scan.verdict,
-      JSON.stringify(scan.findings.filter((finding) => finding.path !== '')),
+      JSON.stringify(scan.findings),
     ],
     bundle: new TextEncoder().encode(
       JSON.stringify(files.map(({ path, data }) => ({ path, data }))),

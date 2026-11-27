@@ -47,10 +47,13 @@ async function collectSkillFiles(memoryDir: string, name: string) {
   const root = await realpath(memoryDir);
   const skill = await readBotSkill(root, name);
   if (skill === undefined) return refusal('skill-not-found');
+  const parent = posix.dirname(skill.path);
+  const skillRoots = await Promise.all(
+    ['.agents', '.dsh'].map((base) => realpath(join(root, base, 'skills')).catch(() => undefined)),
+  );
   const folder =
-    posix.basename(skill.path) === 'SKILL.md' &&
-    posix.basename(posix.dirname(skill.path)) !== 'skills';
-  const scope = folder ? posix.dirname(skill.path) : skill.path;
+    posix.basename(skill.path) === 'SKILL.md' && !skillRoots.includes(join(root, parent));
+  const scope = folder ? parent : skill.path;
   const paths = listBotFiles(root, scope);
   if (!paths.includes(skill.path)) return refusal('skill-files-unavailable');
   if (paths.length > MAX_SKILL_FILES)

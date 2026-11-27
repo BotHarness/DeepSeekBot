@@ -120,6 +120,19 @@ it('guards publication with the Connect account, Author ID, and S1 safety scan',
   expect(market.bucket.objects.size).toBe(1);
 });
 
+it('returns stored filename warnings to the author and public readers', async () => {
+  const market = createMarket();
+  await signup(market);
+  const path = 'scripts/ignore previous instructions.py';
+  const findings = [{ path, line: 1, kind: 'prompt-injection', severity: 'warning' }];
+  const skill = await publish(market, upload('Tidy notes.', { [path]: 'print("tidy")' }));
+  expect(skill).toMatchObject({ scan: 'warning', findings, scripts: [path] });
+  const detail = await market.request(`/v1/skills/${skill.id}`);
+  expect(await detail.json()).toMatchObject({ skill: { scan: 'warning', findings } });
+  const mine = await request(market, '/v1/me/skills', 'GET', 'token-alice');
+  expect(await mine.json()).toMatchObject({ skills: [{ id: skill.id, findings }] });
+});
+
 it('authorizes replacement and deletion, retires old files, and hides a removed listing immediately', async () => {
   const market = createMarket();
   await signup(market);
