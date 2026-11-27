@@ -85,7 +85,11 @@ describe('Tob canonical identity and settings', () => {
       expect(f.core.tob.isTob('spoof')).toBe(false);
       expect(f.core.registry.get('existing')?.displayName).toBe('DeepSeek Bot');
       expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
-      expect(f.core.deletions.preview(home.botSlug)).toMatchObject({ lastAppManager: true });
+      const deletion = f.core.deletions.preview(home.botSlug);
+      expect(deletion).toMatchObject({ lastAppManager: true });
+      await expect(
+        bridge.deletionConfirm({ slug: home.botSlug, token: deletion.token, eraseMemory: false }),
+      ).resolves.toMatchObject({ ok: false, error: { code: 'protected-bot' } });
       const dir = f.core.registry.memoryDirFor(home.botSlug);
       expect(dir).toBeTruthy();
       await f.close();

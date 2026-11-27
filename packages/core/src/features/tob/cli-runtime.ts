@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import { humanDmForSource } from '../../tob/management-grants.js';
+import { humanDmForSource } from '../../tob/dm-source.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { HumanContext } from '../../humans/context.js';
@@ -19,7 +19,7 @@ import type {
   TobCliRequest,
   TobCliStatus,
   TobCliTurn,
-} from '../../tob/cli-request.js';
+} from '../../kernel/tob-cli-request.js';
 import { TobError, type TobService } from '../../tob/service.js';
 import { DirectBotToolError, type ActiveDirectTool } from '../sessions/direct-tools.js';
 

@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { createHostLooks } from '@botharness/host-client/host-look';
 import { DEFAULT_HOST_LOOK, type HostLook } from '@botharness/host-client/ui/design/host-look';
-import { runHostLook } from '../../core/src/bots/cli-host-look.js';
+import { runHostLook } from '../../core/src/cli/cli-host-look.js';
 import { controlHostLook } from '../src/client/host-look-control.js';
 
 it('R1 P2-1 rejects a stale persisted revision across independent owners', async () => {

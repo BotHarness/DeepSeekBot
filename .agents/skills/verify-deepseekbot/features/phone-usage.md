@@ -8,7 +8,7 @@ A paired phone shows the current Host's token usage for the last 7 days at the t
 - `apps/mobile/src/host/usage-days.ts`
 - `apps/mobile/src/ui/shell/usage-card.tsx`
 - `apps/mobile/src/ui/usage-view.tsx`
-- `packages/core/src/bots/cli-models-usage.ts`
+- `packages/core/src/cli/cli-models-usage.ts`
 
 ## Terms
 

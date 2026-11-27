@@ -17,7 +17,7 @@ import type {
 import type { createGroupDigest, DigestRow, GroupContext } from '../../runtime/group-digest.js';
 import { type InboxUnit, renderInbox } from '../../runtime/inbox-render.js';
 import type { createOrchestratorScheduling } from '../../runtime/orchestrator-scheduling.js';
-import type { TobCliTurn } from '../../tob/cli-request.js';
+import type { TobCliTurn } from '../../kernel/tob-cli-request.js';
 import type { createAssignmentEvents } from '../assignments/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
 import { scheduleInboxFacts } from '../schedules/events.js';

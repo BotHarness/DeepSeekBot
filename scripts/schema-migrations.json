@@ -792,6 +792,10 @@
     "sha256": "4f6ffde94ebcca2a3b0c3591e42c48dc9dbf3ece4ad3f1ae1e28f927583a71a1"
   },
   {
+    "id": "personabot-protection",
+    "sha256": "2959716331cf9007f2e6ebc116e13b4696588388095dcee1129bd239ec4299ed"
+  },
+  {
     "id": "host-role-revision",
     "sha256": "de2602befc612092b29d849b01425ac37fea1aaa1014dbd166a30d56c2a4ba1a"
   }

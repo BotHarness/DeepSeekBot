@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runAppearanceCommand } from '../src/bots/cli-appearance.js';
+import { runAppearanceCommand } from '../src/cli/cli-appearance.js';
 const io = { stdout: () => {}, stderr: () => {}, env: {} };
 describe('directed appearance recovery CLI', () => {
   it('requires reset confirmation and both revisions before connecting', async () => {

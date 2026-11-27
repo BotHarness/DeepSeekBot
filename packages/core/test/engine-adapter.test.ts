@@ -5,7 +5,7 @@ import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.j
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import type { EngineToolContext, EngineTurnRequest } from '../src/engines/engine-host.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
-import { runEngineCommand } from '../src/bots/cli-engine.js';
+import { runEngineCommand } from '../src/cli/cli-engine.js';
 
 const CONTEXT = {
   session: { id: 'orchestrator-ada' },

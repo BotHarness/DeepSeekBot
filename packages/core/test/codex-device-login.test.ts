@@ -2,8 +2,8 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { runEngineCommand } from '../src/bots/cli-engine.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { runEngineCommand } from '../src/cli/cli-engine.js';
 import { createEngineAccountBridge } from '../src/engines/engine-account-bridge.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';

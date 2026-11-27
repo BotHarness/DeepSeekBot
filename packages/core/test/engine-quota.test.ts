@@ -2,8 +2,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runEngineCommand } from '../src/bots/cli-engine.js';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
+import { runEngineCommand } from '../src/cli/cli-engine.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
 import { codexRateLimit, codexUsageLimit } from '../src/engines/codex-engine.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';

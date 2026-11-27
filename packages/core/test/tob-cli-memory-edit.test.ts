@@ -3,17 +3,17 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { parseAgentManagement } from '../src/bots/cli-agent-management.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { parseAgentManagement } from '../src/cli/cli-agent-management.js';
 import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
 import { unifiedLineDiff } from '../src/memory/line-diff.js';
 import { createCore } from '../src/plugin.js';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
 import {
   createTobMemoryEditOperations,
   MAX_MEMORY_REVIEW_DIFF_BYTES,
-} from '../src/tob/cli-memory-edit-operations.js';
-import type { TobManagementProposal } from '../src/tob/cli-operations.js';
+} from '../src/features/tob/cli-memory-edit-operations.js';
+import type { TobManagementProposal } from '../src/kernel/tob-cli-operations.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 

@@ -1,9 +1,9 @@
-import { cliEffects, brokerCliEffects } from '../bots/cli-effects.js';
+import { cliEffects, brokerCliEffects } from '../kernel/cli-effects.js';
 import { requiresHumanDecision } from './approval-templates.js';
 import { sourceBlockTokenValid } from './source-block-token.js';
 
-import type { ToolEffects } from './tool-effects-contract.js';
-export type { ToolEffects } from './tool-effects-contract.js';
+import type { ToolEffects } from '../kernel/tool-effects-contract.js';
+export type { ToolEffects } from '../kernel/tool-effects-contract.js';
 
 type Declaration = ToolEffects & {
   readonly approval: 'native' | 'existing' | 'always' | 'attachment';

@@ -13,7 +13,7 @@ import nativeFs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -706,7 +706,7 @@ describe('deepseekbot search and compact', () => {
   });
 
   it('keeps the search index in sync with the dispatch table', async () => {
-    const source = readFileSync(new URL('../src/bots/bot-create-cli.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../src/cli/bot-create-cli.ts', import.meta.url), 'utf8');
     const dispatched = new Set<string>();
     for (const match of source.matchAll(/if \(command === '([a-z-]+)'\)/gu)) {
       dispatched.add(match[1]!);

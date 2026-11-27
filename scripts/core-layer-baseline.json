@@ -1,11 +1,5 @@
 {
   "upward": {
-    "packages/core/src/bots/bot-create-cli.ts": {
-      "bots -> features": 11
-    },
-    "packages/core/src/bots/cli-idle-compaction.ts": {
-      "bots -> runtime": 1
-    },
     "packages/core/src/bots/registry.ts": {
       "bots -> features": 1
     },
@@ -25,7 +19,6 @@
       "devices -> runtime": 1
     },
     "packages/core/src/devices/bot-tailnet-bridge.ts": {
-      "devices -> http": 1,
       "devices -> runtime": 1
     },
     "packages/core/src/devices/connect-account.ts": {
@@ -115,9 +108,6 @@
     "packages/core/src/telemetry/bot-turn.ts": {
       "telemetry -> runtime": 1
     },
-    "packages/core/src/tob/cli-broker.ts": {
-      "tob -> http": 1
-    },
     "packages/core/src/voice/bridge.ts": {
       "voice -> features": 1
     },
@@ -163,65 +153,8 @@
     "packages/core/src/bots/bot-zip.ts": {
       "bots -> marketplace": 1
     },
-    "packages/core/src/bots/cli-activity-page.ts": {
-      "bots -> channels": 1
-    },
-    "packages/core/src/bots/cli-agent-bots.ts": {
-      "bots -> marketplace": 1
-    },
-    "packages/core/src/bots/cli-approval-templates.ts": {
-      "bots -> workspaces": 2
-    },
-    "packages/core/src/bots/cli-bug-report.ts": {
-      "bots -> diagnostics": 2
-    },
-    "packages/core/src/bots/cli-devices.ts": {
-      "bots -> channels": 1
-    },
-    "packages/core/src/bots/cli-diagnostic-logs.ts": {
-      "bots -> diagnostics": 1
-    },
-    "packages/core/src/bots/cli-genui.ts": {
-      "bots -> channels": 2
-    },
-    "packages/core/src/bots/cli-host-admin.ts": {
-      "bots -> marketplace": 1
-    },
-    "packages/core/src/bots/cli-inbox-watch.ts": {
-      "bots -> channels": 1
-    },
-    "packages/core/src/bots/cli-live-dispatch.ts": {
-      "bots -> channels": 1,
-      "bots -> credentials": 1,
-      "bots -> workspaces": 1
-    },
-    "packages/core/src/bots/cli-management.ts": {
-      "bots -> channels": 1
-    },
-    "packages/core/src/bots/cli-profile-backup.ts": {
-      "bots -> portability": 2
-    },
-    "packages/core/src/bots/cli-schedules.ts": {
-      "bots -> schedules": 1
-    },
-    "packages/core/src/bots/cli-skills.ts": {
-      "bots -> channels": 1,
-      "bots -> skills": 1
-    },
-    "packages/core/src/bots/cli-team.ts": {
-      "bots -> workspaces": 1
-    },
-    "packages/core/src/bots/cli-tob.ts": {
-      "bots -> tob": 1
-    },
     "packages/core/src/bots/creation.ts": {
       "bots -> channels": 1
-    },
-    "packages/core/src/bots/deletion.ts": {
-      "bots -> tob": 2
-    },
-    "packages/core/src/bots/registry.ts": {
-      "bots -> tob": 1
     },
     "packages/core/src/bots/shared-presentation.ts": {
       "bots -> marketplace": 1
@@ -240,8 +173,7 @@
     },
     "packages/core/src/channels/causal-sending.ts": {
       "channels -> bots": 1,
-      "channels -> purge": 1,
-      "channels -> tob": 2
+      "channels -> purge": 1
     },
     "packages/core/src/channels/channel-message-types.ts": {
       "channels -> bots": 1,
@@ -294,15 +226,6 @@
     },
     "packages/core/src/credentials/web-locator.ts": {
       "credentials -> bots": 1
-    },
-    "packages/core/src/diagnostics/bug-report.ts": {
-      "diagnostics -> bots": 1
-    },
-    "packages/core/src/diagnostics/bundle.ts": {
-      "diagnostics -> bots": 1
-    },
-    "packages/core/src/diagnostics/diagnostic-log-reader.ts": {
-      "diagnostics -> bots": 1
     },
     "packages/core/src/engines/engine-account-bridge.ts": {
       "engines -> models": 1
@@ -367,7 +290,6 @@
     },
     "packages/core/src/portability/package.ts": {
       "portability -> attachments": 2,
-      "portability -> bots": 3,
       "portability -> memory": 1
     },
     "packages/core/src/purge/contracts.ts": {
@@ -384,43 +306,11 @@
     "packages/core/src/purge/scopes.ts": {
       "purge -> channels": 1
     },
-    "packages/core/src/schedules/bot-schedules.ts": {
-      "schedules -> bots": 1
-    },
-    "packages/core/src/skills/entries.ts": {
-      "skills -> bots": 1
-    },
     "packages/core/src/takeover/mount.ts": {
       "takeover -> channels": 1
     },
     "packages/core/src/telemetry/bot-turn.ts": {
       "telemetry -> usage": 1
-    },
-    "packages/core/src/tob/cli-approval.ts": {
-      "tob -> bots": 1
-    },
-    "packages/core/src/tob/cli-bot-create.ts": {
-      "tob -> bots": 3
-    },
-    "packages/core/src/tob/cli-bot-profile-operations.ts": {
-      "tob -> bots": 5,
-      "tob -> channels": 1
-    },
-    "packages/core/src/tob/cli-broker.ts": {
-      "tob -> bots": 1
-    },
-    "packages/core/src/tob/cli-channel-operations.ts": {
-      "tob -> bots": 1,
-      "tob -> channels": 2
-    },
-    "packages/core/src/tob/cli-diagnostic-operations.ts": {
-      "tob -> bots": 1
-    },
-    "packages/core/src/tob/cli-host-commands.ts": {
-      "tob -> bots": 4
-    },
-    "packages/core/src/tob/cli-memory-lease-operations.ts": {
-      "tob -> bots": 2
     },
     "packages/core/src/usage/telemetry.ts": {
       "usage -> telemetry": 1
@@ -428,20 +318,8 @@
     "packages/core/src/voice/calls-command.ts": {
       "voice -> channels": 1
     },
-    "packages/core/src/workspaces/space-lifecycle.ts": {
-      "workspaces -> bots": 1
-    },
-    "packages/core/src/workspaces/space-memory-copy.ts": {
-      "workspaces -> bots": 1
-    },
-    "packages/core/src/workspaces/space-memory.ts": {
-      "workspaces -> bots": 1
-    },
     "packages/core/src/workspaces/tool-approval.ts": {
       "workspaces -> channels": 1
-    },
-    "packages/core/src/workspaces/tool-effects.ts": {
-      "workspaces -> bots": 1
     }
   }
 }

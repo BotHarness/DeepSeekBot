@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { requestListener } from './async-listener.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { modelOwners, roots, setup } from './support/bridge-methods.js';

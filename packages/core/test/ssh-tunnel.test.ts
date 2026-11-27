@@ -4,10 +4,10 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { describe, expect, it } from 'vitest';
 import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
-import { readSshPairing } from '../src/bots/cli-ssh.js';
+import { readSshPairing } from '../src/cli/cli-ssh.js';
 import { openSshTunnel, sshTunnelArgs, verifyTunnelHost } from '../src/devices/ssh-tunnel.js';
 import { freeLoopbackPort, openSshLoopback } from '../src/devices/ssh-loopback.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 
 const target = {
   alias: 'dev-host',

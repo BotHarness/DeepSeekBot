@@ -1,9 +1,9 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
-import { runCallTimelineCommand } from '../src/bots/cli-call-timeline.js';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
-import { LIVE_COMMANDS } from '../src/bots/cli-live.js';
+import { runCallTimelineCommand } from '../src/cli/cli-call-timeline.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
+import { LIVE_COMMANDS } from '../src/cli/cli-live.js';
 import {
   at,
   CALLS,

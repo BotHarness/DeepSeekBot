@@ -3,7 +3,7 @@
 ## Sources
 
 - `packages/core/src/window-zoom/**`
-- `packages/core/src/bots/cli-window-zoom.ts`
+- `packages/core/src/cli/cli-window-zoom.ts`
 - `packages/client/src/client/window-zoom*`
 - `packages/deepseekbot/src/desktop-zoom-*.mjs`
 - `scripts/desktop-zoom-*.mjs`

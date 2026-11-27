@@ -13,7 +13,7 @@ vi.mock('@botharness/host-client/pairing', async (original) => ({
   ...(await original<typeof import('@botharness/host-client/pairing')>()),
   revokePairing: revocation.run,
 }));
-import { runRelationshipCommand } from '../src/bots/cli-relationships.js';
+import { runRelationshipCommand } from '../src/cli/cli-relationships.js';
 
 it('shares the command deadline with remote redemption and never writes a late credential', async () => {
   const id = 'a'.repeat(32);

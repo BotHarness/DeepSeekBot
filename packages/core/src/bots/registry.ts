@@ -1,6 +1,6 @@
 import type { PresetSub } from '../models/preset-sub.js';
 import { resolveLinkedPlan, resolveOwnSlots, type BotModelSlot } from '../models/bot-model-link.js';
-import { isTob, TobError } from '../tob/service.js';
+import type { PersonaBotProtection } from './persona-bot.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, readdirSync, realpathSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
@@ -90,6 +90,7 @@ export interface PersonaBotRegistry {
   createAsync(
     input: CreatePersonaBotInput,
     authorize?: () => void,
+    protection?: PersonaBotProtection,
   ): Promise<CreatePersonaBotResult>;
   settled(humanId?: string): Promise<void>;
   createFromGit(
@@ -264,6 +265,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     ] as const) {
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
+    if (record.protection !== undefined) result.protection = { ...record.protection };
     if (record.primaryColor !== undefined) result.primaryColor = { ...record.primaryColor };
     if (record.voice !== undefined) result.voice = { ...record.voice };
     if (record.asr !== undefined) result.asr = { ...record.asr };
@@ -360,8 +362,10 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     if (body.modelLink !== undefined) delete body.modelPlan;
     return JSON.stringify(body);
   };
-  const decode = (text: string, slug: string): PersonaBotRecord => {
+  const decode = (text: string, slug: string, legacy = false): PersonaBotRecord => {
     const parsed: unknown = JSON.parse(text);
+    if (legacy && typeof parsed === 'object' && parsed !== null && 'protection' in parsed)
+      delete parsed.protection;
     if (
       typeof parsed === 'object' &&
       parsed !== null &&
@@ -492,7 +496,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
           if (isMissing(error)) continue;
           throw error;
         }
-        records.push(decode(text, entry.name));
+        records.push(decode(text, entry.name, true));
       }
       port.transaction(
         (database) => {
@@ -630,7 +634,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         const displayName = patch.displayName.trim();
         if (displayName.length === 0) return { ok: false, reason: 'invalid-input' };
         record.displayName = displayName;
-        if (isTob(port, slug)) record.displayNameCustomized = true;
+        if (record.protection?.presentation === 'retain-customizations')
+          record.displayNameCustomized = true;
       }
       if (patch.roles !== undefined) {
         if (!Array.isArray(patch.roles) || !patch.roles.every((role) => typeof role === 'string')) {
@@ -647,7 +652,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       }
       if (patch.avatar !== undefined) {
         delete record.appearance;
-        if (isTob(port, slug)) {
+        if (record.protection?.presentation === 'retain-customizations') {
           if (record.avatar) record.avatarCustomized = true;
           else delete record.avatarCustomized;
         }
@@ -683,7 +688,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const derived = deriveAvatarAppearance(recipe);
       if (derived === undefined) return { ok: false, reason: 'invalid-input' };
       const updated = { ...record, ...derived };
-      if (isTob(port, slug) && origin === 'custom') updated.avatarCustomized = true;
+      if (origin === 'custom' && record.protection?.presentation === 'retain-customizations')
+        updated.avatarCustomized = true;
       write(updated);
       if (record.appearance?.revision !== updated.appearance.revision) options.onAvatarChanged?.();
       syncDescriptor(updated);

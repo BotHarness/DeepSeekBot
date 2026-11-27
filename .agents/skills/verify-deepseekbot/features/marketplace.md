@@ -9,7 +9,7 @@
 - `packages/client/src/client/marketplace-report.tsx`
 - `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,market-skills,market-skill-dialog,personabot-avatar-crop}.tsx`
 - `packages/host-protocol/src/marketplace-skill.ts`
-- `packages/core/src/bots/cli-skills.ts`
+- `packages/core/src/cli/cli-skills.ts`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
 - `packages/client/src/client/marketplace-install-review.tsx`
 - `packages/client/src/client/standing-import-usage.tsx`

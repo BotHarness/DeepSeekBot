@@ -209,7 +209,18 @@ describe('Team switches preserve Memory across upgrades and restarts', () => {
                   connection.prepare('SELECT body FROM persona_bots WHERE slug = ?').get(entry.slug)
                     ?.body,
               ),
-            ).toBe(entry.body);
+            ).toBe(
+              entry.slug === 'owner-tob'
+                ? JSON.stringify({
+                    ...JSON.parse(String(entry.body)),
+                    protection: {
+                      deletion: 'deny',
+                      presentation: 'retain-customizations',
+                      lifetime: 'owner-tenure',
+                    },
+                  })
+                : entry.body,
+            );
           } else {
             expect(existsSync(entry.source)).toBe(false);
             expect(JSON.stringify(core.registry.get(entry.slug))).not.toContain(entry.source);

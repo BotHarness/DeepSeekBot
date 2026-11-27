@@ -3,7 +3,7 @@
 ## Sources
 
 - `packages/client/src/client/{client-settings-control,preference-settings-control,layout-settings-control,shortcut-settings-control}.ts`
-- `packages/core/src/bots/cli-client-settings.ts`
+- `packages/core/src/cli/cli-client-settings.ts`
 - `packages/core/src/appearance/control.ts`
 
 ## Terms

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cliEffects, brokerCliEffects } from '../src/bots/cli-effects.js';
+import { cliEffects, brokerCliEffects } from '../src/kernel/cli-effects.js';
 import {
   decideToolApproval,
   toolEffects,

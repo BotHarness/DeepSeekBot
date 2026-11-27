@@ -10,14 +10,14 @@ import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runVoiceLocalKit } from '../src/bots/cli-voice.js';
-import { parseAgentManagement } from '../src/bots/cli-agent-management.js';
+import { runVoiceLocalKit } from '../src/cli/cli-voice.js';
+import { parseAgentManagement } from '../src/cli/cli-agent-management.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import {
   createTobVoiceOperations,
   TOB_VOICE_CAPABILITIES,
-} from '../src/tob/cli-voice-operations.js';
+} from '../src/features/tob/cli-voice-operations.js';
 import { TobError } from '../src/tob/service.js';
 import {
   LOCAL_VOICE_BASE_URL,

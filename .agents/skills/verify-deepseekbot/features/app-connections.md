@@ -4,7 +4,7 @@
 
 - `packages/core/src/connectors/*.ts`
 - `packages/core/src/features/connectors/*.ts`
-- `packages/core/src/bots/cli-connectors.ts`
+- `packages/core/src/cli/cli-connectors.ts`
 - `packages/client/src/client/connectors-settings.tsx`
 - `packages/client/src/client/bot-connectors-section.tsx`
 - `packages/client/src/client/features/connectors/*.ts`

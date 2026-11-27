@@ -2,7 +2,7 @@
 
 ## Sources
 
-- `packages/core/src/bots/cli-ssh.ts`
+- `packages/core/src/cli/cli-ssh.ts`
 - `packages/core/src/devices/ssh-*.ts`
 
 ## Terms

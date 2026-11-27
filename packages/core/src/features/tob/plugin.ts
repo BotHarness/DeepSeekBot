@@ -1,36 +1,36 @@
 import { botOwner } from '../../team-policy/bot-access.js';
 import { humanContext, type HumanContext } from '../../humans/context.js';
-import { TOB_CHANNEL_CAPABILITIES } from '../../tob/cli-channel-operations.js';
-import { TOB_BOT_CREATE_CAPABILITIES } from '../../tob/cli-bot-create.js';
-import { TOB_BOT_PROFILE_CAPABILITIES } from '../../tob/cli-bot-profile-operations.js';
+import { TOB_CHANNEL_CAPABILITIES } from './cli-channel-operations.js';
+import { TOB_BOT_CREATE_CAPABILITIES } from './cli-bot-create.js';
+import { TOB_BOT_PROFILE_CAPABILITIES } from './cli-bot-profile-operations.js';
 import {
   createTobMemoryEditOperations,
   TOB_MEMORY_EDIT_CAPABILITIES,
-} from '../../tob/cli-memory-edit-operations.js';
-import { TOB_DIAGNOSTIC_CAPABILITIES } from '../../tob/cli-diagnostic-operations.js';
+} from './cli-memory-edit-operations.js';
+import { TOB_DIAGNOSTIC_CAPABILITIES } from './cli-diagnostic-operations.js';
 import {
   authorizeTobBotTargets,
   TobCliCommandError,
   TOB_HOST_CLI_CAPABILITY,
-} from '../../tob/cli-host-commands.js';
-import type { ManagementCapability } from '../../tob/management-grants.js';
+} from './cli-host-commands.js';
+import type { ManagementCapability } from '../../bots/management-grants.js';
 import { managementCapabilitiesFor, managementCapabilityList } from './management-scope.js';
-import { TOB_SHARE_DRAFT_CAPABILITIES } from '../../tob/cli-share-draft-operations.js';
+import { TOB_SHARE_DRAFT_CAPABILITIES } from './cli-share-draft-operations.js';
 import { TobError } from '../../tob/service.js';
 import { managerShellAuthority } from './cli-runtime.js';
-import { TOB_MODEL_CAPABILITIES } from '../../tob/cli-model-operations.js';
-import { TOB_MAINTENANCE_CAPABILITIES } from '../../tob/cli-maintenance-operations.js';
-import { installTobCliShell } from '../../tob/cli-shell.js';
+import { TOB_MODEL_CAPABILITIES } from './cli-model-operations.js';
+import { TOB_MAINTENANCE_CAPABILITIES } from './cli-maintenance-operations.js';
+import { installTobCliShell } from './cli-shell.js';
 import { createTobMemoryLeases } from '../../tob/memory-lease.js';
 import {
   createTobAssignmentLeaseOperations,
   createTobMemoryLeaseOperations,
   TOB_ASSIGNMENT_LEASE_CAPABILITIES,
   TOB_MEMORY_LEASE_CAPABILITIES,
-} from '../../tob/cli-memory-lease-operations.js';
+} from './cli-memory-lease-operations.js';
 import { installAssignmentShell } from '../../workspaces/assignment-shell.js';
-import { TOB_VOICE_CAPABILITIES } from '../../tob/cli-voice-operations.js';
-import { approveTobCliOperation } from '../../tob/cli-approval.js';
+import { TOB_VOICE_CAPABILITIES } from './cli-voice-operations.js';
+import { approveTobCliOperation } from './cli-approval.js';
 import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { installOrchestratorFileTools } from '../../workspaces/orchestrator-file-tools.js';
 import { nativeExecutionRoot } from '../../workspaces/grant-native-tools.js';
@@ -41,25 +41,22 @@ import type {
   DshAgentPresetHost,
 } from '../../runtime/dsh-bot-agent-adapter.js';
 import type * as voice from '../voice/plugin.js';
-import { ModelFreeTobCliInvocation } from '../../tob/cli-invocation.js';
-import { createTobChannelOperations } from '../../tob/cli-channel-operations.js';
-import { createTobBotCreationOperations } from '../../tob/cli-bot-create.js';
+import { ModelFreeTobCliInvocation } from '../../runtime/tob-cli-invocation.js';
+import { createTobChannelOperations } from './cli-channel-operations.js';
+import { createTobBotCreationOperations } from './cli-bot-create.js';
 import { privateBotCreations } from '../../bots/creation.js';
-import { createTobBotProfileOperations } from '../../tob/cli-bot-profile-operations.js';
-import { createTobDiagnosticOperations } from '../../tob/cli-diagnostic-operations.js';
+import { createTobBotProfileOperations } from './cli-bot-profile-operations.js';
+import { createTobDiagnosticOperations } from './cli-diagnostic-operations.js';
 import {
   createTobHostCliOperations,
   authorizeTobHostCli,
   spawnHostCli,
-} from '../../tob/cli-host-commands.js';
-import { createTobShareDraftOperations } from '../../tob/cli-share-draft-operations.js';
+} from './cli-host-commands.js';
+import { createTobShareDraftOperations } from './cli-share-draft-operations.js';
 import { createTobService } from '../../tob/service.js';
-import {
-  createTobModelOperations,
-  type TobNativeSettings,
-} from '../../tob/cli-model-operations.js';
-import { createTobMaintenanceOperations } from '../../tob/cli-maintenance-operations.js';
-import { cliModulePath } from '../../tob/cli-shell.js';
+import { createTobModelOperations, type TobNativeSettings } from './cli-model-operations.js';
+import { createTobMaintenanceOperations } from './cli-maintenance-operations.js';
+import { cliModulePath } from './cli-shell.js';
 import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
 import type { createBridgeMethodsForHumans } from '../../bridge/methods.js';

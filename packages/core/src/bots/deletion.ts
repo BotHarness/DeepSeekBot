@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { TobError } from '../tob/service.js';
-import { managementGrantHolders } from '../tob/management-grants.js';
+import { HarnessError } from '@deepseek-ai/dsh-llm';
+import { managementGrantHolders } from './management-grants.js';
+import { personaBotProtectionSchema, type PersonaBotProtection } from './persona-bot.js';
 import { botOwner } from '../team-policy/bot-access.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
@@ -63,6 +64,11 @@ export interface PersonaBotDeletions {
   folder(slug: string): { path: string; relativePath: string; kind: 'directory' };
 }
 
+function checkDeletionProtection(protection: PersonaBotProtection | undefined): void {
+  if (protection?.deletion === 'deny')
+    throw new HarnessError('Protected PersonaBot cannot be deleted', 'protected-bot');
+}
+
 export function acceptMemberBotPurge({
   db,
   humanId,
@@ -83,8 +89,13 @@ export function acceptMemberBotPurge({
     .get(slug, humanId, humanId, humanId);
   if (!row) return;
   const record = z
-    .object({ displayName: z.string(), memoryDir: z.string().optional() })
+    .object({
+      displayName: z.string(),
+      memoryDir: z.string().optional(),
+      protection: personaBotProtectionSchema.optional(),
+    })
     .parse(JSON.parse(String(row.body)));
+  checkDeletionProtection(record.protection);
   const proofRow = db
     .prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?')
     .get(slug);
@@ -323,9 +334,10 @@ export function createPersonaBotDeletions(options: {
     assertNoEscapes(actual.path);
     return actual;
   };
-  const snapshot = (slug: string): PersonaBotDeletionPreview => {
+  const snapshot = (slug: string, confirming = false): PersonaBotDeletionPreview => {
     const record = options.registry.getHistorical(slug);
     if (record === undefined) throw new Error('PersonaBot does not exist');
+    if (confirming) checkDeletionProtection(record.protection);
     const state = get(slug);
     const path = state?.memoryDir ?? pathFor(slug);
     const proof = owner(slug);
@@ -418,15 +430,15 @@ export function createPersonaBotDeletions(options: {
           OR EXISTS (SELECT 1 FROM deleted_humans d WHERE d.human_id = ?))`)
           .get(slug, humanId, humanId, humanId, humanId),
       );
-      if (!allowed) throw new TobError('permission-required');
-      const reviewed = snapshot(slug);
+      if (!allowed) throw new HarnessError('permission-required', 'permission-required');
+      const reviewed = snapshot(slug, true);
       if (pending.has(slug) || (reviewed.deletion && reviewed.deletion.phase !== 'complete'))
         return { ...reviewed, eraseAvailable: false, refusal: 'deletion-in-progress' };
       return reviewed;
     },
     get,
     async confirm(slug, token, eraseMemory) {
-      const reviewed = preview(slug);
+      const reviewed = snapshot(slug, true);
       if (reviewed.deletion !== undefined)
         throw new Error(
           'Deletion was already accepted; retry it (bot-delete-retry) instead of confirming again',

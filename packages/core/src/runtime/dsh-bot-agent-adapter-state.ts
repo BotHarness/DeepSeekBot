@@ -1,6 +1,6 @@
 import { orchestratorHandle } from './dsh-bot-agent-adapter-orchestrator.js';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
-import { ModelFreeTobCliInvocation } from '../tob/cli-invocation.js';
+import { ModelFreeTobCliInvocation } from './tob-cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
 import type { Agent, AgentHandle, ModelSelection } from '@deepseek-ai/dsh-agent';
