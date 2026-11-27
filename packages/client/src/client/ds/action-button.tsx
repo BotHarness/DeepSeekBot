@@ -69,7 +69,7 @@ const styles = stylex.create({
 });
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'style' | 'children'> & {
   children: ReactNode;
-  icon?: ActionSymbol;
+  icon?: ActionSymbol | 'upload';
   tone?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
   size?: 'sm' | 'md';
