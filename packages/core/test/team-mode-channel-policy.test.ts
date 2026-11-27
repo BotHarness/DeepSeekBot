@@ -16,6 +16,7 @@ import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/contex
 import { enabledFixture, cleanup } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
+const legacyActions = CHANNEL_ACTIONS.filter((action) => action !== 'wakeBot');
 
 describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
   it.each(['private', 'roles-nonmember', 'roles-member'] as const)(
@@ -149,6 +150,7 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         addMembers: 'deny',
         post: 'deny',
         mentionAll: 'deny',
+        wakeBot: 'deny',
         addBots: 'deny',
         editDetails: 'deny',
       },
@@ -644,6 +646,7 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       addMembers: 'deny',
       post: 'deny',
       mentionAll: 'deny',
+      wakeBot: 'deny',
       addBots: 'deny',
       editDetails: 'deny',
     },
@@ -770,7 +773,7 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
   });
 
   it.each(['owner', 'admin'] as const)(
-    'treats a joined Host %s as an admin for every policy',
+    'keeps the legacy Host %s policy bypass and applies wakeBot to non-Channel admins',
     async (kind) => {
       const f = await enabledFixture();
       const creator = await f.team.createMember(owner, 'announcement-creator', 'Creator');
@@ -781,8 +784,11 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       if (kind === 'admin') f.team.roles.set(owner, actor.humanId, ['admin']);
       f.team.channelAccess.policySet(human, group.id, restrictedPolicy);
       expect(f.team.channelAccess.view(actor, group.id).role).toBe('member');
-      for (const action of CHANNEL_ACTIONS)
+      for (const action of legacyActions)
         expect(() => f.team.channelAccess.requirePolicy(actor, group.id, action)).not.toThrow();
+      expect(() => f.team.channelAccess.requirePolicy(actor, group.id, 'wakeBot')).toThrow(
+        'permission-required',
+      );
       expect(
         await f.methods(actor).channelSend({ channelId: group.id, body: 'admin-policy-bypass' }),
       ).toMatchObject({ ok: true });
@@ -869,12 +875,12 @@ it('keeps all five legacy action decisions across every policy combination', () 
       'CREATE TABLE channel_records(channel_id INTEGER PRIMARY KEY, policy_json TEXT NOT NULL)',
     );
     const insert = db.prepare('INSERT INTO channel_records VALUES (?, ?)');
-    for (let mask = 0; mask < 2 ** CHANNEL_ACTIONS.length; mask++) {
+    for (let mask = 0; mask < 2 ** legacyActions.length; mask++) {
       insert.run(
         mask,
         JSON.stringify(
           Object.fromEntries(
-            CHANNEL_ACTIONS.map((action, bit) => [
+            legacyActions.map((action, bit) => [
               action,
               (mask & (1 << bit)) === 0 ? 'admins' : 'everyone',
             ]),
@@ -890,13 +896,14 @@ it('keeps all five legacy action decisions across every policy combination', () 
     const read = db.prepare(
       'SELECT permission_table_json FROM channel_records WHERE channel_id = ?',
     );
-    for (let mask = 0; mask < 2 ** CHANNEL_ACTIONS.length; mask++) {
+    for (let mask = 0; mask < 2 ** legacyActions.length; mask++) {
       const row = z.object({ permission_table_json: z.string() }).parse(read.get(mask));
       const policy = channelPolicySchema.parse(JSON.parse(row.permission_table_json));
-      for (const [bit, action] of CHANNEL_ACTIONS.entries())
+      for (const [bit, action] of legacyActions.entries())
         expect(mergeChannelAction(policy, new Set(['member']), action)).toBe(
           (mask & (1 << bit)) !== 0,
         );
+      expect(mergeChannelAction(policy, new Set(['member']), 'wakeBot')).toBe(true);
     }
   } finally {
     db.close();

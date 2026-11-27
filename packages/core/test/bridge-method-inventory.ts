@@ -41,6 +41,7 @@ export const bridgeMethodInventory = [
   'memberInvitation',
   'memberPairingOffer',
   'channelRoleDirectory',
+  'channelBotSettings',
   'channelVisibilitySet',
   'channelAdminsSet',
   'channelPolicySet',

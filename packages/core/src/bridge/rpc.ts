@@ -277,6 +277,7 @@ const legacyRemoteMethods = [
   'memberInvitation',
   'memberPairingOffer',
   'channelRoleDirectory',
+  'channelBotSettings',
   'channelVisibilitySet',
   'channelAdminsSet',
   'channelPolicySet',

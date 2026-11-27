@@ -1,5 +1,6 @@
 import { readChannels } from '@botharness/host-client/channel-management';
 import { ChannelAccessSettings } from './channel-access-settings.js';
+import { ChannelBotSettingsPanel } from './channel-bot-settings.js';
 import { Select } from './ds/select.js';
 import { loadChannelAccess, type ChannelVisibility } from './team-channels-bridge.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
@@ -682,7 +683,7 @@ function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTransla
   const [ready, setReady] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [filter, setFilter] = useState<ChannelVisibility['kind'] | 'all'>('all');
-  const [tab, setTab] = useState<'members' | 'permissions'>('members');
+  const [tab, setTab] = useState<'members' | 'permissions' | 'bots'>('members');
   const tabId = useId();
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
@@ -747,6 +748,7 @@ function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTransla
               options={[
                 { value: 'members', label: t('team.workbench.channels.members') },
                 { value: 'permissions', label: t('team.workbench.channels.permissions') },
+                { value: 'bots', label: t('channelBots.tab') },
               ]}
               onChange={setTab}
             />
@@ -761,6 +763,8 @@ function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTransla
                 humans={active.humanMembers ?? []}
                 permissionsOnly
               />
+            ) : tab === 'bots' ? (
+              <ChannelBotSettingsPanel key={active.id} channelId={active.id} call={call} t={t} />
             ) : (
               <section {...stylex.props(styles.card)}>
                 {active.humanMembers?.map((human) => (

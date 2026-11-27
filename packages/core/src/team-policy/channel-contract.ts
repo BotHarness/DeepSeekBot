@@ -6,10 +6,23 @@ export const channelVisibilitySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('private') }),
 ]);
 export type ChannelVisibility = z.infer<typeof channelVisibilitySchema>;
+export const channelBotAudienceSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('everyone') }),
+  z.strictObject({ kind: z.literal('admins') }),
+  z.strictObject({
+    kind: z.literal('roles'),
+    roleIds: z.array(z.string().min(1)).min(1).max(100),
+  }),
+]);
+export const channelBotChangeSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('audience'), audience: channelBotAudienceSchema }),
+  z.strictObject({ kind: z.literal('block'), humanId: z.string().min(1), blocked: z.boolean() }),
+]);
 export const CHANNEL_ACTIONS = [
   'addMembers',
   'post',
   'mentionAll',
+  'wakeBot',
   'addBots',
   'editDetails',
 ] as const;
@@ -18,7 +31,14 @@ const action = z.enum(CHANNEL_ACTIONS);
 const effect = z.enum(['allow', 'deny', 'inherit']);
 export const channelPolicySchema = z.strictObject({
   version: z.literal(1),
-  everyone: z.record(action, effect),
+  everyone: z.strictObject({
+    addMembers: effect,
+    post: effect,
+    mentionAll: effect,
+    addBots: effect,
+    editDetails: effect,
+    wakeBot: effect.default('allow'),
+  }),
   overrides: z
     .array(
       z.strictObject({
@@ -39,6 +59,7 @@ export const DEFAULT_CHANNEL_POLICY: ChannelPolicy = {
     mentionAll: 'allow',
     addBots: 'deny',
     editDetails: 'deny',
+    wakeBot: 'allow',
   },
   overrides: [],
 };

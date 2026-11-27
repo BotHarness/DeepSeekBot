@@ -1,6 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
+import {
+  limitD1Requests,
+  type D1Database,
+  type D1PreparedStatement,
+  type D1Value,
+} from '../src/d1.js';
 import type { GitHubRepository } from '../src/github.js';
 import { parseChallenge, solveChallenge } from '../../core/src/marketplace/altcha.js';
 import { handlerForEnv, runDaily, runScheduled, type MarketEnv } from '../src/worker.js';
@@ -48,28 +53,39 @@ export const testVerifier: AccessTokenVerifier = {
     ),
 };
 
-export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
+export function createLocalD1() {
   const sqlite = new DatabaseSync(':memory:');
   const migrations = new URL('../migrations/', import.meta.url);
   for (const file of readdirSync(migrations).sort()) {
     sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
   }
-  const statement = (query: string, values: D1Value[]): D1PreparedStatement => ({
-    bind: (...next) => statement(query, next),
-    first: <T>() =>
-      Promise.resolve(
-        (sqlite.prepare(query).get(...(values as SQLInputValue[])) ?? null) as T | null,
-      ),
-    all: <T>() =>
-      Promise.resolve({
-        results: sqlite.prepare(query).all(...(values as SQLInputValue[])) as T[],
-      }),
-    run: () => Promise.resolve(sqlite.prepare(query).run(...(values as SQLInputValue[]))),
-  });
+  const queries = { requests: 0, batches: 0, skillWrites: 0, unbatchedSkillWrites: 0 };
+  let inBatch = false;
+  const statement = (query: string, values: D1Value[]): D1PreparedStatement => {
+    const execute = () => {
+      if (!inBatch) queries.requests += 1;
+      if (/^(INSERT INTO|UPDATE) marketplace_skills\b/u.test(query)) {
+        queries.skillWrites += 1;
+        if (!inBatch) queries.unbatchedSkillWrites += 1;
+      }
+      return sqlite.prepare(query);
+    };
+    return {
+      bind: (...next) => statement(query, next),
+      first: <T>() =>
+        Promise.resolve((execute().get(...(values as SQLInputValue[])) ?? null) as T | null),
+      all: <T>() =>
+        Promise.resolve({ results: execute().all(...(values as SQLInputValue[])) as T[] }),
+      run: () => Promise.resolve(execute().run(...(values as SQLInputValue[]))),
+    };
+  };
   const db: D1Database = {
     prepare: (query) => statement(query, []),
     async batch<T>(statements: D1PreparedStatement[]) {
+      queries.requests += 1;
+      queries.batches += 1;
       sqlite.exec('BEGIN');
+      inBatch = true;
       try {
         const results = statements.map((item) => item.all<T>());
         sqlite.exec('COMMIT');
@@ -77,10 +93,12 @@ export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
       } catch (error) {
         sqlite.exec('ROLLBACK');
         throw error;
+      } finally {
+        inBatch = false;
       }
     },
   };
-  return { db, sqlite };
+  return { db, sqlite, queries };
 }
 
 export interface FakeRepository extends GitHubRepository {
@@ -313,14 +331,15 @@ export function createMarket(
   request: (path: string, init?: RequestInit) => Promise<Response>;
   github: ReturnType<typeof createFakeGitHub>;
   sqlite: DatabaseSync;
+  queries: ReturnType<typeof createLocalD1>['queries'];
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
-  daily: () => Promise<Record<string, unknown>[]>;
+  daily: (maxD1Requests?: number) => Promise<Record<string, unknown>[]>;
   logs: Record<string, unknown>[];
   bucket: ReturnType<typeof createMemoryBucket>;
 } {
-  const { db, sqlite } = createLocalD1();
+  const { db, sqlite, queries } = createLocalD1();
   const bucket = createMemoryBucket();
   const clock = { value: new Date('2026-10-05T12:00:00Z') };
   const github = createFakeGitHub();
@@ -350,6 +369,7 @@ export function createMarket(
     request: (path, init) => handler(new Request(`https://market.test${path}`, init)),
     github,
     sqlite,
+    queries,
     clock,
     scheduled: async (cron) => {
       const lines: string[] = [];
@@ -365,10 +385,11 @@ export function createMarket(
       logs.push(...lines.map((line) => JSON.parse(line) as Record<string, unknown>));
       return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
     },
-    daily: async () => {
+    daily: async (maxD1Requests) => {
       const lines: string[] = [];
+      const dailyDb = maxD1Requests === undefined ? db : limitD1Requests(db, maxD1Requests).db;
       await runDaily(
-        { MARKET_DB: db, MARKET_FILES: bucket },
+        { MARKET_DB: dailyDb, MARKET_FILES: bucket },
         (line) => lines.push(line),
         () => clock.value,
         options.digestWriter,

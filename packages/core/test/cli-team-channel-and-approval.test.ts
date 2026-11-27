@@ -54,6 +54,47 @@ describe('M4 CLI parity', () => {
       method: 'channelDescriptionSet',
       payload: { channelId: 'group-1', description: 'details' },
     },
+    {
+      args: ['channels', 'bots', 'group-1'],
+      method: 'channelBotSettings',
+      payload: { channelId: 'group-1' },
+    },
+    {
+      args: ['channels', 'bots', 'group-1', 'studio', '--audience', 'roles:ops,eng'],
+      method: 'channelBotSettings',
+      payload: {
+        channelId: 'group-1',
+        botSlug: 'studio',
+        change: { kind: 'audience', audience: { kind: 'roles', roleIds: ['ops', 'eng'] } },
+      },
+    },
+    {
+      args: ['channels', 'bots', 'group-1', 'studio', '--block-human', 'bob-id'],
+      method: 'channelBotSettings',
+      payload: {
+        channelId: 'group-1',
+        botSlug: 'studio',
+        change: { kind: 'block', humanId: 'bob-id', blocked: true },
+      },
+    },
+    {
+      args: [
+        'channels',
+        'send',
+        'group-1',
+        '--body-stdin',
+        '--mention-bot',
+        'studio',
+        '--mention-label',
+        'Studio',
+      ],
+      method: 'channelSend',
+      payload: {
+        channelId: 'group-1',
+        body: '@Studio details',
+        mentions: [{ botSlug: 'studio', label: 'Studio', start: 0, end: 7 }],
+      },
+    },
     { args: ['dm', 'bob'], method: 'humanDmByUsername', payload: { username: 'bob' } },
     { args: ['dm', '--human-id', 'bob-id'], method: 'humanDm', payload: { humanId: 'bob-id' } },
     { args: ['team-directory'], method: 'teamDirectory', payload: {} },
