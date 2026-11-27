@@ -7,6 +7,7 @@ import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { TeamWorkbench, choiceOf, groupCatalog, withChoice } from '../src/client/team-workbench.js';
 import type { TeamRole } from '../src/client/team-roles-bridge.js';
+import { resolveSection, visibleSections } from '../src/client/team-workbench/sections.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -364,4 +365,139 @@ it('reloads a member picked while a save is pending once the save lands', async 
   await act(async () => releaseSave());
   expect(loads).toBe(2);
   expect(effective()?.dataset['state']).toBe('denied');
+});
+
+it('derives visible sections from the viewer and defaults to the roles section', () => {
+  const owner = { ...fakeTeamMode(), enabled: true } as never;
+  const context = { view: owner, roles: [role()], members: [] };
+  expect(visibleSections(context).map((section) => section.id)).toEqual([
+    'members',
+    'channels',
+    'roles',
+  ]);
+  expect(resolveSection(context, undefined)?.id).toBe('roles');
+  expect(resolveSection(context, 'channels')?.id).toBe('channels');
+  const member = {
+    ...fakeTeamMode({ kind: 'member', humanId: 'ann', permissions: [] }),
+    enabled: true,
+  } as never;
+  expect(
+    visibleSections({ view: member, roles: [], members: [] }).map((section) => section.id),
+  ).toEqual(['channels']);
+  expect(resolveSection({ view: member, roles: [], members: [] }, 'roles')?.id).toBe('channels');
+});
+
+it('opens a member from the members section and shows their effective permissions', async () => {
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'roles') return { ok: true, value: [role()] };
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    if (method === 'members')
+      return {
+        ok: true,
+        value: [
+          {
+            humanId: 'bob',
+            username: 'bob',
+            displayName: 'Bob',
+            status: 'active',
+            roleIds: ['member', 'leads'],
+          },
+        ],
+      };
+    if (method === 'memberPermissions')
+      return {
+        ok: true,
+        value: {
+          humanId: 'bob',
+          owner: false,
+          active: true,
+          permissions: [{ id: 'channels.create', state: 'granted', sources: [] }],
+        },
+      };
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  const nav = host.querySelector<HTMLButtonElement>('[data-team-nav="members"]');
+  expect(nav?.textContent).toContain('内部成员');
+  await act(async () => nav!.click());
+  expect(host.querySelector('[data-team-member-detail]')).toBeNull();
+  const row = host.querySelector<HTMLButtonElement>('[data-team-member="bob"]');
+  expect(row?.textContent).toContain('Leads');
+  await act(async () => row!.click());
+  expect(host.querySelector('[data-team-member-detail="bob"]')).not.toBeNull();
+  expect(
+    host.querySelector<HTMLElement>('[data-team-effective-permission="channels.create"]')?.dataset[
+      'state'
+    ],
+  ).toBe('granted');
+});
+
+it('filters channels by visibility and shows the channel tabs with counts', async () => {
+  const channels = [
+    {
+      id: 'g1',
+      type: 'group',
+      name: 'Lobby',
+      members: ['bot-a'],
+      humanMembers: [{ humanId: 'h1', displayName: 'Ann' }],
+    },
+    { id: 'g2', type: 'group', name: 'Secret', members: [], humanMembers: [] },
+    { id: 'dm-a', type: 'dm', name: 'Helper', members: ['bot-a'], botSlug: 'bot-a' },
+  ];
+  const access = (visibility: string) => ({
+    role: 'owner',
+    visibility: { kind: visibility },
+    policy: { version: 1, everyone: {}, overrides: [] },
+    admins: [],
+  });
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
+    if (method === 'roles') return { ok: true, value: [role()] };
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    if (method === 'members') return { ok: true, value: [] };
+    if (method === 'channels') return { ok: true, value: { channels } };
+    if (method === 'channelGet') {
+      const channel = channels.find((item) => item.id === args['channelId']);
+      return {
+        ok: true,
+        value: { channel, ...access(channel?.id === 'g2' ? 'private' : 'public') },
+      };
+    }
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-team-nav="channels"]')!.click(),
+  );
+  expect(host.querySelectorAll('[data-team-channel]')).toHaveLength(2);
+  expect(host.querySelector('[data-team-channel="g1"]')?.textContent).toContain('Helper');
+  const tabs = [...host.querySelectorAll('[data-team-channel-detail] [role="tab"]')].map(
+    (node) => node.textContent,
+  );
+  expect(tabs).toEqual(['成员 1', 'Bot 1', '权限']);
+  expect(host.querySelector('[data-team-channel-bot="bot-a"]')?.textContent).toBe('Helper');
+  const privateTab = [
+    ...host.querySelectorAll<HTMLButtonElement>('[data-team-list] [role="tab"]'),
+  ].find((node) => node.textContent === '仅受邀者');
+  await act(async () => privateTab!.click());
+  expect(
+    [...host.querySelectorAll('[data-team-channel]')].map((node) =>
+      node.getAttribute('data-team-channel'),
+    ),
+  ).toEqual(['g2']);
+  expect(host.querySelector('[data-team-channel-detail="g2"]')?.textContent).toContain(
+    '这个频道还没有成员',
+  );
+});
+
+it('shows the no-access state when the viewer cannot open any section', async () => {
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode')
+      return { ok: true, value: fakeTeamMode({ kind: 'member', humanId: 'ann' }) };
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  expect(host.textContent).toContain('只有能管理角色的人可以打开 Team');
+  expect(host.querySelector('[data-team-nav]')).toBeNull();
 });

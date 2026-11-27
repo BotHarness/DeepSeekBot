@@ -678,6 +678,7 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ['path', { d: 'M18 6 6 18' }],
     ['path', { d: 'm6 6 12 12' }],
   ],
+  minus: [['path', { d: 'M5 12h14' }]],
   trash: [
     ['path', { d: 'M3 6h18' }],
     ['path', { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }],

@@ -5,7 +5,7 @@ import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { on } from './surface.stylex.js';
-import { accent, ink, style } from './tobs.stylex.js';
+import { accent, edge, ink, state, style } from './tobs.stylex.js';
 import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -43,11 +43,22 @@ const styles = stylex.create({
     flexShrink: 0,
     color: ink.tertiary,
   },
+  cell: {
+    justifyContent: 'center',
+    height: style.chipHeight,
+    paddingInlineStart: space.x1,
+    paddingInlineEnd: space.x1,
+    backgroundColor: { default: 'transparent', ':hover': state.hover },
+    boxShadow: 'none',
+    outlineOffset: edge.focusOffset,
+  },
 });
 
 export interface SelectOption<Value extends string> {
   readonly value: Value;
   readonly label: ReactNode;
+  readonly icon?: ReactNode;
+  readonly display?: ReactNode;
 }
 
 export interface SelectProps<Value extends string> {
@@ -59,6 +70,7 @@ export interface SelectProps<Value extends string> {
   readonly align?: 'start' | 'end';
   readonly autoFocus?: boolean;
   readonly reselect?: boolean;
+  readonly appearance?: 'field' | 'cell';
 }
 
 export function Select<Value extends string>({
@@ -70,6 +82,7 @@ export function Select<Value extends string>({
   align = 'end',
   autoFocus = false,
   reselect = false,
+  appearance = 'field',
 }: SelectProps<Value>): ReactElement {
   const [open, setOpen] = useState(false);
   const [point, setPoint] = useState<MenuPoint>();
@@ -145,12 +158,14 @@ export function Select<Value extends string>({
           if (active) close();
           else setOpen(true);
         }}
-        {...stylex.props(styles.trigger)}
+        {...stylex.props(styles.trigger, appearance === 'cell' && styles.cell)}
       >
-        <span {...stylex.props(styles.label)}>{current?.label}</span>
-        <span {...stylex.props(styles.chevron)}>
-          <Icon name="chevron-down" size={12} />
-        </span>
+        <span {...stylex.props(styles.label)}>{current?.display ?? current?.label}</span>
+        {appearance === 'cell' ? null : (
+          <span {...stylex.props(styles.chevron)}>
+            <Icon name="chevron-down" size={12} />
+          </span>
+        )}
       </button>
       {active && point ? (
         <PointerMenu
@@ -162,6 +177,7 @@ export function Select<Value extends string>({
           items={options.map((option) => ({
             id: option.value,
             label: option.label,
+            ...(option.icon === undefined ? {} : { icon: option.icon }),
           }))}
           selectedId={value}
           onSelect={(id) => {
