@@ -164,8 +164,6 @@ export function BotsSection({
             </Note>
           ) : !ready ? (
             <PanelEmptyState icon="bot">{t('team.workbench.loading')}</PanelEmptyState>
-          ) : visible.length === 0 ? (
-            <PanelEmptyState icon="bot">{t('team.workbench.bots.empty')}</PanelEmptyState>
           ) : incomplete > 0 ? (
             <Note tone="warning">
               {t('team.workbench.bots.incomplete', { count: incomplete })}
@@ -173,6 +171,8 @@ export function BotsSection({
                 {t('team.workbench.retry')}
               </Button>
             </Note>
+          ) : visible.length === 0 ? (
+            <PanelEmptyState icon="bot">{t('team.workbench.bots.empty')}</PanelEmptyState>
           ) : undefined
         }
       >

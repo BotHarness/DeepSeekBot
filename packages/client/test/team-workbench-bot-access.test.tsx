@@ -311,3 +311,61 @@ it('lists who can use each Bot with the source of every role', async () => {
   expect(host.textContent).toContain('私有 Bot 只有负责人能用，角色设置不影响它。');
   expect(host.querySelector('[data-team-bot-role]')).toBeNull();
 });
+
+it('keeps unsaved Bot choices when switching between All Bots and Selected Bots', async () => {
+  const call = workbench({ roleBotScope: () => ({ ok: true, value: scope() }) });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => toggle('dispatch').click());
+  await act(async () => mode('全部 Bot').click());
+  await act(async () => mode('选定的 Bot').click());
+  expect(row('dispatch').dataset['teamBotScopeOn']).toBe('true');
+  expect(save()).not.toBeNull();
+});
+
+it('offers a read retry when the reload after a stale role fails', async () => {
+  let reads = 0;
+  const call = workbench({
+    roleBotScope: () => {
+      reads++;
+      if (reads === 2) throw new Error('offline');
+      return { ok: true, value: scope({ revision: 3 + reads - 1 }) };
+    },
+    roleBotScopeSet: () => ({
+      ok: false,
+      error: { code: 'stale-role', message: 'stale', details: {} },
+    }),
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => toggle('dispatch').click());
+  await act(async () => save()!.click());
+  expect(host.textContent).toContain('没能载入这个角色能访问的 Bot。');
+  expect(host.textContent).not.toContain('已重新载入');
+  expect(save()!.disabled).toBe(true);
+  const retry = [...host.querySelectorAll<HTMLButtonElement>('[data-team-bot-scope] button')].find(
+    (node) => node.textContent?.includes('重试'),
+  );
+  await act(async () => retry!.click());
+  expect(reads).toBe(3);
+  expect(call.mock.calls.filter(([method]) => method === 'roleBotScopeSet')).toHaveLength(1);
+  expect(host.textContent).toContain('已重新载入');
+  expect(row('dispatch').dataset['teamBotScopeOn']).toBe('true');
+  expect(save()!.disabled).toBe(false);
+});
+
+it('keeps the retry for unread Bots visible when a filter matches nothing', async () => {
+  const call = workbench({
+    roleBotScope: () => ({ ok: true, value: scope() }),
+    botAccessDirectory: () => ({ ok: true, value: [{ slug: 'lobby', displayName: 'Lobby' }] }),
+    botAccessRoles: () => {
+      throw new Error('offline');
+    },
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-team-nav="bots"]')!.click());
+  const chip = [...host.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find(
+    (node) => node.textContent === '私有',
+  );
+  await act(async () => chip!.click());
+  expect(host.querySelector('[data-team-bot]')).toBeNull();
+  expect(host.querySelector('[data-team-bots-retry]')).not.toBeNull();
+});

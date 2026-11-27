@@ -11,6 +11,7 @@ import { bridgeHost, type BridgeCall } from '../bridge.js';
 import { Button } from '../ds/button.js';
 import { Icon } from '../ds/icon.js';
 import { Note } from '../ds/note.js';
+import { ReadFailure } from '../ds/read-failure.js';
 import { SegmentedControl } from '../ds/segmented.js';
 import { SettingsRow, SettingsSection } from '../ds/settings-row.js';
 import { Switch } from '../ds/switch.js';
@@ -91,7 +92,7 @@ export function RoleBotScope({
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [stale, setStale] = useState(false);
+  const [stale, setStale] = useState<'none' | 'reloading' | 'reloaded'>('none');
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
     void readRoleBotScope(bridgeHost(call, controller.signal), roleId)
@@ -99,6 +100,7 @@ export function RoleBotScope({
         if (controller.signal.aborted) return;
         setView(next);
         setFailed(false);
+        setStale((value) => (value === 'reloading' ? 'reloaded' : value));
       })
       .catch(() => {
         if (!controller.signal.aborted) setFailed(true);
@@ -106,19 +108,22 @@ export function RoleBotScope({
     return () => controller.abort();
   }, [call, roleId, revision, attempt]);
 
+  const reloadFailure = (
+    <ReadFailure
+      retryLabel={t('team.workbench.retry')}
+      onRetry={() => {
+        setFailed(false);
+        setAttempt((value) => value + 1);
+      }}
+    >
+      {t('team.workbench.botScope.loadFailed')}
+    </ReadFailure>
+  );
+
   if (view === undefined)
     return (
       <div ref={mount} data-team-bot-scope="">
-        {failed ? (
-          <Note tone="danger">
-            {t('team.workbench.botScope.loadFailed')}
-            <Button size="sm" variant="outline" onClick={() => setAttempt((value) => value + 1)}>
-              {t('team.workbench.retry')}
-            </Button>
-          </Note>
-        ) : (
-          <Note>{t('team.workbench.loading')}</Note>
-        )}
+        {failed ? reloadFailure : <Note>{t('team.workbench.loading')}</Note>}
       </div>
     );
 
@@ -127,7 +132,7 @@ export function RoleBotScope({
   const readOnly = !view.canSetAll && !view.canSetSelected;
   const choose = (kind: ScopeKind): void => {
     setError(undefined);
-    setDraft(kind === current.kind ? current : { kind, slugs: savedDraft(view).slugs });
+    setDraft({ kind, slugs: current.slugs });
   };
   const toggle = (slug: string, on: boolean): void => {
     const slugs = new Set(current.slugs);
@@ -154,11 +159,11 @@ export function RoleBotScope({
       });
       setView(next);
       setDraft(undefined);
-      setStale(false);
+      setStale('none');
       onChanged();
     } catch (failure) {
       if (teamRefusal(failure) === STALE_HOST_ROLE) {
-        setStale(true);
+        setStale('reloading');
         setAttempt((value) => value + 1);
       } else setError(teamErrorText(t, failure));
     } finally {
@@ -249,7 +254,10 @@ export function RoleBotScope({
           })
         )}
       </SettingsSection>
-      {stale ? <Note tone="warning">{t('team.workbench.botScope.stale')}</Note> : null}
+      {failed ? reloadFailure : null}
+      {stale === 'reloaded' ? (
+        <Note tone="warning">{t('team.workbench.botScope.stale')}</Note>
+      ) : null}
       {error === undefined ? null : <Note tone="danger">{error}</Note>}
       {dirty ? (
         <div {...stylex.props(styles.actions)} data-team-bot-scope-actions="">
@@ -258,7 +266,7 @@ export function RoleBotScope({
             disabled={busy}
             onClick={() => {
               setDraft(undefined);
-              setStale(false);
+              setStale('none');
               setError(undefined);
             }}
           >
@@ -266,7 +274,7 @@ export function RoleBotScope({
           </Button>
           <Button
             variant="primary"
-            disabled={busy}
+            disabled={busy || failed || stale === 'reloading'}
             data-team-bot-scope-save=""
             onClick={() => void save()}
           >
