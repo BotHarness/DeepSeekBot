@@ -360,7 +360,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         answer: { answers: [{ id: 'pick', selected: ['Yes'] }] },
       },
       roleCreate: { name: 'Operators', permissions: [] },
-      roleUpdate: { roleId: 'member', expectedRevision: 1 },
+      roleUpdate: { roleId: 'member' },
       roleDelete: { roleId: 'member' },
       memberCreate: { username: 'carol', displayName: 'Carol' },
       memberRolesSet: { humanId: owner.humanId, roleIds: ['member'] },

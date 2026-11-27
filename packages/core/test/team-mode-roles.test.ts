@@ -25,12 +25,6 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     const second = aliceRoles.value.find((r) => r.roleId === role.roleId);
     if (!first || !second) throw new Error('Role missing from a writer snapshot');
     expect(first.revision).toBe(second.revision);
-    await expect(
-      bob.roleUpdate({ roleId: role.roleId, denied: ['channels.create'] }),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'invalid-input' },
-    });
 
     const saved = await bob.roleUpdate({
       roleId: role.roleId,
@@ -52,6 +46,11 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       denied: ['channels.create'],
     });
     expect(saved).toMatchObject({ ok: true, value: { role: { denied: ['channels.create'] } } });
+    await expect(
+      f.invoke('roleUpdate', { roleId: role.roleId, name: 'Renamed' }),
+    ).resolves.toMatchObject({
+      role: { name: 'Renamed', revision: first.revision + 2, denied: ['channels.create'] },
+    });
   });
 
   it('exposes fixed ids, built-ins and a self-only viewer; unions roles and keeps Owner implicit', async () => {
@@ -195,15 +194,9 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     ]);
     f.team.roles.set(owner, f.human.humanId, [role.roleId]);
     const result = await f.invoke('roleCreate', { name: 'Reviewers', permissions: ['audit.view'] });
-    const created = z
-      .object({ role: z.object({ roleId: z.string(), revision: z.number() }) })
-      .parse(result).role;
-    await f.invoke('roleUpdate', {
-      roleId: created.roleId,
-      expectedRevision: created.revision,
-      permissions: ['usage.view'],
-    });
-    await f.invoke('roleDelete', { roleId: created.roleId });
+    const id = z.object({ role: z.object({ roleId: z.string() }) }).parse(result).role.roleId;
+    await f.invoke('roleUpdate', { roleId: id, permissions: ['usage.view'] });
+    await f.invoke('roleDelete', { roleId: id });
     await f.invoke('teamInsecureHttpSet', { allowed: true });
     expect(f.team.mode(f.human).insecureHttpAllowed).toBe(true);
     const group = f.channels.createGroup(owner, { name: 'Publish', members: [] });
@@ -288,11 +281,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
             return f.invoke('roleCreate', { name: 'Default models', permissions: [] });
           case 'update-all':
           case 'update-outside':
-            return f.invoke('roleUpdate', {
-              roleId: limited.roleId,
-              expectedRevision: limited.revision,
-              models,
-            });
+            return f.invoke('roleUpdate', { roleId: limited.roleId, models });
           case 'assign-all':
           case 'assign-outside':
             return f.invoke('memberRolesSet', {
@@ -444,21 +433,12 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
             case 'update-grant':
               return f.invoke('roleUpdate', {
                 roleId: protectedRole.roleId,
-                expectedRevision: protectedRole.revision,
                 permissions: [permission],
               });
             case 'rename-existing':
-              return f.invoke('roleUpdate', {
-                roleId: protectedRole.roleId,
-                expectedRevision: protectedRole.revision,
-                name: 'Changed',
-              });
+              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, name: 'Changed' });
             case 'strip-existing':
-              return f.invoke('roleUpdate', {
-                roleId: protectedRole.roleId,
-                expectedRevision: protectedRole.revision,
-                permissions: [],
-              });
+              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, permissions: [] });
             case 'delete-existing':
               return f.invoke('roleDelete', { roleId: protectedRole.roleId });
             case 'assign':
@@ -518,7 +498,6 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
             case 'update':
               return f.invoke('roleUpdate', {
                 roleId: empty.roleId,
-                expectedRevision: empty.revision,
                 permissions: ['privateContent.view'],
               });
             case 'assign':
@@ -709,7 +688,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     ['permissionCatalog', {}, null],
     ['roles', {}, 'roles.manage'],
     ['roleCreate', { name: 'Not allowed', permissions: [] }, 'roles.manage'],
-    ['roleUpdate', { roleId: 'admin', expectedRevision: 1, permissions: [] }, 'roles.manage'],
+    ['roleUpdate', { roleId: 'admin', permissions: [] }, 'roles.manage'],
     ['roleDelete', { roleId: 'admin' }, 'roles.manage'],
     ['members', {}, 'members.manage'],
     ['memberCreate', { username: 'not-allowed', displayName: 'No' }, 'members.manage'],

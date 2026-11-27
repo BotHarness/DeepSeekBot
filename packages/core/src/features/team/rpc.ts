@@ -190,12 +190,12 @@ export function roleCreate(
 export function roleUpdate(
   methods: TeamBridgeMethods,
   roleId: string,
-  expectedRevision: number,
   name?: string,
   permissions?: string[],
   models?: import('../../team-policy/permissions.js').RoleModels,
   policy?: import('../../team-policy/bot-contract.js').RolePolicy,
   denied?: string[],
+  expectedRevision?: number,
 ) {
   return unwrapAsync(
     methods.roleUpdate({ roleId, expectedRevision, name, permissions, models, policy, denied }),
@@ -506,22 +506,22 @@ export const teamServiceRpc = {
 
   roleUpdate(
     roleId: string,
-    expectedRevision: number,
     name?: string,
     permissions?: string[],
     models?: import('../../team-policy/permissions.js').RoleModels,
     policy?: import('../../team-policy/bot-contract.js').RolePolicy,
     denied?: string[],
+    expectedRevision?: number,
   ) {
     return roleUpdate(
       this.methods,
       roleId,
-      expectedRevision,
       name,
       permissions,
       models,
       policy,
       denied,
+      expectedRevision,
     );
   },
 
