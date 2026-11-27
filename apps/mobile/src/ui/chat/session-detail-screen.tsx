@@ -26,7 +26,7 @@ import { useTimelineIslandFloor } from '../primitives/chat-scroll';
 import { confirmAppDialog } from '../primitives/app-dialog';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
-import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
+import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
 import {
   useInSessionsTab,
   useSessionsStackFit,
@@ -39,10 +39,8 @@ import {
   shownPendingInput,
 } from '../../features/sessions/native-session-input';
 import { canCreateNativeSession } from '../shell/page-create-actions';
-import { SessionDrawerButton } from '../../features/sessions/session-drawer-button';
 import { openNewSession } from '../../features/sessions/session-drawer-navigation';
 import { enterDrawerRoot, openSessionDrawer } from '../../features/sessions/session-drawer-state';
-import { HeaderCircleButton } from './header-chrome';
 import { useSessionNavigationStyle } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
@@ -123,20 +121,30 @@ function SessionHeader({
           headerTitle: () => (
             <ChatHeaderRow
               back={{ label: t.back, testID: 'session-back-button', onPress: back }}
-              {...(drawer ? { leading: <SessionDrawerButton /> } : {})}
-              {...(compose === undefined
-                ? {}
-                : {
-                    extra: (
-                      <HeaderCircleButton
-                        label={t.hostSessions.create}
-                        testID="session-new"
-                        onPress={compose}
-                      >
-                        <PencilIcon color={theme.color.fg} size={theme.type.title.line} />
-                      </HeaderCircleButton>
-                    ),
-                  })}
+              {...(drawer
+                ? {
+                    leading: {
+                      icon: 'menu',
+                      label: t.hostSessions.openDrawer,
+                      testID: 'session-drawer-button',
+                      onPress: openSessionDrawer,
+                    },
+                  }
+                : {})}
+              controls={{
+                kind: 'actions',
+                actions:
+                  compose === undefined
+                    ? []
+                    : [
+                        {
+                          icon: 'edit',
+                          label: t.hostSessions.create,
+                          testID: 'session-new',
+                          onPress: compose,
+                        },
+                      ],
+              }}
               title={
                 <SessionTitleMenu
                   title={title}

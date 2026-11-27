@@ -6,12 +6,12 @@ import { describe, expect, it, vi } from 'vitest';
 await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
-  const { dirname } = await import('node:path');
+  const { dirname, join } = await import('node:path');
   const requireAsset = createRequire(import.meta.url);
   for (const folder of ['header/close.xml', 'row-icons/copy.xml']) {
     const directory = dirname(requireAsset.resolve(`../assets/${folder}`));
     for (const name of readdirSync(directory)) {
-      const path = `${directory}/${name}`;
+      const path = requireAsset.resolve(join(directory, name));
       const asset = new Module(path);
       asset.exports = name;
       requireAsset.cache[path] = asset;
@@ -70,6 +70,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
           'data-max-lines': maxLines,
           'data-font-size': style?.fontSize,
           'data-height': modifiers?.find((modifier) => modifier.name === 'height')?.args[0],
+          'data-size': modifiers?.find((modifier) => modifier.name === 'size')?.args.join('×'),
           'data-test-id': modifiers?.find((modifier) => modifier.name === 'testID')?.args[0],
         },
         children,
@@ -181,6 +182,53 @@ describe('Android Conversation screen top app bar leading action', () => {
 });
 
 describe('Android Session header', () => {
+  it.each([1, 2])('uses the same round action sizes as a Channel at font scale %s', (scale) => {
+    device.fontScale = scale;
+    const channel = document.createElement('div');
+    channel.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        title={TITLE}
+        subtitle="3 members"
+        onBack={() => {}}
+        onProfile={() => {}}
+      />,
+    );
+    const session = document.createElement('div');
+    session.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        variant="session"
+        title={TITLE}
+        leading="drawer"
+        place={{
+          hostIcon: { kind: 'symbol', id: 'laptop' },
+          hostName: 'Studio Mac',
+          folder: 'worktree',
+        }}
+        onBack={() => {}}
+        onCompose={() => {}}
+      />,
+    );
+    const actionSizes = (bar: HTMLElement) =>
+      Array.from(
+        bar.querySelectorAll<HTMLElement>('[data-node="IconButton"]'),
+        (button) => button.dataset.size,
+      );
+    expect(actionSizes(session)).toEqual(actionSizes(channel));
+    expect(actionSizes(session)).toEqual([`${TOUCH}×${TOUCH}`, `${TOUCH}×${TOUCH}`]);
+    expect(session.querySelector('[data-test-id="session-header-place"]')?.textContent).toBe(
+      'worktree',
+    );
+    if (scale === 1) {
+      for (const bar of [channel, session]) {
+        expect(
+          bar
+            .querySelector('[data-test-id="chat-identity"] [data-height]')
+            ?.getAttribute('data-height'),
+        ).toBe(String(TOUCH));
+      }
+    }
+  });
+
   it('opens the Session menu from the name capsule, with the full name on top and no ⋯ button', () => {
     device.fontScale = 1;
     const view = document.createElement('div');

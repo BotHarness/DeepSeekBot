@@ -17,6 +17,7 @@ import {
   chatTimelineListLayout,
 } from './session-detail-fixture';
 
+interfacePreferences.setSystemLocales(['en']);
 afterEach(unmount);
 
 it('continues a native Session in the shared detail without offering Bot management actions', async () => {
@@ -290,6 +291,8 @@ it('renders the Android Session header with Back, title, and options', async () 
   vi.resetModules();
 
   try {
+    const androidPreferences = await import('../src/ui/interface-preferences');
+    androidPreferences.interfacePreferences.setSystemLocales(['en']);
     const { SessionDetailBody: AndroidSessionDetailBody } =
       await import('../src/ui/chat/session-detail-screen');
     const { view } = await open({
