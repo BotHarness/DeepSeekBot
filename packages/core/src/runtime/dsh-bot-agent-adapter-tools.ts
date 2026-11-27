@@ -78,6 +78,7 @@ export function orchestratorTools(
   const featureContext = {
     ...agentFeatureContext(adapter, run, agentCtx),
     engineChannel: () => adapter.engineChannels.get(run.sessionId),
+    speakerPolicyAvailable: run === CATALOG_RUN || Boolean(run.speakerPolicy),
     assignmentTool: {
       currentRun: currentOrchestrator,
       run,
@@ -148,25 +149,7 @@ export function orchestratorTools(
   registerPlacedFeatureTools('workspace-tools');
   registerPlacedFeatureTools('assignment-tools');
   registerPlacedFeatureTools('after-assignment-tools');
-  if (run === CATALOG_RUN || run.speakerPolicy)
-    registerTool(
-      defineTool({
-        name: 'speaker_policy',
-        description:
-          'Read the current Host Human roles and resolved advisory topic policy. Latest revision wins and Deny wins conflicts. Omit humanId for the current speaker. This grants no resource access.',
-        parameters: { humanId: { type: 'string' }, topic: { type: 'string' } },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = adapter.runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator' || !active.run.speakerPolicy)
-            throw new Error('speaker-policy-unavailable');
-          return JSON.stringify(active.run.speakerPolicy(args.humanId, args.topic));
-        },
-      }),
-    );
+  registerPlacedFeatureTools('speaker-policy');
   registerPlacedFeatureTools('bridge');
 
   registerPlacedFeatureTools('before-inbox-tools');

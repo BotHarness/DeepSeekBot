@@ -8,13 +8,14 @@ import type { Context } from '@deepseek-ai/cordis';
 import { RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import type { PrivateInputs } from '../credentials/private-inputs.js';
 import type { BridgeMethods } from './methods.js';
-import { teamServiceRpc } from '../features/team/rpc.js';
 import {
   featureContributions,
   mergeFeatureMethods,
+  type ContributionTable,
   type RegisteredFeatures,
 } from '../feature-contributions.js';
 import { resolveInvocationHuman } from './invocation-human.js';
+import { isAuthenticatedOwner } from './owner-compat.js';
 import type { BridgeLive } from './rpc-types.js';
 export { resolveInvocationHuman } from './invocation-human.js';
 export type { BridgeLive } from './rpc-types.js';
@@ -49,6 +50,10 @@ export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
 
 export class BotharnessBridgeService extends TypertRemoteService {
   private readonly invocationMethods: InvocationBridgeMethods;
+
+  private isAuthenticatedOwner(): boolean {
+    return isAuthenticatedOwner(this.ctx.invocation?.peer, this.ctx.get('connection'));
+  }
 
   private invocationHuman(): HumanContext {
     const human = resolveInvocationHuman(
@@ -91,97 +96,35 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 }
 
-const legacyRpcMethods = {
-  ...teamServiceRpc,
-};
-
-function contributedRpcMethods(features: RegisteredFeatures) {
-  return mergeFeatureMethods(
-    features.flatMap((feature) => ('rpc' in feature ? [feature.rpc] : [])),
-  );
+function contributedRpcMethods(features: RegisteredFeatures): ContributionTable<'rpc'> {
+  return mergeFeatureMethods<object>(
+    features.flatMap((feature) =>
+      'rpc' in feature && feature.rpc !== undefined ? [feature.rpc] : [],
+    ),
+  ) as ContributionTable<'rpc'>;
 }
 
-function contributedRpcStreams(features: RegisteredFeatures) {
-  return mergeFeatureMethods(
-    features.flatMap((feature) => ('streams' in feature ? [feature.streams] : [])),
-  );
+function contributedRpcStreams(features: RegisteredFeatures): ContributionTable<'streams'> {
+  return mergeFeatureMethods<object>(
+    features.flatMap((feature) =>
+      'streams' in feature && feature.streams !== undefined ? [feature.streams] : [],
+    ),
+  ) as ContributionTable<'streams'>;
 }
 
-type PublicRpcMethods = typeof legacyRpcMethods &
-  ReturnType<typeof contributedRpcMethods> &
+type PublicRpcMethods = ReturnType<typeof contributedRpcMethods> &
   ReturnType<typeof contributedRpcStreams>;
 
 export interface BotharnessBridgeService extends PublicRpcMethods {}
 
-const legacyRemoteMethods = [
-  'botVisibility',
-  'botVisibilitySet',
-  'botSwitches',
-  'reachableBots',
-  'botProactiveOptOut',
-  'roleConflicts',
-  'memberPermissions',
-  'speakerPolicy',
-  'privateObjects',
-  'privateContentOpen',
-  'privateContentPage',
-  'auditLog',
-  'auditVerify',
-  'spaces',
-  'spaceAudienceDirectory',
-  'spaceCreate',
-  'spaceUpdate',
-  'spaceDelete',
-  'teamMode',
-  'modelsAllowed',
-  'usageByMember',
-  'teamModeSet',
-  'ownerPasswordSignIn',
-  'ownerPasswordSignInSet',
-  'teamOwnerPasswordSet',
-  'teamInsecureHttpSet',
-  'members',
-  'memberCreate',
-  'permissionCatalog',
-  'roles',
-  'roleCreate',
-  'roleUpdate',
-  'roleDelete',
-  'memberRolesSet',
-  'memberDevices',
-  'memberDeviceRevoke',
-  'ownerTransfer',
-  'memberPasswordChange',
-  'memberPasswordReset',
-  'memberInvitation',
-  'memberPairingOffer',
-  'channelRoleDirectory',
-  'channelBotSettings',
-  'channelVisibilitySet',
-  'channelAdminsSet',
-  'channelPolicySet',
-  'channelHumanAdd',
-  'channelMemberCandidates',
-  'channelDescriptionSet',
-  'teamDirectory',
-  'humanDm',
-  'humanDmByUsername',
-  'memberDeactivate',
-  'memberReactivate',
-  'memberTransferPreview',
-  'memberTransfer',
-  'memberPurgePreview',
-  'memberPurgeConfirm',
-  'channelPublicSet',
-];
 function installRemoteMethods(prototype: object, features: RegisteredFeatures): void {
   const contributions = contributedRpcMethods(features);
   const streams = contributedRpcStreams(features);
-  const methods = mergeFeatureMethods([legacyRpcMethods, contributions, streams]);
+  const methods = mergeFeatureMethods([contributions, streams]);
   for (const [name, method] of Object.entries(methods)) {
     Object.defineProperty(prototype, name, { configurable: true, writable: true, value: method });
   }
-  markRemoteMethods(prototype, legacyRemoteMethods.concat(Object.keys(contributions)));
+  markRemoteMethods(prototype, Object.keys(contributions));
   markRemoteStreams(prototype, Object.keys(streams));
 }
 

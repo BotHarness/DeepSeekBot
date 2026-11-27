@@ -4,6 +4,7 @@ import type { RuntimeHost } from './runtime-host.js';
 export type FeaturePromptSlot =
   | 'inbox-coordination'
   | 'assignment-coordination'
+  | 'speaker-policy'
   | 'reply-contract'
   | 'memory-working-tree'
   | 'memory-branch'
@@ -33,6 +34,7 @@ export type FeatureToolPlacement =
   | 'workspace-tools'
   | 'assignment-tools'
   | 'after-assignment-tools'
+  | 'speaker-policy'
   | 'bridge'
   | 'before-inbox-tools'
   | 'inbox-tools'

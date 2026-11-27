@@ -5,7 +5,6 @@ import * as tobFeature from './features/tob/plugin.js';
 import * as approvalsFeature from './features/approvals/plugin.js';
 import * as memoryFeature from './features/memory/plugin.js';
 import * as workspacesFeature from './features/workspaces/plugin.js';
-import * as teamFeature from './features/team/plugin.js';
 import { currentRoots } from './workspaces/grant-native-tools.js';
 import { createChannelManagement } from './channels/management.js';
 import { join } from 'node:path';
@@ -57,6 +56,7 @@ import {
   contributedRuntimeServices,
   featureContributions as defaultFeatureContributions,
   forEachHostFeature,
+  requireHostFeatureHook,
 } from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
@@ -271,7 +271,10 @@ function initializeCore(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
   );
-  const team = teamFeature.apply({
+  const team = requireHostFeatureHook(
+    defaultFeatureContributions,
+    'teamStartup',
+  )({
     operationalDatabase,
     channels,
     contentPurge,

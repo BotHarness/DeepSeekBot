@@ -38,6 +38,8 @@ Models, PersonaBots and Tob contribute bridge handlers, Runtime services and Hos
 
 Sessions, Activity and Assignments contribute bridge methods and Runtime services. Sessions keeps the routing between native and PersonaBot Sessions inside its bridge adapter. Activity and Assignments supply Inbox tools, coordination prompts and Assignment Agent reporting at their existing positions.
 
+Team contributes its bridge methods, Typert handlers, startup and confinement hooks, and speaker policy guidance and tool. The bridge collects unary RPCs and streams from the descriptor list. Invocation authentication and the Human and Channel guards still run at the bridge boundary. A synthetic descriptor test supplies one list to real bridge, Runtime and Agent assembly and exercises each contributed surface.
+
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
 ## CLI adapters and PersonaBot protection

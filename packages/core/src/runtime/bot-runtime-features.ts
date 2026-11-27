@@ -5,7 +5,6 @@ import { createCausalSending } from '../channels/causal-sending.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import { createOrchestratorCancellation } from './orchestrator-cancellation.js';
 import { createOrchestratorContinuation } from './orchestrator-continuation.js';
-import { createMessagingEvents } from '../features/messaging/events.js';
 import { randomUUID } from 'node:crypto';
 import { createInboxHistoryQuery } from './inbox-history.js';
 import { createInboxTriage } from './inbox-triage.js';
@@ -342,7 +341,7 @@ export function createBotRuntimeFeatures(
     team,
     warn,
   });
-  const messagingEvents = createMessagingEvents({
+  const messagingEvents = services.createMessagingEvents({
     closed,
     externalMessaging,
     database,

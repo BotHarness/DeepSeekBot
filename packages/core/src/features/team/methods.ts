@@ -10,16 +10,23 @@ import { createTeamBridge } from './bridge.js';
 import { type HumanContext } from '../../humans/context.js';
 import { isUsageOverviewPeriod } from '../../usage/overview.js';
 import type { TeamBridgeMethods as ExistingTeamBridgeMethods } from './bridge.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { TeamService } from '../../team/service.js';
+import type { UsageProjection } from '../../usage/usage.js';
 
 export interface TeamBridgeMethods extends ExistingTeamBridgeMethods {
   usageByMember(payload: unknown): BridgeResult<UsageByMemberResult>;
 }
 
+export interface TeamBridgeDeps {
+  team?: TeamService;
+  usage?: UsageProjection;
+}
+
 export function createTeamBridgeMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
-  globalRegistry: BridgeMethodsDeps['registry'],
+  deps: TeamBridgeDeps,
+  globalRegistry: Pick<PersonaBotRegistry, 'listHistorical'>,
 ): Pick<TeamBridgeMethods, 'usageByMember'> {
   return {
     usageByMember(payload) {
