@@ -68,6 +68,7 @@ const styles = stylex.create({
     fontSize: type.captionSize,
     lineHeight: type.captionLine,
   },
+  legacy: { textAlign: 'start', color: ink.secondary },
   legendItem: { display: 'inline-flex', alignItems: 'center', gap: space.x2 },
 });
 
@@ -124,6 +125,7 @@ export function ChannelPermissionTable({
       };
     }),
   ];
+  const legacy = policy.approvalMode !== 'channel';
   const canAdd = !disabled && available.length > 0 && policy.overrides.length < 100;
   const set = (column: Column, key: PolicyKey, value: PolicyValue): void =>
     onChange(
@@ -258,6 +260,20 @@ export function ChannelPermissionTable({
             <tbody>
               {POLICY_KEYS.map((key) => {
                 const action = t(`channelAccess.policy.${key}`);
+                if (legacy && isApprovalKey(key))
+                  return (
+                    <tr key={key} data-permission-action={key} data-state="legacy">
+                      <th scope="row" {...stylex.props(styles.action)}>
+                        {action}
+                      </th>
+                      <td
+                        colSpan={columns.length + (canAdd ? 1 : 0)}
+                        {...stylex.props(styles.cell, styles.legacy)}
+                      >
+                        {t('channelApprovals.legacyCell')}
+                      </td>
+                    </tr>
+                  );
                 return (
                   <tr key={key} data-permission-action={key}>
                     <th scope="row" {...stylex.props(styles.action)}>

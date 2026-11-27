@@ -8,6 +8,7 @@ import type {
   ChannelBotsView,
 } from '@botharness/host-protocol/channel-bots';
 import {
+  enableChannelApprovalRules,
   readChannelApprovalRules,
   setChannelApprovalRule,
   type ChannelApprovalChoice,
@@ -150,12 +151,14 @@ export function useGroupBotSettings(
       setRulesStatus(afterSave ? 'refreshFailed' : 'readFailed');
     }
   };
-  const saveRule = async (key: ChannelApprovalKey, value: ChannelApprovalChoice) => {
+  const writeRules = async (
+    write: (host: NonNullable<typeof client>, current: ChannelApprovalRules) => Promise<void>,
+  ) => {
     if (!client || rules === undefined || rulesBusy) return;
     setRulesBusy(true);
     setRulesStatus(undefined);
     try {
-      await setChannelApprovalRule(client, channelId, rules, key, value);
+      await write(client, rules);
     } catch {
       setRulesStatus('saveFailed');
       await reloadRules(true).catch(() => undefined);
@@ -166,6 +169,10 @@ export function useGroupBotSettings(
     await reloadRules(true);
     setRulesBusy(false);
   };
+  const saveRule = (key: ChannelApprovalKey, value: ChannelApprovalChoice) =>
+    writeRules((host, current) => setChannelApprovalRule(host, channelId, current, key, value));
+  const enableRules = () =>
+    writeRules((host, current) => enableChannelApprovalRules(host, channelId, current));
   if (!bot && (view?.bots.length ?? 0) > 0) {
     heading('bots:heading', t.profileSettingsBot);
     group(
@@ -340,40 +347,63 @@ export function useGroupBotSettings(
       decideApprovals: { allow: a.everyone, deny: a.ownersAndTable },
     } as const;
     heading('approvals:heading', a.title);
-    group(
-      [
-        ['seeApprovals', a.see, rules.see],
-        ['decideApprovals', a.decide, rules.decide],
-      ] as const,
-      ([key]) => `approvals:${key}`,
-      ([key, title, value]) =>
-        rules.manager && rulesBusy ? (
-          <SettingsRow
-            on={ON}
-            title={title}
-            detail={labels[key][value]}
-            control={{ kind: 'busy' }}
-          />
-        ) : rules.manager ? (
-          <PreferenceRow
-            on={ON}
-            title={title}
-            testID={`channel-approvals-${key}`}
-            value={value}
-            options={[
-              { value: 'allow', label: labels[key].allow },
-              { value: 'deny', label: labels[key].deny },
-            ]}
-            onChange={(next) => void saveRule(key, next)}
-          />
-        ) : (
-          <SettingsRow
-            on={ON}
-            title={title}
-            control={{ kind: 'value', text: labels[key][value] }}
-          />
-        ),
-    );
+    const legacy = rules.mode === 'legacy';
+    if (legacy)
+      group(
+        [
+          ['seeApprovals', a.see, a.legacySee],
+          ['decideApprovals', a.decide, a.legacyDecide],
+          ...(rules.manager ? ([['enable', a.enable, '']] as const) : []),
+        ] as const,
+        ([key]) => `approvals:${key}`,
+        ([key, title, value]) =>
+          key === 'enable' ? (
+            <SettingsRow
+              on={ON}
+              title={title}
+              testID="channel-approvals-enable"
+              control={rulesBusy ? { kind: 'busy' } : { kind: 'chevron' }}
+              {...(rulesBusy ? {} : { onPress: () => void enableRules() })}
+            />
+          ) : (
+            <SettingsRow on={ON} title={title} detail={value} />
+          ),
+      );
+    else
+      group(
+        [
+          ['seeApprovals', a.see, rules.see],
+          ['decideApprovals', a.decide, rules.decide],
+        ] as const,
+        ([key]) => `approvals:${key}`,
+        ([key, title, value]) =>
+          rules.manager && rulesBusy ? (
+            <SettingsRow
+              on={ON}
+              title={title}
+              detail={labels[key][value]}
+              control={{ kind: 'busy' }}
+            />
+          ) : rules.manager ? (
+            <PreferenceRow
+              on={ON}
+              title={title}
+              testID={`channel-approvals-${key}`}
+              value={value}
+              options={[
+                { value: 'allow', label: labels[key].allow },
+                { value: 'deny', label: labels[key].deny },
+              ]}
+              onChange={(next) => void saveRule(key, next)}
+            />
+          ) : (
+            <SettingsRow
+              on={ON}
+              title={title}
+              control={{ kind: 'value', text: labels[key][value] }}
+            />
+          ),
+      );
     group(
       ['unhandled'],
       () => 'approvals:unhandled',
@@ -397,7 +427,16 @@ export function useGroupBotSettings(
       ));
     footer(
       'approvals:footer',
-      !rules.manager ? a.managersOnly : rules.mode === 'legacy' ? a.legacy : a.byRole,
+      legacy
+        ? rules.manager
+          ? a.legacy(
+              rules.see === 'allow' ? labels.seeApprovals.allow : labels.seeApprovals.deny,
+              rules.decide === 'allow' ? labels.decideApprovals.allow : labels.decideApprovals.deny,
+            )
+          : `${a.legacyState} ${a.managersOnly}`
+        : !rules.manager
+          ? a.managersOnly
+          : a.byRole,
     );
   }
   return { mount, body: { rows } };

@@ -33,6 +33,7 @@ const roles = [
 
 const policy: ChannelPolicy = {
   ...DEFAULT_POLICY,
+  approvalMode: 'channel',
   overrides: [{ roleId: 'support', actions: { addBots: 'allow' } }],
 };
 
@@ -172,4 +173,23 @@ it('keeps a role with approval rules from being removed by someone who cannot ch
   );
   expect(host.querySelector('[data-permission-column="support"] button')).toBeNull();
   expect(host.querySelector('[data-permission-column="support"]')?.textContent).toBe('Support');
+});
+
+it('shows a legacy channel approval rows as the original behavior instead of table cells', async () => {
+  await act(async () =>
+    root.render(
+      <ChannelPermissionTable
+        t={zhTranslate}
+        policy={{ ...policy, approvalMode: 'legacy' }}
+        roles={roles}
+        disabled={false}
+        onChange={() => undefined}
+      />,
+    ),
+  );
+  const row = host.querySelector<HTMLElement>('[data-permission-action="seeApprovals"]');
+  expect(row?.dataset['state']).toBe('legacy');
+  expect(row?.textContent).toContain('沿用原来的审批方式');
+  expect(host.querySelector('[data-permission-cell^="decideApprovals:"]')).toBeNull();
+  expect(cell('post', 'everyone').disabled).toBe(false);
 });

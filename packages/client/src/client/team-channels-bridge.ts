@@ -73,7 +73,7 @@ export function parsePolicy(value: unknown): ChannelPolicy {
   const mode = row.approvalMode;
   return {
     version: 1,
-    ...(mode === 'legacy' || mode === 'channel' ? { approvalMode: mode } : {}),
+    approvalMode: mode === 'channel' ? 'channel' : 'legacy',
     everyone: {
       addMembers: effect(everyone?.addMembers),
       post: effect(everyone?.post),

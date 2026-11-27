@@ -221,8 +221,12 @@ export const en = {
     unhandledValue: 'Bot owner’s Activity',
     byRole:
       'Everyone else only sees “A Bot is waiting for approval”. Set roles separately in Team on the computer.',
-    legacy:
-      'This channel still uses the earlier approval behavior; the first rule you change here takes over.',
+    legacy: (see: string, decide: string): string =>
+      `Once enabled, channel rules apply: ${see} can see the content and ${decide} can decide; you can adjust them later.`,
+    legacyState: 'This channel follows the original approval behavior.',
+    legacySee: 'Only people who can decide',
+    legacyDecide: 'The Bot owner and people who can approve Shell and similar tools',
+    enable: 'Use channel approval rules',
     managersOnly: 'Only channel admins can change approval rules.',
     saveFailed: 'The approval rule was not saved.',
     refreshFailed: 'Saved, but the current rules could not be reloaded.',
@@ -484,7 +488,12 @@ export const zh: typeof en = {
     unhandled: '没人处理时',
     unhandledValue: '发到 Bot 负责人的动态',
     byRole: '其他人只看到「有 Bot 在等待审批」。要按角色设置，到电脑上的 Team 里改。',
-    legacy: '这个频道还在用旧的审批方式；在这里改第一条规则后，改为按这些规则生效。',
+    legacy: (see: string, decide: string): string =>
+      `启用后改按频道规则：${see}能看到内容，${decide}能做决定，之后可以再调整。`,
+    legacyState: '这个频道沿用原来的审批方式。',
+    legacySee: '只有能做决定的人',
+    legacyDecide: 'Bot 负责人和有「审批 Shell 等工具」权限的人',
+    enable: '使用频道审批规则',
     managersOnly: '只有频道管理员能修改审批规则。',
     saveFailed: '审批规则没有保存。',
     refreshFailed: '已保存，但没能重新载入最新规则。',

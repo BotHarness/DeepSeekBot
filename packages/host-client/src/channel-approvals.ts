@@ -83,3 +83,16 @@ export async function setChannelApprovalRule(
     rules.revision,
   );
 }
+
+export async function enableChannelApprovalRules(
+  host: HostCall,
+  channelId: string,
+  rules: ChannelApprovalRules,
+): Promise<void> {
+  await writeChannelPolicy(
+    host,
+    channelId,
+    { ...rules.policy, approvalMode: 'channel' },
+    rules.revision,
+  );
+}

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readChannelApprovalRules, setChannelApprovalRule } from '../src/channel-approvals';
+import {
+  enableChannelApprovalRules,
+  readChannelApprovalRules,
+  setChannelApprovalRule,
+} from '../src/channel-approvals';
 
 const channel = { id: 'g1', type: 'group', name: 'Ops', members: [] };
 
@@ -91,5 +95,29 @@ describe('channel approval rules', () => {
 
   it('returns nothing when the channel answer has no role or policy', async () => {
     await expect(readChannelApprovalRules(host({ channel }), 'g1')).resolves.toBeUndefined();
+  });
+});
+
+describe('explicit switch to channel approval rules', () => {
+  it('writes the stored policy with channel mode and the revision', async () => {
+    const client = host({
+      channel,
+      role: 'owner',
+      policyRevision: 'r1',
+      policy: { version: 1, everyone: { seeApprovals: 'allow' }, overrides: [] },
+    });
+    const rules = await readChannelApprovalRules(client, 'g1');
+    expect(rules?.mode).toBe('legacy');
+    await enableChannelApprovalRules(client, 'g1', rules!);
+    expect(client.call).toHaveBeenLastCalledWith('channelPolicySet', {
+      channelId: 'g1',
+      expectedRevision: 'r1',
+      policy: {
+        version: 1,
+        approvalMode: 'channel',
+        everyone: { seeApprovals: 'allow' },
+        overrides: [],
+      },
+    });
   });
 });

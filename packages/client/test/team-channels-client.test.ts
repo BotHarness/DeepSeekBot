@@ -24,13 +24,21 @@ describe('Team Channel access client', () => {
       parseChannelAccess({
         role: 'admin',
         visibility: { kind: 'roles', roleIds: ['r1', 2] },
-        policy: { ...DEFAULT_POLICY, everyone: { ...DEFAULT_POLICY.everyone, post: 'deny' } },
+        policy: {
+          ...DEFAULT_POLICY,
+          approvalMode: 'legacy',
+          everyone: { ...DEFAULT_POLICY.everyone, post: 'deny' },
+        },
         admins: [{ humanId: 'h1', displayName: 'Bob' }, { displayName: 'x' }],
       }),
     ).toEqual({
       role: 'admin',
       visibility: { kind: 'roles', roleIds: ['r1'] },
-      policy: { ...DEFAULT_POLICY, everyone: { ...DEFAULT_POLICY.everyone, post: 'deny' } },
+      policy: {
+        ...DEFAULT_POLICY,
+        approvalMode: 'legacy',
+        everyone: { ...DEFAULT_POLICY.everyone, post: 'deny' },
+      },
       admins: [{ humanId: 'h1', displayName: 'Bob' }],
     });
     expect(parseChannelAccess({ role: 'member' })?.visibility).toEqual({ kind: 'private' });

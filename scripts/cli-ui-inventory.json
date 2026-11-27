@@ -1331,6 +1331,7 @@
         "setting:packages/client/src/client/channel-bot-settings.tsx:{nameOf(humanId)}",
         "setting:packages/client/src/client/channel-approval-settings.tsx:{t('channelApprovals.unhandled')}",
         "setting:packages/client/src/client/channel-approval-settings.tsx:{title}",
+        "setting:packages/client/src/client/channel-approval-settings.tsx:{t('channelApprovals.enable')}",
         "setting:packages/client/src/client/team-workbench/channel-members-tab.tsx:{botName(slug)}",
         "setting:packages/client/src/client/team-workbench/channel-members-tab.tsx:{human.displayName}",
         "setting:packages/client/src/client/team-workbench/effective-permissions.tsx:{permissionLabel(t, id)}",

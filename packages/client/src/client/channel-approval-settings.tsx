@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { MaskedApprovalCard } from './approval-mask.js';
+import { Button } from './ds/button.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import {
@@ -40,11 +41,26 @@ export function ChannelApprovalSettings({
       approvalMode: 'channel',
       everyone: { ...policy.everyone, [key]: value },
     });
+  const legacy = policy.approvalMode !== 'channel';
+  const labels: Record<ApprovalKey, Record<Choice, string>> = {
+    seeApprovals: { allow: t('channelApprovals.everyone'), deny: t('channelApprovals.tableOnly') },
+    decideApprovals: {
+      allow: t('channelApprovals.everyone'),
+      deny: t('channelApprovals.ownersAndTable'),
+    },
+  };
+  const legacyRow = (key: ApprovalKey, title: string, value: string) => (
+    <SettingsRow
+      title={title}
+      data={{ 'data-channel-approval-row': key }}
+      control={<SettingsValue>{value}</SettingsValue>}
+    />
+  );
   const row = (
     key: ApprovalKey,
     title: string,
     description: string,
-    labels: Record<Choice, string>,
+    options: Record<Choice, string>,
   ) => (
     <SettingsRow
       title={title}
@@ -56,37 +72,64 @@ export function ChannelApprovalSettings({
             label={title}
             value={choiceOf(policy, key)}
             disabled={disabled}
-            reselect={policy.approvalMode === 'legacy'}
             options={[
-              { value: 'allow', label: labels.allow },
-              { value: 'deny', label: labels.deny },
+              { value: 'allow', label: options.allow },
+              { value: 'deny', label: options.deny },
             ]}
             onChange={(value) => set(key, value)}
           />
         ) : (
-          <SettingsValue>{labels[choiceOf(policy, key)]}</SettingsValue>
+          <SettingsValue>{options[choiceOf(policy, key)]}</SettingsValue>
         )
       }
     />
   );
   return (
-    <div data-channel-approvals={policy.approvalMode ?? 'channel'}>
-      {policy.approvalMode === 'legacy' && manager ? (
-        <Note>{t('channelApprovals.legacy')}</Note>
-      ) : null}
+    <div data-channel-approvals={legacy ? 'legacy' : 'channel'}>
       {manager ? null : <Note>{t('channelApprovals.managersOnly')}</Note>}
       <SettingsSection
         title={t('channelApprovals.title')}
-        description={t('channelApprovals.byRole')}
+        description={t(legacy ? 'channelApprovals.legacyState' : 'channelApprovals.byRole')}
       >
-        {row('seeApprovals', t('channelApprovals.see'), t('channelApprovals.seeHint'), {
-          allow: t('channelApprovals.everyone'),
-          deny: t('channelApprovals.tableOnly'),
-        })}
-        {row('decideApprovals', t('channelApprovals.decide'), t('channelApprovals.decideHint'), {
-          allow: t('channelApprovals.everyone'),
-          deny: t('channelApprovals.ownersAndTable'),
-        })}
+        {legacy
+          ? legacyRow('seeApprovals', t('channelApprovals.see'), t('channelApprovals.legacySee'))
+          : row(
+              'seeApprovals',
+              t('channelApprovals.see'),
+              t('channelApprovals.seeHint'),
+              labels.seeApprovals,
+            )}
+        {legacy
+          ? legacyRow(
+              'decideApprovals',
+              t('channelApprovals.decide'),
+              t('channelApprovals.legacyDecide'),
+            )
+          : row(
+              'decideApprovals',
+              t('channelApprovals.decide'),
+              t('channelApprovals.decideHint'),
+              labels.decideApprovals,
+            )}
+        {legacy && manager ? (
+          <SettingsRow
+            title={t('channelApprovals.enable')}
+            description={t('channelApprovals.legacy', {
+              see: labels.seeApprovals[choiceOf(policy, 'seeApprovals')],
+              decide: labels.decideApprovals[choiceOf(policy, 'decideApprovals')],
+            })}
+            data={{ 'data-channel-approval-enable': '' }}
+            control={
+              <Button
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onChange({ ...policy, approvalMode: 'channel' })}
+              >
+                {t('channelApprovals.enable')}
+              </Button>
+            }
+          />
+        ) : null}
         <SettingsRow
           title={t('channelApprovals.unhandled')}
           control={<SettingsValue>{t('channelApprovals.unhandledValue')}</SettingsValue>}

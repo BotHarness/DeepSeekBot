@@ -385,7 +385,12 @@ export const zh = {
   'channelApprovals.unhandledValue': '发到 Bot 负责人的动态',
   'channelApprovals.preview': '没有权限的成员看到的样子',
   'channelApprovals.legacy':
-    '这个频道还在用旧的审批方式；第一次保存这里或权限表里的审批规则后，改为按这些规则生效。',
+    '启用后改按频道规则：{see}能看到内容，{decide}能做决定，之后可以再调整。',
+  'channelApprovals.legacyState': '这个频道沿用原来的审批方式。',
+  'channelApprovals.legacySee': '只有能做决定的人',
+  'channelApprovals.legacyDecide': 'Bot 负责人和有「审批 Shell 等工具」权限的人',
+  'channelApprovals.legacyCell': '沿用原来的审批方式，到「审批」里启用频道规则',
+  'channelApprovals.enable': '使用频道审批规则',
   'channelApprovals.managersOnly': '只有频道管理员能修改审批规则。',
   'approval.viewOnly': '你可以查看，但不能在这里审批。',
   'channelBots.audience': '谁能 @ 它',
@@ -816,7 +821,13 @@ export const en = {
   'channelApprovals.unhandledValue': 'Goes to the Bot owner’s Activity',
   'channelApprovals.preview': 'What members without access see',
   'channelApprovals.legacy':
-    'This channel still uses the earlier approval behavior; the first time you save an approval rule here or in the Permissions table, these rules take over.',
+    'Once enabled, channel rules apply: {see} can see the content and {decide} can decide; you can adjust them later.',
+  'channelApprovals.legacyState': 'This channel follows the original approval behavior.',
+  'channelApprovals.legacySee': 'Only people who can decide',
+  'channelApprovals.legacyDecide':
+    'The Bot owner and people who can approve Shell and similar tools',
+  'channelApprovals.legacyCell': 'Original approval behavior; enable channel rules under Approvals',
+  'channelApprovals.enable': 'Use channel approval rules',
   'channelApprovals.managersOnly': 'Only channel admins can change approval rules.',
   'approval.viewOnly': 'You can view this, but you can’t decide it here.',
   'channelBots.audience': 'Who can @mention this Bot',

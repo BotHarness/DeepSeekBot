@@ -51,43 +51,53 @@ function menuItem(label: string): HTMLElement {
   return item;
 }
 
-it('explains the legacy switch to a manager and saves a rule in channel mode', async () => {
+it('shows the original behavior on a legacy channel and switches only through the explicit action', async () => {
   const onChange = await render(legacy, true);
-  expect(host.textContent).toContain('这个频道还在用旧的审批方式');
-  expect(host.textContent).toContain('发到 Bot 负责人的动态');
   expect(
-    host.querySelector('[data-channel-approval-preview] [data-approval-masked]'),
-  ).not.toBeNull();
+    host.querySelector('[data-channel-approvals]')?.getAttribute('data-channel-approvals'),
+  ).toBe('legacy');
+  expect(host.textContent).toContain('这个频道沿用原来的审批方式');
+  expect(host.querySelector('[data-channel-approval-row="seeApprovals"]')?.textContent).toContain(
+    '只有能做决定的人',
+  );
+  expect(host.querySelector('[data-channel-approval-row] button')).toBeNull();
+  const enable = host.querySelector<HTMLElement>('[data-channel-approval-enable]')!;
+  expect(enable.textContent).toContain('启用后改按频道规则：频道所有成员能看到内容');
+  await act(async () => enable.querySelector<HTMLButtonElement>('button')!.click());
+  expect(onChange).toHaveBeenCalledWith({ ...legacy, approvalMode: 'channel' });
+});
+
+it('treats a policy without an approval mode as legacy', async () => {
+  await render(DEFAULT_POLICY, true);
+  expect(host.querySelector('[data-channel-approval-enable]')).not.toBeNull();
+});
+
+it('edits rules once a channel uses channel rules', async () => {
+  const channel: ChannelPolicy = { ...DEFAULT_POLICY, approvalMode: 'channel' };
+  const onChange = await render(channel, true);
+  expect(host.querySelector('[data-channel-approval-enable]')).toBeNull();
   const decide = host.querySelector<HTMLButtonElement>(
     '[data-channel-approval-row="decideApprovals"] button',
   )!;
-  expect(decide.textContent).toContain('只有 Bot 负责人和权限表里允许的角色');
   await act(async () => decide.click());
   await act(async () => menuItem('频道所有成员').click());
   expect(onChange).toHaveBeenCalledWith({
-    ...legacy,
-    approvalMode: 'channel',
-    everyone: { ...legacy.everyone, decideApprovals: 'allow' },
+    ...channel,
+    everyone: { ...channel.everyone, decideApprovals: 'allow' },
   });
+});
+
+it('shows a member the legacy behavior read-only without the switch', async () => {
+  await render(legacy, false);
+  expect(host.textContent).toContain('只有频道管理员能修改审批规则');
+  expect(host.querySelector('[data-channel-approval-enable]')).toBeNull();
 });
 
 it('shows the current rules read-only to a member who cannot manage them', async () => {
   await render({ ...DEFAULT_POLICY, approvalMode: 'channel' }, false);
   expect(host.textContent).toContain('只有频道管理员能修改审批规则');
-  expect(host.textContent).not.toContain('旧的审批方式');
   expect(host.querySelector('[data-channel-approval-row] button')).toBeNull();
   expect(host.querySelector('[data-channel-approval-row="seeApprovals"]')?.textContent).toContain(
     '频道所有成员',
   );
-});
-
-it('lets a manager adopt the shown default on a legacy channel', async () => {
-  const onChange = await render(legacy, true);
-  await act(async () =>
-    host
-      .querySelector<HTMLButtonElement>('[data-channel-approval-row="seeApprovals"] button')!
-      .click(),
-  );
-  await act(async () => menuItem('频道所有成员').click());
-  expect(onChange).toHaveBeenCalledWith({ ...legacy, approvalMode: 'channel' });
 });
