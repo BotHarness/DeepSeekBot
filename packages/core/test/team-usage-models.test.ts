@@ -469,7 +469,11 @@ describe('M10 member usage and role models', () => {
     expect(f.team.roles.modelsAllowed(owner)).toEqual({ all: true });
     expect(() => f.team.roles.requireModel(owner, denied)).not.toThrow();
     expect(
-      await f.methods.roleUpdate({ roleId: role.roleId, models: { kind: 'all' } }),
+      await f.methods.roleUpdate({
+        roleId: role.roleId,
+        expectedRevision: role.revision,
+        models: { kind: 'all' },
+      }),
     ).toMatchObject({
       ok: false,
       error: { code: 'permission-required', details: { permission: 'roles.manage' } },
@@ -477,6 +481,7 @@ describe('M10 member usage and role models', () => {
     expect(
       await f.ownerMethods.roleUpdate({
         roleId: role.roleId,
+        expectedRevision: role.revision,
         models: { kind: 'only', routes: ['invalid'] },
       }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });

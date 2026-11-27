@@ -5,11 +5,55 @@ import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { createTeamBridge } from '../src/features/team/bridge.js';
 import { enabledFixture, actors, cleanup } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
 
 describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
+  it('refuses a second writer using the same role revision without losing the first denial', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    f.team.roles.set(owner, f.alice.member.humanId, ['admin']);
+    const { role } = f.team.roles.create(owner, 'Reviewers', []);
+    const bob = createTeamBridge(f.human, f.team);
+    const alice = createTeamBridge(humanContext(f.alice.member.humanId), f.team);
+    const bobRoles = await bob.roles({});
+    const aliceRoles = await alice.roles({});
+    if (!bobRoles.ok || !aliceRoles.ok) throw new Error('Role listing failed');
+    const first = bobRoles.value.find((r) => r.roleId === role.roleId);
+    const second = aliceRoles.value.find((r) => r.roleId === role.roleId);
+    if (!first || !second) throw new Error('Role missing from a writer snapshot');
+    expect(first.revision).toBe(second.revision);
+    await expect(
+      bob.roleUpdate({ roleId: role.roleId, denied: ['channels.create'] }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+
+    const saved = await bob.roleUpdate({
+      roleId: role.roleId,
+      expectedRevision: first.revision,
+      permissions: [],
+      denied: ['channels.create'],
+    });
+    await expect(
+      alice.roleUpdate({
+        roleId: role.roleId,
+        expectedRevision: second.revision,
+        permissions: ['usage.view'],
+        denied: [],
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'stale-role' } });
+    expect(f.team.roles.list(owner).find((r) => r.roleId === role.roleId)).toMatchObject({
+      revision: first.revision + 1,
+      permissions: [],
+      denied: ['channels.create'],
+    });
+    expect(saved).toMatchObject({ ok: true, value: { role: { denied: ['channels.create'] } } });
+  });
+
   it('exposes fixed ids, built-ins and a self-only viewer; unions roles and keeps Owner implicit', async () => {
     const f = await actors();
     const catalog = z
@@ -151,9 +195,15 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     ]);
     f.team.roles.set(owner, f.human.humanId, [role.roleId]);
     const result = await f.invoke('roleCreate', { name: 'Reviewers', permissions: ['audit.view'] });
-    const id = z.object({ role: z.object({ roleId: z.string() }) }).parse(result).role.roleId;
-    await f.invoke('roleUpdate', { roleId: id, permissions: ['usage.view'] });
-    await f.invoke('roleDelete', { roleId: id });
+    const created = z
+      .object({ role: z.object({ roleId: z.string(), revision: z.number() }) })
+      .parse(result).role;
+    await f.invoke('roleUpdate', {
+      roleId: created.roleId,
+      expectedRevision: created.revision,
+      permissions: ['usage.view'],
+    });
+    await f.invoke('roleDelete', { roleId: created.roleId });
     await f.invoke('teamInsecureHttpSet', { allowed: true });
     expect(f.team.mode(f.human).insecureHttpAllowed).toBe(true);
     const group = f.channels.createGroup(owner, { name: 'Publish', members: [] });
@@ -238,7 +288,11 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
             return f.invoke('roleCreate', { name: 'Default models', permissions: [] });
           case 'update-all':
           case 'update-outside':
-            return f.invoke('roleUpdate', { roleId: limited.roleId, models });
+            return f.invoke('roleUpdate', {
+              roleId: limited.roleId,
+              expectedRevision: limited.revision,
+              models,
+            });
           case 'assign-all':
           case 'assign-outside':
             return f.invoke('memberRolesSet', {
@@ -390,12 +444,21 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
             case 'update-grant':
               return f.invoke('roleUpdate', {
                 roleId: protectedRole.roleId,
+                expectedRevision: protectedRole.revision,
                 permissions: [permission],
               });
             case 'rename-existing':
-              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, name: 'Changed' });
+              return f.invoke('roleUpdate', {
+                roleId: protectedRole.roleId,
+                expectedRevision: protectedRole.revision,
+                name: 'Changed',
+              });
             case 'strip-existing':
-              return f.invoke('roleUpdate', { roleId: protectedRole.roleId, permissions: [] });
+              return f.invoke('roleUpdate', {
+                roleId: protectedRole.roleId,
+                expectedRevision: protectedRole.revision,
+                permissions: [],
+              });
             case 'delete-existing':
               return f.invoke('roleDelete', { roleId: protectedRole.roleId });
             case 'assign':
@@ -455,6 +518,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
             case 'update':
               return f.invoke('roleUpdate', {
                 roleId: empty.roleId,
+                expectedRevision: empty.revision,
                 permissions: ['privateContent.view'],
               });
             case 'assign':
@@ -645,7 +709,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     ['permissionCatalog', {}, null],
     ['roles', {}, 'roles.manage'],
     ['roleCreate', { name: 'Not allowed', permissions: [] }, 'roles.manage'],
-    ['roleUpdate', { roleId: 'admin', permissions: [] }, 'roles.manage'],
+    ['roleUpdate', { roleId: 'admin', expectedRevision: 1, permissions: [] }, 'roles.manage'],
     ['roleDelete', { roleId: 'admin' }, 'roles.manage'],
     ['members', {}, 'members.manage'],
     ['memberCreate', { username: 'not-allowed', displayName: 'No' }, 'members.manage'],
