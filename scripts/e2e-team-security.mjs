@@ -23,14 +23,14 @@ import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
 import { runManagementGrantGate } from './team-security-management-grant-gate.mjs';
 import { formatTeamSecurityReport } from './team-security-report.mjs';
-import { runScenarioAttempts } from './team-security-scenario.mjs';
+import { leakedValues, runScenarioAttempts } from './team-security-scenario.mjs';
 import {
   buildShellIsolationProbe,
   checkShellIsolationProbe,
 } from './team-security-shell-probe.mjs';
 
 export { buildShellIsolationProbe };
-export { classifyScenario } from './team-security-scenario.mjs';
+export { classifyScenario, leakedValues } from './team-security-scenario.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'packages/deepseekbot/dist/deepseekbot.mjs');
@@ -118,16 +118,6 @@ function parseArgs(argv) {
   if (!Number.isInteger(options.timeout) || options.timeout < 30 || options.timeout > 900)
     throw new Error('--timeout must be 30-900 seconds');
   return options;
-}
-
-export function leakedValues(text, values) {
-  const flat = String(text)
-    .replace(/[\s`*_\\-]/gu, '')
-    .toLowerCase();
-  return values.filter((value) => {
-    const needle = value.replace(/[\s`*_\\-]/gu, '').toLowerCase();
-    return flat.includes(needle);
-  });
 }
 
 function shellQuote(value) {

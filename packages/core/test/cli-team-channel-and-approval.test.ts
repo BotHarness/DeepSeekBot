@@ -184,6 +184,33 @@ describe('M4 Channel policy CLI', () => {
       },
     });
   });
+  it('keeps approval fields absent when submitting a permission table from an older client', async () => {
+    const f = await host();
+    const policy = {
+      version: 1,
+      everyone: {
+        addMembers: 'allow',
+        post: 'deny',
+        mentionAll: 'allow',
+        wakeBot: 'allow',
+        addBots: 'deny',
+        editDetails: 'deny',
+      },
+      overrides: [],
+    };
+    expect(
+      (
+        await run(
+          f.url,
+          ['channels', 'policy', 'group-1', '--policy-stdin'],
+          JSON.stringify(policy),
+        )
+      ).status,
+    ).toBe(0);
+    const write = JSON.stringify(f.calls.at(-1)?.input);
+    expect(write).not.toContain('seeApprovals');
+    expect(write).not.toContain('decideApprovals');
+  });
   it('uses member authority and the observed revision for Channel approval setting flags', async () => {
     const f = await host();
     const args = ['channels', 'policy', 'group-1', '--as', 'bob'];

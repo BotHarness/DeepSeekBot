@@ -69,7 +69,10 @@ it('keeps a migrated Channel’s approval behavior and its existing role rules',
 it('shares approval visibility across card, search, Activity and push without granting decisions', async () => {
   const f = fixture();
   await f.roster.attach(createFakeRosterDomain().facility);
-  const group = f.channels.createGroup(owner, { name: 'Approvals', members: ['alice-bot'] });
+  const group = f.channels.createGroup(owner, {
+    name: 'Approvals',
+    members: ['alice-bot', 'owner-bot'],
+  });
   for (const human of [alice, bob]) f.team.channelAccess.addMember(owner, group.id, human.humanId);
   const request = await seed(f, 'tool', 'alice-bot', group.id, 'bot_send_message');
   const policy = (seeApprovals: 'allow' | 'deny', decideApprovals: 'allow' | 'deny') =>
@@ -160,11 +163,19 @@ it('shares approval visibility across card, search, Activity and push without gr
 
 it('shows an unattended tool request in the Bot owner’s Activity with masked details', async () => {
   const f = fixture();
+  f.team.bots.setVisibility(owner, 'alice-bot', {
+    kind: 'public',
+    audience: { kind: 'everyone' },
+  });
+  const { role } = f.team.roles.create(owner, 'Request audience', []);
+  f.team.roles.set(owner, alice.humanId, ['member', role.roleId]);
   const group = f.channels.createGroup(bob, {
     name: 'Unattended requests',
     members: ['alice-bot'],
   });
+  f.team.channelAccess.visibilitySet(bob, group.id, { kind: 'roles', roleIds: [role.roleId] });
   const request = await seed(f, 'tool', 'alice-bot', group.id);
+  f.team.roles.set(owner, alice.humanId, ['member']);
   const attention = () => f.attention.list(alice, { category: 'action' }).items;
   masked(attention(), request.id);
   expect(() => f.team.approvals.requireRequest(alice, group.id, request.id)).toThrow(

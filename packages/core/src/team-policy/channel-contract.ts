@@ -47,25 +47,22 @@ export const channelPolicySchema = z.strictObject({
     .refine((rows) => new Set(rows.map((row) => row.roleId)).size === rows.length),
 });
 export const channelPolicyRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-export const channelPolicyWriteSchema = z.unknown().transform((value, context) => {
-  const parsed = channelPolicySchema.safeParse(value);
-  if (!parsed.success) {
-    for (const issue of parsed.error.issues) context.addIssue(issue);
-    return z.NEVER;
-  }
-  const hasApprovalRules =
-    parsed.data.approvalMode !== undefined ||
-    parsed.data.overrides.some(
-      ({ actions }) => 'seeApprovals' in actions || 'decideApprovals' in actions,
-    ) ||
-    (typeof value === 'object' &&
-      value !== null &&
-      'everyone' in value &&
-      typeof value.everyone === 'object' &&
-      value.everyone !== null &&
-      ('seeApprovals' in value.everyone || 'decideApprovals' in value.everyone));
-  return { policy: parsed.data, hasApprovalRules };
+export const channelPolicyInputSchema = channelPolicySchema.extend({
+  everyone: channelPolicySchema.shape.everyone.extend({
+    seeApprovals: effect.optional(),
+    decideApprovals: effect.optional(),
+  }),
 });
+export const channelPolicyWriteSchema = channelPolicyInputSchema.transform((value) => ({
+  policy: channelPolicySchema.parse(value),
+  hasApprovalRules:
+    value.approvalMode !== undefined ||
+    value.everyone.seeApprovals !== undefined ||
+    value.everyone.decideApprovals !== undefined ||
+    value.overrides.some(
+      ({ actions }) => actions.seeApprovals !== undefined || actions.decideApprovals !== undefined,
+    ),
+}));
 
 export function channelRoleEligibleSql(channel: string, humanId: string): string {
   return `(json_extract(${channel}.visibility_json, '$.kind') <> 'roles'

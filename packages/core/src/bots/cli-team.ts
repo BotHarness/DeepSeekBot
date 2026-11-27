@@ -8,6 +8,7 @@ import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import {
   channelBotAudienceSchema,
   channelPolicySchema,
+  channelPolicyInputSchema,
   channelVisibilitySchema,
   channelPolicyRevisionSchema,
 } from '../team-policy/channel-contract.js';
@@ -619,7 +620,7 @@ export async function runTeamCommand(
       if (!values['policy-stdin'] && !change) return snapshot;
       if (values['policy-stdin'] && change) return usage();
       const policy = values['policy-stdin']
-        ? { success: true as const, data: secretJson(channelPolicySchema, await secret(io)) }
+        ? { success: true as const, data: secretJson(channelPolicyInputSchema, await secret(io)) }
         : channelPolicySchema.safeParse({
             ...snapshot.policy,
             ...(values['use-channel-approvals'] ? { approvalMode: 'channel' } : {}),
