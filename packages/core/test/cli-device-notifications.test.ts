@@ -2,8 +2,8 @@ import { createServer } from 'node:http';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { runDeviceNotifications } from '../src/bots/cli-device-notifications.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { runDeviceNotifications } from '../src/cli/cli-device-notifications.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';
 

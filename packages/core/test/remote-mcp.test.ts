@@ -1,7 +1,7 @@
 import { OAuthError } from '@modelcontextprotocol/client';
 import { describe, expect, it } from 'vitest';
 
-import { runConnectorCommand } from '../src/bots/cli-connectors.js';
+import { runConnectorCommand } from '../src/cli/cli-connectors.js';
 import { createConnectorsBridgeMethods } from '../src/features/connectors/methods.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';

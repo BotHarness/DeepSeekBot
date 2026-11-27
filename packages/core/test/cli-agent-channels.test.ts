@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseAgentManagement, TOB_AGENT_COMMAND_USAGE } from '../src/bots/cli-agent-management.js';
+import { parseAgentManagement } from '../src/cli/cli-agent-management.js';
 
 const fingerprint = 'a'.repeat(64);
 function parser() {
@@ -195,3 +195,4 @@ describe('scoped invitation cancellation and join decisions', () => {
     },
   );
 });
+import { TOB_AGENT_COMMAND_USAGE } from '../src/kernel/tob-cli-usage.js';

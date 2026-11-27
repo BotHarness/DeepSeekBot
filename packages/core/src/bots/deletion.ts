@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { TobError } from '../tob/service.js';
-import { managementGrantHolders } from '../tob/management-grants.js';
+import { HarnessError } from '@deepseek-ai/dsh-llm';
+import { managementGrantHolders } from './management-grants.js';
 import { botOwner } from '../team-policy/bot-access.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
@@ -323,9 +323,11 @@ export function createPersonaBotDeletions(options: {
     assertNoEscapes(actual.path);
     return actual;
   };
-  const snapshot = (slug: string): PersonaBotDeletionPreview => {
+  const snapshot = (slug: string, confirming = false): PersonaBotDeletionPreview => {
     const record = options.registry.getHistorical(slug);
     if (record === undefined) throw new Error('PersonaBot does not exist');
+    if (confirming && record.protection?.deletion === 'deny')
+      throw new HarnessError('protected-bot', 'Protected PersonaBot cannot be deleted');
     const state = get(slug);
     const path = state?.memoryDir ?? pathFor(slug);
     const proof = owner(slug);
@@ -418,7 +420,7 @@ export function createPersonaBotDeletions(options: {
           OR EXISTS (SELECT 1 FROM deleted_humans d WHERE d.human_id = ?))`)
           .get(slug, humanId, humanId, humanId, humanId),
       );
-      if (!allowed) throw new TobError('permission-required');
+      if (!allowed) throw new HarnessError('permission-required', 'permission-required');
       const reviewed = snapshot(slug);
       if (pending.has(slug) || (reviewed.deletion && reviewed.deletion.phase !== 'complete'))
         return { ...reviewed, eraseAvailable: false, refusal: 'deletion-in-progress' };
@@ -426,7 +428,7 @@ export function createPersonaBotDeletions(options: {
     },
     get,
     async confirm(slug, token, eraseMemory) {
-      const reviewed = preview(slug);
+      const reviewed = snapshot(slug, true);
       if (reviewed.deletion !== undefined)
         throw new Error(
           'Deletion was already accepted; retry it (bot-delete-retry) instead of confirming again',

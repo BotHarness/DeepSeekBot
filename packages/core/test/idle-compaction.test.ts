@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runIdleCompactionCommand } from '../src/bots/cli-idle-compaction.js';
+import { runIdleCompactionCommand } from '../src/cli/cli-idle-compaction.js';
 import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';

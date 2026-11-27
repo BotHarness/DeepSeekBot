@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
 import {
   authorizeTobHostCli,
   classifyTobHostCli,
   createTobHostCliOperations,
-} from '../src/tob/cli-host-commands.js';
+} from '../src/features/tob/cli-host-commands.js';
 import { humanContext } from '../src/humans/context.js';
 
 const brokers: TobCliBroker[] = [];

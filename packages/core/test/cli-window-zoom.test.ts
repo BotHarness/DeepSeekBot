@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runWindowZoomCommand } from '../src/bots/cli-window-zoom.js';
+import { runWindowZoomCommand } from '../src/cli/cli-window-zoom.js';
 describe('window zoom CLI', () => {
   it('sends default and reset through the same explicitly targeted live Client path', async () => {
     const http = vi.fn(async () => ({

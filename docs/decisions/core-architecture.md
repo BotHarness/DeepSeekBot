@@ -25,3 +25,9 @@ For subsequent migrations, add the descriptor factory to the composition list an
 Host plugin hooks run at the existing Cordis lifecycle stages. Cloud registers its tool and messaging provider at the same stages as their other Host registrations. Diagnostics registers routes and telemetry observers, and Usage binds parent turns and reconciles Session logs. Host composition constructs the shared resources those hooks consume.
 
 Appearance contributes the Window Companion live stream in a separate descriptor table. Typert marks these entries as streams and still injects the abort signal after the positional request arguments.
+
+## CLI adapters and PersonaBot protection
+
+[#5524](https://github.com/BotHarness/DeepSeekBot/issues/5524) puts command dispatch and adapters in [the CLI module](../../packages/core/src/cli/). Online commands call the existing Host bridge through Host Client. The [offline Profile bridge](../../packages/core/src/bridge/cli-offline.ts) opens the established owners for commands that support offline Profiles. Kernel owns CLI parsing, request schemas, and effect declarations shared with the Tob feature. The Tob feature binds typed commands and exact-argv dispatch to its existing source checks, approvals, and Host owners.
+
+The PersonaBot record carries its lifecycle and presentation policy. The Registry preserves explicit display-name and avatar customizations when the policy asks it to, and the deletion owner refuses confirmation for a protected identity. Tob sets both policies when it creates its identity. The migration backfills the current Owner's existing Tob, and Owner transfer expires policies tied to the outgoing tenure in the same transaction that clears the identity. The protected Tob identity cannot be deleted during that tenure. This supersedes the deletion provision for built-in Tob in [ADR-0314](tob.md#adr-0314).

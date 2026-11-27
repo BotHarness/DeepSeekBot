@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { avatarDataUrl, avatarFixtures } from '../../market/test/avatar-fixtures.js';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
 import { createMarket, TEST_ADMIN_TOKEN } from '../../market/test/market-harness.js';
 import { host, invoke, ok } from './cli-host-admin-fixture.js';

@@ -7,7 +7,7 @@ A Bot inherits the optional global default, selects one complete shared template
 - `packages/core/src/prompts/prompt-settings.ts`
 - `packages/core/src/features/approvals/plugin.ts`
 - `packages/client/src/client/{approval-template-*,approval-reviewer-model-setting}.tsx`
-- `packages/core/src/bots/cli-approval-{templates,reviewer}.ts`
+- `packages/core/src/cli/cli-approval-{templates,reviewer}.ts`
 - `packages/core/src/workspaces/approval-{template,reviewer}*.ts`
 
 ## Terms

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runSkillCommand } from '../src/bots/cli-skills.js';
+import { runSkillCommand } from '../src/cli/cli-skills.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { initializeMemoryGit } from '../src/memory/git.js';

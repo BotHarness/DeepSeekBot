@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runPresenceCommand } from '../src/bots/cli-presence.js';
+import { runPresenceCommand } from '../src/cli/cli-presence.js';
 
 describe('presence CLI', () => {
   it('reads status and reports one Client through the Host presence route', async () => {

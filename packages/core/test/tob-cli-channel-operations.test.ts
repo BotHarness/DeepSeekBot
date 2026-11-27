@@ -2,8 +2,8 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { rmSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
-import { createTobChannelOperations } from '../src/tob/cli-channel-operations.js';
-import { startTobCliBroker } from '../src/tob/cli-broker.js';
+import { createTobChannelOperations } from '../src/features/tob/cli-channel-operations.js';
+import { startTobCliBroker } from '../src/features/tob/cli-broker.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
 

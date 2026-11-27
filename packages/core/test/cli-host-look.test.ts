@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { CliLiveError } from '../src/bots/cli-live-error.js';
-import { runHostLook } from '../src/bots/cli-host-look.js';
+import { CliLiveError } from '../src/cli/cli-live-error.js';
+import { runHostLook } from '../src/cli/cli-host-look.js';
 
 it('targets exactly the selected Client and Host through the existing relay', async () => {
   const http = vi.fn(async () => ({

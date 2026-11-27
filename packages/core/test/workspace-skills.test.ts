@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import type { SkillRegistryDefinition } from '../src/skills/catalog.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
-import { runSkillCommand, skillInvocationTokens } from '../src/bots/cli-skills.js';
+import { runSkillCommand, skillInvocationTokens } from '../src/cli/cli-skills.js';
 import { isSkillInvocationToken } from '../src/channels/channel.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';

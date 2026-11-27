@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { writeZip } from '../src/bots/zip-archive.js';
 import { readBotZip } from '../src/bots/bot-zip.js';
 import { afterEach, describe, expect, it } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
 import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];

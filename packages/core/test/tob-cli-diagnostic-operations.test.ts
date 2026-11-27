@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
+import { runBotCreateCli } from '../src/cli/bot-create-cli.js';
+import { startTobCliBroker, type TobCliBroker } from '../src/features/tob/cli-broker.js';
 import {
   createTobDiagnosticOperations,
   TOB_DIAGNOSTIC_CAPABILITIES,
-} from '../src/tob/cli-diagnostic-operations.js';
+} from '../src/features/tob/cli-diagnostic-operations.js';
 
 const NOW = Date.UTC(2026, 10, 9, 12);
 const brokers: TobCliBroker[] = [];

@@ -5,7 +5,7 @@ import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createMarket, fakeRepository } from '../../market/test/market-harness.js';
 import { DISCOVERY_CRON } from '../../market/src/worker.js';
-import { runSkillCommand } from '../src/bots/cli-skills.js';
+import { runSkillCommand } from '../src/cli/cli-skills.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createInstallReceipts } from '../src/marketplace/install-receipts.js';

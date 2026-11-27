@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTobMaintenanceOperations } from '../src/tob/cli-maintenance-operations.js';
+import { createTobMaintenanceOperations } from '../src/features/tob/cli-maintenance-operations.js';
 import type { GitService, GitStatus } from '../src/memory/managed-git.js';
 import type { ReleaseService, ReleaseUpdate } from '../src/release/service.js';
 import type { TelemetryService, TelemetryStatus } from '../src/telemetry/service.js';

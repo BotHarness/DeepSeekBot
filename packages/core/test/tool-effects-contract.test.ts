@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { parseToolEffects } from '../src/workspaces/tool-effects-contract.js';
+import { parseToolEffects } from '../src/kernel/tool-effects-contract.js';
 
 it('parses effect metadata once and removes unknown or undefined fields', () => {
   expect(

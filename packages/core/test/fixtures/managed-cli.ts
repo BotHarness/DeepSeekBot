@@ -29,7 +29,7 @@ async function sourceTreeHash(sourceRoot: string): Promise<string> {
 export async function buildManagedCliFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'botharness-managed-cli-fixture-'));
   try {
-    const entry = fileURLToPath(new URL('../../src/bots/bot-create-cli.ts', import.meta.url));
+    const entry = fileURLToPath(new URL('../../src/cli/bot-create-cli.ts', import.meta.url));
     const sourceRoot = fileURLToPath(new URL('../../src', import.meta.url));
     const sourceBeforeSha256 = await sourceTreeHash(sourceRoot);
     await build({

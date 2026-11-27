@@ -1,9 +1,9 @@
-import { TOB_BOT_PROFILE_CAPABILITIES } from '../../tob/cli-bot-profile-operations.js';
-import { TOB_MEMORY_EDIT_CAPABILITIES } from '../../tob/cli-memory-edit-operations.js';
-import { TOB_MEMORY_LEASE_CAPABILITIES } from '../../tob/cli-memory-lease-operations.js';
-import { classifyTobHostCli } from '../../tob/cli-host-commands.js';
-import type { TobCliCapability } from '../../tob/cli-operations.js';
-import type { ManagementCapability } from '../../tob/management-grants.js';
+import { TOB_BOT_PROFILE_CAPABILITIES } from './cli-bot-profile-operations.js';
+import { TOB_MEMORY_EDIT_CAPABILITIES } from './cli-memory-edit-operations.js';
+import { TOB_MEMORY_LEASE_CAPABILITIES } from './cli-memory-lease-operations.js';
+import { classifyTobHostCli } from './cli-host-commands.js';
+import type { TobCliCapability } from '../../kernel/tob-cli-operations.js';
+import type { ManagementCapability } from '../../bots/management-grants.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelStore } from '../../channels/store.js';
 

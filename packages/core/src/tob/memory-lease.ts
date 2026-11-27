@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { humanDmForSource } from './management-grants.js';
+import { humanDmForSource } from '../tob/dm-source.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { MemoryAcceptance } from '../memory/accepted-types.js';
 import { requireSourceEffects } from '../purge/fence.js';

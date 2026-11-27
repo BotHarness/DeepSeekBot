@@ -10,7 +10,7 @@ import { DeveloperModeSkillGate, type SkillRegistrar } from '../../logs/skill.js
 import { createSkillViewPort, type SkillAgentPresetsPort } from '../../skills/agent-view.js';
 import { SkillCatalog, type SkillRegistryPort } from '../../skills/catalog.js';
 import { watchSkillCatalog } from '../../skills/refresh.js';
-import type { TobNativeSettings } from '../../tob/cli-model-operations.js';
+import type { TobNativeSettings } from '../tob/cli-model-operations.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 
 export interface DeveloperMode {

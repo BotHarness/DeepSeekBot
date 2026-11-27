@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { skillInvocationTokens } from '../src/bots/cli-skills.js';
+import { skillInvocationTokens } from '../src/cli/cli-skills.js';
 import { markSkillTokens, skillInvocationPrompt } from '../src/runtime/bot-runtime.js';
 
 describe('Skill Invocation text', () => {

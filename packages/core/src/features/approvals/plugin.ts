@@ -1,7 +1,7 @@
 import { toolEffects } from '../../workspaces/tool-effects.js';
 import { installNativeSearchResultGuard } from '../../workspaces/grant-native-tools.js';
 import { questionAnswerReceipts } from '../../channels/question-answer-receipts.js';
-import type { ModelFreeTobCliInvocation } from '../../tob/cli-invocation.js';
+import type { ModelFreeTobCliInvocation } from '../../runtime/tob-cli-invocation.js';
 import { nativeTimedQuestions } from '../../channels/native-timed-questions.js';
 import { credentialStoreDenial } from '../../credentials/store-guard.js';
 import { secretCommandDenial } from '../../credentials/secret-command.js';
