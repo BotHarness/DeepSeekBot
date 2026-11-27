@@ -5,12 +5,6 @@ import { parseReviewedSettings } from './cli-live.js';
 
 const TYPED_SETTINGS = new Set(['botharness-client']);
 
-function hostArgv(command: string, argv: readonly string[]): string[] {
-  const index = argv.indexOf(command);
-  const rest = index < 0 ? [...argv] : [...argv.slice(0, index), ...argv.slice(index + 1)];
-  return [command, ...rest.filter((arg) => arg !== '--compact')];
-}
-
 export function hasAgentCliContext(env: NodeJS.ProcessEnv): boolean {
   return (
     env['DEEPSEEKBOT_AGENT_ENDPOINT'] !== undefined || env['DEEPSEEKBOT_AGENT_TOKEN'] !== undefined
@@ -22,7 +16,7 @@ export async function runAgentCli(
   rest: string[],
   values: Record<string, unknown>,
   io: BotCreateCliIo,
-  argv: readonly string[] = [],
+  hostArgs: readonly string[],
 ): Promise<unknown> {
   const endpoint = io.env['DEEPSEEKBOT_AGENT_ENDPOINT'];
   const token = io.env['DEEPSEEKBOT_AGENT_TOKEN'];
@@ -74,7 +68,7 @@ export async function runAgentCli(
     generic = true;
     operation = 'cli';
     args = {
-      argv: hostArgv(command!, argv),
+      argv: [command, ...hostArgs.filter((arg) => arg !== '--compact')],
       stdin: (await io.readStdin?.()) ?? '',
       cwd: process.cwd(),
     };
