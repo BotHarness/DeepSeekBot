@@ -8,6 +8,8 @@ import { appSummary, ConnectAppDialog, type PickedApp } from './app-connections-
 import { CatalogCard, CatalogGrid } from './ds/catalog-grid.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
+import { BridgeCallError } from './bridge.js';
+import { marketplaceError } from './marketplace-feedback.js';
 import { layer, radius, space } from './ds/tobs.stylex.js';
 import type { ConnectorsView } from './features/connectors/bridge.js';
 import { ConnectorLogo } from './features/connectors/logos.js';
@@ -47,7 +49,10 @@ type MarketplaceEntry = Awaited<
   ReturnType<BridgeActions['marketplaceSections']>
 >[number]['entries'][number]['bot'];
 type App = ConnectorsView['catalog'][number];
-type Read<T> = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; items: readonly T[] };
+type Read<T> =
+  | { kind: 'loading' }
+  | { kind: 'failed'; error: unknown }
+  | { kind: 'ready'; items: readonly T[] };
 
 interface Lists {
   bots: Read<MarketplaceEntry>;
@@ -115,11 +120,13 @@ export type MarketAllActions = Pick<
 export function MarketAll({
   actions,
   t,
+  refresh,
   onSeeAll,
   onOpenBot,
 }: {
   actions: MarketAllActions;
   t: BotHarnessTranslate;
+  refresh: number;
   onSeeAll: (kind: MarketKind) => void;
   onOpenBot: (bot: MarketplaceEntry) => void;
 }): ReactElement {
@@ -136,7 +143,8 @@ export function MarketAll({
     const settle = <K extends MarketKind>(kind: K, value: Lists[K]) => {
       if (live) setLists((current) => ({ ...current, [kind]: value }));
     };
-    const failed = (kind: MarketKind) => () => settle(kind, { kind: 'failed' });
+    const failed = (kind: MarketKind) => (error: unknown) =>
+      settle(kind, { kind: 'failed', error });
     setLists(LOADING);
     void actions
       .marketplaceSections(lang)
@@ -165,12 +173,15 @@ export function MarketAll({
           if (live) setView(loaded);
           settle('apps', ready(loaded.catalog));
         },
-        () => settle('apps', ready([])),
+        (error: unknown) =>
+          error instanceof BridgeCallError && error.code === 'permission-required'
+            ? settle('apps', ready([]))
+            : failed('apps')(error),
       );
     return () => {
       live = false;
     };
-  }, [actions, lang, reload]);
+  }, [actions, lang, reload, refresh]);
 
   const byline = (kind: MarketKind, by: string) =>
     t('market.all.byline', { kind: t(KIND_LABELS[kind]), by });
@@ -266,8 +277,17 @@ export function MarketAll({
     }
   };
 
-  const states = KINDS.map((kind) => lists[kind].kind);
-  const shown = KINDS.filter((kind) => cards(kind).length > 0);
+  const failure = (kind: MarketKind): ReactElement | undefined => {
+    const read = lists[kind];
+    return read.kind !== 'failed' ? undefined : (
+      <ReadFailure retryLabel={t('market.retry')} onRetry={() => setReload((value) => value + 1)}>
+        {t('market.error.load', { error: marketplaceError(read.error, t) })}
+      </ReadFailure>
+    );
+  };
+
+  const shown = KINDS.filter((kind) => lists[kind].kind === 'failed' || cards(kind).length > 0);
+  const loading = KINDS.some((kind) => lists[kind].kind === 'loading');
 
   return (
     <>
@@ -288,19 +308,14 @@ export function MarketAll({
                     t={t}
                     onSeeAll={() => onSeeAll(kind)}
                   />
-                  <CatalogGrid label={t(TITLES[kind])}>{cards(kind)}</CatalogGrid>
+                  {failure(kind) ?? (
+                    <CatalogGrid label={t(TITLES[kind])}>{cards(kind)}</CatalogGrid>
+                  )}
                 </section>
               ))}
             </div>
-          ) : states.includes('loading') ? (
+          ) : loading ? (
             <LoadingSkeleton kind="sidebar" label={t('market.all')} />
-          ) : states.includes('failed') ? (
-            <ReadFailure
-              retryLabel={t('market.retry')}
-              onRetry={() => setReload((value) => value + 1)}
-            >
-              {t('market.all.failed')}
-            </ReadFailure>
           ) : (
             <Note inset>{t('market.all.empty')}</Note>
           )}

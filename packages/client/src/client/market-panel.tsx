@@ -168,7 +168,10 @@ type MarketPageTarget =
   | { readonly kind: 'archive' }
   | { readonly kind: 'ranking'; readonly section: MarketplaceSection };
 
-type MarketPageEntry = MarketPageTarget & { readonly key: number };
+type MarketPageEntry = MarketPageTarget & {
+  readonly key: number;
+  readonly home: 'all' | 'bots';
+};
 
 function MarketPanelView({
   actions,
@@ -197,18 +200,24 @@ function MarketPanelView({
     'owner';
   const [pages, setPages] = useState<readonly MarketPageEntry[]>([]);
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
+  const [allRefresh, setAllRefresh] = useState(0);
+  const listingsChanged = () => setAllRefresh((value) => value + 1);
+  const here = pages.filter((page) => page.home === section);
+  const opened = (home: 'all' | 'bots') => pages.some((page) => page.home === home);
 
   const pageKey = useRef(0);
   const listen = useMountedResource<HTMLDivElement>(() => {
     return onMarketUploadChange((change) => {
       if (change.kind === 'deleted') browse.remove(change.id);
       else browse.prepend(change.bot);
+      listingsChanged();
     });
   }, []);
   const { list, filters } = browse;
   const push = (target: MarketPageTarget): void => {
     const key = ++pageKey.current;
-    setPages((current) => [...current, { ...target, key }]);
+    const home = section === 'all' ? 'all' : 'bots';
+    setPages((current) => [...current, { ...target, key, home }]);
   };
   const start = (
     bot: MarketplaceEntry,
@@ -230,7 +239,10 @@ function MarketPanelView({
     actions.telemetryEvent('marketplace:digest_archive_open');
     push({ kind: 'archive' });
   };
-  const back = (): void => setPages((current) => current.slice(0, -1));
+  const back = (): void => {
+    const last = here.at(-1);
+    setPages((current) => current.filter((page) => page !== last));
+  };
   const installed = (): void => {
     setFlow(undefined);
     setPages([]);
@@ -281,12 +293,13 @@ function MarketPanelView({
         id="bh-market-section-all-panel"
         aria-labelledby="bh-market-section-all"
         role="tabpanel"
-        hidden={section !== 'all' || pages.length > 0}
+        hidden={section !== 'all' || opened('all')}
       >
         {section === 'all' ? (
           <MarketAll
             actions={actions}
             t={t}
+            refresh={allRefresh}
             onSeeAll={navigation.select}
             onOpenBot={(bot) => start(bot, 'detail', 'hot')}
           />
@@ -342,7 +355,7 @@ function MarketPanelView({
         aria-labelledby="bh-market-section-bots"
         role="tabpanel"
         ref={keepHome}
-        hidden={section !== 'bots' || pages.length > 0}
+        hidden={section !== 'bots' || opened('bots')}
       >
         <div className="bh-market-panel" ref={browse.mount}>
           <MarketplaceBrowseControls browse={browse} t={t} />
@@ -383,8 +396,8 @@ function MarketPanelView({
           <MarketplaceLoadMore browse={browse} t={t} />
         </div>
       </div>
-      {pages.map((page, index) => {
-        const hidden = (section !== 'bots' && section !== 'all') || index !== pages.length - 1;
+      {pages.map((page) => {
+        const hidden = page !== here.at(-1);
         switch (page.kind) {
           case 'bot':
             return (
@@ -462,8 +475,14 @@ function MarketPanelView({
           actions={actions}
           registry={registry}
           t={t}
-          onUpdated={browse.prepend}
-          onDeleted={browse.remove}
+          onUpdated={(bot) => {
+            browse.prepend(bot);
+            listingsChanged();
+          }}
+          onDeleted={(id) => {
+            browse.remove(id);
+            listingsChanged();
+          }}
           onClose={() => navigation.open(undefined)}
         />
       ) : null}
@@ -472,7 +491,10 @@ function MarketPanelView({
           actions={actions}
           registry={registry}
           t={t}
-          onListed={browse.prepend}
+          onListed={(bot) => {
+            browse.prepend(bot);
+            listingsChanged();
+          }}
           onClose={() => navigation.open(undefined)}
         />
       ) : null}

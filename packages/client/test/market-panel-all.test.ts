@@ -3,6 +3,7 @@ import { entry, withPanel } from './market-panel-fixtures.js';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { MarketplaceSkill } from '@botharness/host-protocol/marketplace-skill';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 const skill: MarketplaceSkill = {
@@ -121,29 +122,71 @@ describe('Marketplace All tab (#5441)', () => {
     );
   });
 
-  it('keeps the other types when one source fails, and offers a retry when all fail', async () => {
+  it('shows a failed type with its reason and Retry next to the types that loaded', async () => {
+    const skills = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ skills: [skill], nextCursor: null });
     await withPanel(
       async () => ({ bots: [] }),
       async () => {
-        expect(document.body.querySelector('[data-market-all-section="skills"]')).toBeNull();
+        const failed = document.body.querySelector('[data-market-all-section="skills"]')!;
+        expect(failed.textContent).toContain(
+          zhTranslate('market.error.load', { error: 'offline' }),
+        );
         expect(cards('bots')).toHaveLength(4);
+        await act(async () =>
+          [...failed.querySelectorAll('button')]
+            .find((node) => node.textContent === zhTranslate('market.retry'))!
+            .click(),
+        );
+        expect(cards('skills')[0]).toContain('Skill · carol/skills');
       },
-      sources({ marketplaceSkillList: vi.fn(async () => Promise.reject(new Error('offline'))) }),
+      sources({ marketplaceSkillList: skills }),
       'all',
     );
-    const down = vi.fn(async () => Promise.reject(new Error('offline')));
+  });
+
+  it('hides app connections for a viewer without permission but reports other connector failures', async () => {
     await withPanel(
       async () => ({ bots: [] }),
-      async ({ host }) => {
-        expect(host.textContent).toContain(zhTranslate('market.all.failed'));
+      async () => {
+        expect(document.body.querySelector('[data-market-all-section="apps"]')).toBeNull();
       },
       sources({
-        marketplaceSections: down,
-        marketplaceSkillList: down,
-        marketplaceAvatarList: down,
-        connectors: down,
+        connectors: vi.fn(async () =>
+          Promise.reject(new BridgeCallError('permission-required', 'owner only')),
+        ),
       }),
       'all',
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async () => {
+        expect(
+          document.body.querySelector('[data-market-all-section="apps"]')?.textContent,
+        ).toContain(zhTranslate('market.retry'));
+      },
+      sources({ connectors: vi.fn(async () => Promise.reject(new Error('offline'))) }),
+      'all',
+    );
+  });
+
+  it('keeps a page opened from Bots on the Bots tab', async () => {
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async () => {
+        await act(async () =>
+          document.body
+            .querySelector<HTMLButtonElement>('[data-market-bot="alice/helper"] button')!
+            .click(),
+        );
+        expect(document.getElementById('bh-market-section-bots-panel')!.hidden).toBe(true);
+        await act(async () => document.getElementById('bh-market-section-all')!.click());
+        expect(document.getElementById('bh-market-section-all-panel')!.hidden).toBe(false);
+        expect(cards('bots')).toHaveLength(4);
+      },
+      sources(),
     );
   });
 });
