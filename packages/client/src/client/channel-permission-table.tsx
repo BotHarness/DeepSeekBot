@@ -1,20 +1,96 @@
+import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
+
+import { roleChoiceLabel } from './channel-access.js';
 import { Button } from './ds/button.js';
+import { Icon } from './ds/icon.js';
+import { Menu } from './ds/menu.js';
 import { Select } from './ds/select.js';
-import { layer, space } from './ds/tobs.stylex.js';
+import { SettingsGroupPart, SettingsSection } from './ds/settings-row.js';
+import { Tag, type TagTone } from './ds/tag.js';
+import { ink, space, style, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
   POLICY_KEYS,
   type ChannelPolicy,
+  type PolicyKey,
   type PolicyValue,
   type RoleChoice,
 } from './team-channels-bridge.js';
-import { roleChoiceLabel } from './channel-access.js';
+
+const inset = style.listItemPadding;
 
 const styles = stylex.create({
-  root: { overflowX: 'auto', padding: space.x4, backgroundColor: layer.raised },
-  cell: { padding: space.x2, textAlign: 'start' },
+  scroll: { overflowX: 'auto', minWidth: 0 },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: type.bodySize,
+    lineHeight: type.bodyLine,
+  },
+  head: {
+    paddingBlock: space.x3,
+    paddingInline: space.x3,
+    color: ink.secondary,
+    fontSize: type.captionSize,
+    lineHeight: type.captionLine,
+    fontWeight: type.labelWeight,
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+  },
+  actionHead: { textAlign: 'start', paddingInlineStart: inset },
+  action: {
+    paddingBlock: style.listItemPaddingBlock,
+    paddingInlineStart: inset,
+    paddingInlineEnd: space.x3,
+    color: ink.primary,
+    fontWeight: type.bodyWeight,
+    textAlign: 'start',
+    whiteSpace: 'nowrap',
+  },
+  cell: {
+    paddingBlock: style.listItemPaddingBlock,
+    paddingInline: space.x3,
+    textAlign: 'center',
+  },
+  legend: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x4,
+    margin: 0,
+    paddingBlock: space.x3,
+    paddingInline: inset,
+    listStyle: 'none',
+    color: ink.secondary,
+    fontSize: type.captionSize,
+    lineHeight: type.captionLine,
+  },
+  legendItem: { display: 'inline-flex', alignItems: 'center', gap: space.x2 },
 });
+
+const TONE: Record<PolicyValue, TagTone> = { allow: 'success', deny: 'danger', inherit: 'neutral' };
+const GLYPH: Record<PolicyValue, string> = { allow: 'check', deny: 'x', inherit: 'minus' };
+
+function stateLabel(t: BotHarnessTranslate, value: PolicyValue, everyone: boolean): string {
+  if (value === 'allow') return t('team.workbench.allow');
+  if (value === 'deny') return t('team.workbench.deny');
+  return everyone ? t('team.workbench.channels.inherit') : t('team.workbench.channels.follow');
+}
+
+function StateMark({ value }: { value: PolicyValue }): ReactElement {
+  return (
+    <Tag tone={TONE[value]}>
+      <Icon name={GLYPH[value]} />
+    </Tag>
+  );
+}
+
+interface Column {
+  readonly roleId: string | undefined;
+  readonly name: string;
+  readonly actions: Readonly<Partial<Record<PolicyKey, PolicyValue>>>;
+}
 
 export function ChannelPermissionTable({
   t,
@@ -28,107 +104,203 @@ export function ChannelPermissionTable({
   roles: readonly RoleChoice[];
   disabled: boolean;
   onChange(policy: ChannelPolicy): void;
-}) {
-  const options: { value: PolicyValue; label: string }[] = [
-    { value: 'allow', label: t('team.workbench.allow') },
-    { value: 'deny', label: t('team.workbench.deny') },
-    { value: 'inherit', label: t('team.workbench.channels.inherit') },
-  ];
+}): ReactElement {
+  const [menu, setMenu] = useState<string>();
   const available = roles.filter(
     ({ roleId }) => !policy.overrides.some((row) => row.roleId === roleId),
   );
-  const rows = [{ roleId: undefined, actions: policy.everyone }, ...policy.overrides];
+  const columns: Column[] = [
+    { roleId: undefined, name: t('team.workbench.channels.everyone'), actions: policy.everyone },
+    ...policy.overrides.map((row) => {
+      const role = roles.find((item) => item.roleId === row.roleId);
+      return {
+        roleId: row.roleId,
+        name: role === undefined ? row.roleId : roleChoiceLabel(t, role),
+        actions: row.actions,
+      };
+    }),
+  ];
+  const canAdd = !disabled && available.length > 0 && policy.overrides.length < 100;
+  const set = (column: Column, key: PolicyKey, value: PolicyValue): void =>
+    onChange(
+      column.roleId === undefined
+        ? { ...policy, everyone: { ...policy.everyone, [key]: value } }
+        : {
+            ...policy,
+            overrides: policy.overrides.map((row) =>
+              row.roleId === column.roleId
+                ? { ...row, actions: { ...row.actions, [key]: value } }
+                : row,
+            ),
+          },
+    );
   return (
-    <section {...stylex.props(styles.root)} data-channel-permission-table="">
-      <table aria-label={t('team.workbench.channels.permissions')}>
-        <thead>
-          <tr>
-            <th scope="col" {...stylex.props(styles.cell)}>
-              {t('team.workbench.internalRoles')}
-            </th>
-            {POLICY_KEYS.map((key) => (
-              <th key={key} scope="col" {...stylex.props(styles.cell)}>
-                {t(`channelAccess.policy.${key}`)}
-              </th>
-            ))}
-            {disabled ? null : <td />}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ roleId, actions }) => {
-            const role = roles.find((item) => item.roleId === roleId);
-            const name =
-              roleId === undefined
-                ? t('team.workbench.channels.everyone')
-                : role === undefined
-                  ? roleId
-                  : roleChoiceLabel(t, role);
-            return (
-              <tr key={roleId ?? ''}>
-                <th scope="row" {...stylex.props(styles.cell)}>
-                  {name}
+    <SettingsSection
+      title={t('team.workbench.channels.policyTitle')}
+      action={<Tag tone="info">{t('team.workbench.enforced')}</Tag>}
+      data={{ 'data-channel-permission-table': '' }}
+    >
+      <SettingsGroupPart>
+        <div {...stylex.props(styles.scroll)}>
+          <table
+            {...stylex.props(styles.table)}
+            aria-label={t('team.workbench.channels.permissions')}
+          >
+            <thead>
+              <tr>
+                <th scope="col" {...stylex.props(styles.head, styles.actionHead)}>
+                  {t('team.workbench.channels.action')}
                 </th>
-                {POLICY_KEYS.map((key) => (
-                  <td key={key} {...stylex.props(styles.cell)}>
-                    <Select<PolicyValue>
-                      label={`${name} · ${t(`channelAccess.policy.${key}`)}`}
-                      options={options}
-                      value={actions[key] ?? 'inherit'}
-                      disabled={disabled}
-                      onChange={(value) =>
-                        onChange(
-                          roleId === undefined
-                            ? { ...policy, everyone: { ...policy.everyone, [key]: value } }
-                            : {
-                                ...policy,
-                                overrides: policy.overrides.map((row) =>
-                                  row.roleId === roleId
-                                    ? { ...row, actions: { ...row.actions, [key]: value } }
-                                    : row,
-                                ),
-                              },
-                        )
-                      }
-                    />
-                  </td>
-                ))}
-                {disabled ? null : (
-                  <td {...stylex.props(styles.cell)}>
-                    {roleId === undefined ? null : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
+                {columns.map((column) => (
+                  <th
+                    key={column.roleId ?? ''}
+                    scope="col"
+                    {...stylex.props(styles.head)}
+                    data-permission-column={column.roleId ?? 'everyone'}
+                  >
+                    {column.roleId === undefined || disabled ? (
+                      column.name
+                    ) : (
+                      <Menu
+                        open={menu === column.roleId}
+                        portal
+                        dense
+                        autoFocus
+                        align="start"
+                        anchor={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-haspopup="menu"
+                            aria-expanded={menu === column.roleId}
+                            aria-label={t('team.workbench.channels.roleMenu', {
+                              role: column.name,
+                            })}
+                            onClick={() =>
+                              setMenu((current) =>
+                                current === column.roleId ? undefined : column.roleId,
+                              )
+                            }
+                          >
+                            {column.name}
+                          </Button>
+                        }
+                        items={[
+                          {
+                            id: 'remove',
+                            label: t('team.workbench.channels.removeRole'),
+                            icon: <Icon name="trash" />,
+                            danger: true,
+                          },
+                        ]}
+                        onSelect={() => {
+                          setMenu(undefined);
                           onChange({
                             ...policy,
-                            overrides: policy.overrides.filter((row) => row.roleId !== roleId),
-                          })
-                        }
-                      >
-                        {t('team.workbench.channels.removeRole')}
-                      </Button>
+                            overrides: policy.overrides.filter(
+                              (row) => row.roleId !== column.roleId,
+                            ),
+                          });
+                        }}
+                        onClose={() => setMenu(undefined)}
+                      />
                     )}
-                  </td>
-                )}
+                  </th>
+                ))}
+                {canAdd ? (
+                  <th scope="col" {...stylex.props(styles.head)}>
+                    <Menu
+                      open={menu === ''}
+                      portal
+                      dense
+                      autoFocus
+                      align="end"
+                      anchor={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon={<Icon name="plus" />}
+                          aria-haspopup="menu"
+                          aria-expanded={menu === ''}
+                          aria-label={t('team.workbench.channels.addRoleLabel')}
+                          data-permission-add-role=""
+                          onClick={() => setMenu((current) => (current === '' ? undefined : ''))}
+                        >
+                          {t('team.workbench.channels.addRole')}
+                        </Button>
+                      }
+                      items={available.map((role) => ({
+                        id: role.roleId,
+                        label: roleChoiceLabel(t, role),
+                      }))}
+                      onSelect={(roleId) => {
+                        setMenu(undefined);
+                        onChange({
+                          ...policy,
+                          overrides: [...policy.overrides, { roleId, actions: {} }],
+                        });
+                      }}
+                      onClose={() => setMenu(undefined)}
+                    />
+                  </th>
+                ) : null}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {disabled || available.length === 0 || policy.overrides.length >= 100 ? null : (
-        <Select
-          label={t('channelAccess.chooseRoles')}
-          value=""
-          options={[
-            { value: '', label: t('channelAccess.chooseRoles') },
-            ...available.map((role) => ({ value: role.roleId, label: roleChoiceLabel(t, role) })),
-          ]}
-          onChange={(roleId) => {
-            if (roleId)
-              onChange({ ...policy, overrides: [...policy.overrides, { roleId, actions: {} }] });
-          }}
-        />
-      )}
-    </section>
+            </thead>
+            <tbody>
+              {POLICY_KEYS.map((key) => {
+                const action = t(`channelAccess.policy.${key}`);
+                return (
+                  <tr key={key} data-permission-action={key}>
+                    <th scope="row" {...stylex.props(styles.action)}>
+                      {action}
+                    </th>
+                    {columns.map((column) => {
+                      const everyone = column.roleId === undefined;
+                      const value = column.actions[key] ?? 'inherit';
+                      return (
+                        <td
+                          key={column.roleId ?? ''}
+                          {...stylex.props(styles.cell)}
+                          data-permission-cell={`${key}:${column.roleId ?? 'everyone'}`}
+                          data-state={value}
+                        >
+                          <Select<PolicyValue>
+                            appearance="cell"
+                            align="start"
+                            label={t('team.workbench.channels.cell', {
+                              action,
+                              role: column.name,
+                              state: stateLabel(t, value, everyone),
+                            })}
+                            options={(['allow', 'deny', 'inherit'] as const).map((option) => ({
+                              value: option,
+                              label: stateLabel(t, option, everyone),
+                              icon: <Icon name={GLYPH[option]} />,
+                              display: <StateMark value={option} />,
+                            }))}
+                            value={value}
+                            disabled={disabled}
+                            onChange={(next) => set(column, key, next)}
+                          />
+                        </td>
+                      );
+                    })}
+                    {canAdd ? <td {...stylex.props(styles.cell)} /> : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <ul {...stylex.props(styles.legend)} aria-label={t('team.workbench.channels.legend')}>
+          {(['allow', 'deny', 'inherit'] as const).map((value) => (
+            <li key={value} {...stylex.props(styles.legendItem)}>
+              <StateMark value={value} />
+              {stateLabel(t, value, false)}
+            </li>
+          ))}
+        </ul>
+      </SettingsGroupPart>
+    </SettingsSection>
   );
 }

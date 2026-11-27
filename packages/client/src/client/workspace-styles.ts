@@ -24,7 +24,7 @@ html[data-platform="darwin"]:not([data-fullscreen]) .bh-dock:has([data-bh-rail-c
 html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] > .dv-tabs-and-actions-container .bh-dock-header,
 html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] .bh-topbar { padding-left:var(--bh-mac-leading); box-sizing:border-box; }
 .bh-dock[data-workspace-dock] .dv-dockview { background:${color.base}; }
-.bh-dock[data-workspace-dock] { box-sizing:border-box; background:${color.base}; }
+.bh-dock[data-workspace-dock] { box-sizing:border-box; background:${color.base}; --bh-workspace-canvas:${color.base}; }
 .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom:var(--bh-workspace-header-gap) solid ${color.base}; }
 [data-workspace-dock] .bh-dock-menu, [data-workspace-dock] [data-panel-empty-action] { display:none; }
 [data-workspace-dock] .bh-dock-theme { --dv-activegroup-visiblepanel-tab-background-color:${panelBackground}; --dv-inactivegroup-visiblepanel-tab-background-color:${panelBackground}; --dv-separator-border:transparent; --dv-paneview-header-border-color:transparent; --dv-group-view-background-color:${panelBackground}; --dv-tabs-and-actions-container-background-color:${panelBackground}; }
@@ -35,7 +35,7 @@ html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] .bh-top
 :root[data-bh-appearance="light"] .bh-dock[data-workspace-dock] .dv-dockview,
 :root[data-bh-appearance="light"] .bh-message-member-divider,
 :root[data-bh-appearance="light"] .bh-channel-session-divider,
-html[data-platform="darwin"]:not([data-fullscreen])[data-bh-appearance="light"] [data-workspace-enabled] > .bh-workspace-chrome { background:${color.surface}; }
+html[data-platform="darwin"]:not([data-fullscreen])[data-bh-appearance="light"] [data-workspace-enabled] > .bh-workspace-chrome { background:${color.surface}; --bh-workspace-canvas:${color.surface}; }
 :root[data-bh-appearance="light"] .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom-color:${color.surface}; }
 .bh-workspace-rail > button, .bh-workspace-rail > span > button, .bh-workspace-move { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:${size.row}; height:${size.row}; padding:0; border:0; border-radius:${radius.md}; corner-shape:round; color:${color.fg}; background:transparent; cursor:pointer; }
 .bh-workspace-rail button:hover { background:${color.hover}; }
