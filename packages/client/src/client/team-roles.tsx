@@ -246,10 +246,17 @@ function RoleDialog({
       .catch((failure: unknown) => setError(teamErrorText(t, failure)))
       .finally(() => setBusy(false));
   };
+  const revealConflict = useMountedResource<HTMLSpanElement>(
+    (node) => {
+      node.scrollIntoView?.({ block: 'nearest' });
+      return undefined;
+    },
+    [conflict],
+  );
   const conflictNote =
     conflict === undefined ? undefined : (
       <Note tone={conflict === 'stale' ? 'warning' : 'muted'}>
-        <span data-team-role-conflict={conflict}>
+        <span ref={revealConflict} data-team-role-conflict={conflict}>
           {t(conflict === 'stale' ? 'team.error.staleRole' : 'team.roles.reloaded')}
         </span>
         {conflict === 'stale' ? (
