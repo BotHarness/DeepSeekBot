@@ -1107,9 +1107,9 @@
     },
     {
       "id": "attachment-download",
-      "description": "Existing authenticated CLI path.",
+      "description": "Authenticated source media and bounded current message Attachment reads.",
       "scope": "Host",
-      "commands": ["channel-media-download"],
+      "commands": ["channel-media-download", "channel-attachment-download"],
       "surfaces": [
         "route:packages/core/src/features/channel-files/plugin.ts:CHANNEL_ATTACHMENT_PATH"
       ]

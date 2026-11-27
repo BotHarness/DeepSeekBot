@@ -215,6 +215,14 @@ for (const sqlite of [false, true])
         expect(response.headers.get('x-content-type-options')).toBe('nosniff');
         expect(response.headers.get('content-disposition')).toMatch(/^attachment;/u);
         expect(await response.text()).toBe('<script>text, never HTML</script>');
+        url.searchParams.set('maxBytes', '6');
+        const overLimit = await http(new Request(url));
+        expect(overLimit.status).toBe(413);
+        expect(await overLimit.json()).toMatchObject({ error: { code: 'too-large' } });
+        writeFileSync(path, '# Next');
+        const updated = await http(new Request(url));
+        expect(updated.headers.get('content-length')).toBe('6');
+        expect(await updated.text()).toBe('# Next');
         url.searchParams.set('channelId', other.id);
         expect((await http(new Request(url))).status).toBe(404);
         expect(
@@ -222,6 +230,10 @@ for (const sqlite of [false, true])
             .status,
         ).toBe(400);
         rmSync(path);
+        url.searchParams.set('channelId', channel.id);
+        const missing = await http(new Request(url));
+        expect(missing.status).toBe(404);
+        expect(await missing.json()).toMatchObject({ error: { code: 'not-found' } });
         const outside = join(createTempRoot(), 'outside');
         writeFileSync(outside, 'secret');
         symlinkSync(outside, path);

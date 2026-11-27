@@ -16,7 +16,7 @@ const PREVIEWABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 
 export const ATTACHMENT_PATH = '/api/botharness/attachment';
 
-function attachmentPath(params: Record<string, string>): string {
+export function attachmentPath(params: Record<string, string>): string {
   return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
 }
 

@@ -19,6 +19,10 @@ export const CHANNEL_COMMANDS = [
     description: 'download authorized source media to a new local --out file',
   },
   {
+    command: 'channel-attachment-download',
+    description: 'download the current bytes of one message Attachment with a byte limit',
+  },
+  {
     command: 'channel-rename',
     description: 'rename a Channel; renaming a Bot DM renames the Bot',
   },
@@ -180,6 +184,7 @@ interface ChannelValues {
   'body-stdin'?: boolean;
   off?: boolean;
   attachment?: string;
+  'max-bytes'?: string;
   representation?: string;
   out?: string;
 }
@@ -319,6 +324,29 @@ export async function runChannelCommand(
       )
         usage('--representation playback is only supported by channel-media-download.');
       break;
+    case 'channel-attachment-download': {
+      const messageId = required(values['message-id'], '--message-id');
+      const identity = required(values.attachment, '--attachment');
+      const maxBytes = integer(
+        required(values['max-bytes'], '--max-bytes'),
+        '--max-bytes',
+        1,
+        25 * 1024 * 1024,
+      )!;
+      const out = required(values.out, '--out');
+      const host = await connect(values, io, AbortSignal.timeout(Math.ceil(seconds * 1000)));
+      return downloadAttachment(
+        host,
+        out,
+        {
+          channelId,
+          messageId,
+          ...(identity.startsWith('sha256:') ? { hash: identity } : { fileId: identity }),
+          maxBytes: String(maxBytes),
+        },
+        maxBytes,
+      );
+    }
     case 'channel-rename':
       method = 'channelRename';
       args.name = required(values.name, '--name');
@@ -555,36 +583,54 @@ export async function runChannelCommand(
 
   const host = await connect(values, io, AbortSignal.timeout(Math.ceil(seconds * 1000)));
   if (command === 'channel-media-download') {
-    const { bytes, response } = await host.http(
-      '/api/botharness/attachment?' +
-        new URLSearchParams({
-          channelId,
-          sourceEventId: String(args.sourceEventId),
-          attachmentId: String(args.attachmentId),
-          ...(values.representation === 'playback' ? { representation: 'playback' } : {}),
-        }),
-    );
-    if (bytes.byteLength > 25 * 1024 * 1024)
-      throw new CliLiveError('too-large', 'Attachment exceeds the 25 MiB limit.');
-    try {
-      writeFileSync(values.out!, bytes, { flag: 'wx', mode: 0o600 });
-    } catch (error) {
-      const exists = error instanceof Error && 'code' in error && error.code === 'EEXIST';
-      throw new CliLiveError(
-        exists ? 'output-exists' : 'output-unavailable',
-        exists
-          ? 'The output already exists; choose a new --out path.'
-          : 'Could not write the output file.',
-      );
-    }
-    return {
-      download: {
-        path: values.out,
-        bytes: bytes.byteLength,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-        mime: response.headers.get('content-type'),
+    return downloadAttachment(
+      host,
+      values.out!,
+      {
+        channelId,
+        sourceEventId: String(args.sourceEventId),
+        attachmentId: String(args.attachmentId),
+        ...(values.representation === 'playback' ? { representation: 'playback' } : {}),
       },
-    };
+      25 * 1024 * 1024,
+    );
   }
   return host.rpc(method, args);
+}
+
+async function downloadAttachment(
+  host: Awaited<ReturnType<typeof connectLiveHost>>,
+  out: string,
+  query: Record<string, string>,
+  maxBytes: number,
+) {
+  const { bytes, response } = await host.http(
+    '/api/botharness/attachment?' + new URLSearchParams(query),
+  );
+  if (bytes.byteLength > maxBytes)
+    throw new CliLiveError(
+      'too-large',
+      query.maxBytes === undefined
+        ? 'Attachment exceeds the 25 MiB limit.'
+        : 'Attachment exceeds the requested byte limit.',
+    );
+  try {
+    writeFileSync(out, bytes, { flag: 'wx', mode: 0o600 });
+  } catch (error) {
+    const exists = error instanceof Error && 'code' in error && error.code === 'EEXIST';
+    throw new CliLiveError(
+      exists ? 'output-exists' : 'output-unavailable',
+      exists
+        ? 'The output already exists; choose a new --out path.'
+        : 'Could not write the output file.',
+    );
+  }
+  return {
+    download: {
+      path: out,
+      bytes: bytes.byteLength,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      mime: response.headers.get('content-type'),
+    },
+  };
 }

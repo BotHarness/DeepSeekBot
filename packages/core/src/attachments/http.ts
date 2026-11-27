@@ -257,6 +257,23 @@ export function createAttachmentHttp(
         );
       const version = url.searchParams.get('v');
       const variantParam = url.searchParams.get('variant');
+      const limitParam = url.searchParams.get('maxBytes');
+      const maxBytes = limitParam === null ? undefined : Number(limitParam);
+      if (
+        maxBytes !== undefined &&
+        (!/^\d+$/u.test(limitParam ?? '') ||
+          !Number.isSafeInteger(maxBytes) ||
+          maxBytes < 1 ||
+          channelId === null ||
+          messageId === null ||
+          channels === undefined ||
+          version !== null ||
+          variantParam !== null)
+      )
+        return new Response('A byte limit requires a message-owned current attachment', {
+          status: 400,
+          headers: { 'cache-control': 'no-store' },
+        });
       if (
         (version !== null || variantParam !== null) &&
         fileId !== null &&
@@ -371,6 +388,13 @@ export function createAttachmentHttp(
                 fileId ?? hash!,
                 request.signal,
               );
+        if (maxBytes !== undefined && ref.size > maxBytes) {
+          await body.cancel().catch(() => undefined);
+          throw new ChannelAttachmentError(
+            'Attachment exceeds the requested byte limit',
+            'too-large',
+          );
+        }
         const image = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(ref.mime);
         return new Response(body, {
           headers: {

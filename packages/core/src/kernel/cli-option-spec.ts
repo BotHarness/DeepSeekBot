@@ -71,6 +71,7 @@ export const CHANNEL_OPTIONS = {
   remove: { type: 'boolean' },
   off: { type: 'boolean' },
   attachment: { type: 'string' },
+  'max-bytes': { type: 'string' },
   representation: { type: 'string' },
 } as const;
 

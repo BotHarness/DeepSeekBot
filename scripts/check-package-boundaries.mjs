@@ -23,6 +23,7 @@ const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlit
 const CLIENT_HOST_BASELINE = 'scripts/client-host-import-baseline.json';
 const KERNEL_SOURCE = `${CORE_SOURCE}/kernel/`;
 const TEAM_POLICY_SOURCE = `${CORE_SOURCE}/team-policy/`;
+const RENDERER_PACKAGE = 'packages/artifact-renderers/';
 
 function isRuntimeImport(node) {
   switch (node.type) {
@@ -87,6 +88,21 @@ function inspectPackageBoundaries(file, source, workspaces) {
     const relativeTarget = staticSpecifier?.startsWith('.')
       ? posix.normalize(posix.join(posix.dirname(file), staticSpecifier))
       : undefined;
+    if (input && staticSpecifier && file.startsWith(RENDERER_PACKAGE)) {
+      const packageName = staticSpecifier.startsWith('@')
+        ? staticSpecifier.split('/').slice(0, 2).join('/')
+        : staticSpecifier.split('/')[0];
+      if (
+        /^@botharness\/|^(?:@deepseek-ai\/)?dsh(?:[-/]|$)|^@deepseek-ai\/cordis(?:\/|$)/u.test(
+          staticSpecifier,
+        ) ||
+        workspaces.has(packageName) ||
+        (relativeTarget !== undefined && !relativeTarget.startsWith(RENDERER_PACKAGE))
+      )
+        errors.push(
+          `${file}:${input.loc.start.line}: Artifact Renderers must be independent of BotHarness and DSH (${staticSpecifier})`,
+        );
+    }
     if (staticSpecifier && file.startsWith(KERNEL_SOURCE)) {
       const kernelTarget = relativeTarget ?? staticSpecifier;
       if (

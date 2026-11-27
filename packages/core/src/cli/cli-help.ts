@@ -60,6 +60,7 @@ Usage:
   tobs channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
   tobs channel-media-target <channel> --source-event <id> --attachment <id>
   tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path> [--representation playback]
+  tobs channel-attachment-download <channel> --message-id <id> --attachment <id> --max-bytes <n> --out <path>
   tobs grants <id> [--home <dsh-home>]
   tobs grant-revoke <id> --grant <grant> [--home <dsh-home>]   online: add --confirm
   tobs grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]

@@ -17,6 +17,24 @@ afterEach(async () => {
 });
 
 describe('device gateway', () => {
+  it('requires current device authority for a bounded Attachment read', async () => {
+    const host = await fakeDsh();
+    const path =
+      '/botharness-device/api/botharness/attachment?channelId=group&messageId=msg&fileId=file%3A1&maxBytes=32';
+    expect((await fetch(host.base + path)).status).toBe(401);
+    expect(host.state.seen).toHaveLength(0);
+
+    const { offer } = host.pairing.createOffer();
+    const { body } = await pair(host.base, offer);
+    const read = () =>
+      fetch(host.base + path, { headers: { authorization: `Device ${body.credential}` } });
+    expect(await (await read()).json()).toMatchObject({ path: '/api/botharness/attachment' });
+    expect(host.state.seen).toHaveLength(1);
+    host.pairing.revoke(body.deviceId!);
+    expect((await read()).status).toBe(401);
+    expect(host.state.seen).toHaveLength(1);
+  });
+
   it('pairs once and forwards unary calls with the Host-held session only', async () => {
     const host = await fakeDsh();
     const { offer } = host.pairing.createOffer();
