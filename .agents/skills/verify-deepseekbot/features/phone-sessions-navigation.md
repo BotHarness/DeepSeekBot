@@ -38,7 +38,7 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 4. For each Returning to Sessions choice, open a Session, go to Chats, then tap Sessions.
 5. Re-tap the selected Sessions tab from a Session in each style: it returns to the root.
 6. Capture Light/Dark and the maximum text size for the list and the Settings section.
-7. On Android in Drawer style, open a Session with a wide fenced code block, a wide Markdown table, and enough text to scroll vertically. On each block, drag and fling right from the leading edge, then close the drawer with Back. Swipe left to scroll the block, swipe right to return it to the leading edge, and swipe right again to open the drawer. Check vertical scroll starting on the block, Copy, the message long-press menu, and right swipes from ordinary message text and the empty New Session page.
+7. On Android in Drawer style, open a Session with a wide fenced code block, a wide Markdown table, and enough text to scroll vertically. On each block, drag and fling right from the leading edge, then close the drawer with Back. Swipe left to scroll the block, swipe right to return it to the leading edge, and swipe right again to open the drawer. Position a wide block behind the Composer and drag a cursor or selection handle horizontally. The editor retains the drag and the drawer stays closed. Check vertical scroll starting on the block, Copy, the message long-press menu, and right swipes from ordinary message text and the empty New Session page.
 
 ## Gotchas
 
