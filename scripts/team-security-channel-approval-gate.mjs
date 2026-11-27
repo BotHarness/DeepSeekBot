@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 
 export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
   const newGroup = (bot, name, humans, as) => {
@@ -18,7 +19,8 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
   };
   const marker = `approvalfixture${tag.replaceAll('-', '')}`;
   const request = async (channelId, bot, label, viewer) => {
-    const command = `printf %s ${shellQuote(marker + label)}`;
+    const target = join(s.dir, `approval-${label}-${tag}.txt`);
+    const command = `printf %s ${shellQuote(marker + label)} > ${shellQuote(target)}`;
     const before = new Set(s.messages(channelId, viewer).map(({ id }) => id));
     s.cli(
       [
@@ -32,7 +34,7 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
         label,
       ],
       {
-        input: `Disposable QA fixture for one-shot approval. Call native Bash exactly once with command ${command}, sandbox_permissions "danger-full-access", and justification "Show the one-shot approval for this harmless test marker." Wait for the Human's decision. Do not run the command without approval, change standing permissions, or retry.`,
+        input: `Write the marker to this isolated QA scratch directory, which is outside your workspace. Call native Bash exactly once with command ${command}, sandbox_permissions "danger-full-access", and justification "Write the authorized QA marker to the scratch directory outside my workspace." Wait for the Human's one-shot decision before writing. Do not retry or change standing permissions.`,
       },
     );
     const deadline = Date.now() + s.options.timeout * 1000;
@@ -43,7 +45,7 @@ export async function runChannelApprovalGate(s, fx, tag, check, shellQuote) {
           (message) =>
             !before.has(message.id) &&
             ['bash', 'shell'].includes(message.toolApprovalRequest?.toolName) &&
-            message.toolApprovalRequest?.input?.includes(command),
+            message.toolApprovalRequest?.input?.includes(marker + label),
         );
       if (card) return card.id;
       await new Promise((done) => setTimeout(done, 2500));
