@@ -6,6 +6,7 @@ import {
   extractWWWAuthenticateParams,
   refreshAuthorization,
   registerClient,
+  selectClientAuthMethod,
   startAuthorization,
   type AuthorizationServerMetadata,
   type OAuthClientInformationMixed,
@@ -72,6 +73,11 @@ export interface RemoteMcpClient {
     client: OAuthClientInformationMixed,
     refreshToken: string,
   ): Promise<OAuthTokens>;
+  revoke(
+    oauth: RemoteMcpOAuth,
+    client: OAuthClientInformationMixed,
+    token: { value: string; type: 'access_token' | 'refresh_token' },
+  ): Promise<void>;
   inspect(url: string, token?: string): Promise<RemoteMcpServerInfo>;
   image(url: string): Promise<string | undefined>;
   registry(query: string, cursor?: string): Promise<RegistryPage>;
@@ -254,6 +260,43 @@ export function createRemoteMcpClient(
         resource: new URL(oauth.resource),
         fetchFn: fetchImpl,
       });
+    },
+    async revoke(oauth, client, token) {
+      const metadata = oauth.metadata;
+      if (
+        metadata === undefined ||
+        !('revocation_endpoint' in metadata) ||
+        typeof metadata.revocation_endpoint !== 'string'
+      )
+        return;
+      const url = new URL(metadata.revocation_endpoint);
+      if (url.protocol !== 'https:') throw new Error('Insecure MCP revocation endpoint');
+      const method = selectClientAuthMethod(
+        client,
+        metadata.token_endpoint_auth_methods_supported ?? [],
+      );
+      const headers = new Headers({ 'Content-Type': 'application/x-www-form-urlencoded' });
+      const body = new URLSearchParams({ token: token.value, token_type_hint: token.type });
+      if (method === 'client_secret_basic') {
+        if (!client.client_secret) throw new Error('Missing MCP client secret');
+        headers.set(
+          'Authorization',
+          `Basic ${btoa(`${client.client_id}:${client.client_secret}`)}`,
+        );
+      } else {
+        body.set('client_id', client.client_id);
+        if (method === 'client_secret_post' && client.client_secret)
+          body.set('client_secret', client.client_secret);
+      }
+      const response = await fetchImpl(url, {
+        method: 'POST',
+        headers,
+        body,
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+      });
+      await response.body?.cancel().catch(() => undefined);
+      if (!response.ok) throw new Error('MCP token revocation rejected');
     },
     async inspect(url, token) {
       const client = new Client({ name: clientName, version: '1.0.0' });
