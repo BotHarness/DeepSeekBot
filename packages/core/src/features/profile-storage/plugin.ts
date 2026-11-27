@@ -17,8 +17,7 @@ import { installedDshVersion } from '../../telemetry/service.js';
 import type { createHostModelCatalog } from '../../models/host-models.js';
 import { failOperationalDatabase } from '../../database/owner.js';
 import { applyPendingDataReset, createDataReset } from '../../data-reset/reset.js';
-import type { BotHarnessCore } from '../../plugin.js';
-import type { CoreOptions } from '../../plugin-types.js';
+import type { BotHarnessCore, CoreOptions } from '../../plugin-types.js';
 
 export function apply(ctx: Context, dshHome: string) {
   applyPendingDataReset({
@@ -28,21 +27,14 @@ export function apply(ctx: Context, dshHome: string) {
   });
 }
 
-export function mountStorage(
-  ctx: Context,
+export function createStorage(
   core: Pick<
     BotHarnessCore,
-    | 'operationalDatabase'
-    | 'attachments'
-    | 'channels'
-    | 'registry'
-    | 'deletions'
-    | 'live'
-    | 'mediaVersions'
+    'operationalDatabase' | 'attachments' | 'channels' | 'registry' | 'deletions' | 'live'
   >,
   dshHome: string,
 ) {
-  const storage = createStorageCleanup({
+  return createStorageCleanup({
     dshHome,
     database: core.operationalDatabase,
     attachments: core.attachments,
@@ -58,6 +50,15 @@ export function mountStorage(
       }
     },
   });
+}
+
+export function mountStorageMaintenance(
+  ctx: Context,
+  core: Pick<
+    BotHarnessCore,
+    'operationalDatabase' | 'attachments' | 'channels' | 'registry' | 'deletions' | 'mediaVersions'
+  >,
+): void {
   ctx.effect(
     () =>
       startAttachmentSweep({
@@ -78,7 +79,6 @@ export function mountStorage(
       }),
     'botharness: media backfill',
   );
-  return storage;
 }
 
 export function createReset(

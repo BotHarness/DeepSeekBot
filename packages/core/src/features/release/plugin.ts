@@ -12,7 +12,6 @@ import { createProcessRestarter, type ReleaseRestarter } from '../../release/res
 import { createPluginUpdateService } from '../../release/plugins.js';
 import { createUpdateRuns } from '../../release/update-runs.js';
 import { createUpdateLifecycle } from '../../diagnostics/update-lifecycle.js';
-import type { createCore } from '../../plugin.js';
 
 export function resolveProfile(
   ctx: Context,
@@ -55,9 +54,24 @@ export function apply({
   return { release, updateLifecycle };
 }
 
+export function createInstaller(updateLifecycle: ReturnType<typeof createUpdateLifecycle>) {
+  const releaseInstaller: { current: ReleaseInstaller | undefined } = {
+    current: undefined,
+  };
+  const updateRuns = createUpdateRuns({
+    canceller: () => releaseInstaller.current,
+    observe: (summary) => updateLifecycle.observe(summary),
+  });
+  const releaseRestarter: { current: ReleaseRestarter | undefined } = {
+    current: undefined,
+  };
+  return { releaseInstaller, updateRuns, releaseRestarter };
+}
+
 export function mountInstaller(
   ctx: Context,
-  updateLifecycle: ReturnType<typeof createUpdateLifecycle>,
+  { releaseInstaller, updateRuns, releaseRestarter }: ReturnType<typeof createInstaller>,
+  updateLifecycle: Pick<ReturnType<typeof createUpdateLifecycle>, 'restartFailed'>,
   {
     installer,
     events,
@@ -68,9 +82,6 @@ export function mountInstaller(
     appExit(ctx: Context): (code: number) => void;
   },
 ) {
-  const releaseInstaller: { current: ReleaseInstaller | undefined } = {
-    current: undefined,
-  };
   ctx.inject(['pluginManager'], (managerCtx) => {
     managerCtx.effect(() => {
       releaseInstaller.current = installer(managerCtx);
@@ -79,15 +90,8 @@ export function mountInstaller(
       };
     }, 'botharness: release installer');
   });
-  const updateRuns = createUpdateRuns({
-    canceller: () => releaseInstaller.current,
-    observe: (summary) => updateLifecycle.observe(summary),
-  });
   events.on('plugin-manager/install-log', (chunk) => updateRuns.log(chunk));
   events.on('plugin-manager/install-state', (progress) => updateRuns.state(progress));
-  const releaseRestarter: { current: ReleaseRestarter | undefined } = {
-    current: undefined,
-  };
   ctx.inject(['appExit'], (exitCtx) => {
     exitCtx.effect(() => {
       releaseRestarter.current = createProcessRestarter({
@@ -99,7 +103,6 @@ export function mountInstaller(
       };
     }, 'botharness: release restarter');
   });
-  return { releaseInstaller, updateRuns, releaseRestarter };
 }
 
 export function mountServices(
@@ -114,7 +117,7 @@ export function mountServices(
     updateRuns,
     updateLifecycle,
   }: ReturnType<typeof resolveProfile> &
-    ReturnType<typeof mountInstaller> & {
+    ReturnType<typeof createInstaller> & {
       runningRelease: {
         version: string;
         ledgers: ReturnType<ReturnType<typeof installedRelease>['ledgers']>;

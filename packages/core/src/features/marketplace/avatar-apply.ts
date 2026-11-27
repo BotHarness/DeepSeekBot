@@ -8,7 +8,7 @@ import {
   invalidInput,
   type BridgeResult,
 } from '../../kernel/method-utils.js';
-import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { MarketplaceBridgeDeps } from './methods.js';
 import { writeBotAvatar } from '../avatars/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { ownsBot } from '../../team-policy/bot-access.js';
@@ -23,7 +23,7 @@ const botNotFound = (): ApplyResult => ({
 
 export function createMarketplaceAvatarApply(
   human: HumanContext,
-  deps: Pick<BridgeMethodsDeps, 'team' | 'registry' | 'marketplaceReceipts'>,
+  deps: Pick<MarketplaceBridgeDeps, 'team' | 'registry' | 'marketplaceReceipts'>,
   isHostOwner: () => boolean,
   marketplaceCall: <T>(
     operation: (client: MarketplaceClient) => Promise<MarketplaceResult<T>>,

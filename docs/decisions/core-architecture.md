@@ -25,3 +25,5 @@ For subsequent migrations, add the descriptor factory to the composition list an
 Host plugin hooks run at the existing Cordis lifecycle stages. Cloud registers its tool and messaging provider at the same stages as their other Host registrations. Diagnostics registers routes and telemetry observers, and Usage binds parent turns and reconciles Session logs. Host composition constructs the shared resources those hooks consume.
 
 Appearance contributes the Window Companion live stream in a separate descriptor table. Typert marks these entries as streams and still injects the abort signal after the positional request arguments.
+
+Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
