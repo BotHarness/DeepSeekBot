@@ -4,7 +4,7 @@ import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { ToolRuntime, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it, vi } from 'vitest';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { SendReviewRequired } from '../src/channels/send-review.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';

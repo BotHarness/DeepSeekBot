@@ -5,7 +5,7 @@ import type { PromptText } from '../prompts/prompt-parts.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 
 export interface AgentFeatureContext {
-  getAttachments(): Pick<AttachmentStore, 'saveImage'> | undefined;
+  getAttachments(): Pick<AttachmentStore, 'saveImage' | 'imageLimits'> | undefined;
   readonly botSlug: string;
   readonly currentRun: () => OrchestratorAgentRun | undefined;
   readonly promptText: () => PromptText;
@@ -28,10 +28,10 @@ export function agentFeatureContext(
     promptText(sessionId: string): PromptText;
   },
   run: OrchestratorAgentRun,
-  agentContext: Pick<Context, 'get'>,
+  agentContext?: Pick<Context, 'get'>,
 ): AgentFeatureContext {
   return {
-    getAttachments: () => agentContext.get('attachments'),
+    getAttachments: () => agentContext?.get('attachments'),
     botSlug: run.bot.slug,
     currentRun: () => {
       const current = adapter.runs.get(run.sessionId);

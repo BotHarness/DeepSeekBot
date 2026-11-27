@@ -12,7 +12,7 @@ import type {
   BotAgentAdapter,
   OrchestratorAgentRun,
 } from '../src/runtime/bot-runtime.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost, type FakeSession } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 import {

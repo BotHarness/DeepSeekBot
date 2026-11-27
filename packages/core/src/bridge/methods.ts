@@ -19,11 +19,7 @@ import {
   createActivityBridgeMethods,
   type ActivityBridgeMethods,
 } from '../features/activity/methods.js';
-import {
-  createMessagingBridgeMethods,
-  type MessagingBridgeMethods,
-  createMessagingCall,
-} from '../features/messaging/methods.js';
+import { createMessagingCall } from '../features/messaging/methods.js';
 import {
   createSessionsBridgeMethods,
   type SessionsBridgeMethods,
@@ -142,26 +138,6 @@ import {
   createSessionsAdapterMethods,
   type SessionsAdapterMethods,
 } from '../features/sessions/methods.js';
-import {
-  createChannelFilesAdapterMethods,
-  type ChannelFilesAdapterMethods,
-} from '../features/channel-files/methods.js';
-import {
-  createChannelsSendAdapterMethods,
-  type ChannelsSendAdapterMethods,
-} from '../features/channels/send-methods.js';
-import {
-  createGroupMemberMethods,
-  type GroupMemberMethods,
-} from '../features/channels/group-members.js';
-import {
-  createChannelsManagementAdapterMethods,
-  type ChannelsManagementAdapterMethods,
-} from '../features/channels/management-methods.js';
-import {
-  createChannelsAdapterMethods,
-  type ChannelsAdapterMethods,
-} from '../features/channels/methods.js';
 import { createDmMemoryReader } from '../features/memory/methods.js';
 
 export type {
@@ -301,14 +277,8 @@ export interface BridgeMethods
     SessionsBridgeMethods,
     AssignmentsBridgeMethods,
     MemoryBridgeMethods,
-    MessagingBridgeMethods,
     ActivityBridgeMethods,
     PersonaBotsBridgeMethods,
-    ChannelsAdapterMethods,
-    ChannelsManagementAdapterMethods,
-    GroupMemberMethods,
-    ChannelsSendAdapterMethods,
-    ChannelFilesAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
     ReturnType<typeof createSessionBotMethods>,
@@ -524,7 +494,6 @@ function buildBridgeMethods(
   const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
   const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
   const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
-  const messagingMethods = createMessagingBridgeMethods(deps, messagingCall);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
   const personabotsMethods = createPersonaBotsBridgeMethods(
     human,
@@ -543,74 +512,36 @@ function buildBridgeMethods(
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
-  const channelFilesAdapterMethods = createChannelFilesAdapterMethods(deps);
-  const channelsSendAdapterMethods = createChannelsSendAdapterMethods(
+  const contributions = contributedBridgeMethods(deps, {
     human,
-    deps,
-    globalRegistry,
-    channelSkillBots,
-  );
-  const sessionBots = createSessionBotMethods(human, deps, isHostOwner, detailOf, (payload) =>
-    channelsSendAdapterMethods.channelSend(payload),
-  );
-  const channelsManagementAdapterMethods = createChannelsManagementAdapterMethods(
-    human,
-    deps,
-    globalRegistry,
-    channelView,
     detailOf,
-  );
-  const channelsAdapterMethods = createChannelsAdapterMethods(
-    human,
-    deps,
-    isHostOwner,
     channelView,
+    globalRegistry,
+    isHostOwner,
+    dmMemory,
+    channelSkillBots,
+    requireOwnedBot,
+    sendReceipt,
+    messagingCall,
     listedChannels,
     listItem,
+  });
+  const sessionBots = createSessionBotMethods(human, deps, isHostOwner, detailOf, (payload) =>
+    contributions.channelSend(payload),
   );
   const methods: Omit<BridgeMethods, keyof ReturnType<typeof contributedBridgeMethods>> = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
     ...createEngineAccountBridge(human, deps),
     ...createEngineSelectionBridge(human, { ...deps, registry: globalRegistry }),
-    channelBridges: messagingMethods.channelBridges,
-    channelIngests: messagingMethods.channelIngests,
-    channelIngest: messagingMethods.channelIngest,
-    channelBridge: messagingMethods.channelBridge,
-    messagingChannelTarget: messagingMethods.messagingChannelTarget,
-    messagingThreadPolicy: messagingMethods.messagingThreadPolicy,
-    messagingGroupPolicy: messagingMethods.messagingGroupPolicy,
-    messagingReceive: messagingMethods.messagingReceive,
-    messagingSource: messagingMethods.messagingSource,
-    failureAlertsSet: messagingMethods.failureAlertsSet,
-    failureAlertsTest: messagingMethods.failureAlertsTest,
-    failureAlertsRetry: messagingMethods.failureAlertsRetry,
     approvalRoute: approvalsMethods.approvalRoute,
     approvalTest: approvalsMethods.approvalTest,
     questionRetry: approvalsMethods.questionRetry,
     approvalRetry: approvalsMethods.approvalRetry,
-    senderAccess: messagingMethods.senderAccess,
-    pairingReview: messagingMethods.pairingReview,
-    messagingIdentity: messagingMethods.messagingIdentity,
-    messagingDefaults: messagingMethods.messagingDefaults,
-    messagingDefaultsSet: messagingMethods.messagingDefaultsSet,
-    messagingApps: messagingMethods.messagingApps,
-    messagingSnapshot: messagingMethods.messagingSnapshot,
-    messagingReachable: messagingMethods.messagingReachable,
-    messagingPostRequest: messagingMethods.messagingPostRequest,
-    messagingPostConversation: messagingMethods.messagingPostConversation,
-    messagingPostLimit: messagingMethods.messagingPostLimit,
-    messagingGroupInteractions: messagingMethods.messagingGroupInteractions,
-    messagingTargets: messagingMethods.messagingTargets,
-    messagingAuthorize: messagingMethods.messagingAuthorize,
-    messagingRevoke: messagingMethods.messagingRevoke,
-    messagingConversation: messagingMethods.messagingConversation,
-    messagingSend: messagingMethods.messagingSend,
     ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
     ...modelInheritance,
     onboardingModel: personabotsMethods.onboardingModel,
-    channelRetry: channelsAdapterMethods.channelRetry,
     botNewSession: sessionsMethods.botNewSession,
     botCompact: sessionsMethods.botCompact,
     botContext: sessionsMethods.botContext,
@@ -656,41 +587,6 @@ function buildBridgeMethods(
     idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
     compactionThresholdSet: sessionsMethods.compactionThresholdSet,
     standingLimitsSet: personabotsMethods.standingLimitsSet,
-    composerValidate: channelsAdapterMethods.composerValidate,
-    channels: channelsAdapterMethods.channels,
-    channelListChanges: channelsAdapterMethods.channelListChanges,
-    channelAccessState: channelsAdapterMethods.channelAccessState,
-    channelDm: channelsAdapterMethods.channelDm,
-    channelGet: channelsAdapterMethods.channelGet,
-    channelCreate: channelsManagementAdapterMethods.channelCreate,
-    channelRename: channelsManagementAdapterMethods.channelRename,
-    channelGroupAvatarSet: channelsManagementAdapterMethods.channelGroupAvatarSet,
-    channelGroupInvite: channelsManagementAdapterMethods.channelGroupInvite,
-    ...createGroupMemberMethods({
-      human,
-      deps: { ...deps, registry: globalRegistry },
-      invite: channelsManagementAdapterMethods.channelGroupInvite,
-    }),
-    channelGroupInviteCancel: channelsManagementAdapterMethods.channelGroupInviteCancel,
-    channelGroupJoinDecide: channelsManagementAdapterMethods.channelGroupJoinDecide,
-    channelGroupMemberRemove: channelsManagementAdapterMethods.channelGroupMemberRemove,
-    channelGroupSendReview: channelsManagementAdapterMethods.channelGroupSendReview,
-    channelGroupWakePolicies: channelsManagementAdapterMethods.channelGroupWakePolicies,
-    channelGroupWakeSet: channelsManagementAdapterMethods.channelGroupWakeSet,
-    channelHistory: channelsAdapterMethods.channelHistory,
-    channelHistorySources: channelsAdapterMethods.channelHistorySources,
-    channelGroupDelete: channelsManagementAdapterMethods.channelGroupDelete,
-    channelMessages: channelsAdapterMethods.channelMessages,
-    channelTimeline: channelsAdapterMethods.channelTimeline,
-    channelReadPosition: channelsAdapterMethods.channelReadPosition,
-    channelMarkRead: channelsAdapterMethods.channelMarkRead,
-    channelReact: channelsAdapterMethods.channelReact,
-    channelSearch: channelsAdapterMethods.channelSearch,
-    messageSearch: channelsAdapterMethods.messageSearch,
-    channelMarkAllRead: channelsAdapterMethods.channelMarkAllRead,
-    channelAllBotPreview: channelsAdapterMethods.channelAllBotPreview,
-    channelSendStatus: channelsAdapterMethods.channelSendStatus,
-    channelSend: channelsSendAdapterMethods.channelSend,
     botAttention: activityMethods.botAttention,
     botSourcePolicies: activityMethods.botSourcePolicies,
     botSourcePolicySet: activityMethods.botSourcePolicySet,
@@ -721,8 +617,6 @@ function buildBridgeMethods(
     sessionToolDetail: sessionsMethods.sessionToolDetail,
     sessionSubagents: assignmentsMethods.sessionSubagents,
     workspaceOptions: workspacesAdapterMethods.workspaceOptions,
-    channelMediaTarget: messagingMethods.channelMediaTarget,
-    messageAttachmentTarget: channelFilesAdapterMethods.messageAttachmentTarget,
     folderBrowse: workspacesAdapterMethods.folderBrowse,
     folderCreate: workspacesAdapterMethods.folderCreate,
     workspaceFileTarget: workspacesAdapterMethods.workspaceFileTarget,
@@ -782,20 +676,7 @@ function buildBridgeMethods(
     rosterBatch: personabotsMethods.rosterBatch,
   };
   return authorizeChannelBridgeMethods(
-    mergeFeatureMethods([
-      methods,
-      contributedBridgeMethods(deps, {
-        human,
-        detailOf,
-        channelView,
-        globalRegistry,
-        isHostOwner,
-        dmMemory,
-        channelSkillBots,
-        requireOwnedBot,
-        sendReceipt,
-      }),
-    ]),
+    mergeFeatureMethods([methods, contributions]),
     human,
     deps,
     globalRegistry,

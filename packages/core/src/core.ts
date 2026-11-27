@@ -459,7 +459,9 @@ function initializeCore(
     live: () => live,
     contentPurge,
   });
-  channelsFeature.reconcileGroupMembers(startup, { operationalDatabase, channels, registry });
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.channelStartupReconciliation?.(startup, { operationalDatabase, channels, registry }),
+  );
   startup.enter('bot-onboarding', 'initialize');
   const { onboarding, acknowledgements } = personabotsFeature.createOnboarding(
     operationalDatabase,

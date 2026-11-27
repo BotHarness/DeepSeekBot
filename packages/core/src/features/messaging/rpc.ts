@@ -1,5 +1,4 @@
 import type { ExternalSource } from '../../messaging/inbound.js';
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
 import type {
@@ -343,7 +342,7 @@ export const messagingRpcMethods = {
   ): Promise<{ target: MemoryFileTarget }> {
     return channelMediaTarget(this.methods, channelId, sourceEventId, attachmentId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: MessagingBridgeMethods }>;
 
 export const channelMessagingRpc = {
   messagingChannelTarget(
@@ -401,7 +400,7 @@ export const channelMessagingRpc = {
   messagingSource(slug: string, sourceEventId: string): Promise<{ source: ExternalSource }> {
     return messagingSource(this.methods, slug, sourceEventId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: MessagingBridgeMethods }>;
 
 export const messagingPolicyRpc = {
   failureAlertsSet(
@@ -441,7 +440,7 @@ export const messagingPolicyRpc = {
   ): Promise<{ identity: MessagingIdentity }> {
     return messagingIdentity(this.methods, slug, input);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: MessagingBridgeMethods }>;
 
 export const messagingConnectionRpc = {
   messagingApps(): Promise<MessagingAppsView> {
@@ -550,4 +549,4 @@ export const messagingConnectionRpc = {
   ): Promise<{ intent: OutboxIntent }> {
     return messagingSend(this.methods, slug, grantId, requestId, text);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ readonly methods: MessagingBridgeMethods }>;

@@ -2,10 +2,8 @@ import { createAssistantMessage, ToolCallId } from '@deepseek-ai/dsh-llm';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { expect, it, vi } from 'vitest';
 import type { AssignmentAgentRun } from '../src/runtime/bot-runtime.js';
-import {
-  createDshBotAgentAdapter,
-  type DshBotAgentAdapterOptions,
-} from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
+import { type DshBotAgentAdapterOptions } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { deferred } from './deferred.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { executeFixtureNativeTool } from './fixtures/native-tools.js';

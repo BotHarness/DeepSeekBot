@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_PROMPT_TEXT, defaultPromptText } from '../src/prompts/prompt-parts.js';
-import {
-  hostWorkContext,
-  onlyActiveGrant,
-  orchestratorPromptSections,
-} from '../src/runtime/dsh-bot-agent-adapter.js';
+import { hostWorkContext, onlyActiveGrant } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { orchestratorPromptSections } from './fixtures/orchestrator-prompt.js';
 
 const coordination = defaultPromptText('coordination');
 const role = orchestratorPromptSections(DEFAULT_PROMPT_TEXT).role;

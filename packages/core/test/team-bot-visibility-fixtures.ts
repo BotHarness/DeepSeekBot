@@ -10,7 +10,7 @@ import { createBridgeMethodsForHumans, type BridgeMethodsDeps } from '../src/bri
 import { createCore } from '../src/plugin.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 
 export const closes: Array<() => void | Promise<void>> = [];

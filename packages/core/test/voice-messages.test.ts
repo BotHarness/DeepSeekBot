@@ -14,7 +14,7 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createBotRuntime } from '../src/runtime/bot-runtime.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
 import { createVoiceBridgeMethods } from '../src/voice/bridge.js';

@@ -30,6 +30,8 @@ Appearance contributes the Window Companion live stream in a separate descriptor
 
 Environments mounts device pairing before the after-Environments hooks. Takeover registers Handoff recovery, disposal, and Orchestrator Tools after Team confinement. Voice registers its Call route between the desktop routes and Channel live route.
 
+Channels contributes the live stream and its authorization projection while Channel Files contributes the attachment routes. Messaging contributes startup and provider hooks and binds connection-specific Tools and guidance at the existing connection boundary. The Agent composition uses named positions for these Tools and prompt fragments so their registration order and rendered text stay stable.
+
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
 ## CLI adapters and PersonaBot protection

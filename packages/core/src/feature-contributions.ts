@@ -19,6 +19,9 @@ import { createSchedulesContribution } from './features/schedules/contribution.j
 import { createVoiceContribution } from './features/voice/contribution.js';
 import { createTakeoverContribution } from './features/takeover/contribution.js';
 import { createEnvironmentsContribution } from './features/environments/contribution.js';
+import { createMessagingContribution } from './features/messaging/contribution.js';
+import { createChannelFilesContribution } from './features/channel-files/contribution.js';
+import { createChannelsContribution } from './features/channels/contribution.js';
 import type { InboxWakeSource } from './kernel/runtime-host.js';
 
 export function createFeatureContributions(options?: {
@@ -45,6 +48,9 @@ export function createFeatureContributions(options?: {
     createVoiceContribution(),
     createTakeoverContribution(),
     createEnvironmentsContribution(),
+    createMessagingContribution(),
+    createChannelFilesContribution(),
+    createChannelsContribution(),
   ] as const;
 }
 
