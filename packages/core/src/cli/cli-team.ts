@@ -1,9 +1,14 @@
 import { readTeamMode } from '@botharness/host-client/people';
 import { readChannel } from '@botharness/host-client/channel-management';
+import {
+  parseHostRoleRevisions,
+  type HostRoleUpdatePrecondition,
+} from '@botharness/host-client/team-roles';
 export { TEAM_OPTIONS } from '../kernel/cli-option-spec.js';
 import { botVisibilitySchema, rolePolicySchema } from '../team-policy/bot-contract.js';
 
 import { privateKindSchema } from '../team-policy/private-content.js';
+import { roleRevisionSchema } from '../team-policy/permissions.js';
 import { spaceAudienceSchema } from '../workspaces/spaces.js';
 import {
   channelBotAudienceSchema,
@@ -41,7 +46,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | effective [<username>] | conflicts <username> | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
+      'list | catalog | effective [<username>] | conflicts <username> | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -62,6 +67,7 @@ type TeamValues = {
   'join-channels'?: string;
   'speaker-context'?: string;
   'policy-stdin'?: boolean;
+  'expected-revision'?: string;
   topic?: string;
   query?: string;
   after?: string;
@@ -122,6 +128,28 @@ function secretJson<T>(schema: z.ZodType<T>, text: string): T {
 }
 
 const memberRow = z.object({ humanId: z.string(), username: z.string() });
+
+async function expectedRoleRevision(
+  rpc: Rpc,
+  roleId: string,
+  raw: string | undefined,
+): Promise<number> {
+  if (raw !== undefined) {
+    const revision = roleRevisionSchema.safeParse(Number(raw));
+    if (!/^\d+$/u.test(raw) || !revision.success)
+      throw new CliLiveError(
+        'usage',
+        '--expected-revision must be the positive integer from roles list.',
+      );
+    return revision.data;
+  }
+  const roles = parseHostRoleRevisions(await rpc('roles', {}));
+  if (!roles) throw new CliLiveError('host-protocol-error', 'role-response-invalid');
+  const role = roles.find((item) => item.roleId === roleId);
+  if (!role) throw new CliLiveError('role-not-found', 'role-not-found');
+  return role.revision;
+}
+
 async function memberId(username: string, rpc: Rpc, as?: string): Promise<string> {
   const mode = await readTeamMode({ call: (method, args = {}) => rpc(method, args) });
   if (as === username) return mode.viewer.humanId;
@@ -303,6 +331,7 @@ export async function runTeamCommand(
     return usage();
   }
   if (command === 'roles') {
+    if (action !== 'update' && values['expected-revision'] !== undefined) return usage();
     const providers = values['model-providers'];
     if (values.models === 'all' && providers !== undefined) return usage();
     const accounts = values['engine-accounts'];
@@ -343,17 +372,23 @@ export async function runTeamCommand(
         values.deny !== undefined ||
         models !== undefined ||
         values['policy-stdin'])
-    )
-      return rpc('roleUpdate', {
+    ) {
+      const policy = values['policy-stdin']
+        ? secretJson(rolePolicySchema, await secret(io))
+        : undefined;
+      const precondition: HostRoleUpdatePrecondition = {
         roleId: argument,
-        ...(values['policy-stdin']
-          ? { policy: secretJson(rolePolicySchema, await secret(io)) }
-          : {}),
+        expectedRevision: await expectedRoleRevision(rpc, argument, values['expected-revision']),
+      };
+      return rpc('roleUpdate', {
+        ...precondition,
+        ...(policy === undefined ? {} : { policy }),
         ...(models === undefined ? {} : { models }),
         ...(values.name === undefined ? {} : { name: values.name }),
         ...(values.permissions === undefined ? {} : { permissions: ids(values.permissions) }),
         ...(values.deny === undefined ? {} : { denied: ids(values.deny) }),
       });
+    }
     if (action === 'delete' && argument && rest.length === 2) {
       if (!values.confirm) throw new CliLiveError('confirm-required', 'confirm-required');
       return rpc('roleDelete', { roleId: argument });

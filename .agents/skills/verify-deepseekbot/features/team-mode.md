@@ -38,6 +38,7 @@
 - S6: Refusals: wrong password, rate limit, non-loopback plain HTTP (`insecure-transport`, also with a forged `x-forwarded-proto: https`) unless the Owner allowed it, a private group opened by ID, Team mode off (all members disconnect, Owner keeps working).
 
 - S7 (M3 Host/CLI): role catalog, built-in roles, custom role CRUD and union permissions. `permission-required` carries `details.permission`; removing a role permission refuses the same member's next call.
+- S7a (#5530): As a role manager, record a custom role's `revision` from `roles list`. Save a newer revision denying `channels.create`, then run `roles update --expected-revision <original revision> --as <role manager>` with an empty denial list. Confirm it returns `stale-role` and `roles list` retains the denial.
 - S8 (M3 Host/CLI): `memberDevices { humanId }` is self-scoped without management permission; other targets require `members.manage`. `memberDeviceRevoke { humanId, grantId }` closes only that grant. `current` comes from the authenticated principal.
 - S9 (M3 Host/CLI): `ownerTransfer { humanId, password }` verifies the current Owner password; the outgoing Owner gets Admin and the target has no roles. The outgoing Owner's paired devices and pending offers cannot inherit the new Owner, including an A→B→A round trip. Transfers require a credential issued by the current Owner and a completed forced change; `owner-transfer-target-unverified` requires current-Owner reset followed by the target's password change.
 

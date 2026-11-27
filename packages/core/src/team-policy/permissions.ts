@@ -73,6 +73,8 @@ export function allowsModel(
   );
 }
 
+export const roleRevisionSchema = z.number().int().positive();
+
 export const roleSchema = z.object({
   roleId: z.string(),
   name: z.string(),
@@ -82,6 +84,7 @@ export const roleSchema = z.object({
   models: z.string().transform((value) => roleModelsSchema.parse(JSON.parse(value))),
   policy: z.string().transform((v) => rolePolicySchema.parse(JSON.parse(v))),
   policyRevision: z.number().int().positive(),
+  revision: roleRevisionSchema,
   memberCount: z.number().int().nonnegative(),
 });
 export type HostRole = z.infer<typeof roleSchema>;

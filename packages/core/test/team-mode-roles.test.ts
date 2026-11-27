@@ -5,11 +5,54 @@ import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { createTeamBridge } from '../src/features/team/bridge.js';
 import { enabledFixture, actors, cleanup } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
 
 describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
+  it('refuses a second writer using the same role revision without losing the first denial', async () => {
+    const f = await actors();
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    f.team.roles.set(owner, f.alice.member.humanId, ['admin']);
+    const { role } = f.team.roles.create(owner, 'Reviewers', []);
+    const bob = createTeamBridge(f.human, f.team);
+    const alice = createTeamBridge(humanContext(f.alice.member.humanId), f.team);
+    const bobRoles = await bob.roles({});
+    const aliceRoles = await alice.roles({});
+    if (!bobRoles.ok || !aliceRoles.ok) throw new Error('Role listing failed');
+    const first = bobRoles.value.find((r) => r.roleId === role.roleId);
+    const second = aliceRoles.value.find((r) => r.roleId === role.roleId);
+    if (!first || !second) throw new Error('Role missing from a writer snapshot');
+    expect(first.revision).toBe(second.revision);
+
+    const saved = await bob.roleUpdate({
+      roleId: role.roleId,
+      expectedRevision: first.revision,
+      permissions: [],
+      denied: ['channels.create'],
+    });
+    await expect(
+      alice.roleUpdate({
+        roleId: role.roleId,
+        expectedRevision: second.revision,
+        permissions: ['usage.view'],
+        denied: [],
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'stale-role' } });
+    expect(f.team.roles.list(owner).find((r) => r.roleId === role.roleId)).toMatchObject({
+      revision: first.revision + 1,
+      permissions: [],
+      denied: ['channels.create'],
+    });
+    expect(saved).toMatchObject({ ok: true, value: { role: { denied: ['channels.create'] } } });
+    await expect(
+      f.invoke('roleUpdate', { roleId: role.roleId, name: 'Renamed' }),
+    ).resolves.toMatchObject({
+      role: { name: 'Renamed', revision: first.revision + 2, denied: ['channels.create'] },
+    });
+  });
+
   it('exposes fixed ids, built-ins and a self-only viewer; unions roles and keeps Owner implicit', async () => {
     const f = await actors();
     const catalog = z

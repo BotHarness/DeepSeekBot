@@ -1,4 +1,5 @@
 import { readTeamMode } from '@botharness/host-client/people';
+import { STALE_HOST_ROLE } from '@botharness/host-client/team-roles';
 import { BridgeCallError, bridgeHost, type BridgeCall } from './bridge.js';
 
 export type TeamViewerKind = 'owner' | 'member';
@@ -81,6 +82,7 @@ export const TEAM_REFUSALS = [
   'channel-post-restricted',
   'channel-mention-restricted',
   'stale-channel-policy',
+  STALE_HOST_ROLE,
   'space-name-taken',
   'space-not-empty',
   'space-not-found',

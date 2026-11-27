@@ -1,5 +1,6 @@
 import { resolveHostPermissions, type RoleGrant } from '../team-policy/host-access.js';
 import { rolePolicySchema, type RolePolicy } from '../team-policy/bot-contract.js';
+import { STALE_HOST_ROLE } from '@botharness/host-protocol/team-roles';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -24,7 +25,7 @@ import {
   roleModelsSchema,
 } from '../team-policy/permissions.js';
 
-const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.denied_permissions_json AS denied, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
+const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.denied_permissions_json AS denied, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision, r.revision,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
 
 export function requireEngineAccountGrant(allowed: ModelsAllowed, accountId: string): void {
@@ -33,6 +34,12 @@ export function requireEngineAccountGrant(allowed: ModelsAllowed, accountId: str
 }
 
 type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: ReadonlySet<string> };
+
+class HostRoleConflictError extends TeamError {
+  constructor() {
+    super(STALE_HOST_ROLE);
+  }
+}
 
 export class TeamRoles {
   constructor(
@@ -295,6 +302,7 @@ export class TeamRoles {
     human: HumanContext,
     roleId: string,
     patch: {
+      expectedRevision?: number;
       name?: string;
       permissions?: string[];
       denied?: string[];
@@ -304,10 +312,12 @@ export class TeamRoles {
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const role = this.role(roleId);
-    const policy = patch.policy === undefined ? role.policy : rolePolicySchema.parse(patch.policy);
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
     this.checkPermissions(authority, role.denied, 'manage');
+    const expectedRevision = patch.expectedRevision ?? role.revision;
+    if (role.revision !== expectedRevision) throw new HostRoleConflictError();
+    const policy = patch.policy === undefined ? role.policy : rolePolicySchema.parse(patch.policy);
     const models = patch.models === undefined ? role.models : roleModelsSchema.parse(patch.models);
     if (patch.models !== undefined)
       this.checkModelGrant(
@@ -333,10 +343,10 @@ export class TeamRoles {
           );
     this.checkPermissions(authority, denials, 'manage');
     this.db.transaction(
-      (db) =>
-        db
+      (db) => {
+        const { changes } = db
           .prepare(
-            'UPDATE host_roles SET name = ?, permissions_json = ?, denied_permissions_json = ?, models_json = ?, policy_json = ?, policy_revision = policy_revision + ? WHERE role_id = ?',
+            'UPDATE host_roles SET name = ?, permissions_json = ?, denied_permissions_json = ?, models_json = ?, policy_json = ?, policy_revision = policy_revision + ?, revision = revision + 1 WHERE role_id = ? AND revision = ?',
           )
           .run(
             name,
@@ -346,7 +356,10 @@ export class TeamRoles {
             JSON.stringify(policy),
             Number(JSON.stringify(policy) !== JSON.stringify(role.policy)),
             roleId,
-          ),
+            expectedRevision,
+          );
+        if (!changes) throw new HostRoleConflictError();
+      },
       ['team'],
     );
     this.invalidate(

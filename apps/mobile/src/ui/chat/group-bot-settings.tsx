@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import type { ViewInstance } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 import { channelBotSettings } from '@botharness/host-client/channel-bots';
 import type { HostClient } from '@botharness/host-client/client';
 import type {
@@ -10,12 +10,19 @@ import type {
 import { followConnection } from '../../host/follow-connection';
 import { useMounted } from '../mounted';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { SettingsRow } from '../primitives/settings-row';
+import {
+  SettingsFooter,
+  SettingsGroupItem,
+  SettingsHeading,
+  SettingsRow,
+} from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { space } from '../design/tokens';
 import type { ProfileRow, ProfileTabBody } from './profile-shell';
 
 const options = ['everyone', 'roles', 'admins'] as const;
+const ON = 'raised' as const;
 
 export function useGroupBotSettings(
   client: HostClient | undefined,
@@ -93,37 +100,67 @@ export function useGroupBotSettings(
     ));
   if (!view && !readFailed) add('loading', () => <LoadingIndicator />);
   if (view?.bots.length === 0) add('empty', () => <Text tone="muted">{t.channelBots.empty}</Text>);
-  if (!bot) {
-    for (const entry of view?.bots ?? [])
-      add(`bot:${entry.botSlug}`, () => (
+  const heading = (key: string, title: string) =>
+    add(key, () => (
+      <View style={{ paddingTop: space.x4, paddingBottom: space.x2 }}>
+        <SettingsHeading>{title}</SettingsHeading>
+      </View>
+    ));
+  const footer = (key: string, text: string) =>
+    add(key, () => (
+      <View style={{ paddingTop: space.x2 }}>
+        <SettingsFooter>{text}</SettingsFooter>
+      </View>
+    ));
+  const group = <T,>(items: readonly T[], key: (item: T) => string, row: (item: T) => ReactNode) =>
+    items.forEach((item, index) =>
+      add(key(item), () => (
+        <SettingsGroupItem first={index === 0} last={index === items.length - 1} on={ON}>
+          {row(item)}
+        </SettingsGroupItem>
+      )),
+    );
+  if (!bot && (view?.bots.length ?? 0) > 0) {
+    heading('bots:heading', t.profileSettingsBot);
+    group(
+      view?.bots ?? [],
+      (entry) => `bot:${entry.botSlug}`,
+      (entry) => (
         <SettingsRow
+          on={ON}
           title={entry.name}
+          detail={t.channelBots[entry.audience.kind]}
           control={{ kind: 'chevron' }}
           testID={`channel-bot-${entry.botSlug}`}
           onPress={() => chooseBot(entry.botSlug)}
         />
-      ));
-  } else {
+      ),
+    );
+  }
+  if (bot) {
     const audience = draft ?? bot.audience;
-    add('back', () => (
-      <SettingsRow
-        title={t.back}
-        detail={bot.name}
-        testID="channel-bot-back"
-        onPress={() => chooseBot(undefined)}
-      />
-    ));
-    add('audience', () => (
-      <SettingsRow
-        title={t.channelBots.audience}
-        detail={t.channelBots.intersection}
-        control={{ kind: 'value', text: t.channelBots[bot.audience.kind] }}
-      />
-    ));
-    if (bot.canSetAudience) {
-      for (const kind of options)
-        add(kind, () => (
+    const canSave = draft !== undefined && (draft.kind !== 'roles' || draft.roleIds.length > 0);
+    group(
+      ['back'],
+      () => 'back',
+      () => (
+        <SettingsRow
+          on={ON}
+          title={t.back}
+          detail={bot.name}
+          testID="channel-bot-back"
+          onPress={() => chooseBot(undefined)}
+        />
+      ),
+    );
+    heading('audience:heading', t.channelBots.audience);
+    if (bot.canSetAudience)
+      group(
+        options,
+        (kind) => `audience:${kind}`,
+        (kind) => (
           <SettingsRow
+            on={ON}
             title={t.channelBots[kind]}
             selected={audience.kind === kind}
             control={audience.kind === kind ? { kind: 'check' } : undefined}
@@ -142,12 +179,31 @@ export function useGroupBotSettings(
                     )
             }
           />
-        ));
-      if (audience.kind === 'roles')
-        for (const role of view?.roles ?? []) {
+        ),
+      );
+    else
+      group(
+        ['audience'],
+        () => 'audience',
+        () => (
+          <SettingsRow
+            on={ON}
+            title={t.channelBots.audience}
+            control={{ kind: 'value', text: t.channelBots[bot.audience.kind] }}
+          />
+        ),
+      );
+    footer('audience:footer', t.channelBots.intersection);
+    if (bot.canSetAudience && audience.kind === 'roles' && (view?.roles.length ?? 0) > 0) {
+      heading('roles:heading', t.channelBots.roles);
+      group(
+        view?.roles ?? [],
+        (role) => `role:${role.roleId}`,
+        (role) => {
           const checked = audience.roleIds.includes(role.roleId);
-          add(`role:${role.roleId}`, () => (
+          return (
             <SettingsRow
+              on={ON}
               title={role.name}
               control={{
                 kind: 'switch',
@@ -163,11 +219,17 @@ export function useGroupBotSettings(
                   }),
               }}
             />
-          ));
-        }
-      if (draft && (draft.kind !== 'roles' || draft.roleIds.length > 0))
-        add('save', () => (
+          );
+        },
+      );
+    }
+    if (canSave)
+      group(
+        ['save'],
+        () => 'save',
+        () => (
           <SettingsRow
+            on={ON}
             title={t.groupRenameSave}
             testID="channel-bot-save"
             control={pending ? { kind: 'busy' } : undefined}
@@ -179,29 +241,33 @@ export function useGroupBotSettings(
                   }
             }
           />
-        ));
-    }
-    add('blocks', () => <Text>{t.channelBots.blocks}</Text>);
+        ),
+      );
     const people = new Map(
       (view?.members ?? []).map(({ humanId, displayName }) => [humanId, displayName]),
     );
     for (const id of bot.blockedHumanIds) if (!people.has(id)) people.set(id, id);
-    for (const [humanId, displayName] of people) {
-      const blocked = bot.blockedHumanIds.includes(humanId);
-      add(`human:${humanId}`, () => (
-        <SettingsRow
-          title={displayName}
-          control={{
-            kind: 'switch',
-            value: blocked,
-            disabled: pending,
-            testID: `channel-bot-block-${humanId}`,
-            onChange: (next) => {
-              void save({ kind: 'block', humanId, blocked: next });
-            },
-          }}
-        />
-      ));
+    if (people.size > 0) {
+      heading('blocks:heading', t.channelBots.blocks);
+      group(
+        [...people],
+        ([humanId]) => `human:${humanId}`,
+        ([humanId, displayName]) => (
+          <SettingsRow
+            on={ON}
+            title={displayName}
+            control={{
+              kind: 'switch',
+              value: bot.blockedHumanIds.includes(humanId),
+              disabled: pending,
+              testID: `channel-bot-block-${humanId}`,
+              onChange: (next) => {
+                void save({ kind: 'block', humanId, blocked: next });
+              },
+            }}
+          />
+        ),
+      );
     }
   }
   return { mount, body: { rows } };

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { channelBotSettings } from '@botharness/host-client/channel-bots';
 import type {
   ChannelBotAudience,
@@ -9,6 +10,8 @@ import type {
 import { bridgeHost, type BridgeCall } from './bridge.js';
 import { Button } from './ds/button.js';
 import { Checkbox } from './ds/checkbox.js';
+import { PanelEmptyState } from './ds/empty-state.js';
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import {
@@ -17,10 +20,15 @@ import {
   SettingsSection,
   SettingsValue,
 } from './ds/settings-row.js';
+import { space } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const audienceKinds = ['everyone', 'roles', 'admins'] as const;
+
+const styles = stylex.create({
+  stack: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+});
 
 export function ChannelBotSettingsPanel({
   channelId,
@@ -64,9 +72,14 @@ export function ChannelBotSettingsPanel({
     }
   };
   return (
-    <div ref={mount}>
+    <div ref={mount} {...stylex.props(styles.stack)} data-channel-bot-settings="">
       {failed ? <Note tone="danger">{t('channelBots.unavailable')}</Note> : null}
-      {view?.bots.length === 0 ? <Note>{t('channelBots.noBots')}</Note> : null}
+      {view === undefined && !failed ? (
+        <PanelEmptyState icon="bot">{t('team.workbench.loading')}</PanelEmptyState>
+      ) : null}
+      {view?.bots.length === 0 ? (
+        <PanelEmptyState icon="bot">{t('channelBots.noBots')}</PanelEmptyState>
+      ) : null}
       {view?.bots.map((bot) => (
         <BotSettings
           key={bot.botSlug}
@@ -103,6 +116,7 @@ function BotSettings({
   return (
     <SettingsSection
       title={bot.name}
+      data={{ 'data-channel-bot': bot.botSlug }}
       action={
         draft === undefined ? undefined : (
           <Button
@@ -120,6 +134,7 @@ function BotSettings({
       }
     >
       <SettingsRow
+        icon={<Icon name="bot" />}
         title={t('channelBots.audience')}
         description={t('channelBots.intersection')}
         control={
@@ -173,7 +188,9 @@ function BotSettings({
           ))
         : null}
       <SettingsRow
+        icon={<Icon name="ban" />}
         title={t('channelBots.blocks')}
+        description={bot.blockedHumanIds.length === 0 ? t('channelBots.noBlocks') : undefined}
         control={
           <Select
             label={t('channelBots.addBlock')}
@@ -195,9 +212,12 @@ function BotSettings({
       {bot.blockedHumanIds.map((humanId) => (
         <SettingsRow
           key={humanId}
+          icon={<Icon name="user" />}
           title={nameOf(humanId)}
+          data={{ 'data-channel-bot-block': humanId }}
           control={
             <Button
+              size="sm"
               variant="outline"
               disabled={busy}
               aria-label={t('channelBots.removeBlock', { name: nameOf(humanId) })}

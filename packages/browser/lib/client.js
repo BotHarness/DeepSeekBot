@@ -882,6 +882,7 @@ window.__ModuleLoader__.load({
 				r: "10"
 			}], ["path", { d: "M4.929 4.929 19.07 19.071" }]],
 			x: [["path", { d: "M18 6 6 18" }], ["path", { d: "m6 6 12 12" }]],
+			minus: [["path", { d: "M5 12h14" }]],
 			trash: [
 				["path", { d: "M3 6h18" }],
 				["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }],
@@ -14238,7 +14239,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/select.tsx
-		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false, reselect = false }) {
+		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false, reselect = false, appearance = "field" }) {
 			const [open, setOpen] = (0, react.useState)(false);
 			const [point, setPoint] = (0, react.useState)();
 			const trigger = (0, react.useRef)(null);
@@ -14302,11 +14303,14 @@ window.__ModuleLoader__.load({
 					if (active) close();
 					else setOpen(true);
 				},
-				className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxisypcw bhxocwxb3 bhx1lo940d bhxc342km bhxvz6vxc bhxym0p2z bhx1ikcoup bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1g40iwv",
+				...{
+					0: { className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxisypcw bhxocwxb3 bhx1lo940d bhxc342km bhxvz6vxc bhxym0p2z bhx1ikcoup bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1g40iwv" },
+					1: { className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhx193iq5w bhxc342km bhxvz6vxc bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhxl56j7k bhx1p6s43a bhxzcxwfq bhxznlt97 bhxjbqb8w bhx19d7xsb bhx1gnnqk1 bhx18n8c13" }
+				}[!!(appearance === "cell") << 0],
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
-					children: current?.label
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					children: current?.display ?? current?.label
+				}), appearance === "cell" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx2lah0s bhx1axu3v7",
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
 						name: "chevron-down",
@@ -14321,7 +14325,8 @@ window.__ModuleLoader__.load({
 				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { "aria-hidden": "true" }),
 				items: options.map((option) => ({
 					id: option.value,
-					label: option.label
+					label: option.label,
+					...option.icon === void 0 ? {} : { icon: option.icon }
 				})),
 				selectedId: value,
 				onSelect: (id) => {
@@ -14993,7 +14998,9 @@ window.__ModuleLoader__.load({
 .bhx1xqv9of:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
+.bhxznlt97:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:2px}
 .bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
+.bhxzcxwfq:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:2px}
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
 .bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
@@ -15034,6 +15041,7 @@ window.__ModuleLoader__.load({
 .bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
 .bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}
+.bhx19d7xsb:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
 .bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
 @media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}
@@ -15062,6 +15070,7 @@ window.__ModuleLoader__.load({
 .bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
 .bhxt7dq6l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:auto}
+.bhx1p6s43a:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-chip-height)}
 .bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}
 .bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
 .bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}

@@ -60,6 +60,8 @@ export function ChannelAccessSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [dialog, setDialog] = useState<Dialog>();
+  const [readFailed, setReadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const request = useRef(0);
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
@@ -72,12 +74,15 @@ export function ChannelAccessSettings({
         if (controller.signal.aborted || version !== request.current) return;
         setAccess(next);
         setRoles(list);
+        setReadFailed(next === undefined);
       })
       .catch(() => {
-        if (!controller.signal.aborted && version === request.current) setAccess(undefined);
+        if (controller.signal.aborted || version !== request.current) return;
+        setAccess(undefined);
+        setReadFailed(true);
       });
     return () => controller.abort();
-  }, [call, channelId]);
+  }, [call, channelId, attempt]);
   const run = (work: () => Promise<ChannelAccess>, after?: () => void): void => {
     const version = ++request.current;
     setBusy(true);
@@ -94,6 +99,29 @@ export function ChannelAccessSettings({
       .finally(() => setBusy(false));
   };
   const visible = team?.enabled === true && access !== undefined;
+  if (!visible && permissionsOnly && team?.enabled === true)
+    return (
+      <div ref={mount} data-channel-access={readFailed ? 'failed' : 'loading'}>
+        {readFailed ? (
+          <Note tone="danger">
+            {t('team.workbench.channels.accessFailed')}
+            <Button
+              size="sm"
+              variant="outline"
+              data-channel-access-retry=""
+              onClick={() => {
+                setReadFailed(false);
+                setAttempt((value) => value + 1);
+              }}
+            >
+              {t('team.workbench.retry')}
+            </Button>
+          </Note>
+        ) : (
+          <Note>{t('team.workbench.loading')}</Note>
+        )}
+      </div>
+    );
   if (!visible) return <div ref={mount} hidden data-channel-access="hidden" />;
   const current = access;
   const chooseVisibility = (kind: ChannelVisibility['kind']): void => {
