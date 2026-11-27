@@ -233,6 +233,10 @@ export const LIVE_COMMANDS = [
     description: "read a Bot's IM apps and bindings with reception state",
   },
   {
+    command: 'im-connections',
+    description: 'list every Bot IM app binding with reception state (Host Owner)',
+  },
+  {
     command: 'channel-connect',
     description: "connect an external group conversation to a Channel through a Bot's binding",
   },

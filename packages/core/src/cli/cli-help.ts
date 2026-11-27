@@ -178,6 +178,7 @@ Usage:
   tobs im-unbind <id> --app <app-id>
   tobs im-reconnect <id> --app <app-id>
   tobs im-status <id> [--read-mode saved|status]
+  tobs im-connections [--read-mode saved|status]
   tobs channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
   tobs channel-ingests <channel>
   tobs browser-open <id>

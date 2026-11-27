@@ -318,6 +318,7 @@ export const CLI_EFFECTS = {
   'im-authorize': { effects: external, brokerRead: false },
   'im-bind': { effects: externalWrite, brokerRead: false },
   'im-cancel': { effects: write, brokerRead: false },
+  'im-connections': { effects: read, brokerRead: false },
   'im-credentials': { effects: externalSecretManagement, brokerRead: false },
   'im-status': { effects: read, brokerRead: true },
   'im-reconnect': { effects: externalWrite, brokerRead: false },

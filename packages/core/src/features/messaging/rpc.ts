@@ -1,3 +1,4 @@
+import type { MessagingConnectionsView } from '@botharness/host-protocol/messaging-connections';
 import type { ExternalSource } from '../../messaging/inbound.js';
 import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
@@ -445,6 +446,10 @@ export const messagingPolicyRpc = {
 export const messagingConnectionRpc = {
   messagingApps(): Promise<MessagingAppsView> {
     return messagingApps(this.methods);
+  },
+
+  messagingConnections(mode?: MessagingReadMode): Promise<MessagingConnectionsView> {
+    return unwrapAsync(this.methods.messagingConnections(mode === undefined ? {} : { mode }));
   },
 
   messagingSnapshot(slug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot> {

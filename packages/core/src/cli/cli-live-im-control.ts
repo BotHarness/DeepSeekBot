@@ -1,3 +1,4 @@
+import { readMessagingConnections } from '@botharness/host-client/messaging';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { messagingReadMode } from './cli-messaging.js';
@@ -12,6 +13,7 @@ export const IM_CONTROL_COMMANDS = [
   'im-unbind',
   'im-reconnect',
   'im-status',
+  'im-connections',
   'channel-connect',
   'channel-ingests',
 ] as const;
@@ -48,6 +50,15 @@ export async function runImControlCommand(
   io: BotCreateCliIo,
 ): Promise<unknown> {
   const mode = messagingReadMode(command, values['read-mode']);
+  if (command === 'im-connections') {
+    if (rest.length !== 0) usage('im-connections takes no target.');
+    const { rpc } = await connectLiveHost(
+      values,
+      io,
+      AbortSignal.timeout(timeoutMs(values.timeout)),
+    );
+    return readMessagingConnections({ call: (method, args = {}) => rpc(method, args) }, mode);
+  }
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target.`);
   const target = rest[0].trim();
   const app = values.app?.trim() ?? '';

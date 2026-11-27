@@ -1,3 +1,4 @@
+import type { MessagingConnectionsView } from '@botharness/host-protocol/messaging-connections';
 import { asSlug, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { pairingReviewInput, type PairingRequest } from '../../messaging/pairing.js';
 import {
@@ -115,6 +116,7 @@ export type MessagingBridgeMethods = {
   messagingDefaults(payload: unknown): Promise<BridgeResult<MessagingDefaults>>;
   messagingDefaultsSet(payload: unknown): Promise<BridgeResult<MessagingDefaults>>;
   messagingApps(): Promise<BridgeResult<MessagingAppsView>>;
+  messagingConnections(payload: unknown): Promise<BridgeResult<MessagingConnectionsView>>;
   messagingSnapshot(payload: unknown): Promise<BridgeResult<MessagingSnapshot>>;
   messagingReachable(
     payload: unknown,
@@ -136,6 +138,13 @@ export type MessagingBridgeMethods = {
 export function createMessagingBridgeMethods(
   deps: MessagingBridgeDeps,
   messagingCall: ReturnType<typeof createMessagingCall>,
+  {
+    globalRegistry,
+    canReadConnections,
+  }: {
+    globalRegistry: PersonaBotRegistry;
+    canReadConnections(): boolean;
+  },
 ): MessagingBridgeMethods {
   return {
     channelBridges(payload) {
@@ -401,6 +410,34 @@ export function createMessagingBridgeMethods(
       return messagingCall(async (service) => ({
         apps: await service.apps(),
         setups: await service.setups(),
+      }));
+    },
+    async messagingConnections(payload) {
+      if (!canReadConnections())
+        return {
+          ok: false,
+          error: { code: 'permission-required', message: 'permission-required' },
+        };
+      const input = z
+        .object({ mode: z.enum(['saved', 'status']).default('status') })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('Valid messaging connection read mode required');
+      const { mode } = input.data;
+      return messagingCall<MessagingConnectionsView>(async (service) => ({
+        checks: mode === 'saved' ? 'pending' : 'complete',
+        bindings: (await service.connections(mode)).flatMap((binding) => {
+          const bot = globalRegistry.get(binding.botSlug);
+          return bot === undefined
+            ? []
+            : [
+                {
+                  ...binding,
+                  botName: bot.displayName,
+                  canOpenSettings: deps.registry.get(bot.slug) !== undefined,
+                },
+              ];
+        }),
       }));
     },
     messagingSnapshot(payload) {
