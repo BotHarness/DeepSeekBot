@@ -92,6 +92,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'memberDeviceRevoke',
   'ownerTransfer',
   'teamModeSet',
+  'teamMemberSettingsSet',
   'teamInsecureHttpSet',
   'teamOwnerPasswordSet',
   'channelPublicSet',

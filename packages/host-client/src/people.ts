@@ -7,6 +7,11 @@ import type {
   WireTeamMode,
 } from '@botharness/host-protocol/wire';
 import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
+import {
+  TEAM_INVITATION_LIFETIME,
+  type TeamMemberSettings,
+  type TeamMemberSettingsPatch,
+} from '@botharness/host-protocol/team-member-settings';
 import { isApprovalCard } from './approval-readers';
 import { MethodRefused } from './client-errors';
 import {
@@ -362,6 +367,18 @@ export async function readHumanAssignmentContext(
   return { context };
 }
 
+function isTeamMemberSettings(value: unknown): value is TeamMemberSettings {
+  const settings = record(value);
+  const lifetime = settings?.['inviteLifetimeMinutes'];
+  return (
+    typeof lifetime === 'number' &&
+    Number.isInteger(lifetime) &&
+    lifetime >= TEAM_INVITATION_LIFETIME.min &&
+    lifetime <= TEAM_INVITATION_LIFETIME.max &&
+    filled(settings?.['defaultRoleId'])
+  );
+}
+
 function isTeamMode(value: unknown): value is WireTeamMode {
   const row = record(value);
   const viewer = record(row?.['viewer']);
@@ -375,6 +392,7 @@ function isTeamMode(value: unknown): value is WireTeamMode {
     optional(row['suspendedMembers'], count) &&
     optional(row['privateAccessNotice'], (value) => value === true) &&
     strings(row['memberUrls']) &&
+    optional(row['memberSettings'], isTeamMemberSettings) &&
     optional(row['confinement'], (value) => {
       const confinement = record(value);
       const enforcement = confinement?.['enforcement'];
@@ -399,4 +417,15 @@ function isTeamMode(value: unknown): value is WireTeamMode {
 
 export async function readTeamMode(host: HostCall): Promise<WireTeamMode> {
   return answer(await host.call('teamMode', {}), isTeamMode, 'teamMode');
+}
+
+export async function setTeamMemberSettings(
+  host: HostCall,
+  patch: TeamMemberSettingsPatch,
+): Promise<TeamMemberSettings> {
+  return answer(
+    await host.call('teamMemberSettingsSet', patch),
+    isTeamMemberSettings,
+    'teamMemberSettingsSet',
+  );
 }

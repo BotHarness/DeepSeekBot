@@ -1,4 +1,4 @@
-import { readTeamMode } from '@botharness/host-client/people';
+import { readTeamMode, setTeamMemberSettings } from '@botharness/host-client/people';
 import { readChannel } from '@botharness/host-client/channel-management';
 import {
   parseHostRoleRevisions,
@@ -51,7 +51,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'team-mode',
     description:
-      'status | on | off | owner-password --password-stdin [--sign-out-others=true --confirm] | owner-sign-in status|on|off | insecure-http on|off --confirm | transfer-owner <username> --password-stdin --confirm',
+      'status | on | off | member-settings [--invite-lifetime-minutes <minutes>] [--default-role <roleId>] | owner-password --password-stdin [--sign-out-others=true --confirm] | owner-sign-in status|on|off | insecure-http on|off --confirm | transfer-owner <username> --password-stdin --confirm',
   },
   {
     command: 'members',
@@ -104,6 +104,8 @@ type TeamValues = {
   as?: string;
   'display-name'?: string;
   'initial-password-file'?: string;
+  'default-role'?: string;
+  'invite-lifetime-minutes'?: string;
   'password-stdin'?: boolean;
   confirm?: boolean;
   'body-stdin'?: boolean;
@@ -434,6 +436,19 @@ export async function runTeamCommand(
       return readTeamMode({ call: (method, args = {}) => rpc(method, args) });
     if ((action === 'on' || action === 'off') && rest.length === 1)
       return rpc('teamModeSet', { enabled: action === 'on' });
+    if (action === 'member-settings' && rest.length === 1) {
+      const lifetime = values['invite-lifetime-minutes'];
+      const defaultRoleId = values['default-role'];
+      if (lifetime === undefined && defaultRoleId === undefined) return usage();
+      if (lifetime !== undefined && !/^\d+$/u.test(lifetime)) return usage();
+      return setTeamMemberSettings(
+        { call: (method, args = {}) => rpc(method, args) },
+        {
+          ...(lifetime === undefined ? {} : { inviteLifetimeMinutes: Number(lifetime) }),
+          ...(defaultRoleId === undefined ? {} : { defaultRoleId }),
+        },
+      );
+    }
     if (action === 'owner-password' && values['password-stdin'] && rest.length === 1) {
       const signOut = values['sign-out-others'];
       if (signOut !== undefined && signOut !== 'true' && signOut !== 'false') return usage();

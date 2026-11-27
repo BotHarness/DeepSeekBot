@@ -60,7 +60,9 @@ export function createMemberDevices(options: {
     async invitation(humanId: string): Promise<MemberInvitation> {
       const member = options.team.member(humanId);
       if (!member) throw new TeamError('member-not-found');
-      const expiresAt = new Date(now() + 10 * 60_000).toISOString();
+      const expiresAt = new Date(
+        now() + options.team.memberSettings().inviteLifetimeMinutes * 60_000,
+      ).toISOString();
       const payload = {
         v: 1,
         host: await host(),

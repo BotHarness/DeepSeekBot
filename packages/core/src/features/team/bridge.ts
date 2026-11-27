@@ -17,6 +17,20 @@ import type { HumanContext } from '../../humans/context.js';
 import type { BridgeResult } from '../../bridge/method-utils.js';
 import { TeamError } from '../../team-policy/error.js';
 import { type TeamService } from '../../team/service.js';
+import { TEAM_INVITATION_LIFETIME } from '@botharness/host-protocol/team-member-settings';
+
+const memberSettingsPatchSchema = z
+  .strictObject({
+    inviteLifetimeMinutes: z
+      .int()
+      .min(TEAM_INVITATION_LIFETIME.min)
+      .max(TEAM_INVITATION_LIFETIME.max)
+      .optional(),
+    defaultRoleId: z.string().min(1).optional(),
+  })
+  .refine(({ inviteLifetimeMinutes, defaultRoleId }) => {
+    return inviteLifetimeMinutes !== undefined || defaultRoleId !== undefined;
+  });
 
 export function createTeamBridge(
   human: HumanContext,
@@ -169,6 +183,14 @@ export function createTeamBridge(
       call((service) =>
         service.setMode(human, z.object({ enabled: z.boolean() }).parse(payload).enabled),
       ),
+    teamMemberSettingsSet: (payload: unknown) =>
+      call((service) => {
+        const { inviteLifetimeMinutes, defaultRoleId } = memberSettingsPatchSchema.parse(payload);
+        return service.setMemberSettings(human, {
+          ...(inviteLifetimeMinutes === undefined ? {} : { inviteLifetimeMinutes }),
+          ...(defaultRoleId === undefined ? {} : { defaultRoleId }),
+        });
+      }),
     ownerPasswordSignIn: (_payload: unknown) =>
       call((service) => service.ownerPasswordSignIn(human)),
     ownerPasswordSignInSet: (payload: unknown) =>
