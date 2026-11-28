@@ -154,12 +154,23 @@ export function createDevicesHttp(options: {
     if (path === DEVICES_PATH + '/private' && request.method === 'POST') {
       const input = await body(request);
       if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
-      if (typeof input['origin'] !== 'string' || typeof input['bootstrap'] !== 'string')
-        return json({ code: 'private-relay-input-invalid' }, 400);
+      const code = input['code'];
+      const origin = input['origin'];
+      const bootstrap = input['bootstrap'];
+      const claim =
+        typeof code === 'string' && origin === undefined && bootstrap === undefined
+          ? { kind: 'code', code }
+          : code === undefined && typeof origin === 'string' && typeof bootstrap === 'string'
+            ? { kind: 'legacy', origin, bootstrap }
+            : undefined;
+      if (!claim) return json({ code: 'private-relay-input-invalid' }, 400);
       if (!options.privateConnection) return json({ code: 'not-ready' }, 409);
       if (options.privateTunnel?.statuses().length)
         return json({ code: 'private-route-in-use' }, 409);
-      const result = await options.privateConnection.claim(input['origin'], input['bootstrap']);
+      const result =
+        claim.kind === 'code'
+          ? await options.privateConnection.claimCode(claim.code)
+          : await options.privateConnection.claim(claim.origin, claim.bootstrap);
       return json(result, result.ok ? 200 : 409);
     }
     if (path === DEVICES_PATH + '/private-tunnel' && request.method === 'POST') {

@@ -11,7 +11,7 @@ services:
       - ./hosts:/run/relay-hosts:ro
     environment:
       RELAY_DOMAIN: ${RELAY_DOMAIN:?Run tobs-relay setup first}
-      RELAY_BOOTSTRAP: ${RELAY_BOOTSTRAP:?Run tobs-relay setup first}
+      RELAY_BOOTSTRAP: ${RELAY_BOOTSTRAP:-}
       RELAY_HOST_KEYS_FILE: /run/relay-hosts/keys
     read_only: true
     cap_drop: [ALL]

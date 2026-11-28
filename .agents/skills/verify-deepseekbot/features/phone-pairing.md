@@ -180,7 +180,7 @@ Record default/intermediate/maximum text in both themes, reachable labels, keybo
 
 ## Docker private connection (#3746)
 
-In Settings → Connections → Advanced, select Docker relay. Verify the public-endpoint prerequisite appears before claiming. Deploy on an existing reachable HTTPS endpoint; unreachable endpoints must fail visibly. Enter the initial setup key privately, wait for connected, then show the phone pairing code. Compare the full Host fingerprint, approve the exact phone key, and send a Bot message from the native phone. Require the actual reply and canonical Host facts with official login/discovery/relay unavailable. Retain failed attempts and verify duplicate claim, unauthorized admission, restart persistence and revocation. Local protocol tests do not qualify this native journey.
+In Settings → Connections → Advanced, select Docker relay. Verify the public-endpoint prerequisite appears before claiming. Deploy on an existing reachable HTTPS endpoint; unreachable endpoints must fail visibly. Paste the full one-line connect code into the Connect code field, select Claim and connect, wait for Connected, then show the phone pairing code. Verify an expired code shows the reissue command for its Host name. Use a legacy setup key exposes the existing two-field path. Compare the full Host fingerprint, approve the exact phone key, and send a Bot message from the native phone. Require the actual reply and canonical Host facts with official login/discovery/relay unavailable. Retain failed attempts and verify duplicate claim, unauthorized admission, restart persistence and revocation. Local protocol tests do not qualify this native journey.
 
 ## Quick Tunnel entry and recovery (#4072)
 

@@ -25,6 +25,12 @@
 
 认领按电脑互斥：同一把密钥的两个并发认领恰好一个得到 `200`，之后用这把密钥的认领一律 `409`，中继重启后也一样。
 
+### 过期连接码
+
+连接码采用 `tobs-relay-v1:<HTTPS origin>#<host>.<secret>` 格式。`host` 为 1–32 个小写字母、数字或连字符，以字母或数字开头；`secret` 为 64 个小写十六进制字符。客户端先校验 HTTPS 源和 TLS 证书，再向同一个 `POST /claim` 发送 `Authorization: Bearer <host>.<secret>`。请求体和成功响应沿用上表。连接码不进入 URL、日志或进程参数。
+
+中继按名称保存凭据哈希和绝对到期时间。此记录及认领记录在重启后继续有效。未知或已被替换的连接码返回 `403 {"code":"connect-code-refused"}`；已使用的连接码返回 `409 {"code":"connect-code-used"}`，释放认领后也一样；过期且未使用的连接码返回 `410 {"code":"connect-code-expired"}`。旧版 64 位十六进制认领密钥继续使用上表中的流程。
+
 ## WebSocket 接口
 
 - `GET /host`（升级），`Authorization: Bearer <所有者令牌>`：电脑的控制连接。每台电脑最多一个，第二个以 `403` 拒绝。
@@ -53,3 +59,5 @@ node conformance.mjs --origin https://relay.example.com --key-a-file a.secret --
 ```
 
 请使用两把未用过的认领密钥。脚本会认领两台电脑、连上它们和各自的手机，检查每台手机只能到达自己的电脑、一台电脑离线或释放认领不影响另一台、已释放的密钥不能再次认领。最后输出 `conformance: pass`，或逐条列出失败的检查。
+
+也可在密钥文件中提供完整的连接码。用 `--expired-code-file <file>` 检查一个已过期且未使用的连接码。

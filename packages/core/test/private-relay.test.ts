@@ -19,6 +19,65 @@ import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { requestListener } from './async-listener.js';
 
 const mapping = vi.hoisted(() => ({ relay: '' }));
+
+it('claims with the code bearer after verifying HTTPS and reports code-specific refusals', async () => {
+  const modifyRecord = vi.fn(async () => undefined);
+  const deleteRecord = vi.fn(async () => {});
+  const connection = createPrivateConnection({
+    credentials: () => ({ readRecord: async () => undefined, modifyRecord, deleteRecord }),
+    port: () => 1,
+    log: () => {},
+  });
+  const credential = `office.${'b'.repeat(64)}`;
+  const origin = 'https://relay.example.com';
+  const code = `tobs-relay-v1:${origin}#${credential}`;
+  const fetch = vi.fn<typeof globalThis.fetch>();
+  vi.stubGlobal('fetch', fetch);
+  try {
+    for (const address of ['http://relay.example.com', origin + '/a', origin + '@another.test']) {
+      expect(await connection.claimCode(`tobs-relay-v1:${address}#${credential}`)).toMatchObject({
+        ok: false,
+        code: 'private-relay-input-invalid',
+      });
+    }
+    expect(fetch).not.toHaveBeenCalled();
+    fetch.mockRejectedValueOnce(new Error('certificate error'));
+    expect(await connection.claimCode(code)).toMatchObject({ code: 'private-relay-unreachable' });
+    expect(modifyRecord).not.toHaveBeenCalled();
+    for (const [status, remote, local] of [
+      [410, 'connect-code-expired', 'private-relay-code-expired'],
+      [409, 'connect-code-used', 'private-relay-code-used'],
+    ] as const) {
+      fetch.mockClear();
+      fetch.mockResolvedValueOnce(Response.json({ protocol: 'botharness-private-v1' }));
+      fetch.mockResolvedValueOnce(Response.json({ code: remote }, { status }));
+      expect(await connection.claimCode(code + '\r\n')).toMatchObject({
+        ok: false,
+        code: local,
+        host: 'office',
+        error: expect.stringContaining('tobs-relay add-host --reissue office'),
+      });
+      expect(fetch).toHaveBeenNthCalledWith(
+        1,
+        origin + '/health',
+        expect.objectContaining({ redirect: 'error' }),
+      );
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        origin + '/claim',
+        expect.objectContaining({
+          redirect: 'error',
+          headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
+        }),
+      );
+    }
+    expect(deleteRecord).toHaveBeenCalledTimes(2);
+  } finally {
+    connection.close();
+    vi.unstubAllGlobals();
+  }
+});
+
 it('keeps a damaged private configuration in error rather than exposing default pairing routes', async () => {
   const credentials: Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'> = {
     readRecord: async () => ({ kind: 'grant', payload: { origin: 'https://relay.example.com' } }),

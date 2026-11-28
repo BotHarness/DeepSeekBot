@@ -47,6 +47,8 @@ const loopback = { url: 'http://127.0.0.1:4100', kind: 'loopback', ready: true }
 let routes: (typeof lan)[];
 let connect: Record<string, unknown> | undefined;
 let privateTunnel: Record<string, unknown> | undefined;
+let privateRelay: Record<string, unknown> | undefined;
+let relayClaimFailure: string | undefined;
 let lanState: 'off' | 'listening' | 'error';
 let failEnable: boolean;
 let expiresAt: string;
@@ -68,6 +70,8 @@ beforeEach(() => {
   routes = [loopback];
   connect = undefined;
   privateTunnel = undefined;
+  privateRelay = undefined;
+  relayClaimFailure = undefined;
   lanState = 'off';
   failEnable = false;
   expiresAt = new Date(Date.now() + 600_000).toISOString();
@@ -101,6 +105,12 @@ beforeEach(() => {
           privateTunnel = { state: 'starting', mode: 'quick' };
           return Response.json({ ok: true });
         }
+        if (url.endsWith('/private')) {
+          if (relayClaimFailure)
+            return Response.json({ code: relayClaimFailure, host: 'office' }, { status: 409 });
+          privateRelay = { state: 'connected', origin: 'https://relay.example.test' };
+          return Response.json({ ok: true });
+        }
         if (url.endsWith('/lan')) {
           if (failEnable) return Response.json({ code: 'lan-listen-failed' }, { status: 409 });
           lanState = body.action === 'enable' ? 'listening' : 'off';
@@ -120,6 +130,7 @@ beforeEach(() => {
       return Response.json({
         connect,
         privateTunnel,
+        privateRelay,
         host: { id: 'h', name: 'QA computer' },
         devices: pairedDevices,
         lan: { state: lanState },
@@ -708,6 +719,36 @@ it('opens Named and ingress preparation directly from Advanced without publishin
   expect(host.querySelector('[data-private-tunnel-setup="ingress"]')).not.toBeNull();
   expect(host.textContent).toContain(t('connections.ingressRequirements'));
   expect(posts).toEqual([]);
+});
+
+it('claims a Docker relay with one paste and shows how to replace an expired code', async () => {
+  relayClaimFailure = 'private-relay-code-expired';
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
+  );
+  await click(t('connections.phoneApp.ready'));
+  await click(t('connections.method.relay'));
+  expect(host.querySelectorAll('input')).toHaveLength(1);
+  expect(button(t('privateRelay.claim')).disabled).toBe(true);
+
+  const input = host.querySelector('input[type=password]')!;
+  const code = `tobs-relay-v1:https://relay.example.test#office.${'b'.repeat(64)}`;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, code);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await click(t('privateRelay.claim'));
+  expect(posts).toContainEqual({
+    url: './api/botharness/devices/private',
+    body: { code, confirm: true },
+  });
+  expect(host.textContent).toContain('tobs-relay add-host --reissue office');
+
+  relayClaimFailure = undefined;
+  await click(t('privateRelay.claim'));
+  expect(host.querySelector('[data-private-relay="connected"]')).not.toBeNull();
+  expect(button(t('privateRelay.pair'))).toBeDefined();
+  expect(host.textContent).not.toContain(code);
 });
 
 it('preserves an existing private route instead of silently adding a Docker relay', async () => {

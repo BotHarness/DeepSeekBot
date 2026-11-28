@@ -3,12 +3,12 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net/http/httptest"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 )
@@ -96,11 +96,12 @@ func TestShortLivedRenewal(t *testing.T) {
 }
 
 func TestSetupPreservesFilesAndPermissions(t *testing.T) {
+	t.Setenv("RELAY_HOST_KEYS_FILE", "")
 	dir := t.TempDir()
-	if err := setup(dir, "2001:db8::7"); err != nil {
+	if _, err := setup(dir, "2001:db8::7", 15*time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	key := filepath.Join(dir, "bootstrap.secret")
+	key := connectCodePath(filepath.Join(dir, "hosts"), defaultHost)
 	env := filepath.Join(dir, ".env")
 	value, err := os.ReadFile(key)
 	if err != nil {
@@ -110,18 +111,20 @@ func TestSetupPreservesFilesAndPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !secretPattern.MatchString(strings.TrimSpace(string(value))) ||
-		string(dotenv) != "RELAY_DOMAIN=2001:db8::7\nRELAY_BOOTSTRAP="+string(value) {
+	if _, err := os.Stat(filepath.Join(dir, "bootstrap.secret")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("setup must not create a plaintext bootstrap key")
+	}
+	if string(dotenv) != "RELAY_DOMAIN=2001:db8::7\n" {
 		t.Fatal("setup files do not match the Compose format")
 	}
-	if err := setup(dir, "replacement.example.com"); err == nil {
+	if _, err := setup(dir, "replacement.example.com", 15*time.Minute); err == nil {
 		t.Fatal("second setup unexpectedly succeeded")
 	}
 	after, err := os.ReadFile(key)
 	if err != nil || string(value) != string(after) {
-		t.Fatal("repeated setup changed the bootstrap key")
+		t.Fatal("repeated setup changed the default connect code record")
 	}
-	for _, path := range []string{key, env} {
+	for _, path := range []string{env} {
 		info, err := os.Stat(path)
 		if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0600) {
 			t.Fatal("setup file is not private")

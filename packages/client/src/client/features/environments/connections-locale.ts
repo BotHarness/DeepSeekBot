@@ -117,8 +117,17 @@ export const zh = {
   'privateRelay.description': '使用自己的服务器，不需要官方账号。',
   'privateRelay.requirement':
     '需要手机和电脑都能访问的公网入口。仅在家中内网运行 Docker，不能保证远程连接。',
-  'privateRelay.deploy':
-    '先在已有公网服务器或已配置公网访问的 NAS 上部署 Docker 服务，再填写 HTTPS 地址和首次设置密钥。',
+  'privateRelay.deploy': '部署 Docker 中继后，粘贴服务器终端显示的连接码。',
+  'privateRelay.code': '连接码',
+  'privateRelay.useCode': '使用连接码',
+  'privateRelay.useLegacyKey': '使用旧版设置密钥',
+  'privateRelay.codeInvalid': '请完整粘贴终端显示的一行连接码。',
+  'privateRelay.codeExpired':
+    '连接码已过期。请在中继服务器上运行 tobs-relay add-host --reissue {host}。',
+  'privateRelay.codeUsed':
+    '连接码已使用。请使用原电脑；如需连接另一台电脑，请运行 tobs-relay add-host 并指定新名称。仅可用 tobs-relay add-host --reissue {host} 为未认领的电脑生成新码。',
+  'privateRelay.codeRefused':
+    '连接码无效。请在中继服务器上运行 tobs-relay add-host --reissue {host}。',
   'privateRelay.address': '私有服务 HTTPS 地址',
   'privateRelay.secret': '首次设置密钥',
   'privateRelay.claim': '认领并连接',
@@ -449,7 +458,17 @@ export const en = {
   'privateRelay.requirement':
     'Your phone and computer must both reach a public endpoint. Running Docker only inside your home network does not guarantee remote access.',
   'privateRelay.deploy':
-    'First deploy the Docker service on an existing public server or publicly reachable NAS, then enter its HTTPS address and initial setup key.',
+    'Deploy the Docker relay, then paste the connect code shown in the server terminal.',
+  'privateRelay.code': 'Connect code',
+  'privateRelay.useCode': 'Use a connect code',
+  'privateRelay.useLegacyKey': 'Use a legacy setup key',
+  'privateRelay.codeInvalid': 'Paste the full line shown in the relay terminal.',
+  'privateRelay.codeExpired':
+    'Connect code expired. Run tobs-relay add-host --reissue {host} on the relay server.',
+  'privateRelay.codeUsed':
+    'Connect code already used. Continue on the original computer, or run tobs-relay add-host with a new name. Use tobs-relay add-host --reissue {host} only for an unclaimed computer.',
+  'privateRelay.codeRefused':
+    'Connect code was refused. Run tobs-relay add-host --reissue {host} on the relay server.',
   'privateRelay.address': 'Private service HTTPS address',
   'privateRelay.secret': 'Initial setup key',
   'privateRelay.claim': 'Claim and connect',

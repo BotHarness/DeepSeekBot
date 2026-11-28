@@ -2434,7 +2434,7 @@ deepseekbot private-route deny-address-sign-in custom --confirm
 
 ## Docker 私有连接
 
-`private-connect --hostname <https-origin> --token-stdin --confirm` 经本机已认证 Host 认领尚未认领的私有中继。首次设置密钥只从标准输入读取，不放在命令参数中。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。
+`tobs private-connect --code-stdin --confirm < connect.code` 经本机已认证 Host 认领 Docker 私有中继。通过受保护的文件或其他标准输入来源传入连接码。连接码过期后，在中继服务器上运行 `tobs-relay add-host --reissue <name>`。已有旧版设置密钥时，用 `private-connect --hostname <https-origin> --token-stdin --confirm` 从标准输入读取密钥。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。
 
 ### 同账号 Connect 自动配对
 

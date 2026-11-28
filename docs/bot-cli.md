@@ -2566,7 +2566,7 @@ An invitation admits only connected private routes. Updated phones retain at mos
 
 ## Docker private connectivity
 
-`private-connect --hostname <https-origin> --token-stdin --confirm` claims an unclaimed private Docker relay through the authenticated local Host. The setup key comes only from stdin, never command arguments. `devices` reports `privateRelay` state; `device-offer --out <absolute-new-file>` writes the sensitive pairing invitation after the relay is connected. Use `device-requests`, `device-approve-key` and `device-revoke` for exact-device approval and revocation. See [private deployment](private-connect.md). A failed/unknown claim is not automatically replayed, and no official fallback is selected.
+`tobs private-connect --code-stdin --confirm < connect.code` claims a private Docker relay through the authenticated local Host. Read the connect code from a protected file or other stdin source. If the code expires, run `tobs-relay add-host --reissue <name>` on the relay server. For a legacy setup key, use `private-connect --hostname <https-origin> --token-stdin --confirm` and supply the key through stdin. `devices` reports `privateRelay` state; `device-offer --out <absolute-new-file>` writes the sensitive pairing invitation after the relay is connected. Use `device-requests`, `device-approve-key` and `device-revoke` for exact-device approval and revocation. See [private deployment](private-connect.md). A failed/unknown claim is not automatically replayed, and no official fallback is selected.
 
 ### Same-account Connect enrollment
 

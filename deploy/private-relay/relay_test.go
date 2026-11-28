@@ -179,35 +179,29 @@ func TestClaimLimitsAndLiveKeys(t *testing.T) {
 	keys := filepath.Join(dir, "hosts", "keys")
 	origin := runTestRelay(t, filepath.Join(dir, "relay-data"), keys)
 	request(t, origin, "POST", "/claim", sampleToken("d"), "", 403, `{"code":"claim-refused"}`)
-	if err := addHost(dir, "office"); err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(filepath.Join(dir, "host-office.secret"))
+	token, err := mintConnectCode(keys, "relay.example.test", "office", 15*time.Minute, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	token := strings.TrimSpace(string(body))
+	token = strings.SplitN(token, "#", 2)[1]
 	request(t, origin, "POST", "/claim", token, strings.Repeat(" ", 1025), 413, `{"code":"body-too-large"}`)
 	claim := `{"ownerToken":"` + sampleToken("1") + `","phoneToken":"` + sampleToken("2") + `","ignored":{"extra":true}}`
 	request(t, origin, "POST", "/claim", token, claim, 200, `{"claimed":true,"host":"office"}`)
 	request(t, origin, "POST", "/claim", sampleToken("a"), claim, 400, `{"code":"claim-invalid"}`)
 	request(t, origin, "DELETE", "/claim", sampleToken("1"), "", 200, `{"released":true}`)
-	request(t, origin, "POST", "/claim", token, claim, 409, `{"code":"already-claimed"}`)
+	request(t, origin, "POST", "/claim", token, claim, 409, `{"code":"connect-code-used"}`)
 
 	for i := range maxHosts + 1 {
 		name := "host-" + strconv.Itoa(i)
-		if err := addHost(dir, name); err != nil {
-			t.Fatal(err)
-		}
-		key, err := os.ReadFile(filepath.Join(dir, "host-"+name+".secret"))
+		key, err := mintConnectCode(keys, "relay.example.test", name, 15*time.Minute, false)
 		if err != nil {
 			t.Fatal(err)
 		}
 		body := `{"ownerToken":"` + digest("owner-"+name) + `","phoneToken":"` + digest("phone-"+name) + `"}`
 		if i < maxHosts {
-			request(t, origin, "POST", "/claim", strings.TrimSpace(string(key)), body, 200, `{"claimed":true,"host":"`+name+`"}`)
+			request(t, origin, "POST", "/claim", strings.SplitN(key, "#", 2)[1], body, 200, `{"claimed":true,"host":"`+name+`"}`)
 		} else {
-			request(t, origin, "POST", "/claim", strings.TrimSpace(string(key)), body, 409, `{"code":"host-limit"}`)
+			request(t, origin, "POST", "/claim", strings.SplitN(key, "#", 2)[1], body, 409, `{"code":"host-limit"}`)
 		}
 	}
 }

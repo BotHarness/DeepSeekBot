@@ -17,13 +17,13 @@ In Bash on the VPS, replace the directory and address with yours. Run setup once
 ```bash
 cd /opt/botharness-private
 docker build -t tobs-relay:local .
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/config" \
+docker run --rm -it --log-driver=none --user "$(id -u):$(id -g)" -v "$PWD:/config" \
   tobs-relay:local setup --config-dir /config relay.example.com
 docker compose --project-name botharness-private --project-directory /opt/botharness-private \
   --file /opt/botharness-private/compose.yaml up --build --detach --remove-orphans
 ```
 
-Setup writes `.env` and `bootstrap.secret` with mode 0600 and prints the key file location and the HTTPS origin. Keep the files private. Compose loads its bootstrap key from `.env` into the container environment, which server administrators can inspect. The relay runs as an unprivileged user and saves only hashes in its claim records.
+Setup prints a single-line connect code and a QR in an interactive terminal. The code includes the HTTPS origin and expires after 15 minutes or after one successful claim. Keep both private. The relay runs as an unprivileged user and stores only the credential hash and expiry. Use `setup --ttl 30m relay.example.com` if deployment takes longer.
 
 Use a filesystem that supports hard links for the setup files and relay data. The relay uses them to ensure each claim key can be used only once.
 
@@ -33,11 +33,11 @@ On Linux, `tailscale serve` can already own port 443 on a Tailscale address such
 
 ### Docker without Compose
 
-Build the same image, then initialize a named volume and start one relay container. Fetch the setup key privately from the container's `/data/bootstrap.secret` for claim.
+Build the same image, then initialize a named volume and start one relay container. Keep the connect code printed during setup for the desktop claim.
 
 ```bash
 docker build -t tobs-relay:local .
-docker run --rm -v botharness-private-data:/data tobs-relay:local setup relay.example.com
+docker run --rm -it --log-driver=none -v botharness-private-data:/data tobs-relay:local setup relay.example.com
 docker run -d --name botharness-private --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges:true -p 80:8080 -p 443:8443 -v botharness-private-data:/data tobs-relay:local
 ```
 
@@ -57,7 +57,7 @@ This keeps claims and ACME state in `./relay-data`. If `tailscale serve` owns 44
 From outside the server, open `/health` at the public HTTPS origin. Expect `botharness-private-v1` and `botharness-private-v2`. Verify phone access in the pairing steps.
 
 1. On your trusted desktop, open **Bot settings → Connections → Add connection → Connect your phone to this computer → App installed, start connecting → Advanced methods → Docker relay**.
-2. Enter the HTTPS origin and privately copy the initial setup key from the server's `bootstrap.secret` file. Do not send it to another person or put it into command arguments.
+2. Paste the entire line starting with `tobs-relay-v1:` into **Connect code**. Keep it out of chats, logs and command arguments. For an existing `bootstrap.secret` or `host-*.secret`, choose **Use a legacy setup key** and enter the HTTPS origin and key.
 3. Choose **Claim and connect**. Wait for **Connected**. A successful local setup, container start or health response alone is not proof that your phone can reach it.
 4. Choose **Show phone pairing code**. On the native phone, scan it and verify the full Host fingerprint against the trusted desktop. On the desktop, compare and approve the exact phone key.
 5. Send a Bot message from the phone and check the actual reply. For external-access acceptance use mobile data, not only home Wi-Fi.
@@ -70,17 +70,20 @@ One deployment serves up to 16 computers. Each computer can hold one control soc
 
 Each computer gets its own one-time claim key, owner credential and phone admission. A phone paired with one computer can only reach that computer through the relay. Releasing a claim affects only that computer.
 
-On the server, create a key for each extra computer:
+On the server, issue a connect code for each extra computer. Pass `--ttl` before the name to change its lifetime. If you use a different Compose project name, substitute that project’s relay data volume.
 
 ```bash
 cd /opt/botharness-private
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/config" \
+docker run --rm -it --log-driver=none --user "$(id -u):$(id -g)" \
+  -v "$PWD:/config" -v botharness-private_relay-data:/data \
   tobs-relay:local add-host --config-dir /config office-mac
 ```
 
-This writes `host-office-mac.secret` (the key, private to the server) and appends only its hash to `hosts/keys`, which the relay reads on every claim, so no restart is needed. On that computer, claim with the same steps as above but paste the contents of `host-office-mac.secret` instead of `bootstrap.secret`. The first computer keeps using `bootstrap.secret`.
+Paste the printed code on the new computer. The relay reads newly issued codes without a restart.
 
-For standalone Docker, run `docker run --rm -v botharness-private-data:/data tobs-relay:local add-host office-mac`. For the binary, run `./tobs-relay add-host office-mac` in the setup directory.
+If a code expires, repeat the command with `--reissue` before the name. For the first computer, use `tobs-relay add-host --reissue default`. Reissuing invalidates the previous code and preserves all existing claims and pairings. If a code was already used, continue on the original computer or run `add-host` with a new name for another computer.
+
+For standalone Docker, run `docker run --rm -it --log-driver=none -v botharness-private-data:/data tobs-relay:local add-host office-mac`. For the binary, run `./tobs-relay add-host office-mac` in the setup directory.
 
 To upgrade a Node and Caddy deployment, keep `.env`, `hosts/keys`, the setup key files, and the `relay-data` volume. Replace the deployment files in the same directory and run only the Compose `up --build --detach --remove-orphans` command above with the same project name. This releases Caddy's ports and starts the Go relay with the existing claims and pairings. Preserve the old Caddy volumes if you may roll back. For an older setup with no `hosts` directory, create it with `mkdir -p hosts` before starting Compose. The wire protocol is documented in [the relay standard](private-relay-standard.md), with a conformance script for third-party relays.
 
@@ -100,15 +103,15 @@ CLI operators can use [the private connection commands](bot-cli.md#docker-privat
 
 ## Copy to your agent
 
-Copy this whole block. Provide public deployment inputs and authorized server access separately; keep bootstrap keys out of chat.
+Copy this whole block. Provide public deployment inputs and authorized server access separately; keep connect codes and legacy keys out of chat.
 
 ```text
 Deploy a Tobs Docker private relay on my own server and connect my existing Host. Read https://tobs.app/en/docs/private-relay/ and https://tobs.app/en/docs/private-relay-standard/. If unavailable, read https://github.com/BotHarness/DeepSeekBot/blob/main/docs/private-relay.md and https://github.com/BotHarness/DeepSeekBot/blob/main/docs/private-relay-standard.md. Ask for the public DNS name or IP address, authorized server access, deployment directory and target Host if missing.
 
 1. Inspect the Host version/Profile/private mode and server DNS/inbound connectivity, Docker Compose and existing projects and port ownership. A home-only container/domain does not create internet reachability. Preserve other stacks and Host data/pairings. Docker relay is exclusive: ask before changing an existing private mode.
 2. Agree on concrete resources. Do not purchase infrastructure, activate paid services, replace unrelated DNS or stop another service on 80/443. Use the source release/tag matching the supported installed Host, record its immutable revision and copy the complete deploy/private-relay directory. Let me complete provider login/privileged confirmation when needed.
-3. Only for a new deployment, run tobs-relay setup with the agreed DNS name or IP address, then Compose with an explicit project name and directory. Keep .env, bootstrap.secret, extra Host keys and owner tokens private. Secrets enter through protected local input/files/stdin, never chat, process arguments or logs. Preserve existing setup files/volumes; do not reset or repeat initialization to force a claim.
-4. Verify public trusted HTTPS and /health. Claim from the actual local Host using its UI or private-connect --hostname <https-origin> --token-stdin --confirm with the key from a private file. Never automatically replay an unknown-outcome claim; inspect the same Profile/status. Do not fall back to official Connect.
-5. Let me scan locally, compare the Host fingerprint and approve the exact phone key. Keep the QR out of chat. Verify a real Bot reply on mobile data/outside Wi-Fi, then an authorized restart retaining persistent volumes and phone reconnect. Additional computers each need a separate add-host key and independent approval; never reuse bootstrap.secret.
+3. Only for a new deployment, run tobs-relay setup with the agreed DNS name or IP address, then Compose with an explicit project name and directory. Keep .env, connect codes, legacy keys and owner tokens private. Secrets enter through protected local input/files/stdin, never chat, process arguments or logs. Preserve existing setup files/volumes; do not reset or repeat initialization to force a claim.
+4. Verify public trusted HTTPS and /health. Claim from the actual local Host using its UI or private-connect --code-stdin --confirm with the code from a private file. Never automatically replay an unknown-outcome claim; inspect the same Profile/status. Do not fall back to official Connect.
+5. Let me scan locally, compare the Host fingerprint and approve the exact phone key. Keep the QR out of chat. Verify a real Bot reply on mobile data/outside Wi-Fi, then an authorized restart retaining persistent volumes and phone reconnect. Additional computers each need a separate add-host code and independent approval.
 6. Report service health, Host connection, actual phone reply and pending checks separately. Provide diagnostics without secrets and upgrade/rollback instructions retaining relay data, any legacy Caddy volumes and the Host Profile. Shutdown uses the same project's down without --volumes. Revoke a test phone only when authorized; retiring the relay is not phone revocation.
 ```

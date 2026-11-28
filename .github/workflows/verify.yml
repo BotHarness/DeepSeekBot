@@ -219,10 +219,11 @@ jobs:
           work=$(mktemp -d)
           volume=$(docker volume create)
           trap 'docker rm -f tobs-relay-ci >/dev/null 2>&1 || true; docker volume rm "$volume" >/dev/null; rm -rf "$work"' EXIT
+          umask 077
           config=(-v "$volume:/data" tobs-relay:ci)
-          docker run --rm "${config[@]}" setup relay.example.test
-          docker run --rm "${config[@]}" add-host conformance-a
-          docker run --rm "${config[@]}" add-host conformance-b
+          docker run --rm --log-driver=none "${config[@]}" setup relay.example.test > "$work/a.code"
+          docker run --rm --log-driver=none "${config[@]}" add-host conformance-b > "$work/b.code"
+          docker run --rm --log-driver=none "${config[@]}" add-host --ttl 1ms expired > "$work/expired.code"
           docker run -d --name tobs-relay-ci --read-only --cap-drop ALL \
             -e RELAY_TLS=off -e RELAY_LISTEN=:8080 -p 127.0.0.1::8080 "${config[@]}"
           for attempt in {1..20}; do
@@ -230,10 +231,8 @@ jobs:
             sleep 1
           done
           docker exec tobs-relay-ci /tobs-relay health
-          docker cp tobs-relay-ci:/data/host-conformance-a.secret "$work/a.secret"
-          docker cp tobs-relay-ci:/data/host-conformance-b.secret "$work/b.secret"
           node conformance.mjs --origin "http://$(docker port tobs-relay-ci 8080/tcp)" \
-            --key-a-file "$work/a.secret" --key-b-file "$work/b.secret"
+            --key-a-file "$work/a.code" --key-b-file "$work/b.code" --expired-code-file "$work/expired.code"
 
   mobile-export:
     name: mobile verification (iOS and Android)

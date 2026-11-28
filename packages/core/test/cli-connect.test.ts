@@ -46,6 +46,33 @@ it('supports conditional direct private stop while retaining the explicit uncond
   ).rejects.toMatchObject({ code: 'usage' });
 });
 describe('connect CLI', () => {
+  it('claims a Docker relay with a code from stdin and requires an unambiguous confirmation', async () => {
+    const http = vi.fn(async () => reply({ ok: true, status: { state: 'connecting' } }));
+    const connect = vi.fn(async () => ({ http }));
+    const code = `tobs-relay-v1:https://relay.example.com#default.${'a'.repeat(64)}`;
+    const readStdin = vi.fn(async () => code + '\n');
+    for (const values of [
+      { 'code-stdin': true },
+      { 'code-stdin': true, 'token-stdin': true, confirm: true },
+      { 'code-stdin': true, hostname: 'https://relay.example.com', confirm: true },
+    ]) {
+      await expect(
+        runConnectCommand('private-connect', [], values, { readStdin }, connect),
+      ).rejects.toMatchObject({ code: 'usage' });
+    }
+    expect(readStdin).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+    const result = await runConnectCommand(
+      'private-connect',
+      [],
+      { 'code-stdin': true, confirm: true },
+      { readStdin },
+      connect,
+    );
+    expect(http).toHaveBeenCalledWith('/api/botharness/devices/private', { code, confirm: true });
+    expect(JSON.stringify(result)).not.toContain(code);
+  });
+
   it('claims private connectivity only with explicit confirmation and a stdin setup key', async () => {
     const http = vi.fn(async () => reply({ ok: true, status: { state: 'connecting' } }));
     const connect = vi.fn(async () => ({ http }));
