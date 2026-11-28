@@ -1,5 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
+export class SourceUnavailableError extends Error {}
+
 export function sourceContentPurged(db: DatabaseSync, id: string): boolean {
   return (
     db
@@ -12,7 +14,8 @@ export function sourceContentPurged(db: DatabaseSync, id: string): boolean {
 }
 
 export function requireSourceContent(db: DatabaseSync, id: string): void {
-  if (sourceContentPurged(db, id)) throw new Error('Source Event content was purged');
+  if (sourceContentPurged(db, id))
+    throw new SourceUnavailableError('Source Event content was purged');
 }
 
 export function requireSourceEffects(db: DatabaseSync, id: string, botSlug: string): void {
@@ -20,7 +23,8 @@ export function requireSourceEffects(db: DatabaseSync, id: string, botSlug: stri
   const admission = db
     .prepare('SELECT last_error FROM inbox_admissions WHERE source_event_id = ? AND bot_slug = ?')
     .get(id, botSlug);
-  if (admission?.last_error === 'channel-ended') throw new Error('Source Channel has ended');
+  if (admission?.last_error === 'channel-ended')
+    throw new SourceUnavailableError('Source Channel has ended');
 }
 
 export function requireAssignmentSource(db: DatabaseSync, id: string, botSlug: string): void {

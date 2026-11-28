@@ -161,6 +161,31 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     await state.runtime.close();
   });
 
+  it('reports permanent loss if the source is purged before native delivery', async () => {
+    const state = await fixture(() => {
+      const result = attachOperationalModule(state.owner, 'native-question-test').transaction(
+        (db) =>
+          db
+            .prepare(
+              `INSERT INTO messaging_purge_facts
+               SELECT source_event_id, channel_id, message_id, ?, '{}' FROM source_events
+               WHERE message_id = ?`,
+            )
+            .run(new Date().toISOString(), 'human-question-origin'),
+      );
+      expect(result.changes).toBe(1);
+    });
+    state.first.release();
+    await state.admission.settled;
+    const deliver = vi.fn(() => 'accepted' as const);
+    try {
+      expect(await state.getBound()(deliver)).toBe('lost');
+      expect(deliver).not.toHaveBeenCalled();
+    } finally {
+      await state.runtime.close();
+    }
+  });
+
   it('exports a bounded recovery stage when the resumed run fails without leaking exception text', async () => {
     const state = await fixture(() => {
       throw new Error('PRIVATE_QUESTION_ANSWER_AND_PATH');

@@ -12,7 +12,7 @@ import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { MemoryAcceptError } from '../../memory/accepted.js';
 import type { OutboundMessaging } from '../../messaging/outbound.js';
-import { requireSourceEffects } from '../../purge/fence.js';
+import { requireSourceEffects, SourceUnavailableError } from '../../purge/fence.js';
 import { channelSql } from '../../runtime/attention.js';
 import type { BotRuntime, BotRuntimeOptions } from '../../runtime/bot-runtime.js';
 import type { InboxUnit } from '../../runtime/inbox-render.js';
@@ -353,6 +353,14 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
       const bot = nativeQuestionOwner(sessionId, channelId, botSlug);
       if (bot === undefined || (input.kind === 'recovered-question' && !input.holdsCard()))
         return 'lost';
+      try {
+        ports.database.read((db) => {
+          for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
+        });
+      } catch (error) {
+        if (error instanceof SourceUnavailableError) return 'lost';
+        throw error;
+      }
       return bot.paused === true ? 'retry' : bot;
     };
     return (deliver) => {
@@ -384,9 +392,6 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
             accept(bot);
             return;
           }
-          ports.database.read((db) => {
-            for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
-          });
           phase = 'resume';
           await ports.runOrchestratorTurn(
             bot,
@@ -407,9 +412,6 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
                 accept(current);
                 return false;
               }
-              ports.database.read((db) => {
-                for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
-              });
               const result = deliver();
               if (result !== 'accepted') refused('native-refused');
               else phase = 'continuation';
