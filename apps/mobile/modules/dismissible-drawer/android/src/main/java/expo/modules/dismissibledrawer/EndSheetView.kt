@@ -108,9 +108,6 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         if (abs(dy) > slop && abs(dy) >= abs(dx)) eligible = false
         if (startsEndDrag(dx, dy, slop)) {
           eligible = false
-          // Predictive Back hides by translation and requests layout afterward. RN may
-          // defer that layout; restore Material's hidden offset before exposing the panel.
-          super.onLayoutChild(parent, child, ViewCompat.getLayoutDirection(parent))
           child.visibility = VISIBLE
           reportOpening()
           val cancel = MotionEvent.obtain(start).apply { action = MotionEvent.ACTION_CANCEL }
@@ -153,6 +150,10 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
       override fun onStateChanged(sheet: View, state: Int) {
         if (state != SideSheetBehavior.STATE_EXPANDED && state != SideSheetBehavior.STATE_HIDDEN) return
         val open = state == SideSheetBehavior.STATE_EXPANDED
+        // Predictive Back slides the panel out by translation, resets it and only requests a
+        // layout, which React Native never runs. Its hit testing ignores visibility, so the
+        // invisible panel would keep taking taps: move it to the hidden offset now.
+        if (!open) behavior.onLayoutChild(coordinator, panel, ViewCompat.getLayoutDirection(coordinator))
         content.translationX = if (fullWidth && open) -panel.width.toFloat() else 0f
         updateScrim(if (open) 1f else 0f)
         requestedOpen = open
