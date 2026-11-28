@@ -69,6 +69,9 @@ describe('private input native authority and reference contract', () => {
     await expect(f.owner.ask(f.agent, declaration, new AbortController().signal)).rejects.toThrow(
       'Owner action in an interactive conversation',
     );
+    await expect(
+      f.owner.ask(f.agent, declaration, new AbortController().signal, undefined, 'reuse'),
+    ).rejects.toThrow('Owner action in an interactive conversation');
     expect(f.channels.readMessages('dm-ada')).toEqual([]);
     expect(await f.credentials.listRecords()).toEqual([]);
     await f.close();

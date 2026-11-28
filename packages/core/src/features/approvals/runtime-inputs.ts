@@ -213,7 +213,15 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
       }
     };
     if (!current()) throw new PrivateInputRefusal('private-source-revoked');
-    return { sourceEventId: id, signal, applies, current };
+    const { event } = messaging.inbound.read(owner.botSlug, id);
+    const conversationKey = JSON.stringify([
+      event.channel,
+      event.fingerprint,
+      event.conversation.kind,
+      event.conversation.id,
+      event.reply.threadId,
+    ]);
+    return { sourceEventId: id, conversationKey, signal, applies, current };
   }
 
   function bindNativeQuestionInput(

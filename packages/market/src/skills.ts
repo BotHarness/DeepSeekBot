@@ -2,6 +2,8 @@ import type {
   MarketplaceSkill,
   MarketplaceSkillDetail,
   MarketplaceSkillFile,
+  MarketplaceSkillSectionName,
+  MarketplaceSkillSectionView,
 } from '../../host-protocol/src/marketplace-skill.js';
 import type { D1Database, D1PreparedStatement } from './d1.js';
 import { continueDiscovery, findTopicRepositories } from './discovery.js';
@@ -491,6 +493,30 @@ export function createMarketSkills(deps: {
       return {
         skills: rows.slice(0, limit).map(toMarketplaceSkill),
         nextCursor: rows.length > limit ? String(offset + limit) : null,
+      };
+    },
+
+    async section(section: MarketplaceSkillSectionName): Promise<MarketplaceSkillSectionView> {
+      const run = await db
+        .prepare('SELECT day FROM skill_ranking_runs ORDER BY day DESC LIMIT 1')
+        .first<{ day: string }>();
+      if (run === null) return { section, day: null, entries: [] };
+      const { results } = await db
+        .prepare(
+          `SELECT ${SELECT_COLUMNS}, snapshot.score AS ranking_score
+           FROM marketplace_skills JOIN skill_ranking_snapshots snapshot ON id = snapshot.skill_id
+           WHERE snapshot.day = ? AND snapshot.section = ? AND visibility = 'listed'
+           ORDER BY snapshot.rank`,
+        )
+        .bind(run.day, section)
+        .all<SkillRow & { ranking_score: number }>();
+      return {
+        section,
+        day: run.day,
+        entries: results.map((row) => ({
+          skill: toMarketplaceSkill(row),
+          score: row.ranking_score,
+        })),
       };
     },
 

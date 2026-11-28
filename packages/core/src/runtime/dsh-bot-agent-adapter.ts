@@ -41,6 +41,7 @@ import {
   acceptAssistantStream,
   captureNativeOrchestratorModel,
   loadOrchestrator,
+  orchestratorHandle,
 } from './dsh-bot-agent-adapter-orchestrator.js';
 import { runsOnEngine, engineToolCatalog } from './dsh-bot-agent-adapter-engine.js';
 import {
@@ -79,6 +80,7 @@ export interface DshAgentHost {
 export interface DshAgentPresetHost {
   mount(agentCtx: Context, id?: string): Promise<unknown>;
   presetForSession?(session: Agent['session']): string | null | undefined;
+  composedPreset?(agentCtx: Context): string | undefined;
   serviceFor?(agent: Agent, name: string): unknown;
 }
 
@@ -261,6 +263,23 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return loadOrchestrator(this.#state, run);
   }
 
+  hasOrchestratorSetup(agent: Agent): boolean {
+    return this.#state.configuredOrchestrators.has(agent);
+  }
+
+  async attachResumedOrchestrator(
+    agent: Agent,
+    run: OrchestratorAgentRun,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#state.assertOpen();
+    await this.#state.prepare(
+      run.sessionId,
+      (preparationSignal) => orchestratorHandle(this.#state, run, preparationSignal, agent),
+      signal,
+    );
+  }
+
   isNativeDirectTool(name: string): boolean {
     return isNativeDirectTool(this.#state, name);
   }
@@ -289,6 +308,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 }
 
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
+  hasOrchestratorSetup(agent: Agent): boolean;
+  attachResumedOrchestrator(
+    agent: Agent,
+    run: OrchestratorAgentRun,
+    signal?: AbortSignal,
+  ): Promise<void>;
   acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void;
   forgetAgent(agent: Agent): void;
   modelSelection(sessionId: string): ModelSelection | undefined;

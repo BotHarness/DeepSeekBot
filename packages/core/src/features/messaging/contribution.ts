@@ -16,10 +16,15 @@ import {
   messagingRpcMethods,
 } from './rpc.js';
 import { registerExternalMessagingTools } from './tools.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { HumanContext } from '../../humans/context.js';
 
 export interface MessagingBridgeContext {
   deps: MessagingBridgeDeps;
   messagingCall: ReturnType<typeof createMessagingCall>;
+  globalRegistry: PersonaBotRegistry;
+  human: HumanContext;
+  isHostOwner(): boolean;
 }
 
 export interface MessagingAgentContext {
@@ -31,7 +36,11 @@ export function createMessagingContribution() {
   return {
     id: 'messaging',
     runtimeServices: { createMessagingEvents },
-    bridgeMethods: ({ deps, messagingCall }) => createMessagingBridgeMethods(deps, messagingCall),
+    bridgeMethods: ({ deps, messagingCall, globalRegistry, human, isHostOwner }) =>
+      createMessagingBridgeMethods(deps, messagingCall, {
+        globalRegistry,
+        canReadConnections: () => isHostOwner() && human.caller !== 'bot',
+      }),
     rpc: {
       ...messagingRpcMethods,
       ...channelMessagingRpc,

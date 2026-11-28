@@ -9,7 +9,7 @@ import { dmChannelId } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
-import { type PrivateInputLog } from './diagnostics.js';
+import { PrivateInputFailure, type PrivateInputLog } from './diagnostics.js';
 import {
   PrivateInputRefusal,
   type PrivateInputOrigin,
@@ -41,6 +41,11 @@ import {
   type AccountOperations,
 } from './private-input-account-operations.js';
 import type { Pending, PrivateReplyScope, PrivateUse, Terminal } from './private-input-types.js';
+import { PrivateInputDeclines, declineKey } from './private-input-declines.js';
+
+type PrivateInputLookupResult =
+  | PrivateInputResult
+  | { status: 'not-found'; account: string; accounts: string[]; message: string };
 
 export class PrivateInputs {
   mcpServers?: {
@@ -61,6 +66,7 @@ export class PrivateInputs {
     erase(botSlug: string): Promise<void>;
   };
   readonly #pending = new Map<string, Pending>();
+  readonly #declined = new PrivateInputDeclines();
   readonly #timer: ReturnType<typeof setInterval>;
   #recovery: Promise<void> | undefined;
   #closed = false;
@@ -124,6 +130,7 @@ export class PrivateInputs {
       throw new Error('Invalid private input lifetime');
     this.#timer = setInterval(
       () => {
+        this.#declined.sweep();
         for (const [id, pending] of this.#pending) {
           if (!this.#valid(pending)) void this.#stop(id, pending, 'expired');
         }
@@ -339,12 +346,26 @@ export class PrivateInputs {
     }
   }
 
+  ask(
+    agent: Agent,
+    input: unknown,
+    signal: AbortSignal,
+    sourceEventId?: string,
+  ): Promise<PrivateInputResult>;
+  ask(
+    agent: Agent,
+    input: unknown,
+    signal: AbortSignal,
+    sourceEventId: string | undefined,
+    mode: 'reuse' | 'collect',
+  ): Promise<PrivateInputLookupResult>;
   async ask(
     agent: Agent,
     input: unknown,
     signal: AbortSignal,
     sourceEventId?: string,
-  ): Promise<PrivateInputResult> {
+    mode: 'reuse' | 'collect' = 'collect',
+  ): Promise<PrivateInputLookupResult> {
     const request = privateRequestSchema.safeParse(input);
     const owner = this.#owner(agent);
     if (!request.success || owner === undefined || signal.aborted)
@@ -440,8 +461,29 @@ export class PrivateInputs {
         'Private account requires Owner action in an interactive conversation; do not retry this unattended request',
       );
     }
+    if (mode !== 'collect') {
+      const accounts = await this.listSavedAccounts(agent);
+      if (signal.aborted || (origin !== undefined && !origin.current()))
+        throw new Error('Private input request expired');
+      return {
+        status: 'not-found',
+        account: request.data.account,
+        accounts,
+        message:
+          'No saved credential matches this account and its required fields. Use an exact saved account name or ask the Human before requesting new credentials.',
+      };
+    }
     if (origin !== undefined && this.deps.notify === undefined)
       throw new PrivateInputRefusal('private-input-notice-unavailable');
+    const key = declineKey(owner, channelId, request.data, origin);
+    if (
+      this.#declined.has(key) ||
+      [...this.#pending.values()].some(
+        (pending) => pending.declineKey === key && pending.terminal === 'cancelled',
+      )
+    ) {
+      throw new PrivateInputRefusal('private-input-declined');
+    }
     const binding = existing.binding;
     const opened = await this.#open(
       agent,
@@ -452,6 +494,7 @@ export class PrivateInputs {
       undefined,
       origin,
       channelId,
+      key,
     );
     if (origin !== undefined && this.status(channelId, opened.messageId) === 'pending') {
       try {
@@ -475,6 +518,26 @@ export class PrivateInputs {
       : result;
   }
 
+  async listSavedAccounts(agent: Agent): Promise<string[]> {
+    const owner = this.#owner(agent);
+    const current = () => {
+      const latest = this.#owner(agent);
+      return latest?.botSlug === owner?.botSlug && latest?.createdAt === owner?.createdAt;
+    };
+    if (owner === undefined || !(await this.deps.qualified()) || !current())
+      throw new PrivateInputFailure(
+        'Saved credentials are unavailable.',
+        'private-accounts-unavailable',
+      );
+    const rows = await this.accounts(true, owner.botSlug);
+    if (rows === undefined || !current())
+      throw new PrivateInputFailure(
+        'Saved credentials are unavailable.',
+        'private-accounts-unavailable',
+      );
+    return rows.filter((row) => row.status !== 'unavailable').map((row) => row.account);
+  }
+
   async #open(
     agent: Agent | undefined,
     owner: { botSlug: string; createdAt: string },
@@ -484,6 +547,7 @@ export class PrivateInputs {
     replacesMessageId?: string,
     origin?: PrivateInputOrigin,
     channelId = dmChannelId(owner.botSlug),
+    key?: string,
   ): Promise<{ messageId: string; result: Promise<PrivateInputResult> }> {
     const id = randomUUID();
     let resolve!: Pending['resolve'];
@@ -499,6 +563,7 @@ export class PrivateInputs {
       expectedRevision,
       signal,
       ...(origin === undefined ? {} : { origin }),
+      ...(key === undefined ? {} : { declineKey: key }),
       committed: false,
       deadline: Date.now() + (this.deps.requestTimeoutMs ?? 15 * 60_000),
       resolve,
@@ -567,6 +632,8 @@ export class PrivateInputs {
     pending.signal.removeEventListener('abort', pending.abort);
     pending.origin?.signal.removeEventListener('abort', pending.abort);
     this.#pending.delete(id);
+    const cancelled = result.status === 'cancelled' || pending.terminal === 'cancelled';
+    if (cancelled && pending.declineKey !== undefined) this.#declined.remember(pending.declineKey);
     pending.resolve(result);
     this.#publish(pending.botSlug);
     this.deps.log(result.status, {
@@ -916,6 +983,7 @@ export class PrivateInputs {
   async close(): Promise<void> {
     this.#closed = true;
     clearInterval(this.#timer);
+    this.#declined.clear();
     for (const reply of this.#replyScopes) {
       reply.controller.abort();
       reply.dispose();

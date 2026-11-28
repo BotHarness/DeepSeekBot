@@ -38,3 +38,22 @@ it('surfaces the Host scan refusal from skills publish', async () => {
     message: 'A file contains a possible credential.',
   });
 });
+
+it('reads all Marketplace Skill rankings and can filter to one section', async () => {
+  const sections = ['hot', 'new', 'rising'].map((section) => ({ section, entries: [] }));
+  const live = await host(() => ok(sections));
+  const command = ['market', 'skills', 'sections'];
+  expect(cliEffects(command)).toMatchObject({ changes: 'none', reach: 'external' });
+  expect(await invoke(command, live.url)).toMatchObject({ code: 0, json: sections });
+  expect(await invoke([...command, '--section', 'rising'], live.url)).toMatchObject({
+    code: 0,
+    json: [sections[2]],
+  });
+  expect((await invoke([...command, '--section', 'popular'], live.url)).json.error.code).toBe(
+    'usage',
+  );
+  expect(live.calls).toEqual([
+    { method: 'marketplaceSkillSections', args: {} },
+    { method: 'marketplaceSkillSections', args: {} },
+  ]);
+});

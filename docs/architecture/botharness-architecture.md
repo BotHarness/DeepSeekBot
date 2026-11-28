@@ -1051,6 +1051,8 @@ Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举�
 
 同一个每日任务以应用回执和首次上架时间生成 Avatar 的热门、新上架和上升最快榜单。每次运行以同一 D1 批次写入 `avatar_ranking_runs` 与 `avatar_ranking_snapshots`，空榜也记录当天。`GET /v1/avatars/sections/{hot|new|rising}` 读取最近一次快照，并再次检查条目是否仍在上架。Web 和 CLI 通过 `marketplaceAvatarList` 的 `sort` 参数读取榜单，可保留关键词和标签筛选。
 
+同一个每日任务也将 Skill 的三个榜单写入 `skill_ranking_runs` 和 `skill_ranking_snapshots`。Worker 在 `GET /v1/skills/sections/{section}` 读取最新快照并筛除已下架的 Skill。Host 通过 `marketplaceSkillSections` 汇总三个榜单，供客户端和 CLI 读取。
+
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
 [ADR-0267](../decisions/marketplace.md#adr-0267) 加入安装计数：Host 在 Bot 建成之后（UI 或 CLI，上传条目或 GitHub 条目）向 Worker 发送一次 Install Receipt（`POST /v1/bots/{id}/installs`），键是 Host 数据目录 `marketplace-host.json` 里只给市场用的随机标识，与遥测安装 ID 无关；Worker 只存它的 SHA-256，`install_receipts` 以 (条目, Host) 去重并按来源地址限流，`installs` 随列表和详情返回。
@@ -1824,6 +1826,8 @@ Desktop and mobile share the pure `host-protocol` contracts and the framework-in
 
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. A disconnected member HTTP open or poll releases its stream slot and iterator. When the peer closes a keep-alive socket, the Host releases all streams still bound to it, including those between polls. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.
 
+On a Channel policy write, Team Channels compares the old and new rules for connected members. Team Service refreshes access views and disposes the Peers of other members who lost a Channel capability. The device gateway can deliver the save reply on the caller's existing connection.
+
 M2 added application-defined private Bot ownership, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal. M13 limits Tob to the current Host Owner. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.
 
 The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, union permissions, target-scoped device management and transferable Owner authority without rewriting Human identity. The Core shares its canonical Team Service with the live hub so delivery gates follow current ownership. Credential issuance provenance restricts transfer targets; suspension removes effective permissions, and transfers invalidate outstanding pairing offers.
@@ -1853,6 +1857,12 @@ Desktop uses one member picker for Group creation and subsequent member manageme
 The Group append transaction places the Source Event before evaluating Bot reception. For a Human message, Team Policy checks the Channel's `wakeBot` action and each candidate Bot's audience. The sender block store supplies the no-response list for that Channel. The message stays in the journal, and each Bot that passes all three checks is eligible for its usual mention or ordinary admission. The desktop Team workbench, mobile Group profile and CLI read and update the same settings through the authenticated Host.
 
 Group Channel actions use the Team permission engine through `TeamChannels`. The Host reads the versioned table from `channel_records`, resolves the caller's current Role overrides and enforces the result at the existing action boundary. The Team workbench and CLI edit the same table through `channelPolicySet` with a revision precondition.
+
+The Team workbench Channel summaries use two read-only Gateway operations.
+`roleChannels` projects live Channel visibility and role overrides through `TeamChannels`.
+`botInternalMembers` applies the Bot access-role management check, then projects the current DM audience, readable Channel memberships and recent participant DM metadata.
+Both operations share contracts with the CLI and Host Client.
+Channel policy changes and revocations reset the existing roster stream. Publishing a Channel sends a roster change.
 
 ### Team mode M7 runtime access
 

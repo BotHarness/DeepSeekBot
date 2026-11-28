@@ -319,6 +319,7 @@ export const CLI_EFFECTS = {
   'im-authorize': { effects: external, brokerRead: false },
   'im-bind': { effects: externalWrite, brokerRead: false },
   'im-cancel': { effects: write, brokerRead: false },
+  'im-connections': { effects: read, brokerRead: false },
   'im-credentials': { effects: externalSecretManagement, brokerRead: false },
   'im-status': { effects: read, brokerRead: true },
   'im-reconnect': { effects: externalWrite, brokerRead: false },
@@ -563,6 +564,8 @@ export const CLI_EFFECTS = {
   'skills-delete': { effects: externalIrreversibleManagement, brokerRead: false },
   'skills-mine': { effects: externalRead, brokerRead: false },
   'skills-add': { effects: externalWrite, brokerRead: false },
+  market: { effects: externalRead, brokerRead: false },
+  'market-skills-sections': { effects: externalRead, brokerRead: true },
   'skills-added': { effects: memoryRead, brokerRead: true },
   'marketplace-skill-list': { effects: externalRead, brokerRead: true },
   'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
@@ -643,7 +646,11 @@ function botAccessEffects(
   action: string | undefined,
   values: ReturnType<typeof parseBotCliArgs>['values'],
 ): ToolEffects | undefined {
-  if (['reachable', 'visibility', 'access-directory', 'access-roles'].includes(action ?? ''))
+  if (
+    ['reachable', 'visibility', 'access-directory', 'access-roles', 'channels'].includes(
+      action ?? '',
+    )
+  )
     return read;
   if (action === 'visibility-set') return values.preview ? read : management;
   if (action === 'switches')
@@ -679,6 +686,8 @@ function familyEffects(
           return botAccessEffects(action, values);
       }
     }
+    case 'market':
+      return action === 'skills' && rest[1] === 'sections' ? externalRead : undefined;
     case 'skills':
       if (
         action === 'mine' ||
@@ -738,7 +747,7 @@ function familyEffects(
       if (action === 'purge') return destructiveSecretManagement;
       return action === undefined ? secretManagement : management;
     case 'roles':
-      return ['list', 'catalog', 'conflicts', 'bot-scope'].includes(action ?? '')
+      return ['list', 'catalog', 'conflicts', 'bot-scope', 'channels'].includes(action ?? '')
         ? read
         : action === 'delete'
           ? destructiveManagement

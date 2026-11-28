@@ -230,6 +230,7 @@ deepseekbot skills-list --bot <bot-id> --session <session-id> [--query <文本>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <名称> --owner bot:<bot-id>
 deepseekbot skills-remove <名称> --bot <bot-id> --confirm
+deepseekbot market skills sections [--section hot|new|rising]
 deepseekbot marketplace-skill-list [--query <文本>] [--cursor <n>]
 deepseekbot marketplace-skill-detail <skill-id>
 deepseekbot skills-add <skill-id> --bot <bot-id>[,<bot-id>...] [--on-conflict replace|rename] [--review <review-id> --confirm]
@@ -259,6 +260,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 `skills-list --bot <bot-id> --session <session-id>` 返回该 Session 详情输入框中 `/` 菜单提供的 Skill。它列出该 Session 自己能发现的 Skill：Host Skill、该 Bot 的 Memory Repository Skill，以及工作目录所在 Workspace Grant 的 Project Skill。同名只列一项，优先级按 [ADR-0345](decisions/workspaces.md#adr-0345)：Workspace，然后 Memory，然后 Host。选中后插入纯文本 `/name`。请求以用户输入送达该 Session，由 DSH 自己的 Skill 手势在其中加载该 Skill，不另存快照。
 
 `skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复（未提交的修改会先提交为 `skills: save <名称> before removal`；文件夹中含 git 忽略的文件时以 `skill-has-ignored-files` 拒绝，因为历史无法恢复它们）；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
+
+`market skills sections` 从 Host 读取市场 Skill 的热门、新上架和上升最快榜单。用 `--section` 可在返回的 JSON 数组中只保留指定榜单。Host 无法读取榜单时返回 `marketplace-unavailable`。
 
 `marketplace-skill-list` 搜索 Marketplace 的 Skills 分区：收录带 `tobs-skill` topic 的公开 GitHub 仓库（Indexed Skill Repository），每个含 `SKILL.md` 的文件夹算一个条目，按安装数和星数排序。`marketplace-skill-detail <skill-id>` 返回条目的 `SKILL.md`、文件清单、`scripts` 和扫描 `findings`。`skills-add <skill-id>` 不带 `--confirm` 时，会下载条目收录时那个 commit 的文件，在 Host 上重新扫描，然后输出审阅结果（`verdict`、`findings`、`scripts`、`files`、`conflicts`）和你能添加到的 Bot，不做任何改动。把审阅结果给 Human 看过后，再带 `--review <reviewId> --confirm` 执行；添加的正是这次审阅的文件，即使条目之后被刷新也一样。`--bot` 添加到你拥有的每只 Bot：写入 Memory Repository 的 `.agents/skills/<名称>/` 并提交 `skills: add <名称> from Marketplace (<owner>/<repo>)`。`--global` 添加为 Host Skill，写入 `<DSH home>/skills/<名称>/`，所有 Bot 都能看到，除非某只 Bot 有同名的 Project Skill；只有 Host owner（或其 Bot）可以这样做。写入的 `SKILL.md` 在 `metadata` 中记录 `tobs-source`（条目 id）、`tobs-repository` 和 `tobs-hash`。同名已存在时以 `skill-exists` 拒绝，除非指定 `--on-conflict replace`（覆盖文件夹）或 `rename`（以 `<名称>-2` 添加）。文件中含下载即执行模式的 Skill 以 `skill-blocked` 拒绝；审阅超过 30 分钟以 `review-expired` 拒绝。每个 Bot 目标和全局目标各计一次 Install Receipt。
 
@@ -507,6 +510,7 @@ deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
 deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot im-connections [--read-mode saved|status]
 deepseekbot messaging-grants <bot-id> --read-mode status
 deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
@@ -521,6 +525,8 @@ deepseekbot im-app-remove discord --app <app-id>
 `im-status` 和 `messaging-grants` 返回进程内的 `recovery` 状态：`retrying` 包含 `reason`、`attempt`、`nextRetryAt`；`action-required` 包含 `reason`。Provider 暂未就绪时从 250 毫秒开始指数退避，上限 30 秒，持续重试直至恢复。Host 重启后从启用的绑定和授权重建接收器。`im-reconnect` 通过现有 Owner 和当前修订号重连，不改变会话权限。失败的修改会返回错误，不会自动重放。
 
 `im-status`、`messaging-grants` 和 `channel-bridges` 支持 `--read-mode saved|status`。`saved` 快速返回本地配置，标记 `checks: pending`；其中能力和可用性字段不代表已验证的权限。`status` 只检查绑定的账号和会话，返回 `checks: complete`，账号检查仅在本次请求内共享。不传此参数时仍进行完整应用和接入方式发现。修改操作拒绝此参数，并保留实时 Owner 检查。见 [ADR-0343](decisions/im-providers.md#adr-0343)。
+
+Host Owner 可运行 `im-connections` 列出 Host 上所有 Bot 的 App Binding，包括暂停的绑定和 Provider 不可用的绑定。默认使用 `status` 检查已绑定的账号。使用 `--read-mode saved` 可直接读取已保存的绑定（`checks: pending`）。`canOpenSettings` 表示 Host Owner 是否也拥有该 Bot。
 
 ### 用命令行管理 IM 消息、审批和失败提醒
 
@@ -2402,6 +2408,8 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 
 提交沿用现有 PostHog 接入地址，无需额外配置，不部署专用接收服务或私有诊断存储。见[反馈与本地诊断](message-feedback.md)。
 
+上传失败时，`feedback-submit` 返回 `feedback-failed`。`error.details.reason` 为 `network`（连接失败）、`timeout`（超时）、`auth`（拒绝访问）或 `receiver-error`（服务未接收）。当原因为 `auth` 或 `receiver-error` 时，`error.details.status` 是接收服务返回的 HTTP 状态码。预览有效期间，可以用原令牌和评价重试。
+
 ### Failed-turn feedback
 
 `feedback-preview` accepts `failureTurn: true` alongside the canonical failed message's `channelId` and `messageId` in stdin JSON. Its frozen preview includes `uploadEvidence`: only the matching turn input and tool call/result events, redacted and capped at 128 KiB. Ambiguous/missing turn identity and oversized evidence refuse instead of uploading a whole Session. `feedback-submit --confirm` uploads that frozen turn with rating/tags/comment to the existing feedback endpoint. The diagnostic ZIP stays a separate download. Ordinary feedback keeps its existing metadata-only POST.
@@ -2409,6 +2417,8 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 ### 直接调用凭据工具与来源恢复
 
 Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
+
+向 `bot-tool <bot-id> list_secret_accounts --args-stdin` 的 stdin 传入 `{}`，可列出运行中的 Bot 能查询的准确账号名称。Owner 也可以用 `ask-secret-accounts <bot-id>` 查看，无需运行中的 Agent。`ask_secret` 默认使用 `mode: "reuse"`，查不到时返回 `not-found` 和这些名称，不会打开卡片。只有用户要求配置或同意填写新值时，才使用 `mode: "collect"`，并在 `purpose` 写清要填写什么。用户取消后，先在聊天中取得确认。五分钟内在同一会话重复请求同一账号和字段，Host 会返回 `private-input-declined`。
 
 执行审批用实际 Agent Session 与 direct call ID 绑定到认证调用方的 Bot DM；并发调用分别保留来源，完成或取消时只释放本次路由。Human 决策仍沿用原有权限检查；新私密输入卡仍要求当前 Human Source Event 与既有凭据授权。只读 `secret_http` GET 被既有输入策略要求审批时，也采用这一路由。直接调用的 Reviewer 只读取选中的模板和本次输入，不附带借用的 Session 历史。
 
@@ -2527,6 +2537,8 @@ deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expect
 deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
 deepseekbot bots access-directory
 deepseekbot bots access-roles <slug>
+deepseekbot --as <username> roles channels <roleId>
+deepseekbot --as <username> bots channels <slug>
 ```
 
 保存时使用 `roles bot-scope` 返回的版本号。保存指定 Bot 时还需传入该命令返回的 `editableBotsRevision`。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
@@ -2534,6 +2546,10 @@ Host Owner 和已持有全部公开 Bot 授权的合格角色管理员可以选�
 显式选择仍会保留。每个 Bot 行会给出 `audience`（`everyone`、`roles` 或 `members`）和 `editable`；只有按角色公开的 Bot 能被选给角色。
 `access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源。具有 `members.manage` 权限的调用者还可查看仍活跃的点名邀请成员。
 私有 Bot 的访问配置仅对其负责人可见。
+
+两个频道查询命令均返回 JSON，支持 `--as <username>`。`roles channels` 需要 `roles.manage` 或 `members.manage`。它返回角色适用的公开或按角色可见频道（`autoJoin`），以及为该角色设置过权限覆盖的频道（`overrides`）。同一频道可以出现在两组中，每一项都可以定位到频道的「权限」标签。私有频道靠邀请加入。
+
+`bots channels` 沿用 `bots access-roles` 的 Bot 负责人和管理员规则，返回可读频道（`channels`）、当前可私聊 Bot 的成员（`dmMembers`）和最近互动（`recentInteractions`）。没有 `members.manage` 的调用者只能在成员列表中看到自己的条目。最近互动仅包含调用者可读的 Bot 内部私聊元数据。每个私聊取近 30 天内最后一条非通知消息的时间，按时间倒序最多返回 20 条。
 
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 

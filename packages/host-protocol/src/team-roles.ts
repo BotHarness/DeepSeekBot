@@ -48,3 +48,22 @@ export interface BotAccessRolesView extends TeamAccessBot {
   roles: { roleId: string; name: string; source: BotRoleAccessSource }[];
   invitedMembers: { humanId: string; displayName: string }[];
 }
+
+export interface RoleChannelLink {
+  channelId: string;
+  name: string;
+  tab: 'permissions';
+}
+
+export interface RoleChannelsView {
+  roleId: string;
+  autoJoin: RoleChannelLink[];
+  overrides: RoleChannelLink[];
+  privateChannelsRequireInvitation: true;
+}
+
+export interface BotInternalMembersView extends TeamAccessBot {
+  dmMembers: { humanId: string; displayName: string }[];
+  recentInteractions: { humanId: string; channelId: string; at: string }[];
+  channels: { channelId: string; name: string; type: 'group' | 'dm' }[];
+}

@@ -1,4 +1,11 @@
+import type { FeedbackFailure } from '@botharness/host-protocol/feedback-failure';
 import { z } from 'zod';
+
+export class FeedbackUploadError extends Error {
+  constructor(readonly failure: FeedbackFailure) {
+    super(failure.reason);
+  }
+}
 
 export const feedbackTags = {
   good: ['accurate', 'completed', 'understood', 'fast'],

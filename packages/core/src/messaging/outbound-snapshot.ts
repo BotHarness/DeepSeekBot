@@ -35,6 +35,7 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { MessagingError, type MessagingAccount, type MessagingTarget } from './provider.js';
 import type {
   OutboundMessaging,
+  MessagingReadMode,
   MessagingSnapshot,
   ProviderRegistration,
   MessagingApp,
@@ -77,7 +78,7 @@ export function createOutboundSnapshot(context: {
   approvals: ApprovalMessaging;
   questions: QuestionMessaging;
   failureAlerts: FailureAlerts;
-}): Pick<OutboundMessaging, 'channelBridges' | 'apps' | 'setups' | 'snapshot'> {
+}): Pick<OutboundMessaging, 'channelBridges' | 'apps' | 'setups' | 'snapshot' | 'connections'> {
   const {
     database,
     providers,
@@ -100,7 +101,74 @@ export function createOutboundSnapshot(context: {
     failureAlerts,
   } = context;
 
+  const statusFields = (
+    identity: MessagingIdentity,
+    availability: MessagingIdentityView['availability'],
+    mode?: MessagingReadMode,
+  ) => {
+    const recovery = inbound.pairingRecovery(identity.id);
+    return {
+      availability,
+      reception:
+        (mode === 'saved' && identity.enabled) || availability === 'available'
+          ? inbound.pairingReception(identity.id)
+          : availability === 'paused'
+            ? ('off' as const)
+            : ('unavailable' as const),
+      ...(recovery ? { recovery } : {}),
+    };
+  };
+
+  const identityStatus = async (
+    id: string,
+    mode?: MessagingReadMode,
+    readAccount?: AccountReader,
+  ) => {
+    const value = binding(id);
+    let availability: MessagingIdentityView['availability'] = value.enabled
+      ? 'unavailable'
+      : 'paused';
+    const providerToken = providers.get(value.providerId)?.token;
+    if (value.enabled && mode !== 'saved') {
+      try {
+        await inspectIdentity(value, readAccount);
+        availability = 'available';
+      } catch (error) {
+        if (error instanceof MessagingError && error.code === 'rebind-required')
+          availability = 'rebind-required';
+      }
+    }
+    const latest = binding(id);
+    if (latest.revision !== value.revision)
+      availability = latest.enabled ? 'unavailable' : 'paused';
+    return { latest, providerToken, status: statusFields(latest, availability, mode) };
+  };
+
   return {
+    async connections(mode) {
+      const rows = database.read((db) =>
+        db
+          .prepare(
+            'SELECT id FROM messaging_bindings WHERE revoked_at IS NULL ORDER BY bot_slug, created_at, id',
+          )
+          .all(),
+      ) as { id: string }[];
+      const statuses = await Promise.all(rows.map(({ id }) => identityStatus(id, mode)));
+      return statuses.flatMap(({ latest, status, providerToken }) => {
+        const currentBinding = binding(latest.id);
+        if (currentBinding.revokedAt !== undefined) return [];
+        const { id, botSlug, providerId, platform, accountRef, name, enabled } = currentBinding;
+        const changed = currentBinding.revision !== latest.revision || enabled !== latest.enabled;
+        const staleProvider =
+          mode === 'status' &&
+          (providerToken === undefined || providers.get(providerId)?.token !== providerToken);
+        const currentStatus =
+          !enabled || changed || staleProvider
+            ? statusFields(currentBinding, enabled ? 'unavailable' : 'paused', mode)
+            : status;
+        return [{ id, botSlug, providerId, platform, accountRef, name, enabled, ...currentStatus }];
+      });
+    },
     async channelBridges(channelId, mode) {
       const channel = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
       const snapshots = await Promise.all(
@@ -271,36 +339,13 @@ export function createOutboundSnapshot(context: {
       ) as { id: string }[];
       const identities: MessagingIdentityView[] = await Promise.all(
         identityRows.map(async ({ id }) => {
-          const value = binding(id);
-          let availability: MessagingIdentityView['availability'] = value.enabled
-            ? 'unavailable'
-            : 'paused';
-          if (value.enabled && mode !== 'saved') {
-            try {
-              await inspectIdentity(value, readAccount);
-              availability = 'available';
-            } catch (error) {
-              if (error instanceof MessagingError && error.code === 'rebind-required')
-                availability = 'rebind-required';
-            }
-          }
-          const latest = binding(id);
-          if (latest.revision !== value.revision)
-            availability = latest.enabled ? 'unavailable' : 'paused';
-          const recovery = inbound.pairingRecovery(id);
+          const { latest, status } = await identityStatus(id, mode, readAccount);
           const scopes = rows
             .map((r) => JSON.parse(r.body) as MessagingGrant)
             .filter((g) => g.bindingId === id && !g.revokedAt);
           return {
             ...latest,
-            availability,
-            reception:
-              (mode === 'saved' && latest.enabled) || availability === 'available'
-                ? inbound.pairingReception(id)
-                : availability === 'paused'
-                  ? ('off' as const)
-                  : ('unavailable' as const),
-            ...(recovery ? { recovery } : {}),
+            ...status,
             grantCount: scopes.length,
             scopes: scopes.map((g) => g.targetName),
             ...(latest.platform === 'weixin'

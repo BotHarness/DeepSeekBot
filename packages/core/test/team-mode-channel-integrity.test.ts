@@ -193,8 +193,10 @@ describe('M4 review integrity', { timeout: 60_000 }, () => {
   it('settles every peer disposal and recovers Team calls after a disposal failure', async () => {
     const f = await enabledFixture();
     const group = f.channels.createGroup(owner, { name: 'Recover disposal', members: [] });
-    const first = await f.team.signIn('bob', f.initialPassword, 'dispose-first');
-    const second = await f.team.signIn('bob', f.initialPassword, 'dispose-second');
+    f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const first = await f.team.signIn('bob', 'member-password-1', 'dispose-first');
+    const second = await f.team.signIn('bob', 'member-password-1', 'dispose-second');
     let failed: () => void = () => {};
     const failureObserved = new Promise<void>((resolve) => {
       failed = resolve;

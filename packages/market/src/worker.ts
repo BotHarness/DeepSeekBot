@@ -46,6 +46,7 @@ import {
   createRankings,
   isRankingSection,
   snapshotAvatarRankings,
+  snapshotSkillRankings,
   type Rankings,
 } from './rankings.js';
 import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
@@ -919,11 +920,12 @@ export async function runDaily(
   const rankingDeps = { db: env.MARKET_DB, now: () => rankingDate };
   await snapshotRankings('rankings', () => createRankings(rankingDeps).snapshot(), log);
   await snapshotRankings('avatar-rankings', () => snapshotAvatarRankings(rankingDeps), log);
+  await snapshotRankings('skill-rankings', () => snapshotSkillRankings(rankingDeps), log);
   await writeDigest(env, digestWriter, log, now);
 }
 
 async function snapshotRankings(
-  phase: 'rankings' | 'avatar-rankings',
+  phase: 'rankings' | 'avatar-rankings' | 'skill-rankings',
   snapshot: () => Promise<{ day: string }>,
   log: (line: string) => void,
 ): Promise<void> {

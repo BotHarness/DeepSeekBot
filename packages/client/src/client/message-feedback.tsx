@@ -1,4 +1,9 @@
 import { Button } from './ds/button.js';
+import {
+  FEEDBACK_RECEIVER_TIMEOUT_MS,
+  parseFeedbackFailure,
+  type FeedbackFailure,
+} from '@botharness/host-protocol/feedback-failure';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { FormDialog } from './ds/form-dialog.js';
@@ -10,6 +15,12 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMessageHost } from './message-host.js';
 
 const PATH = './api/botharness/message-feedback/';
+const FAILURE_LABEL = {
+  network: 'feedback.networkFailed',
+  timeout: 'feedback.timedOut',
+  auth: 'feedback.accessDenied',
+  'receiver-error': 'feedback.serviceFailed',
+} as const;
 const TAGS = {
   good: ['accurate', 'completed', 'understood', 'fast'],
   bad: [
@@ -152,7 +163,7 @@ export function MessageFeedbackDialog({
   const [preview, setPreview] = useState<Preview>();
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<FeedbackFailure['reason'] | 'generic'>();
   const [receipt, setReceipt] = useState<string>();
   const [submitted, setSubmitted] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -164,11 +175,11 @@ export function MessageFeedbackDialog({
     const controller = new AbortController();
     active.current = controller;
     setBusy(true);
-    setError(false);
+    setError(undefined);
     try {
       await work(controller.signal);
     } catch {
-      if (mounted.current && !controller.signal.aborted) setError(true);
+      if (mounted.current && !controller.signal.aborted) setError('generic');
     } finally {
       if (mounted.current && active.current === controller) setBusy(false);
     }
@@ -179,9 +190,11 @@ export function MessageFeedbackDialog({
       const answer = await host.client.api('/api/botharness/message-feedback/' + action, {
         body: record(body),
         signal,
+        ...(action === 'submit' ? { timeoutMs: FEEDBACK_RECEIVER_TIMEOUT_MS + 5_000 } : {}),
         ...(action === 'download' ? { response: 'bytes' } : {}),
       });
-      if (answer.status < 200 || answer.status >= 300) throw new Error('feedback-failed');
+      if (action !== 'submit' && (answer.status < 200 || answer.status >= 300))
+        throw new Error('feedback-failed');
       return new Response(
         answer.body instanceof Uint8Array
           ? Uint8Array.from(answer.body)
@@ -195,7 +208,7 @@ export function MessageFeedbackDialog({
       body: JSON.stringify(body),
       signal,
     });
-    if (!response.ok) throw new Error('feedback-failed');
+    if (action !== 'submit' && !response.ok) throw new Error('feedback-failed');
     return response;
   };
   const prepare = () =>
@@ -221,9 +234,17 @@ export function MessageFeedbackDialog({
     if (!preview || !rating || dirty) return;
     setSubmitted(true);
     void run(async (signal) => {
-      const result: unknown = await (
-        await post('submit', { token: preview.token, feedback: { rating, tags, comment } }, signal)
-      ).json();
+      const response = await post(
+        'submit',
+        { token: preview.token, feedback: { rating, tags, comment } },
+        signal,
+      );
+      if (!response.ok) {
+        const failure = parseFeedbackFailure(await response.json().catch(() => undefined));
+        if (!signal.aborted) setError(failure?.reason ?? 'generic');
+        return;
+      }
+      const result: unknown = await response.json();
       if (!signal.aborted) setReceipt(string(record(result)['reportId']));
     });
   };
@@ -252,7 +273,7 @@ export function MessageFeedbackDialog({
       onSubmit={receipt ? onClose : submit}
       busy={busy}
       submitDisabled={!receipt && (!rating || !preview?.canSubmit || dirty)}
-      error={error ? t('feedback.failed') : undefined}
+      error={error ? t(error === 'generic' ? 'feedback.failed' : FAILURE_LABEL[error]) : undefined}
       secondary={
         <Button type="button" disabled={!preview || dirty || busy} onClick={download}>
           {t('feedback.download')}

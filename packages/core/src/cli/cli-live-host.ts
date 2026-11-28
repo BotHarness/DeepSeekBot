@@ -1,4 +1,5 @@
 import { isLanAddress } from '@botharness/host-protocol/lan-address';
+import { parseFeedbackFailure } from '@botharness/host-protocol/feedback-failure';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -233,6 +234,22 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       detail = record(JSON.parse(new TextDecoder().decode(bytes)));
     } catch {
       detail = { error: new TextDecoder().decode(bytes).slice(0, 200) };
+    }
+    if (path === '/api/botharness/message-feedback/submit') {
+      const failure = parseFeedbackFailure(detail);
+      if (failure) {
+        const message = {
+          network: 'Could not reach the feedback service. Check the network and try again.',
+          timeout: 'The feedback service timed out. Try again later.',
+          auth: 'The feedback service denied access. Check your sign-in and try again.',
+          'receiver-error':
+            'The feedback service could not accept the submission. Try again later.',
+        }[failure.reason];
+        const error = new CliLiveError('feedback-failed', message);
+        error.details = failure;
+        error.status = status;
+        throw error;
+      }
     }
     const nested = record(detail['error']);
     const code =

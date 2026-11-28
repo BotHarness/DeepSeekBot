@@ -485,7 +485,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const reviewing = new Set<string>();
   const { idleCompactionSettings, compactionPolicy, applyCompactionPolicy } =
     requireHostFeatureHook(featureContributions, 'sessionCompactionPolicy')(ctx, core, dshHome);
-  installNativeSubagentWake(ctx, core.runtime);
+  installNativeSubagentWake(ctx, core.runtime, async (agent, signal) => {
+    if (agentAdapter.hasOrchestratorSetup(agent)) return;
+    const sessionId = agent.session.id;
+    const owner = core.ownership.resolve(sessionId);
+    if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return;
+    await core.runtime.attachResumedOrchestrator?.(owner.botSlug, sessionId, (run) =>
+      agentAdapter.attachResumedOrchestrator(agent, run, signal),
+    );
+  });
   applyCompactionPolicy();
   requireHostFeatureHook(featureContributions, 'sessionPreStep')(ctx, {
     core,

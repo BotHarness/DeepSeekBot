@@ -154,6 +154,17 @@ on exit. Compare the running DOM and loaded Client identity before blaming cache
 assets; Simple/Advanced is a separate device-local preference. Browser verification
 does not qualify an installed Desktop upgrade.
 
+### Cold native Orchestrator composition (#4175)
+
+On DSH 0.2.2-rc.1, the loop resolves the step's tools and prompt sections
+before it invokes the `system-prompt/assemble` waterfall. Installing Bot
+registrations while handling that waterfall is too late for the current step.
+Use the serial `agent/created` event on native resume to attach the current
+Orchestrator's scoped Bot registrations. Keep native Inbox admission separate.
+Inspect the first resumed `request/header`, the effective `system/message`,
+and `tool-registry` removals together. Use Session Persistence to read a
+multi-frame zstd journal so later frames are included.
+
 ### Empty tool declaration series (#3137)
 
 DSH 0.2.1-rc.3 can record a `request/header` with `startsSeries: true` and no tools.

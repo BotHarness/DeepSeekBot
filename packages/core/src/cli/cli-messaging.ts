@@ -179,7 +179,7 @@ export function messagingReadMode(
 ): 'saved' | 'status' | undefined {
   if (mode === undefined) return undefined;
   if (
-    !['im-status', 'messaging-grants', 'channel-bridges'].includes(command) ||
+    !['im-status', 'im-connections', 'messaging-grants', 'channel-bridges'].includes(command) ||
     !['saved', 'status'].includes(mode)
   )
     throw new CliLiveError('usage', '--read-mode saved|status is only for IM settings queries.');
