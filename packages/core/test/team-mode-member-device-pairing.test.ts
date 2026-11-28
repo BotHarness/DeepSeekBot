@@ -1,5 +1,6 @@
 import { parsePairingLink, redeemPairing, pairHost } from '@botharness/host-client/pairing';
 import { createHostClient } from '@botharness/host-client/client';
+import { CHANNEL_ACTIONS, type ChannelPolicy } from '@botharness/host-protocol/channel-policy';
 import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { memberRoutes } from '../src/features/team/devices.js';
 import { WebSocket } from 'ws';
@@ -7,7 +8,13 @@ import { TEAM_PATH } from '../src/features/team/http.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
-import { closes, enabledFixture, memberDeviceHost, cleanup } from './team-mode-fixtures.js';
+import {
+  closes,
+  enabledFixture,
+  memberDeviceHost,
+  memberHttp,
+  cleanup,
+} from './team-mode-fixtures.js';
 
 afterEach(cleanup);
 
@@ -301,6 +308,39 @@ it('uses the member Peer for device mux, refuses native streams and closes the s
   expect(host.mintOwner).not.toHaveBeenCalled();
 }, 60_000);
 
+const visiblePolicy = {
+  ...DEFAULT_CHANNEL_POLICY,
+  approvalMode: 'channel',
+} satisfies ChannelPolicy;
+const maskedPolicy = {
+  ...visiblePolicy,
+  everyone: { ...visiblePolicy.everyone, seeApprovals: 'deny', wakeBot: 'deny' },
+} satisfies ChannelPolicy;
+const approvalInput = 'private-approval-input';
+
+async function channelWithApproval(f: Awaited<ReturnType<typeof enabledFixture>>) {
+  const slug = 'approval-bot';
+  f.registry.create({ slug, displayName: 'Approval Bot' });
+  const group = f.channels.createGroup(owner, { name: 'Approvals', members: [slug] });
+  f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+  const message = await f.channels.appendMessage(owner, group.id, {
+    id: 'approval-request',
+    at: '2026-11-14T00:00:00Z',
+    author: { kind: 'bot', slug },
+    body: 'Tool approval',
+    toolApprovalRequest: {
+      sessionId: 'session',
+      callId: 'call',
+      role: 'orchestrator',
+      toolName: 'bot_send_message',
+      cwd: '/',
+      input: approvalInput,
+    },
+  });
+  if (!message) throw new Error('missing approval request');
+  return { channelId: group.id, messageId: message.id };
+}
+
 async function pairedPhone(
   f: Awaited<ReturnType<typeof enabledFixture>>,
   human: typeof owner,
@@ -356,23 +396,167 @@ it('returns a Channel approval save reply and keeps the paired caller connected'
   expect(openSocket).toHaveBeenCalledTimes(1);
 });
 
-it('closes the paired connection of a member who loses Channel approval access', async () => {
+it('closes the Noise socket and masks approval details for a phone-only member after revocation', async () => {
   const f = await enabledFixture();
   await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
-  const group = f.channels.createGroup(owner, { name: 'Approvals', members: [] });
-  f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
-  const policy = { ...DEFAULT_CHANNEL_POLICY, approvalMode: 'channel' } as const;
-  f.team.channelAccess.policySet(owner, group.id, policy);
+  const { channelId, messageId } = await channelWithApproval(f);
+  await expect(
+    f.methods(owner).channelPolicySet({ channelId, policy: visiblePolicy }),
+  ).resolves.toEqual({
+    ok: true,
+    value: null,
+  });
   const { carrier } = await memberDeviceHost(f);
   const { client, closed, openSocket } = await pairedPhone(f, f.human, carrier);
-  const args = { channelId: group.id };
-  await expect(client.call('channelGet', args)).resolves.toMatchObject({ policy });
-  const restricted = { ...policy, everyone: { ...policy.everyone, seeApprovals: 'deny' } } as const;
-  f.team.channelAccess.policySet(owner, group.id, restricted);
+  const read = () => client.call('channelMessages', { channelId });
+  await expect(read()).resolves.toMatchObject({
+    messages: [{ id: messageId, toolApprovalRequest: { input: approvalInput } }],
+  });
+  expect(f.team.memberDevices(owner, f.human.humanId).map(({ kind }) => kind)).toEqual([
+    'paired-device',
+  ]);
+
+  await expect(
+    f.methods(owner).channelPolicySet({ channelId, policy: maskedPolicy }),
+  ).resolves.toEqual({
+    ok: true,
+    value: null,
+  });
   await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
-  await expect(client.call('channelGet', args)).resolves.toMatchObject({ policy: restricted });
+  const result = await read();
+  expect(result).toMatchObject({ messages: [{ id: messageId, approval: { masked: true } }] });
+  expect(JSON.stringify(result)).not.toContain(approvalInput);
   expect(openSocket).toHaveBeenCalledTimes(2);
 });
+
+it('closes a phone-only member’s Noise socket and refuses Channel reads when visibility is withdrawn', async () => {
+  const f = await enabledFixture();
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const { id: channelId } = f.channels.createGroup(owner, { name: 'Role Channel', members: [] });
+  f.team.channelAccess.visibilitySet(owner, channelId, { kind: 'roles', roleIds: ['member'] });
+  const { carrier } = await memberDeviceHost(f);
+  const { client, closed } = await pairedPhone(f, f.human, carrier);
+  const read = () => client.call('channelMessages', { channelId });
+  await expect(read()).resolves.toMatchObject({ messages: [] });
+
+  f.team.channelAccess.visibilitySet(owner, channelId, { kind: 'roles', roleIds: ['admin'] });
+  await f.team.accessSettled();
+  await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
+  await expect(read()).rejects.toMatchObject({ code: 'remote-access/denied' });
+});
+
+it('disposes both a member HTTP Peer and an active CLI Peer when approval access is withdrawn', async () => {
+  const f = await enabledFixture();
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const { channelId, messageId } = await channelWithApproval(f);
+  await f.methods(owner).channelPolicySet({ channelId, policy: visiblePolicy });
+  const http = await memberHttp(f);
+  const cookie = (await http.signIn('bob', 'member-password-1')).headers.get('set-cookie');
+  if (!cookie) throw new Error('missing member cookie');
+  const read = () => http.rpc(cookie, 'channelMessages', { channelId });
+  expect(JSON.stringify(await read())).toContain(approvalInput);
+  const browserPeer = f.peers.at(-1);
+  if (!browserPeer) throw new Error('missing HTTP Peer');
+
+  await f.team.asMember('bob', async (cliPeer) => {
+    expect(browserPeer.signal.aborted).toBe(false);
+    expect(cliPeer.signal.aborted).toBe(false);
+    await expect(
+      f.methods(owner).channelPolicySet({ channelId, policy: maskedPolicy }),
+    ).resolves.toEqual({ ok: true, value: null });
+    expect(browserPeer.signal.aborted).toBe(true);
+    expect(cliPeer.signal.aborted).toBe(true);
+  });
+
+  const result = await read();
+  expect(result).toMatchObject({
+    result: { ok: true, value: { messages: [{ id: messageId, approval: { masked: true } }] } },
+  });
+  expect(JSON.stringify(result)).not.toContain(approvalInput);
+});
+
+it('refreshes access views without closing a paired connection for widening and unchanged saves', async () => {
+  const f = await enabledFixture();
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const { channelId, messageId } = await channelWithApproval(f);
+  await f.methods(owner).channelPolicySet({ channelId, policy: maskedPolicy });
+  const { carrier } = await memberDeviceHost(f);
+  const { client, closed, openSocket } = await pairedPhone(f, f.human, carrier);
+  await expect(client.call('channelMessages', { channelId })).resolves.toMatchObject({
+    messages: [{ id: messageId, approval: { masked: true } }],
+  });
+  const saveAndRefresh = async () => {
+    const cursor = f.channels.changeCursor?.();
+    if (!cursor) throw new Error('missing Channel change cursor');
+    await expect(
+      f.methods(owner).channelPolicySet({ channelId, policy: visiblePolicy }),
+    ).resolves.toEqual({
+      ok: true,
+      value: null,
+    });
+    await expect(
+      client.call('channelListChanges', { sinceSeq: cursor.seq, epoch: cursor.epoch }),
+    ).resolves.toMatchObject({ reset: true });
+    await expect(client.call('channelMessages', { channelId })).resolves.toMatchObject({
+      messages: [{ id: messageId, toolApprovalRequest: { input: approvalInput } }],
+    });
+  };
+  await saveAndRefresh();
+  await saveAndRefresh();
+  expect(closed).not.toHaveBeenCalled();
+  expect(openSocket).toHaveBeenCalledTimes(1);
+});
+
+it.each(['Channel admin', 'Host Channel manager'] as const)(
+  'preserves the paired %s’s save reply while applying the new approval policy',
+  async (role) => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const { channelId, messageId } = await channelWithApproval(f);
+    if (role === 'Channel admin') {
+      f.team.channelAccess.adminsSet(owner, channelId, [f.human.humanId]);
+    } else {
+      const manager = f.team.roles.create(owner, 'Channel manager', ['channels.manageAll']).role;
+      f.team.roles.set(owner, f.human.humanId, [manager.roleId]);
+      f.team.channelAccess.visibilitySet(owner, channelId, { kind: 'public' });
+    }
+    await f.methods(owner).channelPolicySet({ channelId, policy: visiblePolicy });
+    const permissions = () =>
+      CHANNEL_ACTIONS.filter((action) =>
+        f.team.channelAccess.allowsAction(f.human, channelId, action),
+      );
+    const before = permissions();
+    const { carrier } = await memberDeviceHost(f);
+    const { client, closed, openSocket } = await pairedPhone(f, f.human, carrier);
+    const read = () => client.call('channelMessages', { channelId });
+    await expect(read()).resolves.toMatchObject({
+      messages: [{ id: messageId, toolApprovalRequest: { input: approvalInput } }],
+    });
+    const cursor = f.channels.changeCursor?.();
+    if (!cursor) throw new Error('missing Channel change cursor');
+
+    await expect(
+      client.call('channelPolicySet', { channelId, policy: maskedPolicy }),
+    ).resolves.toBeNull();
+    await expect(
+      client.call('channelListChanges', { sinceSeq: cursor.seq, epoch: cursor.epoch }),
+    ).resolves.toMatchObject({ reset: true });
+    const result = await read();
+    if (role === 'Channel admin') {
+      expect(permissions()).toEqual(before);
+      expect(result).toMatchObject({
+        messages: [{ toolApprovalRequest: { input: approvalInput } }],
+      });
+    } else {
+      expect(before).toContain('seeApprovals');
+      expect(permissions()).not.toContain('seeApprovals');
+      expect(result).toMatchObject({ messages: [{ approval: { masked: true } }] });
+      expect(JSON.stringify(result)).not.toContain(approvalInput);
+    }
+    expect(closed).not.toHaveBeenCalled();
+    expect(openSocket).toHaveBeenCalledTimes(1);
+  },
+);
 
 it('redeems a member self-pairing QR on Host HTTPS through the existing Noise pair protocol without Owner approval', async () => {
   const f = await enabledFixture();
