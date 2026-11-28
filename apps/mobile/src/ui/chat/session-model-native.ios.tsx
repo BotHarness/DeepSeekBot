@@ -46,7 +46,7 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState } from 'react';
-import { Platform, PlatformColor, View } from 'react-native';
+import { PlatformColor, View } from 'react-native';
 
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import { space } from '../design/tokens';
@@ -54,6 +54,7 @@ import { useDesignTheme } from '../design/theme';
 import { ModelBrandIcon } from './model-brand-icon';
 import { FILTER_SKELETON_CHIPS, ModelFilterGlyph } from './session-model-filter-strip';
 import type { SessionModelSheetProps } from './session-model-native';
+import { iosMajor } from '../platform-version';
 
 function RowContent({
   name,
@@ -136,7 +137,7 @@ function FilterStrip({
   }[];
 }) {
   const theme = useDesignTheme();
-  const glass = Number(Platform.Version) >= 26;
+  const glass = iosMajor() >= 26;
   const size = theme.touch - space.x4;
   const placeholder = chips.every((chip) => chip.onPress === undefined);
   return (
@@ -412,7 +413,7 @@ export function NativeSessionModelSheet({
               </List>
               <Toolbar.Content>
                 <ToolbarItem placement="cancellationAction">
-                  {Number(Platform.Version) >= 26 ? (
+                  {iosMajor() >= 26 ? (
                     <Button
                       role="close"
                       systemImage="xmark"
@@ -435,7 +436,7 @@ export function NativeSessionModelSheet({
                       onPress={confirm.onPress}
                       modifiers={[
                         disabled(confirm.disabled || saving !== undefined),
-                        ...(Number(Platform.Version) >= 26 ? [buttonStyle('glassProminent')] : []),
+                        ...(iosMajor() >= 26 ? [buttonStyle('glassProminent')] : []),
                       ]}
                     />
                   </ToolbarItem>

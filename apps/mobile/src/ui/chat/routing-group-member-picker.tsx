@@ -193,6 +193,7 @@ export function RoutingGroupMemberPicker({
     setSelected(undefined);
   };
   return (
+    // sheet-choice-exempt: search field and filter chips over a long virtualized model list
     <Sheet
       title={t.routingGroup.addMember}
       label={t.routingGroup.addMember}

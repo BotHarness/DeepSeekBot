@@ -308,6 +308,7 @@ export function VoiceServiceSheet({
     );
   };
   return (
+    // sheet-choice-exempt: multi-page form with text fields; the preset and catalog pages are its child pages
     <Sheet
       visible
       label={title}

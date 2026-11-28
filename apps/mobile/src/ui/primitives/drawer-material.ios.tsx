@@ -60,7 +60,13 @@ export function SidebarMaterial({ cornerRadius }: { cornerRadius: number }) {
   );
 }
 
-export function EdgeMaterial({ edge: side }: { edge: 'top' | 'bottom' }) {
+export function EdgeMaterial({
+  edge: side,
+  bar = false,
+}: {
+  edge: 'top' | 'bottom';
+  bar?: boolean;
+}) {
   const theme = useDesignTheme();
   const top = side === 'top';
   return (
@@ -72,13 +78,17 @@ export function EdgeMaterial({ edge: side }: { edge: 'top' | 'bottom' }) {
       pointerEvents="none"
     >
       <Mask modifiers={[accessibilityHidden()]}>
-        <Rectangle modifiers={[foregroundStyle({ type: 'material', material: 'ultraThin' })]} />
+        <Rectangle
+          modifiers={[foregroundStyle({ type: 'material', material: bar ? 'bar' : 'ultraThin' })]}
+        />
         <Mask.Content>
           <Rectangle
             modifiers={[
               foregroundStyle({
                 type: 'linearGradient',
-                colors: edgeFade.blur.map((alpha) => `${pointer.rim}${alpha}`),
+                colors: (bar ? edgeFade.bar : edgeFade.blur).map(
+                  (alpha) => `${pointer.rim}${alpha}`,
+                ),
                 startPoint: { x: 0.5, y: top ? 0 : 1 },
                 endPoint: { x: 0.5, y: top ? 1 : 0 },
               }),

@@ -30,6 +30,26 @@ describe('source policy', () => {
     expect(await scanSource('packages/client/src/panel.ts', 'createBrowserUuid();')).toEqual([]);
   });
 
+  it('allows only a reasoned sheet-choice exemption comment in mobile sources', async () => {
+    const reasoned =
+      '// sheet-choice-exempt: search field over a long virtualized list\nconst a = 1;\n';
+    const bare = '// sheet-choice-exempt: x\nconst a = 1;\n';
+    expect(await scanSource('apps/mobile/src/ui/chat/picker.tsx', reasoned)).toEqual([]);
+    expect(
+      await scanSource(
+        'apps/mobile/src/ui/chat/picker.tsx',
+        'const a = <>{/* sheet-choice-exempt: search field over a long virtualized list */}</>;\n',
+      ),
+    ).toEqual([]);
+    expect(
+      (await scanSource('apps/mobile/src/ui/chat/picker.tsx', bare)).map((item) => item.kind),
+    ).toEqual(['comment']);
+    expect(await scanSource('apps/mobile/app/conversation-section.tsx', reasoned)).toEqual([]);
+    expect(
+      (await scanSource('packages/client/src/picker.tsx', reasoned)).map((item) => item.kind),
+    ).toEqual(['comment']);
+  });
+
   it('keeps document and generated boundaries explicit', () => {
     expect(isPolicySource('packages/client/src/main.tsx')).toBe(true);
     expect(isPolicySource('apps/docs/src/pages/index.astro')).toBe(true);

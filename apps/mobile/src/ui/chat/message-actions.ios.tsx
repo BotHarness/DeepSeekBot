@@ -62,6 +62,7 @@ export {
   type MessageMenuAction,
   type MessageMenuTarget,
 } from './message-sheet';
+import { iosMajor } from '../platform-version';
 
 export function MessageActions({
   target,
@@ -148,7 +149,7 @@ function SheetContent({
   const { message } = target;
   const time = menuTime(message.at, new Date());
   const theme = useDesignTheme();
-  const glass = Number(Platform.Version) >= 26;
+  const glass = iosMajor() >= 26;
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));
   return (
     <List

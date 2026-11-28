@@ -93,6 +93,14 @@ describe('check-ui-rules jsxCopy', () => {
       expect.stringContaining('jsxCopy total grew from 1 to 2; counts rose in b.tsx (1 → 2)'),
     ]);
   });
+  it('never lets a baseline hold sheet findings', () => {
+    const sheet = [
+      { rule: 'sheetChoice', file: 'a.tsx', line: 1, text: 'Sheet with selectable rows' },
+    ];
+    expect(compare(sheet, findings(sheet)).problems).toEqual([
+      expect.stringContaining('sheetChoice total grew from 0 to 1'),
+    ]);
+  });
 });
 
 describe('check-ui-rules pressables', () => {

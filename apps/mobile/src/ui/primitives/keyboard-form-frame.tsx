@@ -3,6 +3,7 @@ import { View, type ColorValue } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EdgeMaterial } from './drawer-material';
 import { KeyboardFormFooterSpace } from './keyboard-form-context';
 
 export function KeyboardFormFrame({
@@ -30,6 +31,7 @@ export function KeyboardFormFrame({
               )
             }
           >
+            <EdgeMaterial edge="bottom" bar />
             {footer}
           </KeyboardStickyView>
         ) : null}

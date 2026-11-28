@@ -129,6 +129,18 @@ The Worker HTTP coverage is in `packages/market/test/market-avatars.test.ts`. Th
 2. Edit the name, description and tags. Compare the public detail and image with the original, and confirm that the image bytes are identical. Check that search finds the new name and tag, and that filtering by the old tag excludes the edited Avatar. Verify a Team member cannot open the dialog.
 3. Keep the Avatar detail open in a second browser. Delete the Avatar from My Avatars. Check that the listing disappears and the second browser displays **This Avatar is no longer available** when applying to a Bot. Confirm the Bot that already applied it still has the same bytes. Delete the test Connect account and check that the remaining listing and its R2 image are removed.
 
+## Marketplace topics on Tobs mobile
+
+The topic and tag filters (`ui/shell/marketplace-topics.tsx`) are a `SystemListSheet` (#5682). On iOS it is a SwiftUI `List` on the system sheet glass at the medium detent, with the native close button. On Android it is a Material `ModalBottomSheet` with `ListItem` rows. Neither paints a fill. The web build falls back to the `Sheet` shell.
+
+Use the native iOS and Android lanes, in light and dark, with the Marketplace loaded. No Host is needed for Bots topics. Avatar tags need `EXPO_PUBLIC_MARKETPLACE_AVATARS=on`.
+
+1. Open **Marketplace** and tap **Topics / 主题** in the header. The sheet lists **All topics / 全部主题** and then each topic with its count. A loading row shows while the list refreshes, and an error note with **Retry** replaces it on failure.
+2. Pick a topic. The sheet dismisses and the visible cards match the topic filter (`deepseekbot marketplace-list --topic <topic>`, or the `topic=` request).
+3. Reopen it. The chosen topic has the trailing checkmark, and **All topics** clears the filter.
+4. Dismiss it by swipe-down, by the close button on iOS, and by Back on Android. Each time the screen underneath stays as it was.
+5. Repeat with **Avatars → tags**, which uses the same sheet with tag counts.
+
 ## Marketplace Avatars on Tobs mobile
 
 Set `EXPO_PUBLIC_MARKETPLACE_AVATARS=on` before exporting the bundle or starting Metro. The EAS development profiles and mobile verification job set it. Restart Metro after changing the flag. Store bundles leave it unset until Human QA passes on both platforms. With the flag unset, the Marketplace shows Bots, Bot settings hides Publish Avatar, and direct Avatar links return to the Marketplace.

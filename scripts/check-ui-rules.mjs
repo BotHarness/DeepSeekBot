@@ -12,7 +12,7 @@ import { mobileFixedButtonHeight } from './ui-rule-mobile-button-height.mjs';
 import { mobileWrappingCapsule } from './ui-rule-mobile-capsule.mjs';
 import { mobileActionScale, mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
 import { mobileLabelIcon } from './ui-rule-mobile-label-icon.mjs';
-import { mobileSheetSurface } from './ui-rule-mobile-sheet.mjs';
+import { mobileSheetChoice, mobileSheetSurface } from './ui-rule-mobile-sheet.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 import { desktopXstyleShorthand } from './ui-rule-xstyle.mjs';
 
@@ -130,6 +130,10 @@ export const RULES = {
   },
   sheetSurface: {
     help: 'leave the sheet background to the system (no presentationBackground; iOS shows Liquid Glass), put grouped rows and cards on SHEET_GROUP or in a system List, and give controls on the sheet itself on="sheet"; page tokens (color.base, color.surface, layer.canvas) and colour literals invert the sheet',
+    section: 'apps/mobile/DESIGN.md § Bottom sheets',
+  },
+  sheetChoice: {
+    help: 'present a choice or picker sheet through SystemListSheet (SwiftUI List on iOS, Material ListItems on Android), like the Composer Model Choice picker; where a native List cannot host the content, put `// sheet-choice-exempt: <reason>` on the line before the sheet',
     section: 'apps/mobile/DESIGN.md § Bottom sheets',
   },
   sheetHeader: {
@@ -296,7 +300,7 @@ export function scan(fix = false) {
             : []),
           ...(MOBILE_UI.test(file) ? mobileLabelIcon(file, ast) : []),
           ...(MOBILE_UI.test(file) && /Sheet|pageSheet|formSheet/u.test(source)
-            ? mobileSheetSurface(file, ast)
+            ? [...mobileSheetSurface(file, ast), ...mobileSheetChoice(file, ast)]
             : []),
           ...(/jetpack-compose/u.test(source) ? mobileFixedButtonHeight(file, ast) : []),
         ];
@@ -358,10 +362,14 @@ function describeFinding({ rule, file, line, text }) {
   return `${file}:${line} "${text}": ${RULES[rule].help} (${RULES[rule].section})`;
 }
 
+export const ZERO_BASELINE = new Set(['sheetSurface', 'sheetHeader', 'sheetChoice']);
+
 export function compare(found, baseline) {
   const { grown, shrunk } = compareBaselineCounts(
     countsByRule(findings(found)),
-    countsByRule(baseline),
+    countsByRule(
+      Object.fromEntries(Object.entries(baseline).filter(([rule]) => !ZERO_BASELINE.has(rule))),
+    ),
   );
   return {
     problems: grown.map(

@@ -33,6 +33,7 @@ import { space } from '../../ui/design/tokens';
 import { useSessionsTab } from '../../ui/interface-preferences';
 import { KeyboardChatFrame } from '../../ui/primitives/keyboard-frame';
 import { SettingsGroupItem, SettingsRow } from '../../ui/primitives/settings-row';
+import { SystemListSheet } from '../../ui/primitives/system-list-sheet';
 import { Text } from '../../ui/primitives/text';
 import { canCreateNativeSession } from '../../ui/shell/page-create-actions';
 import { promptPlaceholder } from '../../ui/chat/session-header-title';
@@ -153,7 +154,8 @@ function NewSessionForm({
   draft: string;
   onDraft(text: string): void;
 }) {
-  const t = useStrings().hostSessions;
+  const strings = useStrings();
+  const t = strings.hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -318,37 +320,63 @@ function NewSessionForm({
           onClose={() => setPicking(undefined)}
         />
       ) : null}
-      <Sheet
-        visible={picking === 'computer'}
-        label={t.computer}
-        title={t.computer}
-        onClose={() => setPicking(undefined)}
-      >
-        <View>
-          {computers.map((computer, index) => (
-            <SettingsGroupItem
-              key={computer.hostId}
-              first={index === 0}
-              last={index === computers.length - 1}
-              on={SHEET_GROUP}
-            >
-              <SettingsRow
-                on={SHEET_GROUP}
-                testID={`new-session-computer-${computer.hostId}`}
-                title={computer.name}
-                icon="computer"
-                iconTone="muted"
-                selected={computer.hostId === hostId}
-                control={computer.hostId === hostId ? { kind: 'check' } : undefined}
-                onPress={() => {
+      {SystemListSheet !== undefined ? (
+        <SystemListSheet
+          visible={picking === 'computer'}
+          title={t.computer}
+          closeLabel={strings.close}
+          onClose={() => setPicking(undefined)}
+          sections={[
+            {
+              key: 'computers',
+              rows: computers.map((computer) => ({
+                kind: 'choice' as const,
+                key: computer.hostId,
+                testID: `new-session-computer-${computer.hostId}`,
+                label: computer.name,
+                systemImage: 'desktopcomputer' as const,
+                selected: computer.hostId === hostId,
+                onPress: () => {
                   setPicking(undefined);
                   onComputer(computer.hostId);
-                }}
-              />
-            </SettingsGroupItem>
-          ))}
-        </View>
-      </Sheet>
+                },
+              })),
+            },
+          ]}
+        />
+      ) : (
+        <Sheet
+          visible={picking === 'computer'}
+          label={t.computer}
+          title={t.computer}
+          onClose={() => setPicking(undefined)}
+        >
+          <View>
+            {computers.map((computer, index) => (
+              <SettingsGroupItem
+                key={computer.hostId}
+                first={index === 0}
+                last={index === computers.length - 1}
+                on={SHEET_GROUP}
+              >
+                <SettingsRow
+                  on={SHEET_GROUP}
+                  testID={`new-session-computer-${computer.hostId}`}
+                  title={computer.name}
+                  icon="computer"
+                  iconTone="muted"
+                  selected={computer.hostId === hostId}
+                  control={computer.hostId === hostId ? { kind: 'check' } : undefined}
+                  onPress={() => {
+                    setPicking(undefined);
+                    onComputer(computer.hostId);
+                  }}
+                />
+              </SettingsGroupItem>
+            ))}
+          </View>
+        </Sheet>
+      )}
       <SessionModelPicker control={model} />
     </KeyboardChatFrame>
   );
