@@ -29,6 +29,21 @@ export function parseRecord(value: string, id: string): ChannelRecord | undefine
   }
 }
 
+export function archiveBotDmsIn(db: DatabaseSync, slug: string, timestamp: string): boolean {
+  return (
+    db
+      .prepare(`
+    UPDATE channel_records
+    SET record_json = json_set(record_json, '$.deletedAt', ?, '$.updatedAt', ?)
+    WHERE json_extract(record_json, '$.type') = 'dm'
+      AND json_extract(record_json, '$.deletedAt') IS NULL
+      AND (json_extract(record_json, '$.botSlug') = ?
+        OR EXISTS (SELECT 1 FROM json_each(record_json, '$.members') WHERE value = ?))
+  `)
+      .run(timestamp, timestamp, slug, slug).changes !== 0
+  );
+}
+
 export function createChannelRecords({
   database,
   options,
@@ -151,6 +166,12 @@ export function createChannelRecords({
     publishRecordChanged();
   };
 
+  const botWasDeleted = (slug: string): boolean =>
+    database.read(
+      (db) =>
+        db.prepare('SELECT 1 FROM persona_bot_deletions WHERE slug = ?').get(slug) !== undefined,
+    );
+
   const methods = {
     getOrCreateHumanDm(human, id, participants) {
       if (!hasChannelAccessSchema()) throw new TeamError('unavailable');
@@ -235,7 +256,7 @@ export function createChannelRecords({
         id = `${base}-${attempt}`;
       }
       const displayName = botName ?? options.botDisplayName?.(botSlug);
-      if (displayName === undefined) return undefined;
+      if (displayName === undefined || botWasDeleted(botSlug)) return undefined;
       const timestamp = now().toISOString();
       const record: ChannelRecord = {
         id,
@@ -362,6 +383,7 @@ export function createChannelRecords({
           throw new Error(`Bot DM identity collision: ${id}`);
         return existing;
       }
+      if (members.some(botWasDeleted)) return undefined;
       const timestamp = now().toISOString();
       const record: ChannelRecord = {
         id,

@@ -117,9 +117,15 @@ export function DeletionSheet({
               {t.deletion.dependencies(
                 preview.dependencies.sessions.length,
                 preview.dependencies.grants.length + preview.dependencies.identities.length,
-                preview.dependencies.channels.length,
+                preview.dependencies.channels.length -
+                  (preview.dependencies.dmChannelsToArchive?.length ?? 0),
               )}
             </Text>
+            {preview.dependencies.dmChannelsToArchive?.length ? (
+              <Text tone="muted">
+                {t.deletion.archiveDms(preview.dependencies.dmChannelsToArchive.length)}
+              </Text>
+            ) : null}
             <Text strong>{t.deletion.memory}</Text>
             <Text testID="deletion-memory-path" selectable>
               {preview.memoryDir}

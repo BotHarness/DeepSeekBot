@@ -1847,7 +1847,10 @@ printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-
 # Only after explicitly reviewing erasure of the owner's displayed Memory folder:
 printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-id> --confirmation-stdin --confirm --erase-memory
 deepseekbot bot-delete-retry <bot-id> --confirm
+printf '%s' '{"token":"<fresh preview.token>"}' | deepseekbot bot-delete-retry <bot-id> --confirm --confirmation-stdin
 ```
+
+`preview.dependencies.dmChannelsToArchive` lists the DMs that deletion archives along with their history. Archived DMs leave the Channel list and their messages are unavailable through Channel reads. The Host retains the stored history for attribution. For a Bot deleted on an older Host, run `bot-delete-preview` again and pipe its fresh token to the last command above. This archives the listed DMs independently of any pending Memory cleanup.
 
 Deletion retains Memory by default. `--erase-memory` selects the exact owner-reviewed Memory directory, only when `preview.eraseAvailable` permits it; caller-selected paths are rejected. `bot-delete-memory-folder` returns the validated `{target:{path,relativePath,kind}}` for inspection, not arbitrary filesystem access. Preview tokens, dependency scope and path ownership checks remain authoritative. Deletion retry continues the already accepted retention/erasure choice; it cannot change that choice. Scoped confirm and retry require a fresh Human decision each time, including under full access, remembered rules or automatic approval. Both Human commands now require `--confirm`, so update existing cleanup scripts. Any Bot, Tob included, can be archived or deleted; the preview carries `lastAppManager: true` when the Bot is the last one with "Manage the App". Names, personality text and imports never grant an App management grant.
 

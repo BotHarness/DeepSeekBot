@@ -98,7 +98,8 @@ export const LIFECYCLE_COMMANDS = [
   },
   {
     command: 'bot-delete-retry',
-    description: 'retry incomplete PersonaBot cleanup through its owner',
+    description:
+      'retry incomplete PersonaBot cleanup or archive reviewed legacy DMs with --confirmation-stdin',
   },
 ] as const;
 
@@ -267,7 +268,10 @@ export async function runOnlineManagement(
       usage(`${command} requires --confirm.`);
   }
   let confirmation: string | undefined;
-  if (command === 'bot-delete-confirm') {
+  if (
+    command === 'bot-delete-confirm' ||
+    (command === 'bot-delete-retry' && values['confirmation-stdin'])
+  ) {
     if (!values['confirmation-stdin']) usage('bot-delete-confirm requires --confirmation-stdin.');
     let input: unknown;
     try {
@@ -365,10 +369,17 @@ export async function runOnlineManagement(
       true,
     );
   if (command === 'bot-delete-retry') {
-    const { preview } = await previewBotDeletion(reader, slug!, true);
+    const receipt = await previewBotDeletion(reader, slug!, true);
+    const { preview } = receipt;
     if (preview.deletion === undefined)
       usage('Retry requires an existing accepted deletion and preserves its Memory choice.');
-    return retryBotDeletion(reader, slug!, true);
+    if (confirmation !== undefined) {
+      if ('metadataOnly' in receipt)
+        throw new CliLiveError('forbidden', 'Legacy DM archival requires the full owner preview.');
+      if (receipt.preview.dependencies.dmChannelsToArchive === undefined)
+        throw new CliLiveError('unavailable', 'This Host does not support legacy DM archival.');
+    }
+    return retryBotDeletion(reader, slug!, true, confirmation);
   }
   if (command === 'bot-attention')
     return readBotAttention(reader, {

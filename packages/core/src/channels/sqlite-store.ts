@@ -2,7 +2,7 @@ import { createSqliteSourcePolicyResolver } from './sqlite-source-policy.js';
 import type { ChannelStore } from './store.js';
 import { DEFAULT_BOT_HOP_LIMIT } from './channel.js';
 import type { SqliteChannelAccess, SqliteChannelStoreOptions } from './sqlite-store.types.js';
-import { createChannelRecords } from './sqlite-store.records.js';
+import { archiveBotDmsIn, createChannelRecords } from './sqlite-store.records.js';
 import { createChannelAdmissions } from './sqlite-store.admissions.js';
 import { createChannelAttachments } from './sqlite-store.attachments.js';
 import { createChannelHumans } from './sqlite-store.humans.js';
@@ -499,6 +499,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     decideGroupJoin: invitations.methods.decideGroupJoin,
     cancelGroupInvite: invitations.methods.cancelGroupInvite,
     removeBotFromGroups: groupMembership.removeBotFromGroups,
+    acceptBotDeletion(slug, commit) {
+      groupMembership.removeBotFromGroups(slug, (db, timestamp) => {
+        const archived = archiveBotDmsIn(db, slug, timestamp);
+        commit(db);
+        return archived;
+      });
+    },
+    archiveBotDms(slug) {
+      const archived = database.transaction(
+        (db) => archiveBotDmsIn(db, slug, now().toISOString()),
+        ['channel'],
+      );
+      if (archived) records.publishRecordChanged();
+    },
     cancelInvitationsForBot: invitations.methods.cancelInvitationsForBot,
     getGroupWakePolicy: groupMembership.getGroupWakePolicy,
     setGroupWakePolicy: groupMembership.setGroupWakePolicy,

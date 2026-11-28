@@ -210,13 +210,14 @@ export const zh = {
     '{channels} 个频道里的会话、消息和历史归属都会保留，授权工作区的文件不受影响。',
   'deletion.memoryTitle': '记忆文件',
   'deletion.history': '此身份已停用，无法重新启动。保留的历史和记忆仍属于原 Bot。',
+  'deletion.archiveDms': '归档 {channels} 个私聊及其历史，聊天列表中将不再显示。',
   'deletion.hostFolder': '文件夹将在运行 BotHarness 的电脑上打开。',
   'deletion.openFolder': '打开记忆文件夹',
   'deletion.otherApp': '选择其他应用',
   'deletion.noHandler': 'Host 上没有可用的文件夹打开应用。',
   'deletion.eraseMemory': '同时删除记忆文件',
   'deletion.eraseScope':
-    '删除上方仓库中的全部记忆文件与本地 Git 历史。不会删除工作区、会话历史、消息、远程仓库或备份。',
+    '删除上方仓库中的全部记忆文件与本地 Git 历史。不会删除工作区、会话历史、远程仓库或备份。',
   'deletion.retainScope': '保留上方仓库中的全部记忆文件与本地 Git 历史。',
   'deletion.confirmErase': '删除 Bot 和记忆文件',
   'deletion.confirmRetain': '删除 Bot，保留记忆',
@@ -683,13 +684,15 @@ export const en = {
   'deletion.memoryTitle': 'Memory files',
   'deletion.history':
     'This identity is terminally disabled. Retained history and Memory still belong to the original Bot.',
+  'deletion.archiveDms':
+    'Archive {channels} DMs and their history. They disappear from the chat list.',
   'deletion.hostFolder': 'The folder opens on the computer running BotHarness.',
   'deletion.openFolder': 'Open Memory folder',
   'deletion.otherApp': 'Choose another application',
   'deletion.noHandler': 'No Host application can open this folder.',
   'deletion.eraseMemory': 'Also delete Memory files',
   'deletion.eraseScope':
-    'Erase all Memory files and local Git history in the repository above. Workspaces, Session history, messages, remote repositories and backups remain.',
+    'Erase all Memory files and local Git history in the repository above. Workspaces, Session history, remote repositories and backups remain.',
   'deletion.retainScope': 'Retain all Memory files and local Git history in the repository above.',
   'deletion.confirmErase': 'Delete Bot and Memory files',
   'deletion.confirmRetain': 'Delete Bot, retain Memory',
