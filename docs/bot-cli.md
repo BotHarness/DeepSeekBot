@@ -2643,6 +2643,19 @@ The explicit selections stay saved. Each Bot row reports its `audience` (`everyo
 The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
 role sources. Active invitees are visible to callers with `members.manage`. A private Bot's access is visible to its owner only.
 
+#### Private content in the Team workbench
+
+```bash
+deepseekbot bots access-directory
+deepseekbot channels workbench
+deepseekbot private open bot <slug> [--reason <text>]
+deepseekbot private open channel <id> [--reason <text>]
+```
+
+These online commands support `--as <username>`. The workbench lists omit other members’ private Bots and private Channels the caller has not joined, unless the caller is the Owner or has `privateContent.view` and is allowed to inspect the content owner under the existing role ceiling. These extra entries contain metadata and `requiresAudit: true`. A private Channel the caller has joined uses the ordinary read path.
+
+Each audited open appends one audit record and sends the content owner a system notice in their Human DM with the viewer. Listing and pagination do not append audit records. An ordinary member who tries `private open` receives `permission-required`. `channels.manageAll` does not grant access to private Channel content.
+
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 
 Read Channel approval rules with `deepseekbot --as <username> channels policy <channel-id>`. The `approvalPolicy` field reports the effective mode and who can see and decide. New and upgraded Channels start in `legacy` mode, where only eligible deciders can see approval details. A Channel manager can set the everyone row with `--see-approvals allow|deny|inherit` and `--decide-approvals allow|deny|inherit`. To edit role overrides, read the table and send the updated policy JSON through `--policy-stdin`. Use `--use-channel-approvals` to activate the table as configured. Changing an approval rule also activates it. `tool-approval-status` returns `approval.canDecide: false` when the request is visible to the caller but read-only. `tool-approval-decide` checks the caller's current authority again.

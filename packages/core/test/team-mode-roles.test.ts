@@ -56,9 +56,19 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
   it('exposes fixed ids, built-ins and a self-only viewer; unions roles and keeps Owner implicit', async () => {
     const f = await actors();
     const catalog = z
-      .array(z.object({ id: z.string(), group: z.string() }).strict())
+      .array(
+        z
+          .object({ id: z.string(), group: z.string(), description: z.string().optional() })
+          .strict(),
+      )
       .parse(await f.invoke('permissionCatalog'));
     expect(catalog).toHaveLength(20);
+    expect(catalog).toContainEqual({
+      id: 'channels.manageAll',
+      group: 'channels',
+      description:
+        'Manage Channels. Private Channel content requires membership or an audited private view.',
+    });
     expect(catalog).toContainEqual({ id: 'models.configure', group: 'compute' });
     expect(catalog).toContainEqual({ id: 'modelSources.manage', group: 'compute' });
     expect(catalog).toContainEqual({ id: 'workspaces.createFolder', group: 'compute' });
@@ -206,6 +216,10 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     f.team.roles.update(owner, role.roleId, {
       permissions: [...role.permissions, 'channels.manageAll'],
     });
+    await expect(
+      f.invoke('channelPublicSet', { channelId: group.id, public: true }),
+    ).rejects.toMatchObject({ code: 'channel-not-found' });
+    f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
     await f.invoke('channelPublicSet', { channelId: group.id, public: true });
     expect(f.team.channelAccess.visibleIds(f.human).has(group.id)).toBe(true);
     await expect(f.invoke('members')).rejects.toMatchObject({ code: 'permission-required' });

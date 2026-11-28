@@ -114,6 +114,7 @@ export interface WireSessionLink {
 }
 
 export interface ChannelWireMessage extends WireMessage {
+  privateAccessNotice?: true;
   sessionLinks?: readonly WireSessionLink[];
   turnTargets?: TurnTarget[];
   turnModelSwitch?: SessionTurnModelSwitch;
@@ -723,6 +724,7 @@ export interface QuestionAnswer {
 }
 
 export interface TimelineMessage {
+  privateAccessNotice?: true;
   contentPurge?: unknown;
   id: string;
   body: string;

@@ -1,9 +1,12 @@
 import { botProfileFingerprint } from '../bots/profile-snapshot.js';
 import type { BotAdminAction } from './private-contract.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
+import { humanContext } from '../humans/context.js';
+import type { TeamWorkbenchChannel } from '@botharness/host-protocol/team-roles';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
+import { OperationalDatabaseError } from '../database/owner-errors.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -147,6 +150,69 @@ export class TeamPrivateContent {
         )
         .map((row) => row.human_id),
     );
+  }
+
+  workbenchForeignBots(human: HumanContext) {
+    if (human.caller === 'bot' || !this.roles.permissions(human).includes('privateContent.view'))
+      return [];
+    const blocked = this.blockedOwners(human);
+    return this.db.read((db) =>
+      z
+        .array(z.object({ slug: z.string(), displayName: z.string(), owner: z.string() }))
+        .parse(
+          db
+            .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName,
+          b.owner_human_id AS owner FROM persona_bots b
+          WHERE b.owner_human_id <> ? AND json_extract(b.visibility_json, '$.kind') = 'private'
+            AND json_extract(b.body, '$.deletedAt') IS NULL
+            AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = b.slug)
+          ORDER BY b.slug`)
+            .all(human.humanId),
+        )
+        .filter(({ owner }) => !blocked.has(owner))
+        .map(({ slug, displayName }) => ({ slug, displayName, requiresAudit: true as const })),
+    );
+  }
+
+  workbenchChannels(human: HumanContext): TeamWorkbenchChannel[] {
+    if (human.caller === 'bot') throw new TeamError('permission-required');
+    const readable = this.channelAccess.visibleIds(human);
+    const canAudit = this.roles.permissions(human).includes('privateContent.view');
+    const blocked = canAudit ? this.blockedOwners(human) : new Set<string>();
+    const groups = this.db.read((db) =>
+      z
+        .array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            visibility: z.enum(['public', 'roles', 'private']),
+            owner: z.string().nullable(),
+          }),
+        )
+        .parse(
+          db
+            .prepare(`SELECT channel_id AS id, json_extract(record_json, '$.name') AS name,
+        coalesce(json_extract(visibility_json, '$.kind'), 'private') AS visibility,
+        owner_human_id AS owner FROM channel_records
+        WHERE json_extract(record_json, '$.type') = 'group'
+          AND json_extract(record_json, '$.deletedAt') IS NULL
+          AND json_extract(record_json, '$.remoteBot') IS NULL
+        ORDER BY json_extract(record_json, '$.updatedAt') DESC, channel_id`)
+            .all(),
+        ),
+    );
+    return groups.flatMap(({ id, name, visibility, owner }): TeamWorkbenchChannel[] => {
+      if (readable.has(id)) return [{ id, name, visibility }];
+      if (
+        canAudit &&
+        visibility === 'private' &&
+        owner &&
+        owner !== human.humanId &&
+        !blocked.has(owner)
+      )
+        return [{ id, name, visibility, requiresAudit: true }];
+      return [];
+    });
   }
 
   objects(human: HumanContext, payload: unknown): PrivateObjectListing[] {
@@ -327,7 +393,7 @@ export class TeamPrivateContent {
     for (const [id, view] of this.views) if (view.expires <= this.now()) this.views.delete(id);
     if (this.views.size >= MAX_VIEWS) throw new TeamError('private-views-full');
     const viewId = randomUUID();
-    this.audit.append({
+    const audit = {
       at: new Date(this.now()).toISOString(),
       viewerHumanId: human.humanId,
       viewerName: z
@@ -342,7 +408,45 @@ export class TeamPrivateContent {
       objectName: object.name,
       ownerHumanIds: object.ownerHumanIds,
       ...(input.reason === undefined ? {} : { reason: input.reason }),
-    });
+    };
+    const owner = object.ownerHumanIds[0];
+    const notifyOwner =
+      object.kind === 'channel' ||
+      (object.kind === 'bot' &&
+        this.db.read((db) =>
+          db
+            .prepare(`SELECT 1 FROM persona_bots
+          WHERE slug = ? AND json_extract(visibility_json, '$.kind') = 'private'`)
+            .get(object.objectId),
+        ) !== undefined);
+    if (this.channels.appendSystemNotices && owner !== undefined && notifyOwner) {
+      const recipient = humanContext(owner);
+      const channel = this.channelAccess.humanDm(recipient, human.humanId);
+      try {
+        this.channels.appendSystemNotices(
+          [
+            {
+              channelId: channel.id,
+              message: {
+                id: randomUUID(),
+                at: audit.at,
+                author: { kind: 'system' },
+                privateAccessNotice: true,
+                body: `${audit.viewerName} opened your ${object.kind} “${object.name}” through an audited private view.`,
+              },
+            },
+          ],
+          (db) => {
+            this.audit.append(audit, db);
+            return true;
+          },
+        );
+      } catch (error) {
+        if (error instanceof OperationalDatabaseError && error.cause instanceof TeamError)
+          throw error.cause;
+        throw error;
+      }
+    } else this.audit.append(audit);
     const content = this.load(object);
     this.views.set(viewId, { humanId: human.humanId, expires: this.now() + VIEW_TTL, object });
     return { viewId, ...content };

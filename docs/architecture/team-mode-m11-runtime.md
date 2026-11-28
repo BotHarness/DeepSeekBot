@@ -4,13 +4,15 @@ This is the application-defined Host/CLI half of #4149 under the [Team mode deci
 
 ## Wire contract
 
-| Method               | Payload                       | Result                                       |
-| -------------------- | ----------------------------- | -------------------------------------------- |
-| `privateObjects`     | `{ humanId?, kind? }`         | `PrivateObject[]`                            |
-| `privateContentOpen` | `{ kind, objectId, reason? }` | `{ viewId, object, messages, memoryFiles? }` |
-| `privateContentPage` | `{ viewId, before }`          | `{ messages }`                               |
-| `auditLog`           | `{ after?, limit? }`          | `{ records, next? }`                         |
-| `auditVerify`        | `{}`                          | `{ ok: true }` or `{ ok: false, brokenAt }`  |
+| Method                      | Payload                       | Result                                       |
+| --------------------------- | ----------------------------- | -------------------------------------------- |
+| `botAccessDirectory`        | `{}`                          | `{ slug, displayName, requiresAudit? }[]`    |
+| `channelWorkbenchDirectory` | `{}`                          | `{ id, name, visibility, requiresAudit? }[]` |
+| `privateObjects`            | `{ humanId?, kind? }`         | `PrivateObject[]`                            |
+| `privateContentOpen`        | `{ kind, objectId, reason? }` | `{ viewId, object, messages, memoryFiles? }` |
+| `privateContentPage`        | `{ viewId, before }`          | `{ messages }`                               |
+| `auditLog`                  | `{ after?, limit? }`          | `{ records, next? }`                         |
+| `auditVerify`               | `{}`                          | `{ ok: true }` or `{ ok: false, brokenAt }`  |
 
 `kind` is `bot`, `channel`, `dm` or `bot-dm`. Private-object listings contain only `{ objectId, kind, name, ownerHumanIds, ownerNames }`. `ownerNames` contains current Human display names in `ownerHumanIds` order, with an empty string for a missing Human; usernames are never used as a fallback. Names are fetched in one batched query after permission/ownership filtering, so the picker needs only `privateContent.view`, without `members.manage`. The existing granting ceiling still applies. Open-view object metadata retains `{ objectId, kind, name, ownerHumanIds }`. Bot IDs are slugs; all other IDs are Channel IDs. Human–Bot and Human–Human DMs use `dm`; local Bot–Bot DMs use `bot-dm`. Remote Bot DMs, deleted objects and public/role Channels are excluded. Existing legitimate readers of a private Channel and participating DM owners use their ordinary read path: an audited open returns `own-content`.
 
@@ -21,6 +23,8 @@ For CLI username resolution, `privateObjects` additionally accepts `username?`, 
 `privateContent.view` admits object discovery/open/page; `audit.view` admits log/verify. The Owner has implicit permissions. Non-Owner viewers cannot inspect the Owner or an object owner whose role permissions exceed their own ceiling. Lists omit these targets; open/page return `permission-required` with `details.permission: 'privateContent.view'`. Own content returns `own-content` without recording access. Bot-origin contexts refuse every method, even with an Owner or holder Human ID; the Owner Tob CLI broker refuses `audit` and `private` before execution or approval. These methods are not Bot tools.
 
 Views hold metadata only, bind the Human ID, expire after 30 minutes without renewal and disappear on Host restart. A view is registered only after all initial content loads successfully; failed provider reads retain the access-attempt audit record but consume no view slot. DM ownership includes historical Bot records, so retained DMs keep every owner and cannot bypass the Owner/permission ceiling after a Bot deletion. The process retains at most 128 views; capacity returns `private-views-full`. Expired, foreign, removed or ownership-changed views return `object-not-found`. Every page rechecks permissions and object ownership. Role revocation clears views, disposes existing browser Peers, closes the paired-device mux and invalidates current access through the established M3/M4 revocation path.
+
+The Team workbench adds metadata for foreign private Bots and private group Channels outside the caller's membership. These rows appear with `requiresAudit: true` for Humans who can open them under the existing M11 permission and role ceiling. The Channel directory uses the caller's current membership for ordinary rows. The UI asks for confirmation before calling `privateContentOpen` for a flagged entry. A successful append for a private Bot or private group Channel also places a `privateAccessNotice: true` system message in the Human DM between the viewer and content owner. The placement and audit record share a transaction.
 
 ## Durable audit
 

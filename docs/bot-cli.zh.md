@@ -2518,6 +2518,19 @@ Host Owner 和已持有全部公开 Bot 授权的合格角色管理员可以选�
 `access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源。具有 `members.manage` 权限的调用者还可查看仍活跃的点名邀请成员。
 私有 Bot 的访问配置仅对其负责人可见。
 
+#### Team 工作台中的私有内容
+
+```bash
+deepseekbot bots access-directory
+deepseekbot channels workbench
+deepseekbot private open bot <slug> [--reason <text>]
+deepseekbot private open channel <id> [--reason <text>]
+```
+
+这些在线命令支持 `--as <username>`。工作台列表对普通成员隐藏他人的私有 Bot 和自己未加入的私有频道。所有者和持有 `privateContent.view` 且符合现有角色权限上限的成员可看到额外条目。这些条目只包含元数据，并标记 `requiresAudit: true`。已加入的私有频道仍按日常方式读取。
+
+每次审计查看写入一条审计记录，并在被查看成员与查看者的私聊中发送系统通知。列出条目和翻页不写入审计记录。普通成员执行 `private open` 时会收到 `permission-required`。`channels.manageAll` 不授予读取私有频道内容的权限。
+
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 
 用 `deepseekbot --as <username> channels policy <频道 ID>` 查看频道审批规则。返回的 `approvalPolicy` 包含当前生效的模式、查看范围和决定条件。新建和升级后的频道默认使用 `legacy` 模式，只有符合决定条件的人能查看审批详情。频道管理员可以用 `--see-approvals allow|deny|inherit` 和 `--decide-approvals allow|deny|inherit` 修改「所有成员」一行。要修改角色覆盖，先读取权限表，再用 `--policy-stdin` 提交修改后的策略 JSON。用 `--use-channel-approvals` 可启用权限表中的配置，修改审批规则也会启用权限表。可以查看但不能决定时，`tool-approval-status` 返回 `approval.canDecide: false`。提交决定时，`tool-approval-decide` 会重新检查当前权限。

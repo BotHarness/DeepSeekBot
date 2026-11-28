@@ -6,6 +6,8 @@ import type {
   RoleBotScopeUpdate,
   RoleBotScopeView,
   TeamAccessBot,
+  TeamWorkbenchBot,
+  TeamWorkbenchChannel,
 } from '@botharness/host-protocol/team-roles';
 import { answer, count, record, type HostCall } from './host-answer';
 
@@ -113,10 +115,39 @@ export async function setRoleBotScope(
   );
 }
 
-export async function readBotAccessDirectory(host: HostCall): Promise<TeamAccessBot[]> {
+export async function readChannelWorkbenchDirectory(
+  host: HostCall,
+): Promise<TeamWorkbenchChannel[]> {
+  return answer(
+    await host.call('channelWorkbenchDirectory', {}),
+    (value): value is TeamWorkbenchChannel[] =>
+      Array.isArray(value) &&
+      value.every((entry: unknown) => {
+        const row = record(entry);
+        return (
+          typeof row?.id === 'string' &&
+          typeof row.name === 'string' &&
+          (row.visibility === 'private' ||
+            row.visibility === 'public' ||
+            row.visibility === 'roles') &&
+          (row.requiresAudit === undefined ||
+            (row.visibility === 'private' && row.requiresAudit === true))
+        );
+      }),
+    'channelWorkbenchDirectory',
+  );
+}
+
+export async function readBotAccessDirectory(host: HostCall): Promise<TeamWorkbenchBot[]> {
   return answer(
     await host.call('botAccessDirectory'),
-    (value): value is TeamAccessBot[] => Array.isArray(value) && value.every(isTeamAccessBot),
+    (value): value is TeamWorkbenchBot[] =>
+      Array.isArray(value) &&
+      value.every(
+        (row: unknown) =>
+          isTeamAccessBot(row) &&
+          (record(row)?.requiresAudit === undefined || record(row)?.requiresAudit === true),
+      ),
     'botAccessDirectory',
   );
 }

@@ -6,7 +6,12 @@ export const PERMISSION_CATALOG = [
   { id: 'roles.manage', group: 'members' },
   { id: 'team.settings', group: 'members' },
   { id: 'channels.create', group: 'channels' },
-  { id: 'channels.manageAll', group: 'channels' },
+  {
+    id: 'channels.manageAll',
+    group: 'channels',
+    description:
+      'Manage Channels. Private Channel content requires membership or an audited private view.',
+  },
   { id: 'dm.humans', group: 'channels' },
   { id: 'bots.createPrivate', group: 'bots' },
   { id: 'bots.createPublic', group: 'bots' },

@@ -594,6 +594,7 @@ export async function runTeamCommand(
   if (command === 'dm' && rest.length === 1) return rpc('humanDmByUsername', { username: action });
   if (command === 'channels') {
     if (rest.length === 0) return rpc('channels', {});
+    if (action === 'workbench' && rest.length === 1) return rpc('channelWorkbenchDirectory', {});
     if (action === 'send' && argument && rest.length === 2 && values['body-stdin']) {
       const body = await io.readStdin?.();
       if (!body?.trim()) return usage();
