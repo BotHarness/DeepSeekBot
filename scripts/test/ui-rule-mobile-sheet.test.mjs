@@ -258,33 +258,57 @@ describe('mobile choice sheets', () => {
     ).toEqual([['sheetChoice', 'Sheet exemption without a reason', 6]]);
   });
 
-  it('credits a native branch only to the sheet it guards', () => {
+  it('credits a native branch only to the sheet on its fallback path', () => {
     expect(
       choices(`
+        export function Independent() {
+          return (
+            <>
+              {SystemListSheet !== undefined ? <SystemListSheet /> : null}
+              <Sheet><CheckmarkRow label="a" selected /></Sheet>
+            </>
+          );
+        }
+        export function Ternary() {
+          return SystemListSheet !== undefined ? (
+            <SystemListSheet />
+          ) : (
+            <Sheet><CheckmarkRow label="b" selected /></Sheet>
+          );
+        }
+        export function Negated() {
+          return SystemListSheet === undefined ? (
+            <Sheet><CheckmarkRow label="c" selected /></Sheet>
+          ) : (
+            <SystemListSheet />
+          );
+        }
+        export function EarlyReturn() {
+          if (SystemListSheet !== undefined) return <SystemListSheet />;
+          return <Sheet><CheckmarkRow label="d" selected /></Sheet>;
+        }
         export function Picker(props) {
           if (NativeSessionModelSheet !== undefined) return <NativeSessionModelSheet {...props} />;
           return <Fallback {...props} />;
         }
-        function Fallback({ items }) {
-          return (
-            <Sheet visible label="x" onClose={close}>
-              {items.map((item) => <CheckmarkRow key={item} label={item} selected />)}
-            </Sheet>
-          );
+        function Fallback() {
+          return <Sheet><CheckmarkRow label="e" selected /></Sheet>;
         }
-        export function Topics({ items }) {
-          if (SystemListSheet !== undefined) return <SystemListSheet visible sections={[]} />;
-          return <Sheet visible label="y"><CheckmarkRow label="a" selected /></Sheet>;
+        export function Leaky(props) {
+          if (NativeSessionModelSheet !== undefined) return <NativeSessionModelSheet {...props} />;
+          return <Shared {...props} />;
         }
-        export function Sibling({ items }) {
-          return (
-            <Sheet visible label="z" onClose={close}>
-              <CheckmarkRow label="b" selected />
-            </Sheet>
-          );
+        export function Elsewhere(props) {
+          return <Shared {...props} />;
+        }
+        function Shared() {
+          return <Sheet><CheckmarkRow label="f" selected /></Sheet>;
         }
       `),
-    ).toEqual([['sheetChoice', 'Sheet with selectable rows', 19]]);
+    ).toEqual([
+      ['sheetChoice', 'Sheet with selectable rows', 6],
+      ['sheetChoice', 'Sheet with selectable rows', 43],
+    ]);
   });
 
   it('accepts system list sheets, native Lists, their fallbacks and sheets without choices', () => {

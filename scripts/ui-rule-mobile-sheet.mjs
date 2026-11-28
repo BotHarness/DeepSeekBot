@@ -253,34 +253,48 @@ function selectableRow(opening) {
   });
 }
 
-function systemListTest(test) {
-  if (!test.isBinaryExpression() || !['!==', '===', '!=', '=='].includes(test.node.operator))
-    return false;
-  const sides = [test.node.left, test.node.right];
-  return (
-    sides.some((side) => side.type === 'Identifier' && NATIVE_SLOT.test(side.name)) &&
-    sides.some((side) => side.type === 'Identifier' && side.name === 'undefined')
-  );
+function nativeTest(test) {
+  if (!test.isBinaryExpression()) return undefined;
+  const { operator, left, right } = test.node;
+  const equal = operator === '===' || operator === '==';
+  if (!equal && operator !== '!==' && operator !== '!=') return undefined;
+  const sides = [left, right];
+  if (!sides.some((side) => side.type === 'Identifier' && NATIVE_SLOT.test(side.name)))
+    return undefined;
+  if (!sides.some((side) => side.type === 'Identifier' && side.name === 'undefined'))
+    return undefined;
+  return equal ? 'consequent' : 'alternate';
 }
 
-function guardsNative(fn) {
-  let guarded = false;
-  fn.traverse({
-    'IfStatement|ConditionalExpression'(branch) {
-      if (systemListTest(branch.get('test'))) guarded = true;
-    },
-  });
-  return guarded;
+function returns(statement) {
+  if (statement.isReturnStatement()) return true;
+  if (!statement.isBlockStatement()) return false;
+  const body = statement.get('body');
+  return body.length > 0 && body[body.length - 1].isReturnStatement();
 }
 
-function rendersComponent(fn, name) {
-  let renders = false;
-  fn.traverse({
-    JSXOpeningElement(opening) {
-      if (opening.get('name').isJSXIdentifier({ name })) renders = true;
-    },
-  });
-  return renders;
+function fallbackPath(path) {
+  let child = path;
+  for (let parent = path.parentPath; parent !== null; child = parent, parent = parent.parentPath) {
+    if (parent.isFunction()) return false;
+    if (parent.isConditionalExpression() || parent.isIfStatement()) {
+      const fallback = nativeTest(parent.get('test'));
+      if (fallback !== undefined && child.key === fallback) return true;
+    }
+    if (parent.isBlockStatement() && typeof child.key === 'number') {
+      const earlier = parent.get('body').slice(0, child.key);
+      if (
+        earlier.some(
+          (statement) =>
+            statement.isIfStatement() &&
+            nativeTest(statement.get('test')) === 'alternate' &&
+            returns(statement.get('consequent')),
+        )
+      )
+        return true;
+    }
+  }
+  return false;
 }
 
 export function mobileSheetChoice(file, ast) {
@@ -297,15 +311,29 @@ export function mobileSheetChoice(file, ast) {
   const comments = ast.comments ?? [];
   const found = [];
   const owners = new Map([...components].map(([name, fn]) => [fn.node, name]));
-  const covered = (element) => {
+  const renderings = new Map();
+  traverse(ast, {
+    JSXOpeningElement(opening) {
+      const tag = opening.get('name');
+      if (!tag.isJSXIdentifier() || !components.has(tag.node.name)) return;
+      const list = renderings.get(tag.node.name) ?? [];
+      list.push(opening.parentPath);
+      renderings.set(tag.node.name, list);
+    },
+  });
+  const covered = (element, seen = new Set()) => {
+    if (fallbackPath(element)) return true;
     let fn = element.getFunctionParent();
-    while (fn !== null && !owners.has(fn.node)) fn = fn.getFunctionParent();
+    while (fn !== null && !owners.has(fn.node)) {
+      if (fallbackPath(fn)) return true;
+      fn = fn.getFunctionParent();
+    }
     if (fn === null) return false;
-    if (guardsNative(fn)) return true;
     const name = owners.get(fn.node);
-    return [...components.values()].some(
-      (other) => other.node !== fn.node && guardsNative(other) && rendersComponent(other, name),
-    );
+    if (seen.has(name)) return false;
+    seen.add(name);
+    const uses = renderings.get(name) ?? [];
+    return uses.length > 0 && uses.every((jsx) => covered(jsx, new Set(seen)));
   };
   traverse(ast, {
     JSXElement(element) {
