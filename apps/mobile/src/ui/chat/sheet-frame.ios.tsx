@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
-import { SystemSheet } from '../primitives/system-sheet';
+import { SystemSheet, systemSheetBackdrop } from '../primitives/system-sheet';
 import type { SheetFrameProps } from './sheet-frame';
 import { sheetContentCap, sheetDetent, type SheetDetent } from './sheet-detent';
 
@@ -42,6 +42,7 @@ export function SheetFrame({
       <Modal
         visible={visible}
         presentationStyle="pageSheet"
+        backdropColor={systemSheetBackdrop()}
         animationType="slide"
         onRequestClose={onClose}
         onDismiss={onDismissed}
