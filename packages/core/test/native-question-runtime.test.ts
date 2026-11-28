@@ -99,13 +99,13 @@ async function fixture(
 describe('native question answer uses the owning Orchestrator runtime', () => {
   it('serializes behind ordinary work, acknowledges native acceptance, and keeps authority through completion', async () => {
     const state = await fixture();
-    const deliver = vi.fn(() => true);
+    const deliver = vi.fn(() => 'accepted' as const);
     const accepted = state.getBound()(deliver);
     await Promise.resolve();
     expect(deliver).not.toHaveBeenCalled();
     state.first.release();
     await state.admission.settled;
-    expect(await accepted).toBe(true);
+    expect(await accepted).toBe('accepted');
     expect(state.sessions).toHaveLength(2);
     expect(new Set(state.sessions).size).toBe(1);
     expect(deliver).toHaveBeenCalledTimes(1);
@@ -129,8 +129,8 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     state.first.release();
     await state.admission.settled;
     state.ownership.markContentUnavailable();
-    const deliver = vi.fn(() => true);
-    expect(await state.getBound()(deliver)).toBe(false);
+    const deliver = vi.fn(() => 'accepted' as const);
+    expect(await state.getBound()(deliver)).toBe('lost');
     expect(deliver).not.toHaveBeenCalled();
     expect(state.sessions).toHaveLength(1);
     await state.runtime.close();
@@ -142,8 +142,8 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     state.first.release();
     await state.admission.settled;
     archived.add(state.sessions[0]!);
-    const deliver = vi.fn(() => true);
-    expect(await state.getBound()(deliver)).toBe(false);
+    const deliver = vi.fn(() => 'accepted' as const);
+    expect(await state.getBound()(deliver)).toBe('lost');
     expect(deliver).not.toHaveBeenCalled();
     expect(state.sessions).toHaveLength(1);
     await state.runtime.close();
@@ -153,12 +153,37 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     const state = await fixture(() => state.ownership.markContentUnavailable());
     state.first.release();
     await state.admission.settled;
-    const deliver = vi.fn(() => true);
-    expect(await state.getBound()(deliver)).toBe(false);
+    const deliver = vi.fn(() => 'accepted' as const);
+    expect(await state.getBound()(deliver)).toBe('lost');
     expect(deliver).not.toHaveBeenCalled();
     expect(state.sessions).toHaveLength(2);
     await state.runtime.whenIdle();
     await state.runtime.close();
+  });
+
+  it('reports permanent loss if the source is purged before native delivery', async () => {
+    const state = await fixture(() => {
+      const result = attachOperationalModule(state.owner, 'native-question-test').transaction(
+        (db) =>
+          db
+            .prepare(
+              `INSERT INTO messaging_purge_facts
+               SELECT source_event_id, channel_id, message_id, ?, '{}' FROM source_events
+               WHERE message_id = ?`,
+            )
+            .run(new Date().toISOString(), 'human-question-origin'),
+      );
+      expect(result.changes).toBe(1);
+    });
+    state.first.release();
+    await state.admission.settled;
+    const deliver = vi.fn(() => 'accepted' as const);
+    try {
+      expect(await state.getBound()(deliver)).toBe('lost');
+      expect(deliver).not.toHaveBeenCalled();
+    } finally {
+      await state.runtime.close();
+    }
   });
 
   it('exports a bounded recovery stage when the resumed run fails without leaking exception text', async () => {
@@ -167,8 +192,8 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     });
     state.first.release();
     await state.admission.settled;
-    const deliver = vi.fn(() => true);
-    expect(await state.getBound()(deliver)).toBe(false);
+    const deliver = vi.fn(() => 'accepted' as const);
+    expect(await state.getBound()(deliver)).toBe('retry');
     await state.runtime.whenIdle();
     expect(deliver).not.toHaveBeenCalled();
     expect(state.warnings).toContainEqual(

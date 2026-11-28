@@ -44,11 +44,13 @@ export function UserQuestionCard({
   const host = useMessageHost()?.client;
   const developerMode = useContext(MessageDeveloperMode);
   const request = message.userQuestionRequest!;
+  const resolved =
+    resolution === 'cancelled' && request.callId !== undefined ? 'expired' : resolution;
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
   const cardChannelId = sourceChannelId ?? 'dm-' + botSlug;
   const [status, setStatus] = useState<
     'loading' | 'pending' | 'submitted' | 'expired' | 'answered' | 'cancelled'
-  >(resolution ?? 'loading');
+  >(resolved ?? 'loading');
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -61,6 +63,7 @@ export function UserQuestionCard({
   target.current = companionTarget;
   const mounted = useRef(false);
   const submitting = useRef(false);
+  const expiredAnswer = useRef<string | undefined>(undefined);
   const qualified = (): boolean => {
     const current = target.current;
     return (
@@ -76,9 +79,9 @@ export function UserQuestionCard({
     mounted.current = true;
     let active = true;
     let stop: (() => void) | undefined;
-    if (resolution !== undefined) {
-      setStatus(resolution);
-    } else if (botSlug !== undefined) {
+    if (resolved !== undefined) {
+      setStatus(resolved);
+    } else if (botSlug !== undefined && expiredAnswer.current !== message.id) {
       if (companionTarget && statusRetry === 0) setStatus('loading');
       setStatusError(false);
       stop = observeHostResource(
@@ -89,12 +92,12 @@ export function UserQuestionCard({
         async () => {
           try {
             const value = await actions.userQuestionStatus(cardChannelId, message.id);
-            if (!active) return;
+            if (!active || expiredAnswer.current === message.id) return;
             setStatus(value);
             setStatusError(false);
             if (value === 'answered' || value === 'expired') stop?.();
           } catch {
-            if (active) setStatusError(true);
+            if (active && expiredAnswer.current !== message.id) setStatusError(true);
           }
         },
         host ?? actions.requestHost?.(),
@@ -111,7 +114,7 @@ export function UserQuestionCard({
     cardChannelId,
     host,
     message.id,
-    resolution,
+    resolved,
     statusRetry,
     companionTarget?.live,
   ]);
@@ -181,7 +184,17 @@ export function UserQuestionCard({
         () => undefined,
         (cause: unknown) => {
           if (!mounted.current) return;
-          setError(errorMessage(cause));
+          const code =
+            typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
+          if (code === 'question-expired') {
+            expiredAnswer.current = message.id;
+            setStatus('expired');
+            setStatusRetry((current) => current + 1);
+            return;
+          }
+          setError(
+            code === 'question-delivery-retry' ? t('question.deliveryRetry') : errorMessage(cause),
+          );
           setStatus('loading');
           setStatusRetry((current) => current + 1);
         },

@@ -762,14 +762,33 @@ export function createApprovalsBridgeMethods(
       const channel = { botSlug: asker };
       if (deps.channels.message(channelId, messageId)?.userQuestionRequest === undefined)
         return invalidInput('Unknown user question');
-      const accepted = await deps.userQuestions?.answer(
+      const result = await deps.userQuestions?.answer(
         channel.botSlug,
         messageId,
         answer as unknown as AskUserQuestionAnswer,
         human,
       );
-      if (accepted !== true)
+      if (result !== true) {
+        const status =
+          deps.userQuestions?.status(channel.botSlug, messageId, channelId) ?? 'expired';
+        if (status === 'expired')
+          return {
+            ok: false,
+            error: {
+              code: 'question-expired',
+              message: 'This question has expired. Ask the Bot again.',
+            },
+          };
+        if (result === 'retry' && status === 'pending')
+          return {
+            ok: false,
+            error: {
+              code: 'question-delivery-retry',
+              message: 'Could not send your answer. Try again.',
+            },
+          };
         return invalidInput('Question is no longer pending or answer is invalid');
+      }
       return { ok: true, value: { accepted: true } };
     },
   };

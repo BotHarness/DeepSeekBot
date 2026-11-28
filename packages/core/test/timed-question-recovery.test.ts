@@ -1,14 +1,22 @@
 import { questionAnswerHash } from '../src/channels/question-answer-receipts.js';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createCore } from '../src/plugin.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { ChannelUserQuestions, type TimedQuestionPort } from '../src/channels/user-questions.js';
 import { nativeTimedQuestions } from '../src/channels/native-timed-questions.js';
 import { createTempRoot } from './helpers.js';
+import {
+  channelId as fixtureChannelId,
+  fixture as questionFixture,
+  questions as fixtureQuestions,
+  sessionId as fixtureSessionId,
+} from './fixtures/user-questions.js';
 
 const questions = [
   {
@@ -41,12 +49,62 @@ function port(
     read: () => native.current,
     answer: (id, callId) => {
       delivered.push(`${id}:${callId}`);
-      return true;
+      return 'accepted';
     },
   };
 }
 
 describe('a timed question card across a Host restart', () => {
+  it('expires a timed card whose continuation cannot accept an answer', async () => {
+    const native = nativeLog();
+    const deliver = vi.fn(async () => 'lost' as const);
+    const timed: TimedQuestionPort = {
+      bind: () => deliver,
+      recover: () => deliver,
+      read: () => native.current,
+      answer: vi.fn(() => 'accepted' as const),
+    };
+    const state = questionFixture('orchestrator', timed);
+    const controller = new AbortController();
+    const wait = state.answerer.ask({
+      agent: state.agent,
+      questions: fixtureQuestions,
+      signal: controller.signal,
+      wait: { callId: ToolCallId('original'), timed: true },
+    });
+    const timeout = Object.assign(new Error('native deadline'), { code: 'ASK_TIMED_OUT' });
+    const timedOut = expect(wait).rejects.toBe(timeout);
+    await vi.waitFor(() => expect(state.channels.readMessages(fixtureChannelId)).toHaveLength(1));
+    const card = state.channels.readMessages(fixtureChannelId)[0]!;
+    controller.abort(timeout);
+    await timedOut;
+    native.current = { state: 'continued' };
+    await state.answerer.reconcileSession(fixtureSessionId);
+    expect(state.answerer.status('ada', card.id, fixtureChannelId)).toBe('pending');
+    const valid = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
+    expect(await state.answerer.answer('ada', card.id, valid, OWNER_HUMAN_CONTEXT)).toBe(false);
+    expect(deliver).toHaveBeenCalledOnce();
+    expect(state.answerer.status('ada', card.id, fixtureChannelId)).toBe('expired');
+    expect(state.channels.readMessages(fixtureChannelId)).toContainEqual(
+      expect.objectContaining({
+        userQuestionResolution: { requestMessageId: card.id, state: 'cancelled' },
+      }),
+    );
+    state.answerer.close();
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      undefined,
+      undefined,
+      timed,
+    );
+    expect(restarted.status('ada', card.id, fixtureChannelId)).toBe('expired');
+    expect(await restarted.answer('ada', card.id, valid, OWNER_HUMAN_CONTEXT)).toBe(false);
+    expect(deliver).toHaveBeenCalledOnce();
+    restarted.close();
+  });
+
   it('stays answerable and resumes its own Orchestrator Session with the late answer', async () => {
     const home = createTempRoot('bh-timed-question-recovery-');
     const native = nativeLog();
@@ -156,10 +214,29 @@ describe('a timed question card across a Host restart', () => {
           .items,
       ).toMatchObject([{ kind: 'user-question', messageId }]);
 
-      expect(await broker.answer('ada', messageId, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+        ...second,
+        userQuestions: broker,
+      });
+      const submission = { channelId, messageId, answer };
+      expect(second.registry.setPaused('ada', true).ok).toBe(true);
+      expect(await methods.userQuestionAnswer(submission)).toMatchObject({
+        ok: false,
+        error: {
+          code: 'question-delivery-retry',
+          message: 'Could not send your answer. Try again.',
+        },
+      });
+      expect(broker.status('ada', messageId, channelId)).toBe('pending');
+      expect(delivered).toEqual([]);
+      expect(second.registry.setPaused('ada', false).ok).toBe(true);
+      expect(await methods.userQuestionAnswer(submission)).toEqual({
+        ok: true,
+        value: { accepted: true },
+      });
       await second.runtime.whenIdle();
-      expect(await foreignFollowup!(() => true)).toBe(false);
-      expect(await followup!(() => true)).toBe(true);
+      expect(await foreignFollowup!(() => 'accepted')).toBe('lost');
+      expect(await followup!(() => 'accepted')).toBe('accepted');
       await second.runtime.whenIdle();
       expect(warnings).not.toContainEqual(expect.stringContaining('reason=run-failed'));
       expect(readFileSync(join(memoryDir!, 'retained.md'), 'utf8')).toBe('Existing Memory');
@@ -340,12 +417,12 @@ describe('the native timed question port', () => {
     expect(readSession).toHaveBeenCalledWith(sessionId);
     expect(restore).toHaveBeenCalledWith({}, [{ seq: 0 }], 0, { id: sessionId }, 0);
     expect(port.read(sessionId, 'call-1')).toEqual({ state: 'continued' });
-    expect(port.answer(sessionId, 'call-1', answer)).toBe(false);
+    expect(port.answer(sessionId, 'call-1', answer)).toBe('retry');
 
     roots.push({ session });
     expect(port.read(sessionId, 'call-1')).toEqual({ state: 'open' });
     live = view('continued');
-    expect(port.answer(sessionId, 'call-1', answer)).toBe(true);
+    expect(port.answer(sessionId, 'call-1', answer)).toBe('accepted');
     expect(services.userQuestions.answer).toHaveBeenCalledWith({ session }, 'call-1', answer);
     live = { active: [], settled: [{ callId: 'call-1', answers: answer.answers }] } as never;
     expect(port.read(sessionId, 'call-1')).toEqual({ state: 'answered', answer });
@@ -378,7 +455,7 @@ describe('the native timed question port', () => {
       userQuestions: { answer: answerNative },
     });
     const port = nativeTimedQuestions(ctx, runtime, { get: () => undefined, list: () => [] });
-    expect(port.answer(sessionId, 'call-1', answer)).toBe(false);
+    expect(port.answer(sessionId, 'call-1', answer)).toBe('retry');
     expect(answerNative).not.toHaveBeenCalled();
   });
 });

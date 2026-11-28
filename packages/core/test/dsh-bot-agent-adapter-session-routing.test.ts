@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
+import { NativeQuestionSessionMissing } from '../src/channels/user-questions.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import {
@@ -10,6 +11,31 @@ import {
 } from './support/dsh-bot-agent-adapter.js';
 
 describe('DSH Bot Agent adapter', () => {
+  it('refuses native question delivery without creating a replacement for a missing Session', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      hasSession: async () => false,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const acceptNativeInput = vi.fn(() => true);
+    try {
+      await expect(
+        adapter.runOrchestrator({
+          ...reportRun,
+          resume: true,
+          acceptNativeInput,
+        }),
+      ).rejects.toBeInstanceOf(NativeQuestionSessionMissing);
+      expect(host.createOptions).toHaveLength(0);
+      expect(acceptNativeInput).not.toHaveBeenCalled();
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it.each([undefined, 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL'])(
     'uses the exact Model Plan route and keeps credential failures repairable: %s',
     async (code) => {

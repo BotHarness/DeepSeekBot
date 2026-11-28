@@ -83,13 +83,16 @@ export function nativeTimedQuestions(
     async load(sessionIds) {
       const query = record(ctx.get('sessionQuery'));
       const projections = record(ctx.get('sessionProjections'));
-      if (
-        typeof query?.['readSession'] !== 'function' ||
-        typeof projections?.['restore'] !== 'function'
-      )
-        return;
+      const unavailable = new Set<string>();
       for (const sessionId of sessionIds) {
         if (liveRoot(sessionId) !== undefined || sessions.get(sessionId) !== undefined) continue;
+        if (
+          typeof query?.['readSession'] !== 'function' ||
+          typeof projections?.['restore'] !== 'function'
+        ) {
+          unavailable.add(sessionId);
+          continue;
+        }
         try {
           const snapshot = record(await query['readSession'].call(query, sessionId));
           remember(sessionId, snapshot?.['events']);
@@ -106,9 +109,11 @@ export function nativeTimedQuestions(
           );
           if (questions !== undefined) views.set(sessionId, questions);
         } catch {
+          unavailable.add(sessionId);
           ctx.logger.warn(`botharness.channel_question.native_read_failed session=${sessionId}`);
         }
       }
+      return unavailable;
     },
     read(sessionId, callId) {
       const questions = questionsOf(sessionId);
@@ -128,8 +133,8 @@ export function nativeTimedQuestions(
     answer(sessionId, callId, answer) {
       const service = record(ctx.get('userQuestions'));
       const agent = liveRoot(sessionId);
-      if (typeof service?.['answer'] !== 'function' || agent === undefined) return false;
-      return service['answer'].call(service, agent, callId, answer) === true;
+      if (typeof service?.['answer'] !== 'function' || agent === undefined) return 'retry';
+      return service['answer'].call(service, agent, callId, answer) === true ? 'accepted' : 'lost';
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { FeatureContribution } from '../kernel/feature-contribution.js';
+import type { NativeDelivery } from '../channels/user-questions.js';
 import type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
 import type { TobCliAuthority } from '../features/tob/cli-runtime.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
@@ -105,12 +106,12 @@ export interface BotRuntime {
     sessionId: string,
     channelId: string,
     question?: { messageId: string; callId: string },
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
+  ): NativeDelivery | undefined;
   recoverNativeQuestionInput?(
     sessionId: string,
     channelId: string,
     requestMessageId: string,
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
+  ): NativeDelivery | undefined;
   nativeQuestionAvailable?(sessionId: string, channelId: string): boolean;
   captureNativeOrchestratorModel?(sessionId: string): void;
   prepareNativeOrchestratorStep?(

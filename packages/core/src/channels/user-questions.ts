@@ -27,7 +27,10 @@ export interface ChannelQuestionRequest {
 
 export type ChannelQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expired';
 
-type NativeDelivery = (deliver: () => boolean) => Promise<boolean>;
+export type NativeDeliveryResult = 'accepted' | 'retry' | 'lost';
+export type NativeDelivery = (deliver: () => NativeDeliveryResult) => Promise<NativeDeliveryResult>;
+
+export class NativeQuestionSessionMissing extends Error {}
 
 export interface TimedQuestionPort {
   recordAnswer?(
@@ -53,7 +56,7 @@ export interface TimedQuestionPort {
     requestMessageId: string,
   ): NativeDelivery | undefined;
   available?(sessionId: string, channelId: string): boolean;
-  load?(sessionIds: readonly string[]): Promise<void>;
+  load?(sessionIds: readonly string[]): Promise<ReadonlySet<string> | void>;
   read(
     sessionId: string,
     callId: string,
@@ -61,7 +64,7 @@ export interface TimedQuestionPort {
     | { state: 'open' | 'continued' }
     | { state: 'answered'; answer: AskUserQuestionAnswer }
     | undefined;
-  answer(sessionId: string, callId: string, answer: AskUserQuestionAnswer): boolean;
+  answer(sessionId: string, callId: string, answer: AskUserQuestionAnswer): NativeDeliveryResult;
 }
 
 export interface ChannelQuestionCard {
@@ -234,12 +237,17 @@ export class ChannelUserQuestions {
       reject,
       abort: () => {
         const reason: unknown = request.signal?.reason;
-        if (callId !== undefined) {
+        const timeout =
+          typeof reason === 'object' &&
+          reason !== null &&
+          'code' in reason &&
+          reason.code === 'ASK_TIMED_OUT';
+        if (callId !== undefined && (timeout || pending.submitted)) {
           pending.deferred = true;
           pending.reject(
             reason instanceof Error ? reason : new Error('Native question foreground ended'),
           );
-        } else this.#cancel(message.id);
+        } else void this.#cancel(message.id);
       },
       deciding: false,
       committed: false,
@@ -397,7 +405,7 @@ export class ChannelUserQuestions {
     if (pending.deferred && pending.callId !== undefined) {
       const native = this.#timed?.read(pending.sessionId, pending.callId);
       if (native === undefined) {
-        this.#cancel(messageId);
+        void this.#cancel(messageId);
         return 'expired';
       }
       if (native.state === 'answered') return 'answered';
@@ -412,7 +420,7 @@ export class ChannelUserQuestions {
     answer: AskUserQuestionAnswer,
     human: HumanContext,
     external?: { actor: ToolApprovalActor; authorized(): boolean },
-  ): Promise<boolean> {
+  ): Promise<boolean | 'retry'> {
     const pending = this.#pending.get(messageId);
     if (
       pending === undefined ||
@@ -445,22 +453,21 @@ export class ChannelUserQuestions {
         )
           return false;
         try {
-          const submit = (): boolean => {
-            if (
-              this.#pending.get(messageId) !== pending ||
-              !this.#holds(messageId, pending) ||
-              timed.read(pending.sessionId, callId)?.state !== 'continued'
-            )
-              return false;
+          const submit = (): NativeDeliveryResult => {
+            const current = timed.read(pending.sessionId, callId)?.state;
+            if (current === 'answered') return 'retry';
+            if (current === undefined || this.#pending.get(messageId) !== pending) return 'lost';
+            if (!this.#holds(messageId, pending)) return 'lost';
+            if (current !== 'continued') return 'retry';
             this.approvals?.requireRequest(human, pending.channelId, messageId);
             phase = 'native-receipt';
             timed.recordAnswer?.(pending.sessionId, callId, answer, human);
             try {
               phase = 'native-submit';
-              const accepted = timed.answer(pending.sessionId, callId, answer);
-              if (!accepted) timed.discardAnswer?.(pending.sessionId, callId);
+              const result = timed.answer(pending.sessionId, callId, answer);
+              if (result !== 'accepted') timed.discardAnswer?.(pending.sessionId, callId);
               else pending.answeringHuman = human;
-              return accepted;
+              return result;
             } catch (error) {
               timed.discardAnswer?.(pending.sessionId, callId);
               throw error;
@@ -468,16 +475,23 @@ export class ChannelUserQuestions {
           };
           const deliver =
             pending.deliverNative ??
-            (pending.agent === undefined
-              ? timed.recover?.(pending.sessionId, pending.channelId, messageId)
-              : undefined);
-          pending.submitted =
+            timed.recover?.(pending.sessionId, pending.channelId, messageId);
+          const delivery =
             deliver === undefined
               ? timed.bind === undefined && timed.recover === undefined
                 ? submit()
-                : false
+                : 'lost'
               : await deliver(submit);
+          pending.submitted = delivery === 'accepted';
           if (pending.submitted) this.#statusChanged(messageId, pending);
+          else if (
+            delivery === 'lost' &&
+            this.#pending.get(messageId) === pending &&
+            timed.read(pending.sessionId, callId)?.state !== 'answered'
+          )
+            await this.#cancel(messageId);
+          if (delivery === 'retry' && timed.read(pending.sessionId, callId)?.state !== 'answered')
+            return 'retry';
           return pending.submitted;
         } catch (error) {
           if (error instanceof TeamError) throw error;
@@ -573,7 +587,7 @@ export class ChannelUserQuestions {
   cancelSession(sessionId: string): void {
     for (const [id, pending] of this.#pending) {
       if (pending.sessionId !== sessionId) continue;
-      if (pending.callId === undefined) this.#cancel(id);
+      if (pending.callId === undefined) void this.#cancel(id);
       else this.#detach(pending);
     }
   }
@@ -585,7 +599,7 @@ export class ChannelUserQuestions {
       const request = this.#channels.message(card.channelId, card.messageId)?.userQuestionRequest;
       return request?.callId === undefined ? [] : [request.sessionId];
     });
-    await this.#timed?.load?.([...new Set(stored)]);
+    const unavailable = await this.#timed?.load?.([...new Set(stored)]);
     for (const card of cards) {
       if (this.#pending.has(card.messageId)) continue;
       const message = this.#channels.message(card.channelId, card.messageId);
@@ -603,12 +617,16 @@ export class ChannelUserQuestions {
           : channel.botSlug !== botSlug)
       )
         continue;
+      if (this.#timed === undefined || unavailable?.has(request.sessionId)) continue;
+      const native = this.#timed.read(request.sessionId, request.callId);
       if (
-        this.#timed === undefined ||
-        this.#timed.read(request.sessionId, request.callId) === undefined ||
+        native === undefined ||
         this.#timed.available?.(request.sessionId, card.channelId) === false
-      )
+      ) {
+        if (native?.state !== 'answered')
+          await this.#recordCancellation(card.messageId, card.channelId, botSlug, true);
         continue;
+      }
       this.#pending.set(card.messageId, {
         answeringHuman: undefined,
         agent: undefined,
@@ -644,7 +662,7 @@ export class ChannelUserQuestions {
         continue;
       if (!this.#holds(id, pending)) continue;
       const native = this.#timed?.read(pending.sessionId, pending.callId);
-      if (native === undefined) this.#cancel(id);
+      if (native === undefined) await this.#cancel(id);
       else if (
         native.state === 'answered' &&
         validQuestionAnswer(pending.questions, native.answer)
@@ -732,7 +750,7 @@ export class ChannelUserQuestions {
 
   close(): void {
     for (const [id, pending] of this.#pending) {
-      if (pending.callId === undefined) this.#cancel(id);
+      if (pending.callId === undefined) void this.#cancel(id);
       else {
         this.#pending.delete(id);
         pending.signal?.removeEventListener('abort', pending.abort);
@@ -753,7 +771,7 @@ export class ChannelUserQuestions {
     const owner = this.#ownership.resolve(pending.sessionId);
     if (pending.agent !== undefined && !this.#isLive(pending.agent)) {
       if (pending.callId === undefined) {
-        this.#cancel(messageId);
+        void this.#cancel(messageId);
         return false;
       }
       this.#detach(pending);
@@ -765,7 +783,7 @@ export class ChannelUserQuestions {
       (pending.agent === undefined &&
         this.#timed?.available?.(pending.sessionId, pending.channelId) === false)
     ) {
-      this.#cancel(messageId);
+      void this.#cancel(messageId);
       return false;
     }
     return true;
@@ -798,10 +816,10 @@ export class ChannelUserQuestions {
 
   cancelChannel(channelId: string): void {
     for (const [messageId, pending] of this.#pending)
-      if (pending.channelId === channelId) this.#cancel(messageId, false);
+      if (pending.channelId === channelId) void this.#cancel(messageId, false);
   }
 
-  #cancel(messageId: string, record = true): void {
+  async #cancel(messageId: string, record = true): Promise<void> {
     const pending = this.#pending.get(messageId);
     if (pending === undefined) return;
     this.#pending.delete(messageId);
@@ -814,24 +832,36 @@ export class ChannelUserQuestions {
       pending.reject(new Error('DSH user question was cancelled because the group was disbanded'));
       return;
     }
+    pending.reject(new Error('DSH user question was cancelled'));
+    const saved = await this.#recordCancellation(
+      messageId,
+      pending.channelId,
+      pending.botSlug,
+      pending.callId !== undefined,
+    );
+    if (saved) this.#observe(messageId, pending, 'cancelled');
+  }
+
+  async #recordCancellation(
+    messageId: string,
+    channelId: string,
+    botSlug: string,
+    timed: boolean,
+  ): Promise<boolean> {
     const resolution: ChannelMessage = {
-      id: randomUUID(),
+      id: timed ? messageId + ':question-cancelled' : randomUUID(),
       at: new Date().toISOString(),
-      author: { kind: 'bot', slug: pending.botSlug },
-      body: '提问已取消',
+      author: { kind: 'bot', slug: botSlug },
+      body: timed ? '提问已过期' : '提问已取消',
       replyTo: messageId,
       userQuestionResolution: { requestMessageId: messageId, state: 'cancelled' },
     };
-
-    void this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, pending.channelId, resolution).then(
-      (saved) => {
-        if (saved === undefined)
-          this.#warn(`botharness.channel_question.cancel_append_failed request=${messageId}`);
-        else this.#observe(messageId, pending, 'cancelled');
-      },
-      () => this.#warn(`botharness.channel_question.cancel_append_failed request=${messageId}`),
-    );
-    pending.reject(new Error('DSH user question was cancelled'));
+    const saved = await this.#channels
+      .appendMessage(OWNER_HUMAN_CONTEXT, channelId, resolution)
+      .catch(() => undefined);
+    if (saved !== undefined) return true;
+    this.#warn(`botharness.channel_question.cancel_append_failed request=${messageId}`);
+    return false;
   }
 }
 

@@ -8,6 +8,7 @@ import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../kernel/tob-cli-
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { SessionRecoveryAction } from './session-recovery.js';
 import type { GroupSendReview } from '../channels/send-review.js';
+import type { NativeDelivery } from '../channels/user-questions.js';
 import {
   type AssignmentApprovalWaitLease,
   type AssignmentExecutionWait,
@@ -265,7 +266,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sessionId: string,
     channelId: string,
     question?: { messageId: string; callId: string },
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
+  ): NativeDelivery | undefined {
     return this.#features.runtimeInputs.bindNativeQuestionInput(sessionId, channelId, question);
   }
 
@@ -273,7 +274,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sessionId: string,
     channelId: string,
     requestMessageId: string,
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
+  ): NativeDelivery | undefined {
     return this.#features.runtimeInputs.recoverNativeQuestionInput(
       sessionId,
       channelId,

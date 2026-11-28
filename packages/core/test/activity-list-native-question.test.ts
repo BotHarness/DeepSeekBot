@@ -349,12 +349,18 @@ describe('Human Inbox question Host boundary', () => {
         if (cause === 'cancelled') abort.abort();
         else f.expire();
         expect(
+          f.methods.userQuestionStatus({
+            channelId: pending.channelId,
+            messageId: pending.message.id,
+          }),
+        ).toMatchObject({ ok: true, value: { status: 'expired' } });
+        expect(
           await f.methods.userQuestionAnswer({
             channelId: pending.channelId,
             messageId: pending.message.id,
             answer: { answers: [{ id: 'release-route', selected: ['Canary'] }] },
           }),
-        ).toMatchObject({ ok: false });
+        ).toMatchObject({ ok: false, error: { code: 'question-expired' } });
         await expect(pending.answer).rejects.toThrow(/cancelled/);
         expect(f.methods.humanAttention({ category: 'action' })).toMatchObject({
           ok: true,

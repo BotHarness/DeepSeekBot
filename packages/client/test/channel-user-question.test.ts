@@ -674,4 +674,92 @@ describe('native question card interaction', () => {
     expect(button('回答并继续')).toBeUndefined();
     expect(button('main')).toBeUndefined();
   });
+
+  it('shows a timed question as expired when the Host refuses a stale click and when reopening it', async () => {
+    const card = {
+      ...message,
+      userQuestionRequest: { ...message.userQuestionRequest!, callId: 'timed-call' },
+    };
+    const actions = {
+      userQuestionStatus: vi.fn().mockResolvedValue('pending'),
+      answerUserQuestion: vi
+        .fn()
+        .mockRejectedValue(new BridgeCallError('question-expired', 'This question has expired.')),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    expect(button('main')).toBeDefined();
+    await act(async () => button('main')?.click());
+    expect(container.querySelector('[data-settled=expired]')?.textContent).toContain('已过期');
+    expect(container.querySelector('.bh-question-card [role=alert]')).toBeNull();
+    expect(button('main')).toBeUndefined();
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => render(actions, 'cancelled', card));
+    expect(container.querySelector('[data-settled=expired]')?.textContent).toContain('已过期');
+    expect(button('main')).toBeUndefined();
+  });
+
+  it('keeps a timed question expired after an in-flight refresh returns pending', async () => {
+    vi.useFakeTimers();
+    const live = resourceEvents();
+    try {
+      const card = {
+        ...message,
+        userQuestionRequest: { ...message.userQuestionRequest!, callId: 'timed-call' },
+      };
+      let resolveRefresh!: (status: 'pending') => void;
+      const refresh = new Promise<'pending'>((resolve) => {
+        resolveRefresh = resolve;
+      });
+      const actions = {
+        userQuestionStatus: vi.fn().mockResolvedValueOnce('pending').mockReturnValue(refresh),
+        answerUserQuestion: vi
+          .fn()
+          .mockRejectedValue(new BridgeCallError('question-expired', 'This question has expired.')),
+      } as unknown as BridgeActions;
+      await act(async () => render(actions, undefined, card));
+      await act(async () => {
+        live.emit({ resource: 'user-question', channelId: 'dm-ada', messageId: card.id });
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(actions.userQuestionStatus).toHaveBeenCalledTimes(2);
+      await act(async () => button('main')?.click());
+      expect(container.querySelector('[data-settled=expired]')).toBeTruthy();
+
+      await act(async () => resolveRefresh('pending'));
+      expect(container.querySelector('[data-settled=expired]')).toBeTruthy();
+      expect(button('main')).toBeUndefined();
+    } finally {
+      live.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a retryable delivery error and accepts another click on the same card', async () => {
+    const card = {
+      ...message,
+      userQuestionRequest: { ...message.userQuestionRequest!, callId: 'timed-call' },
+    };
+    const actions = {
+      userQuestionStatus: vi
+        .fn()
+        .mockResolvedValueOnce('pending')
+        .mockResolvedValueOnce('pending')
+        .mockResolvedValue('submitted'),
+      answerUserQuestion: vi
+        .fn()
+        .mockRejectedValueOnce(new BridgeCallError('question-delivery-retry', 'Try again.'))
+        .mockResolvedValue(undefined),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    await act(async () => button('main')?.click());
+    expect(container.querySelector('.bh-question-card [role=alert]')?.textContent).toContain(
+      '回答发送失败，再试一次。',
+    );
+    expect(button('main')?.disabled).toBe(false);
+    await act(async () => button('main')?.click());
+    expect(actions.answerUserQuestion).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-settled=submitted]')).toBeTruthy();
+  });
 });

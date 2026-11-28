@@ -271,7 +271,11 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 
 `user-question-answer` 接受与网页卡片相同的已提供选项。持久化限时提问可在 Host 重启后回答，
 请保留原 Channel 与卡片 ID。冷恢复继续原生调用并保留 Memory，但不产生新的 Inbox Admission
-或被动 Memory 观察。所属 Session 缺失、归档或权限撤销时仍拒绝。使用 `diagnostic-logs` 或
+或被动 Memory 观察。所属 Session 缺失、归档或权限撤销时仍拒绝。
+原生调用无法继续接收回答时，限时提问会关闭。`user-question-status` 返回 `expired`，
+`user-question-answer` 返回 `question-expired`。请重新向 Bot 发起请求。
+暂时无法发送回答时，命令返回 `question-delivery-retry`，提问仍待回答，可以重试。
+使用 `diagnostic-logs` 或
 日志导出读取 `native-question-input-refused` 的稳定 `phase` 与 `reason`；记录不含问题、答案或异常原文。
 
 ### Agent 控制
