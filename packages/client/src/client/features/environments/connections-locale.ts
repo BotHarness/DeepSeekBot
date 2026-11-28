@@ -125,11 +125,11 @@ export const zh = {
   'privateRelay.connecting': '正在连接…',
   'privateRelay.connected': '已连接，可以配对手机。',
   'privateRelay.pair': '显示手机配对码',
-  'privateRelay.unreachable': '连不上私有中继。请检查中继地址、证书和网络。',
+  'privateRelay.unreachable': '连不上私有中继。检查中继地址、证书和网络。',
   'privateRelay.busy':
-    '中继仍保留着这台电脑的另一个连接。请等待它断开，或关闭仍在运行的另一个实例。此电脑会自动重试。',
-  'privateRelay.ownerRefused': '中继不再识别这台电脑的认领。请让中继管理员检查认领状态。',
-  'privateRelay.upgradeRefused': '服务器拒绝了中继连接。请检查中继地址和代理设置。',
+    '中继仍有这台电脑的另一个连接。等待它断开或退出另一个实例，此电脑会自动重试。',
+  'privateRelay.ownerRefused': '中继不再识别这台电脑的认领。让中继管理员检查认领状态。',
+  'privateRelay.upgradeRefused': '服务器拒绝了中继连接。检查中继地址和代理设置。',
   'privateRelay.failed':
     '连接未完成。请检查公网地址、HTTPS 证书和设置密钥；若服务已被认领，请回到原电脑继续。不会自动使用官方中继。',
   'connections.savedOffline': '已保存「{name}」，暂时无法读取频道。可从侧栏重新打开。',

@@ -314,9 +314,9 @@ export const zh: typeof en = {
     unknown: '无法配对，换一个二维码后重试。',
     unreachable: `连不上你的电脑。请确认电脑未休眠且已打开 ${productName.zh}，手机与电脑在同一 Wi-Fi 或 tailnet 中，然后重试。`,
     'private-relay-unreachable':
-      '无法通过私有中继连接。请检查网络后重试。如果仍然失败，请让电脑所有者检查中继。',
+      '无法通过私有中继连接。检查网络后重试，仍失败时让电脑所有者检查中继。',
     'private-relay-admission-refused':
-      '私有中继拒绝了这个配对码。请让电脑所有者显示新的配对码，再扫描。',
+      '私有中继拒绝了这个配对码。让电脑所有者显示新的配对码，再扫描。',
     'certificate-untrusted':
       '这台手机不信任电脑地址的证书。请让 IT 管理员通过设备管理安装公司证书，或改用同一 Wi-Fi 连接，然后重试。',
     'sign-in-cancelled': '已取消登录。',
@@ -338,7 +338,7 @@ export const zh: typeof en = {
     'link-expired': '这个配对链接已过期，请在电脑上复制新的链接。',
     'offer-invalid': '这个配对链接已经用过了，请在电脑上复制新的链接。',
     'offer-expired': '这个配对链接已过期，请在电脑上复制新的链接。',
-    'private-relay-admission-refused': '私有中继拒绝了这个链接。请向电脑所有者获取新的配对链接。',
+    'private-relay-admission-refused': '私有中继拒绝了这个链接。向电脑所有者获取新的配对链接。',
     unknown: '无法配对，请在电脑上复制新的链接后重试。',
   },
   copyFingerprint: '复制指纹',
