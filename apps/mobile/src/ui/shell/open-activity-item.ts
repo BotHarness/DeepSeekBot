@@ -4,12 +4,13 @@ import {
   NATIVE_SESSION_ATTENTION_KIND,
   type HumanAttentionItem,
 } from '@botharness/host-protocol/wire';
+import { ACTIVITY_SESSION_PATHNAME, type ActivitySessionPathname } from './activity-session-route';
 import { channelDestination, navigateChannel, type ChannelNavigation } from './channel-navigation';
 
 export type InboxHref =
   | { pathname: '/inbox/[id]'; params: Record<string, string> }
   | {
-      pathname: '/session/[id]';
+      pathname: ActivitySessionPathname;
       params: { id: string; hostId: string; source: 'native'; title?: string };
     };
 
@@ -31,7 +32,7 @@ export function openActivityItem(
   const native = item.kind === NATIVE_SESSION_ATTENTION_KIND ? item.nativeSession : undefined;
   if (native !== undefined) {
     push({
-      pathname: '/session/[id]',
+      pathname: ACTIVITY_SESSION_PATHNAME,
       params: {
         id: native.sessionId,
         hostId: source.hostId,
