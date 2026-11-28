@@ -441,6 +441,7 @@ const BOT_TOOL_NAMES = new Set([
 
   'ask_user_question',
   'ask_secret',
+  'list_secret_accounts',
   'secret_mcp_disconnect',
   'report_to_orchestrator',
 ]);

@@ -16,6 +16,7 @@ export type Pending = {
   expectedRevision: string | undefined;
   signal: AbortSignal;
   origin?: PrivateInputOrigin;
+  declineKey?: string;
   deadline: number;
   committed: boolean;
   commit?: Promise<ChannelAppendOnceResult>;

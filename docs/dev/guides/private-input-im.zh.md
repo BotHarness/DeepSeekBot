@@ -19,7 +19,7 @@ Profile 支持真实 PersonaBot 从已授权 IM 请求发起私密输入：Owner
 在指定测试私聊发送：
 
 ```text
-【IM-PRIVATE-A】用 ask_secret 请求账号 im-demo 的三个必填字段：
+【IM-PRIVATE-A】用 ask_secret 的 collect 模式请求账号 im-demo 的三个必填字段：
 endpoint（私密 URL）、api_key（API key）、api_secret（API secret）。
 等待 Owner 在 Web Chat 私密卡填写；随后用 protected_cli 的
 http-status-v1 消费返回的引用。通过 bot_send_message 在原会话只报告
