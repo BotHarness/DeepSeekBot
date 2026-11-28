@@ -21,7 +21,9 @@
 - Saving a key checks it with Composio first; a rejected key is refused with `invalid-input` and nothing is stored.
 - Each Bot's App connections entry: one select per account (No access / Read / Read and write).
 - Bot tools `connector_catalog` (read) and `connector_request` (always a Human approval card). The `mcp__composio__*` guard refuses ungranted services, writes under a Read grant, remote workbench/bash tools and calls after revocation.
-- CLI parity: `connectors`, `connector-key-set --key-stdin`, `connector-key-clear --confirm`, `connector-connect <service>`, `connector-refresh`, `connector-grant <bot> <account> --access read|write|none`, `connector-remove <account> --confirm`, `bot-connectors <bot>`.
+- The connector request decision supports a single tool invocation in the requesting Session. Use `deepseekbot connector request-decide <channel-id> <message-id> --choice once` on a pending connector request. Check that the first account tool call works, a second is refused, and `bot-connectors` shows no new durable grant.
+- Engine-backed Bots find granted App connection tools through `tool_search` and run them through `tool_call`. Revoke the grant between two calls in the same Session and check the second call is refused. Check a second Bot cannot find the tools unless granted the same account.
+- CLI parity: `connectors`, `connector-key-set --key-stdin`, `connector-key-clear --confirm`, `connector-connect <service>`, `connector-refresh`, `connector-grant <bot> <account> --access read|write|none`, `connector-remove <account> --confirm`, `bot-connectors <bot>`, `connector catalog --bot <slug>`, and `connector grant <bot> <account> --explain`.
 
 ## How to get to it (user POV)
 

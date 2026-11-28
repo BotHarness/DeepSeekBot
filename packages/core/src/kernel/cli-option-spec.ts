@@ -246,6 +246,8 @@ export const PROMPT_PRESET_OPTIONS = {
 } as const;
 
 export const CONNECTOR_OPTIONS = {
+  explain: { type: 'boolean' },
+  choice: { type: 'string' },
   'key-stdin': { type: 'boolean' },
   label: { type: 'string' },
   access: { type: 'string' },

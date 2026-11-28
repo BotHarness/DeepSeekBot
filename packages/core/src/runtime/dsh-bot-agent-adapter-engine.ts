@@ -62,6 +62,8 @@ type EngineToolCatalogContext = EngineCatalogContext;
 type RunEngineAssignmentContext = Pick<
   DshBotAgentAdapterState,
   | 'engineStops'
+  | 'engineTools'
+  | 'engineToolGate'
   | 'engineWorkspaceMode'
   | 'featureContributions'
   | 'runs'
@@ -201,7 +203,7 @@ export async function runEngineTurn(
             });
             if (refusal !== undefined) throw new Error(`refused: ${refusal}`);
           }
-          return await tool.run(toolArgs, signal);
+          return await tool.run(toolArgs, signal, context);
         } finally {
           if (sourceId !== undefined) pendingReplies.delete(sourceId);
         }
@@ -281,7 +283,10 @@ async function engineCatalog(
   }));
   const contributed = await untilAborted(
     Promise.resolve()
-      .then(() => adapter.engineTools?.({ botSlug: run.bot.slug, sessionId: run.sessionId }) ?? [])
+      .then(
+        () =>
+          adapter.engineTools?.({ botSlug: run.bot.slug, sessionId: run.sessionId, signal }) ?? [],
+      )
       .catch(() => []),
     signal,
   ).catch(() => []);
@@ -331,6 +336,20 @@ export async function runEngineAssignment(
     } else run.beginTurn?.();
     accepted?.();
     run.accepted?.();
+    const catalog = (
+      await untilAborted(
+        Promise.resolve().then(
+          () =>
+            adapter.engineTools?.({
+              botSlug: run.bot.slug,
+              sessionId: run.sessionId,
+              signal: stop.signal,
+            }) ?? [],
+        ),
+        stop.signal,
+      ).catch(() => [])
+    ).filter((tool) => tool.assignment === true);
+    if (stopped()) return;
     const outcome =
       (await engines.runTurn({
         botSlug: run.bot.slug,
@@ -370,8 +389,32 @@ export async function runEngineAssignment(
             fullAccess: run.permission.mode === 'danger-full-access',
           }),
         ].join('\n\n'),
-        tools: [assignment.engineReportTool],
+        tools: [
+          assignment.engineReportTool,
+          ...(catalog.length > 0 ? [TOOL_SEARCH, TOOL_CALL] : []),
+        ],
         execute: async (name, args, signal, context) => {
+          if (catalog.length > 0 && name === TOOL_SEARCH.name)
+            return searchEngineTools(catalog, args);
+          if (catalog.length > 0 && name === TOOL_CALL.name) {
+            run.requireContent?.();
+            const [toolName, toolArgs] = toolCallTarget(args);
+            const tool = catalog.find((entry) => entry.name === toolName);
+            if (tool === undefined)
+              throw new Error(`refused: ${toolName} is not available to this Assignment`);
+            const refusal = await adapter.engineToolGate?.({
+              botSlug: run.bot.slug,
+              sessionId: run.sessionId,
+              session: context.session,
+              toolName,
+              args: toolArgs,
+              signal,
+              ask: context.ask,
+            });
+            if (refusal !== undefined) throw new Error(`refused: ${refusal}`);
+            run.requireContent?.();
+            return tool.run(toolArgs, signal, context);
+          }
           if (name !== assignment.engineReportTool.name)
             throw new Error(`refused: ${name} is not available to this Assignment`);
           const state = typeof args['state'] === 'string' ? args['state'] : '';

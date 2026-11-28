@@ -150,6 +150,22 @@ export function composioWriteInput(
   return name === COMPOSIO_EXECUTE_TOOL ? args : { tools: [{ tool_slug: raw, arguments: args }] };
 }
 
+export function composioCallServices(
+  name: string,
+  args: unknown,
+  services: readonly string[],
+): ReadonlySet<string> {
+  const raw = name.slice(CONNECTOR_TOOL_PREFIX.length);
+  if (DISCOVERY.has(raw)) return new Set();
+  const slugs = name === COMPOSIO_EXECUTE_TOOL ? (composioBatchSlugs(args) ?? []) : [raw];
+  return new Set(
+    slugs.flatMap((slug) => {
+      const service = serviceFor(slug, services);
+      return service === undefined ? [] : [service];
+    }),
+  );
+}
+
 export function connectorToolDenial(
   name: string,
   args: unknown,

@@ -1437,6 +1437,9 @@ deepseekbot connector-reconnect <account-id>
 deepseekbot connectors
 deepseekbot connector-grant <bot-id> <account-id> --access read
 deepseekbot bot-connectors <bot-id>
+deepseekbot connector catalog --bot <slug> [--search <query>]
+deepseekbot connector grant <bot-id> <account-id> --explain
+deepseekbot connector request-decide <channel-id> <message-id> --choice once|persistent|deny
 deepseekbot connector-grant <bot-id> <account-id> --access none
 deepseekbot connector-remove <account-id> --confirm
 deepseekbot connector-key-clear --confirm

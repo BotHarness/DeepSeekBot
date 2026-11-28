@@ -97,7 +97,11 @@ describe('Channel tool approval', () => {
           provider: 'composio',
           access: access satisfies ConnectorAccess,
         }));
-      const service = { forBot, account: () => ({ revision: 1 }) } as unknown as ConnectorService;
+      const service = {
+        forBot,
+        account: () => ({ revision: 1 }),
+        consumeOnce: () => () => undefined,
+      } as unknown as ConnectorService;
       const toolName = 'mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL';
       const execution = {
         ...state.execution(AbortSignal.timeout(5000)),

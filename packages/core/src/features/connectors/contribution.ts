@@ -7,11 +7,13 @@ import { attachOperationalModule } from '../../database/owner.js';
 import type { FeatureContribution } from '../../kernel/feature-contribution.js';
 import type { BotHarnessCore } from '../../plugin-types.js';
 import { createConnectorsBridgeMethods } from './methods.js';
+import { engineConnectorTools } from './engine-tools.js';
 import { connectorsRpc } from './rpc.js';
 
 export interface ConnectorsBridgeContext {
   deps: Parameters<typeof createConnectorsBridgeMethods>[0];
   isHostOwner: Parameters<typeof createConnectorsBridgeMethods>[1];
+  human: Parameters<typeof createConnectorsBridgeMethods>[2];
 }
 
 function mountHostResources(
@@ -29,12 +31,17 @@ function mountHostResources(
   });
   core.connectors = connectors;
   mountConnectors(ctx, core, connectors, callback, toolApproval);
+  ctx.effect(
+    () => core.contributeEngineTools(engineConnectorTools(connectors, toolApproval)),
+    'botharness: engine App connections',
+  );
 }
 
 export function createConnectorsContribution() {
   return {
     id: 'connectors',
-    bridgeMethods: ({ deps, isHostOwner }) => createConnectorsBridgeMethods(deps, isHostOwner),
+    bridgeMethods: ({ deps, isHostOwner, human }) =>
+      createConnectorsBridgeMethods(deps, isHostOwner, human),
     rpc: connectorsRpc,
     host: { mountHostResources },
   } satisfies FeatureContribution<

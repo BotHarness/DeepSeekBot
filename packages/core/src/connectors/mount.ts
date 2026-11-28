@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
-import { defineTool } from '@deepseek-ai/dsh-tools';
+import { defineTool, type ToolExecution } from '@deepseek-ai/dsh-tools';
 
 import { COMPOSIO_EXECUTE_TOOL } from '../kernel/composio-tool-effects.js';
 import type { BotHarnessCore } from '../plugin-types.js';
@@ -16,13 +16,19 @@ import {
   STALE_SIGN_IN_REFUSAL,
   REMOTE_MCP_TOOL_PREFIX,
   connectorToolDenial,
+  composioCallServices,
   composioWriteInput,
   remoteMcpServerName,
   remoteMcpServerNames,
   remoteMcpToolDenial,
 } from './policy.js';
 import { FEATURED_MCP_SERVERS } from './remote.js';
-import { ConnectorError, type ConnectorApp, type ConnectorService } from './service.js';
+import {
+  ConnectorError,
+  type ConnectorApp,
+  type ConnectorService,
+  type ConnectorSessionScope,
+} from './service.js';
 import type { ConnectorAccess } from './store.js';
 
 type Fiber = ReturnType<Context['plugin']>;
@@ -39,6 +45,8 @@ interface RemoteMount {
 interface Mounted {
   botSlug: string;
   agentCtx: Context;
+  scope: ConnectorSessionScope;
+  composioScope: string | undefined;
   signature: string | undefined;
   fiber: Fiber | undefined;
   remote: Map<string, RemoteMount>;
@@ -151,13 +159,87 @@ function remoteSignature(connection: { url: string; headers: Record<string, stri
 export function connectorAccessMap(
   service: Pick<ConnectorService, 'forBot'>,
   botSlug: string,
+  scope?: ConnectorSessionScope,
 ): Record<string, ConnectorAccess> {
   const access: Record<string, ConnectorAccess> = {};
-  for (const connector of service.forBot(botSlug)) {
+  for (const connector of service.forBot(botSlug, scope)) {
     if (connector.status !== 'active' || connector.provider !== 'composio') continue;
     access[connector.service] = access[connector.service] === 'read' ? 'read' : connector.access;
   }
   return access;
+}
+
+export function composioAuthorizationScope(
+  service: ConnectorService,
+  botSlug: string,
+  scope: ConnectorSessionScope,
+): string {
+  return JSON.stringify(
+    service
+      .forBot(botSlug, scope)
+      .filter((account) => account.provider === 'composio' && account.status === 'active')
+      .map(({ accountId, access }) => [accountId, access, service.account(accountId)?.revision]),
+  );
+}
+
+type ComposioApproval = Pick<ChannelToolApproval, 'ask' | 'track' | 'executionGuard'>;
+
+export async function runComposioInvocation<T>({
+  service,
+  botSlug,
+  scope,
+  execution,
+  approve,
+  authorize,
+  dispatch,
+}: {
+  service: ConnectorService;
+  botSlug: string;
+  scope: ConnectorSessionScope;
+  execution: ToolExecution;
+  approve: ComposioApproval | undefined;
+  authorize: () => Record<string, ConnectorAccess>;
+  dispatch: (claim: () => () => void) => Promise<T>;
+}): Promise<T> {
+  const { name, agent, arguments: args, callId, signal } = execution;
+  const access = authorize();
+  const dispatchOnce = (checkApproval?: () => void) =>
+    dispatch(() => {
+      authorize();
+      checkApproval?.();
+      const services = composioCallServices(name, args, Object.keys(access));
+      const accounts = service
+        .forBot(botSlug, scope)
+        .filter((account) => account.provider === 'composio' && services.has(account.service));
+      return service.consumeOnce(
+        botSlug,
+        scope.sessionId,
+        new Set(accounts.map((account) => account.accountId)),
+      );
+    });
+  const input = composioWriteInput(name, args, access);
+  if (input === undefined) return dispatchOnce();
+  if (approve === undefined || agent === undefined)
+    throw new Error('Human Tool Approval is unavailable.');
+  const tracked = { ...execution, name: COMPOSIO_EXECUTE_TOOL, arguments: input };
+  const untrack = approve.track(tracked, 'each-use', false, undefined, undefined, {
+    requireExplicitApproval: true,
+    authorizationScope: () => composioAuthorizationScope(service, botSlug, scope),
+  });
+  if (untrack === undefined) throw new Error('Human Tool Approval is unavailable.');
+  try {
+    const outcome = await approve.ask({ agent, toolName: tracked.name, callId, signal });
+    if (outcome !== 'allowed-once')
+      throw new Error(`Human Tool Approval was ${outcome ?? 'unavailable'}.`);
+    signal.throwIfAborted();
+    const guard = approve.executionGuard(agent, callId);
+    return await dispatchOnce(() => {
+      if (guard?.(tracked.name, input) !== true)
+        throw new Error('Tool Approval changed before execution.');
+    });
+  } finally {
+    untrack();
+  }
 }
 
 export function connectorCatalogFor(
@@ -166,8 +248,9 @@ export function connectorCatalogFor(
   configured: boolean,
   query?: string,
   apps?: readonly ConnectorApp[],
+  scope?: ConnectorSessionScope,
 ) {
-  const granted = service.forBot(botSlug);
+  const granted = service.forBot(botSlug, scope);
   const grantedIds = new Set(granted.map((connector) => connector.accountId));
   const requestable = service
     .available()
@@ -247,7 +330,7 @@ export function mountConnectors(
   core: Pick<BotHarnessCore, 'contributeBotAgentSetup' | 'ownership'>,
   service: ConnectorService,
   callback?: ReturnType<typeof connectorCallback>,
-  approval?: () => Pick<ChannelToolApproval, 'ask' | 'track' | 'executionGuard'> | undefined,
+  approval?: () => ComposioApproval | undefined,
 ): void {
   const mounted = new Map<Agent, Mounted>();
   if (callback !== undefined) mountCallback(ctx, service, callback);
@@ -255,7 +338,7 @@ export function mountConnectors(
     if (entry.renew !== undefined) clearTimeout(entry.renew);
     entry.renew = undefined;
     const granted = service
-      .forBot(entry.botSlug)
+      .forBot(entry.botSlug, entry.scope)
       .filter((connector) => connector.provider === 'mcp' && connector.status === 'active');
     const names = remoteMcpServerNames(granted);
     let renewAt: number | undefined;
@@ -330,9 +413,10 @@ export function mountConnectors(
       if (entry.disposed) return;
       if (entry.retry !== undefined) clearTimeout(entry.retry);
       entry.retry = undefined;
+      const authorization = composioAuthorizationScope(service, entry.botSlug, entry.scope);
       let session: Awaited<ReturnType<ConnectorService['session']>>;
       try {
-        session = await service.session(entry.botSlug);
+        session = await service.session(entry.botSlug, entry.scope);
       } catch (error) {
         ctx.logger.warn(
           'botharness: connector session unavailable %j',
@@ -345,12 +429,26 @@ export function mountConnectors(
           }, SESSION_RETRY_MS);
         return;
       }
-      if (entry.disposed || session?.signature === entry.signature) return;
+      if (
+        entry.disposed ||
+        authorization !== composioAuthorizationScope(service, entry.botSlug, entry.scope)
+      )
+        return;
+      if (session !== undefined && session.signature === entry.signature) {
+        entry.composioScope = authorization;
+        return;
+      }
       const previous = entry.fiber;
       entry.fiber = undefined;
-      entry.signature = session?.signature;
+      entry.signature = undefined;
+      entry.composioScope = undefined;
       if (previous !== undefined) await Promise.resolve(previous.dispose()).catch(() => undefined);
-      if (session === undefined || entry.disposed) return;
+      if (
+        session === undefined ||
+        entry.disposed ||
+        authorization !== composioAuthorizationScope(service, entry.botSlug, entry.scope)
+      )
+        return;
       entry.fiber = entry.agentCtx.plugin(mcpClient, {
         transport: 'streamable-http',
         serverName: CONNECTOR_MCP_SERVER,
@@ -358,6 +456,8 @@ export function mountConnectors(
         headers: session.headers,
         toolCallTimeoutMs: 120_000,
       });
+      entry.signature = session.signature;
+      entry.composioScope = authorization;
     });
     return entry.queue;
   };
@@ -374,7 +474,7 @@ export function mountConnectors(
     if (entry === undefined) return 'App connection tools run only inside a Bot conversation.';
     const active = new Map(
       service
-        .forBot(entry.botSlug)
+        .forBot(entry.botSlug, entry.scope)
         .filter((connector) => connector.status === 'active')
         .map((connector) => [connector.accountId, connector] as const),
     );
@@ -386,7 +486,7 @@ export function mountConnectors(
         const refusal: string | undefined =
           account?.revision !== mount.revision
             ? STALE_SIGN_IN_REFUSAL
-            : connector.access === 'read' && account?.access === undefined
+            : connector.access === 'read' && account?.access !== 'read'
               ? LEGACY_READ_REFUSAL
               : undefined;
         return [[serverName, refusal] as const];
@@ -396,149 +496,196 @@ export function mountConnectors(
   });
   ctx.tools.guard(({ name, agent, arguments: args }) => {
     if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return undefined;
-    const botSlug =
-      agent === undefined ? undefined : core.ownership.resolve(agent.session.id)?.botSlug;
-    if (botSlug === undefined) return 'App connection tools run only inside a Bot conversation.';
-    return connectorToolDenial(name, args, connectorAccessMap(service, botSlug));
+    const entry = agent === undefined ? undefined : mounted.get(agent);
+    if (entry === undefined) return 'App connection tools run only inside a Bot conversation.';
+    const denial = connectorToolDenial(
+      name,
+      args,
+      connectorAccessMap(service, entry.botSlug, entry.scope),
+    );
+    if (denial !== undefined) return denial;
+    return composioAuthorizationScope(service, entry.botSlug, entry.scope) !== entry.composioScope
+      ? STALE_SIGN_IN_REFUSAL
+      : undefined;
   });
   ctx.on(
     'tools/execute',
     async (execution, next) => {
-      const { name, agent, arguments: args, callId, signal } = execution;
-      if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return next();
+      const { name, agent, arguments: args, signal } = execution;
+      const composio = name.startsWith(CONNECTOR_TOOL_PREFIX);
+      if (!composio && !name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return next();
       const owner = agent === undefined ? undefined : core.ownership.resolve(agent.session.id);
       if (agent === undefined || owner === undefined)
         throw new Error('App connection tools run only inside a Bot conversation.');
-      const access = connectorAccessMap(service, owner.botSlug);
-      const denial = connectorToolDenial(name, args, access);
-      if (denial !== undefined) throw new Error(denial);
-      const input = composioWriteInput(name, args, access);
-      if (input === undefined) return next();
-
-      const broker = approval?.();
-      const authorizationScope = () =>
-        JSON.stringify(
-          service
-            .forBot(owner.botSlug)
-            .filter((account) => account.provider === 'composio' && account.status === 'active')
-            .map(({ accountId, access }) => [
-              accountId,
-              access,
-              service.account(accountId)?.revision,
-            ]),
-        );
-      const tracked = { ...execution, name: COMPOSIO_EXECUTE_TOOL, arguments: input };
-      const untrack = broker?.track(tracked, 'each-use', false, undefined, undefined, {
-        requireExplicitApproval: true,
-        authorizationScope,
-      });
-      if (broker === undefined || untrack === undefined)
-        throw new Error('Human Tool Approval is unavailable.');
-      try {
-        const outcome = await broker.ask({ agent, toolName: tracked.name, callId, signal });
-        if (outcome !== 'allowed-once')
-          throw new Error(`Human Tool Approval was ${outcome ?? 'unavailable'}.`);
+      const entry = mounted.get(agent);
+      const scope = entry?.scope ?? { sessionId: agent.session.id };
+      if (!composio) {
+        const account =
+          entry === undefined
+            ? undefined
+            : [...entry.remote].find(([serverName]) =>
+                name.startsWith(`mcp__${serverName}__`),
+              )?.[1];
+        if (
+          account === undefined ||
+          !service
+            .forBot(owner.botSlug, scope)
+            .some((grant) => grant.accountId === account.accountId) ||
+          service.account(account.accountId)?.revision !== account.revision
+        )
+          throw new Error(STALE_SIGN_IN_REFUSAL);
         signal.throwIfAborted();
-        if (broker.executionGuard(agent, callId)?.(tracked.name, input) !== true)
-          throw new Error('Tool Approval changed before execution.');
-        return await next();
-      } finally {
-        untrack();
+        const finish = service.consumeOnce(
+          owner.botSlug,
+          scope.sessionId,
+          new Set([account.accountId]),
+        );
+        try {
+          return await next();
+        } finally {
+          finish();
+        }
       }
+      const authorize = () => {
+        signal.throwIfAborted();
+        const access = connectorAccessMap(service, owner.botSlug, scope);
+        const denial = connectorToolDenial(name, args, access);
+        if (denial !== undefined) throw new Error(denial);
+        if (
+          entry !== undefined &&
+          entry.composioScope !== composioAuthorizationScope(service, owner.botSlug, scope)
+        )
+          throw new Error(STALE_SIGN_IN_REFUSAL);
+        return access;
+      };
+      return runComposioInvocation({
+        service,
+        botSlug: owner.botSlug,
+        scope,
+        execution,
+        authorize,
+        approve: approval?.(),
+        async dispatch(claim) {
+          const finish = claim();
+          try {
+            return await next();
+          } finally {
+            finish();
+          }
+        },
+      });
     },
     { global: true },
   );
   ctx.effect(
     () =>
       core.contributeBotAgentSetup((agentCtx, agent, info) => {
-        if (info.rootRole !== 'orchestrator') return;
+        const scope = { sessionId: agent.session.id };
         const live = (call: { agent?: Agent }) =>
           call.agent === agent && ctx.agents.get(agent.id) === agent;
-        agentCtx.tools.register(
-          defineTool({
-            name: 'connector_catalog',
-            description:
-              'List the apps (App connections such as Gmail, Google Calendar, Drive, Notion, Slack, GitHub) you can use for the user, the Host accounts you could ask for, and the services the Owner could connect. Call it whenever the user asks what you can do, or asks for something in an outside app ("check my email", "我明天有什么会") before saying you cannot. Pass query with the user\'s words to search every app Composio supports (about 2,000); English words such as "email" or "crm" match best. It returns what to do next.',
-            parameters: {
-              query: {
-                type: 'string',
-                description: 'Optional words from the request, for example "email" or "日历".',
+        if (info.rootRole === 'orchestrator')
+          agentCtx.tools.register(
+            defineTool({
+              name: 'connector_catalog',
+              description:
+                'List the apps (App connections such as Gmail, Google Calendar, Drive, Notion, Slack, GitHub) you can use for the user, the Host accounts you could ask for, and the services the Owner could connect. Call it whenever the user asks what you can do, or asks for something in an outside app ("check my email", "我明天有什么会") before saying you cannot. Pass query with the user\'s words to search every app Composio supports (about 2,000); English words such as "email" or "crm" match best. It returns what to do next.',
+              parameters: {
+                query: {
+                  type: 'string',
+                  description: 'Optional words from the request, for example "email" or "日历".',
+                },
               },
-            },
-            output: {
-              schema: { type: 'string' },
-              render: (_args, value) => [{ type: 'text', text: value }],
-            },
-            execute: async (args, call) => {
-              if (!live(call)) throw new Error('connector_catalog: this conversation ended');
-              const configured = (await service.view()).configured;
-              const found = await service.searchApps(args.query ?? '').catch(() => undefined);
-              return JSON.stringify(
-                connectorCatalogFor(service, info.botSlug, configured, args.query, found?.apps),
-              );
-            },
-          }),
-        );
-        agentCtx.tools.register(
-          defineTool({
-            name: 'connector_request',
-            description:
-              'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval its tools appear under mcp__composio__ or the mcp__app_… name it returns.',
-            parameters: {
-              account_id: {
-                type: 'string',
-                required: true,
-                description: 'account_id from connector_catalog.',
+              output: {
+                schema: { type: 'string' },
+                render: (_args, value) => [{ type: 'text', text: value }],
               },
-              access: {
-                type: 'string',
-                required: true,
-                enum: ['read', 'write'],
-                description: 'read to look things up; write to also send, create or change.',
+              execute: async (args, call) => {
+                if (!live(call)) throw new Error('connector_catalog: this conversation ended');
+                const configured = (await service.view()).configured;
+                const found = await service.searchApps(args.query ?? '').catch(() => undefined);
+                return JSON.stringify(
+                  connectorCatalogFor(
+                    service,
+                    info.botSlug,
+                    configured,
+                    args.query,
+                    found?.apps,
+                    scope,
+                  ),
+                );
               },
-              reason: {
-                type: 'string',
-                required: true,
-                description: 'One sentence the Owner sees: what you will do with it for the user.',
+            }),
+          );
+        if (info.rootRole === 'orchestrator')
+          agentCtx.tools.register(
+            defineTool({
+              name: 'connector_request',
+              description:
+                'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval its tools appear under mcp__composio__ or the mcp__app_… name it returns.',
+              parameters: {
+                account_id: {
+                  type: 'string',
+                  required: true,
+                  description: 'account_id from connector_catalog.',
+                },
+                access: {
+                  type: 'string',
+                  required: true,
+                  enum: ['read', 'write'],
+                  description: 'read to look things up; write to also send, create or change.',
+                },
+                reason: {
+                  type: 'string',
+                  required: true,
+                  description:
+                    'One sentence the Owner sees: what you will do with it for the user.',
+                },
               },
-            },
-            output: {
-              schema: { type: 'string' },
-              render: (_args, value) => [{ type: 'text', text: value }],
-            },
-            execute: async (args, call) => {
-              if (!live(call)) throw new Error('connector_request: this conversation ended');
-              if (args.access !== 'read' && args.access !== 'write')
+              output: {
+                schema: { type: 'string' },
+                render: (_args, value) => [{ type: 'text', text: value }],
+              },
+              execute: async (args, call) => {
+                if (!live(call)) throw new Error('connector_request: this conversation ended');
+                if (args.access !== 'read' && args.access !== 'write')
+                  return JSON.stringify({
+                    granted: false,
+                    refused: 'access must be read or write',
+                  });
+                const account = service.account(args.account_id);
+                if (account === undefined)
+                  return JSON.stringify({
+                    granted: false,
+                    refused: 'Unknown account_id',
+                  });
+                const once = await service.takeOnceDecision(scope.sessionId, call.callId);
+                call.signal.throwIfAborted();
+                if (once)
+                  service.grantOnce(info.botSlug, scope.sessionId, account.accountId, args.access);
+                else service.grant(info.botSlug, account.accountId, args.access);
+                const entry = mounted.get(agent);
+                if (entry !== undefined) await sync(entry);
                 return JSON.stringify({
-                  granted: false,
-                  refused: 'access must be read or write',
+                  granted: true,
+                  ...(once ? { duration: 'once' } : {}),
+                  service: account.service,
+                  access:
+                    service
+                      .forBot(info.botSlug, scope)
+                      .find((c) => c.accountId === account.accountId)?.access ?? args.access,
+                  tools:
+                    account.provider === 'mcp'
+                      ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
+                      : `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
                 });
-              const account = service.account(args.account_id);
-              if (account === undefined)
-                return JSON.stringify({
-                  granted: false,
-                  refused: 'Unknown account_id',
-                });
-              service.grant(info.botSlug, account.accountId, args.access);
-              const entry = mounted.get(agent);
-              if (entry !== undefined) await sync(entry);
-              return JSON.stringify({
-                granted: true,
-                service: account.service,
-                access:
-                  service.forBot(info.botSlug).find((c) => c.accountId === account.accountId)
-                    ?.access ?? args.access,
-                tools:
-                  account.provider === 'mcp'
-                    ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
-                    : `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
-              });
-            },
-          }),
-        );
+              },
+            }),
+          );
         const entry: Mounted = {
           botSlug: info.botSlug,
           agentCtx,
+          scope,
+          composioScope: undefined,
           signature: undefined,
           fiber: undefined,
           remote: new Map(),

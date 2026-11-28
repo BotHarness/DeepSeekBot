@@ -100,6 +100,26 @@ async function invoke(argv: string[], url?: string, stdin = '', token = 'private
 }
 
 describe('live CLI over the authenticated DSH carrier', () => {
+  it('routes the connector catalog and read-only grant explanation through the Host', async () => {
+    const live = await host((method) => ({ ok: true, value: { method } }));
+    expect(
+      await invoke(['connector', 'catalog', '--bot', 'ada', '--search', 'Gmail'], live.url),
+    ).toMatchObject({
+      code: 0,
+      json: { method: 'connectorCatalog' },
+    });
+    expect(
+      await invoke(['connector', 'grant', 'ada', 'work', '--explain'], live.url),
+    ).toMatchObject({
+      code: 0,
+      json: { method: 'connectorGrantExplain' },
+    });
+    expect(live.calls).toEqual([
+      { method: 'connectorCatalog', args: { slug: 'ada', query: 'Gmail' } },
+      { method: 'connectorGrantExplain', args: { slug: 'ada', accountId: 'work' } },
+    ]);
+  });
+
   it.each(['--bot', '--channel'])(
     'ranks Skills by owner display name and slug over the live carrier with %s',
     async (flag) => {
