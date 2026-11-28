@@ -9,6 +9,7 @@ import type {
 import { buttonNamed } from './primitive-mocks.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate as t } from '../src/client/locale.js';
+import { createMarketplaceSkillActions } from '../src/client/features/marketplace/skill-actions.js';
 import { MarketSkills } from '../src/client/market-skills.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
@@ -182,4 +183,75 @@ it('shows a mapped error when the add fails', async () => {
   await act(async () => checkbox('Bob').click());
   await act(async () => buttonNamed(t('market.skills.add')).click());
   expect(document.body.textContent).toContain(t('market.error.skillExists'));
+});
+
+it('shows the hot, new and rising Skill rankings above the list and hides them while searching', async () => {
+  const rising = { ...skill, id: 'd'.repeat(24), name: 'quick-diff' };
+  const actions = {
+    ...actionsFor(),
+    marketplaceSkillSections: vi.fn(async () => [
+      { section: 'hot' as const, entries: [{ skill, score: 5 }] },
+      { section: 'new' as const, entries: [] },
+      { section: 'rising' as const, entries: [{ skill: rising, score: 2 }] },
+    ]),
+  };
+  await act(async () => root.render(createElement(MarketSkills, { actions, t })));
+  expect(
+    [...host.querySelectorAll('[data-market-skill-ranking]')].map((section) => [
+      section.getAttribute('data-market-skill-ranking'),
+      section.querySelector('h3')?.textContent,
+      [...section.querySelectorAll('[data-market-skill]')].map((card) =>
+        card.getAttribute('data-market-skill'),
+      ),
+    ]),
+  ).toEqual([
+    ['hot', t('market.section.hot'), ['tidy-notes']],
+    ['rising', t('market.section.rising'), ['quick-diff']],
+  ]);
+  expect(host.textContent).toContain(t('market.skills.all'));
+  await act(async () => buttonNamed('quick-diffcarol/skills').click());
+  expect(actions.marketplaceSkillDetail).toHaveBeenCalledWith(rising.id);
+
+  const search = host.querySelector<HTMLInputElement>('input')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'tidy');
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(host.querySelector('[data-market-skill-ranking]')).toBeNull();
+});
+
+it('leaves the rankings out when the Host has none or no rankings method', async () => {
+  const empty = {
+    ...actionsFor(),
+    marketplaceSkillSections: vi.fn(async () => [
+      { section: 'hot' as const, entries: [] },
+      { section: 'new' as const, entries: [] },
+      { section: 'rising' as const, entries: [] },
+    ]),
+  };
+  await act(async () => root.render(createElement(MarketSkills, { actions: empty, t })));
+  expect(host.querySelector('[data-market-skill-ranking]')).toBeNull();
+  expect(host.textContent).not.toContain(t('market.skills.all'));
+  await act(async () => root.render(createElement(MarketSkills, { actions: actionsFor(), t })));
+  expect(host.querySelector('[data-market-skill="tidy-notes"]')).not.toBeNull();
+  expect(host.querySelector('[data-market-skill-ranking]')).toBeNull();
+});
+
+it('reads the Host Skill rankings and treats a Host without them as empty', async () => {
+  const invoke = vi
+    .fn()
+    .mockResolvedValueOnce({
+      sections: [
+        { section: 'rising', entries: [{ skill, score: 3 }, { skill: { id: 'broken' } }] },
+      ],
+    })
+    .mockRejectedValueOnce(new BridgeCallError('unknown-method', 'no such method'));
+  const actions = createMarketplaceSkillActions(invoke, async () => undefined);
+  expect(await actions.marketplaceSkillSections()).toEqual([
+    { section: 'hot', entries: [] },
+    { section: 'new', entries: [] },
+    { section: 'rising', entries: [{ skill, score: 3 }] },
+  ]);
+  expect(await actions.marketplaceSkillSections()).toEqual([]);
+  expect(invoke).toHaveBeenCalledWith('marketplaceSkillSections', {});
 });

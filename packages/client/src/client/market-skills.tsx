@@ -13,6 +13,8 @@ import { Tag } from './ds/tag.js';
 import { space } from './ds/tokens.stylex.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import type { BotHarnessTranslate } from './locale.js';
+import type { MarketplaceSkillSection } from './features/marketplace/skill-actions.js';
+import { MarketSectionHead, SECTION_TITLES } from './market-rankings.js';
 import { MarketSkillDialog } from './market-skill-dialog.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -21,7 +23,11 @@ const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
   more: { alignSelf: 'center' },
   meta: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
+  contents: { display: 'contents' },
+  ranking: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
 });
+
+const RANKED = 4;
 
 export type MarketSkillActions = Pick<
   BridgeActions,
@@ -56,11 +62,73 @@ function SkillMeta({ skill, t }: { skill: MarketplaceSkill; t: BotHarnessTransla
   );
 }
 
+function SkillCard({
+  skill,
+  t,
+  onOpen,
+}: {
+  skill: MarketplaceSkill;
+  t: BotHarnessTranslate;
+  onOpen: () => void;
+}): ReactElement {
+  return (
+    <CatalogCard
+      title={skill.name}
+      subtitle={
+        skill.upload === undefined
+          ? skill.fullName
+          : `${skill.upload.author.name} #${skill.upload.author.id}`
+      }
+      summary={skill.description}
+      meta={<SkillMeta skill={skill} t={t} />}
+      leading={<SkillLogo />}
+      data={{ 'data-market-skill': skill.name }}
+      onClick={onOpen}
+    />
+  );
+}
+
+export function MarketSkillRankings({
+  sections,
+  t,
+  onOpen,
+}: {
+  sections: readonly MarketplaceSkillSection[];
+  t: BotHarnessTranslate;
+  onOpen: (skill: MarketplaceSkill) => void;
+}): ReactElement | null {
+  const shown = sections.filter((section) => section.entries.length > 0);
+  if (shown.length === 0) return null;
+  return (
+    <>
+      {shown.map((section) => {
+        const title = t(SECTION_TITLES[section.section]);
+        return (
+          <section
+            key={section.section}
+            {...stylex.props(styles.ranking)}
+            aria-label={title}
+            data-market-skill-ranking={section.section}
+          >
+            <MarketSectionHead title={title} target={section.section} t={t} />
+            <CatalogGrid label={title}>
+              {section.entries.slice(0, RANKED).map(({ skill }) => (
+                <SkillCard key={skill.id} skill={skill} t={t} onOpen={() => onOpen(skill)} />
+              ))}
+            </CatalogGrid>
+          </section>
+        );
+      })}
+      <MarketSectionHead title={t('market.skills.all')} target="all" t={t} />
+    </>
+  );
+}
+
 export function MarketSkills({
   actions,
   t,
 }: {
-  actions: MarketSkillActions;
+  actions: MarketSkillActions & Partial<Pick<BridgeActions, 'marketplaceSkillSections'>>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [query, setQuery] = useState('');
@@ -69,7 +137,18 @@ export function MarketSkills({
   const [reload, setReload] = useState(0);
   const [more, setMore] = useState(false);
   const [open, setOpen] = useState<MarketplaceSkill>();
+  const [rankings, setRankings] = useState<readonly MarketplaceSkillSection[]>([]);
   const latest = useRef(0);
+
+  const ranked = useMountedResource<HTMLDivElement>(() => {
+    let live = true;
+    void (actions.marketplaceSkillSections?.() ?? Promise.resolve([])).then((sections) => {
+      if (live) setRankings(sections);
+    });
+    return () => {
+      live = false;
+    };
+  }, [actions, reload]);
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     const request = ++latest.current;
@@ -137,6 +216,11 @@ export function MarketSkills({
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-market-skills>
       <SearchField label={t('market.skills.search')} value={query} onChange={setQuery} />
+      <div ref={ranked} {...stylex.props(styles.contents)}>
+        {query.trim() === '' ? (
+          <MarketSkillRankings sections={rankings} t={t} onOpen={setOpen} />
+        ) : null}
+      </div>
       {error !== undefined ? (
         <ReadFailure
           retryLabel={t('market.retry')}
@@ -156,20 +240,7 @@ export function MarketSkills({
       ) : (
         <CatalogGrid label={t('market.skills')} data={{ 'data-market-skill-grid': 'listed' }}>
           {page.skills.map((skill) => (
-            <CatalogCard
-              key={skill.id}
-              title={skill.name}
-              subtitle={
-                skill.upload === undefined
-                  ? skill.fullName
-                  : `${skill.upload.author.name} #${skill.upload.author.id}`
-              }
-              summary={skill.description}
-              meta={<SkillMeta skill={skill} t={t} />}
-              leading={<SkillLogo />}
-              data={{ 'data-market-skill': skill.name }}
-              onClick={() => setOpen(skill)}
-            />
+            <SkillCard key={skill.id} skill={skill} t={t} onOpen={() => setOpen(skill)} />
           ))}
         </CatalogGrid>
       )}

@@ -136,6 +136,8 @@ function stubActions(): BridgeActions {
     marketplaceSkillList: vi.fn(),
     marketplaceSkillDetail: vi.fn(),
     marketplaceSkillAddCandidates: vi.fn(),
+    marketplaceSkillAdded: vi.fn(async () => ({ skills: [] })),
+    marketplaceSkillSections: vi.fn(async () => []),
     marketplaceSkillReview: vi.fn(),
     marketplaceSkillAdd: vi.fn(),
     marketplaceSkillPublish: vi.fn(),
