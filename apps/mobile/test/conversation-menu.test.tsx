@@ -92,3 +92,29 @@ it('offers Disband for a group only to a viewer who can disband it', () => {
   expect(member.map((action) => action.label)).not.toContain(t.deletion.disband);
   expect(member.map((action) => action.label)).toContain(t.rowActions.pin);
 });
+
+it('lets a member hide an auto-joined group without offering to leave or disband it', () => {
+  const group: Conversation = {
+    kind: 'channel',
+    key: 'channel:lobby',
+    unread: 0,
+    needsYou: 0,
+    muted: false,
+    channel: { id: 'lobby', name: 'Lobby', memberCount: 3, members: [] },
+  };
+  const onAction = vi.fn();
+  const menu = conversationMenu(group, {
+    pinned: false,
+    hostMuted: true,
+    canDisband: false,
+    sections: [],
+    onAction,
+    onMove: vi.fn(),
+    onDelete: vi.fn(),
+  });
+  const hide = menu.find((action) => action.key === 'hide');
+  expect(hide).toMatchObject({ label: t.rowActions.hide, icon: 'eye.slash', glyph: 'hide' });
+  hide?.run();
+  expect(onAction).toHaveBeenCalledWith('hide');
+  expect(menu.map((action) => action.key)).toEqual(['pin', 'section', 'unmute', 'hide']);
+});

@@ -113,8 +113,26 @@ export function conversations(
   unread: UnreadCounts = {},
   quiet: readonly string[] = [],
 ): Conversation[] {
+  const hidden = new Set(roster?.arrangement?.hidden);
+  return rosterConversations(roster, action, unread, quiet)
+    .filter((row) => !hidden.has(channelIdOf(row) ?? ''))
+    .sort(byLatest);
+}
+
+export function hiddenConversations(roster: RosterView | undefined): Conversation[] {
+  const hidden = new Set(roster?.arrangement?.hidden);
+  return rosterConversations(roster, [])
+    .filter((row) => hidden.has(channelIdOf(row) ?? ''))
+    .sort((a, b) => titleOf(a).localeCompare(titleOf(b)));
+}
+
+function rosterConversations(
+  roster: RosterView | undefined,
+  action: HumanAttentionItem[],
+  unread: UnreadCounts = {},
+  quiet: readonly string[] = [],
+): Conversation[] {
   if (roster === undefined) return [];
-  const hidden = new Set(roster.arrangement?.hidden);
   const muted = new Set([...(roster.arrangement?.muted ?? []), ...quiet]);
   const attention = (channelId: string | undefined, needsYou: number): Attention => ({
     needsYou,
@@ -128,7 +146,7 @@ export function conversations(
     const createdAt = channelId === undefined ? undefined : channelCreatedAt.get(channelId);
     return createdAt === undefined ? {} : { createdAt };
   };
-  const rows: Conversation[] = [
+  return [
     ...roster.bots.map((bot): Conversation => ({
       kind: 'bot',
       key: `bot:${bot.slug}`,
@@ -155,7 +173,6 @@ export function conversations(
       ...attention(channel.id, action.filter((item) => item.channelId === channel.id).length),
     })),
   ];
-  return rows.filter((row) => !hidden.has(channelIdOf(row) ?? '')).sort(byLatest);
 }
 
 function channelIdOf(row: Conversation): string | undefined {

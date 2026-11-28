@@ -3,7 +3,9 @@ import type { DeletionTarget } from '../../host/deletion';
 import type { ItemMenuAction } from '../primitives/item-menu';
 import { t } from '../strings';
 import {
+  conversationActionGlyph,
   conversationActions,
+  conversationActionSymbol,
   conversationChannelId,
   type ConversationActionKey,
 } from './conversation-actions';
@@ -23,17 +25,8 @@ export function conversationMenu(
 ): ItemMenuAction[] {
   const actions: ItemMenuAction[] = conversationActions(conversation, options).map((action) => ({
     ...action,
-    icon:
-      action.key === 'section'
-        ? 'folder'
-        : action.key === 'read'
-          ? 'checkmark'
-          : action.key === 'pin' || action.key === 'unpin'
-            ? 'pin'
-            : action.key === 'mute'
-              ? 'bell.slash'
-              : 'bell',
-    glyph: action.key === 'section' ? 'folder' : action.key === 'read' ? 'check' : action.key,
+    icon: conversationActionSymbol(action.key),
+    glyph: conversationActionGlyph(action.key),
     run: () => options.onAction(action.key),
   }));
   if (conversationChannelId(conversation)) {

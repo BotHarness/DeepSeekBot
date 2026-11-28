@@ -1,4 +1,8 @@
-import { applyRosterBatch } from '@botharness/host-client/roster-readers';
+import {
+  applyRosterBatch,
+  readRoster,
+  setRosterHidden,
+} from '@botharness/host-client/roster-readers';
 import { setChannelMuted } from '@botharness/host-client/channel-management';
 import { markChannelRead } from '@botharness/host-client/channel-messages';
 import type { HostClient } from '@botharness/host-client/client';
@@ -6,12 +10,36 @@ import type { Inbox } from '@botharness/host-client/inbox';
 import { t } from '../strings';
 import type { Conversation } from './conversations';
 
-export type ConversationActionKey = 'pin' | 'unpin' | 'section' | 'read' | 'mute' | 'unmute';
+export type ConversationActionKey =
+  | 'pin'
+  | 'unpin'
+  | 'section'
+  | 'read'
+  | 'mute'
+  | 'unmute'
+  | 'hide';
 
 export type ConversationAction = { key: ConversationActionKey; label: string };
 
 export function conversationChannelId(conversation: Conversation): string | undefined {
   return conversation.kind === 'bot' ? conversation.bot.dmChannelId : conversation.channel.id;
+}
+
+export function conversationActionSymbol(
+  key: ConversationActionKey,
+): 'folder' | 'checkmark' | 'pin' | 'bell.slash' | 'bell' | 'eye.slash' {
+  if (key === 'section') return 'folder';
+  if (key === 'read') return 'checkmark';
+  if (key === 'pin' || key === 'unpin') return 'pin';
+  if (key === 'mute') return 'bell.slash';
+  if (key === 'hide') return 'eye.slash';
+  return 'bell';
+}
+
+export function conversationActionGlyph(
+  key: ConversationActionKey,
+): Exclude<ConversationActionKey, 'section' | 'read'> | 'folder' | 'check' {
+  return key === 'section' ? 'folder' : key === 'read' ? 'check' : key;
 }
 
 function latestMessageId(conversation: Conversation): string | undefined {
@@ -29,9 +57,24 @@ export function conversationActions(
     state.pinned ? 'unpin' : 'pin',
     'section',
     state.hostMuted ? 'unmute' : 'mute',
+    'hide',
   ];
   if (conversation.unread > 0 && latestMessageId(conversation) !== undefined) keys.push('read');
   return keys.map((key) => ({ key, label: t.rowActions[key] }));
+}
+
+export async function setConversationHidden(
+  client: Pick<HostClient, 'call' | 'refresh'>,
+  channelId: string,
+  hidden: boolean,
+): Promise<void> {
+  const current = (await readRoster(client)).hidden;
+  if (current.includes(channelId) !== hidden)
+    await setRosterHidden(
+      client,
+      hidden ? [...current, channelId] : current.filter((candidate) => candidate !== channelId),
+    );
+  await client.refresh();
 }
 
 export async function runConversationAction(
@@ -50,6 +93,7 @@ export async function runConversationAction(
     await inbox?.refresh();
     return;
   }
+  if (key === 'hide') return setConversationHidden(client, channelId, true);
   if (key === 'mute' || key === 'unmute') await setChannelMuted(client, channelId, key === 'mute');
   else await applyRosterBatch(client, { action: key, channelIds: [channelId] });
   await client.refresh();

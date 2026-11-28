@@ -1,4 +1,4 @@
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -7,6 +7,8 @@ import { ChevronDownIcon, ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { CountBadge } from '../primitives/count-badge';
 import { countBadge } from './conversations';
+
+const COUNT_SPACE = '\u2002';
 
 export function SectionHeader({
   name,
@@ -55,13 +57,31 @@ export function SectionHeader({
       })}
     >
       <Chevron color={theme.color.muted} size={theme.type.meta.line} />
-      <Text variant="meta" tone="muted" strong style={{ flexShrink: 1 }}>
-        {name}
-      </Text>
-      <Text variant="meta" tone="subtle">
-        {count}
-      </Text>
-      <View style={{ flex: 1 }} />
+      {Platform.OS === 'android' ? (
+        <Text
+          variant="meta"
+          tone="muted"
+          strong
+          numberOfLines={theme.largeText ? undefined : 1}
+          ellipsizeMode="tail"
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          {name}
+          <Text variant="meta" tone="subtle" strong={false}>
+            {`${COUNT_SPACE}${count}`}
+          </Text>
+        </Text>
+      ) : (
+        <>
+          <Text variant="meta" tone="muted" strong style={{ flexShrink: 1 }}>
+            {name}
+          </Text>
+          <Text variant="meta" tone="subtle">
+            {count}
+          </Text>
+          <View style={{ flex: 1 }} />
+        </>
+      )}
       {!collapsed && needsYou > 0 ? (
         <Text variant="meta" tone="warning" style={{ flexShrink: 1 }}>
           {t.sectionNeedsYou(needsYou)}

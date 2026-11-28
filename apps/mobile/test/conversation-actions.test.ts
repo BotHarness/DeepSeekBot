@@ -1,6 +1,10 @@
 import { expect, it, vi } from 'vitest';
 
-import { conversationActions, runConversationAction } from '../src/ui/chat/conversation-actions';
+import {
+  conversationActions,
+  runConversationAction,
+  setConversationHidden,
+} from '../src/ui/chat/conversation-actions';
 import type { Conversation } from '../src/ui/chat/conversations';
 import { t } from '../src/ui/strings';
 
@@ -29,18 +33,46 @@ const bot = (dmChannelId?: string): Conversation =>
     muted: false,
   }) as Conversation;
 
-it('offers mute and pin, ending with mark as read when there is something to read', () => {
+it('offers mute, pin and hide, ending with mark as read when there is something to read', () => {
   expect(conversationActions(channel(0), { pinned: false, hostMuted: false })).toEqual([
     { key: 'pin', label: t.rowActions.pin },
     { key: 'section', label: t.rowActions.section },
     { key: 'mute', label: t.rowActions.mute },
+    { key: 'hide', label: t.rowActions.hide },
   ]);
   expect(
     conversationActions(channel(3, 'm9'), { pinned: true, hostMuted: true }).map((a) => a.key),
-  ).toEqual(['unpin', 'section', 'unmute', 'read']);
-  expect(conversationActions(channel(3), { pinned: false, hostMuted: false })).toHaveLength(3);
+  ).toEqual(['unpin', 'section', 'unmute', 'hide', 'read']);
+  expect(conversationActions(channel(3), { pinned: false, hostMuted: false })).toHaveLength(4);
   expect(conversationActions(bot(), { pinned: false, hostMuted: false })).toEqual([]);
-  expect(conversationActions(bot('dm1'), { pinned: false, hostMuted: false })).toHaveLength(3);
+  expect(conversationActions(bot('dm1'), { pinned: false, hostMuted: false })).toHaveLength(4);
+});
+
+it('hides and unhides through the Host hidden roster without dropping other hidden chats', async () => {
+  let hidden = ['other'];
+  const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+    if (method === 'rosterGet') return { pins: [], hidden, sections: [], sectionOrder: [] };
+    if (method === 'hiddenSet') {
+      hidden = args?.['hidden'] as string[];
+      return { hidden };
+    }
+    throw new Error(`unexpected ${method}`);
+  });
+  const refresh = vi.fn(async () => undefined);
+  const client = { call, refresh } as never;
+  await runConversationAction(client, undefined, channel(0), 'hide');
+  expect(hidden).toEqual(['other', 'c1']);
+  await runConversationAction(client, undefined, channel(0), 'hide');
+  await setConversationHidden(client, 'c1', false);
+  expect(hidden).toEqual(['other']);
+  expect(call.mock.calls.filter(([method]) => method === 'hiddenSet')).toEqual([
+    ['hiddenSet', { hidden: ['other', 'c1'] }],
+    ['hiddenSet', { hidden: ['other'] }],
+  ]);
+  expect(new Set(call.mock.calls.map(([method]) => method))).toEqual(
+    new Set(['rosterGet', 'hiddenSet']),
+  );
+  expect(refresh).toHaveBeenCalledTimes(3);
 });
 
 it('calls the existing Host methods and refreshes', async () => {

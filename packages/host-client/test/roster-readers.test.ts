@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { applyRosterBatch, readRoster } from '../src/roster-readers';
+import { applyRosterBatch, readRoster, setRosterHidden } from '../src/roster-readers';
 import { HostAnswerInvalid } from '../src/host-answer';
 
 const host = (value: unknown) => ({ call: vi.fn().mockResolvedValue(value) });
@@ -25,4 +25,13 @@ it.each([
     { sections: [{ id: 'a', name: 'Work', channelIds: null }] },
   ])
     await expect(read({ ...roster, ...change })).rejects.toBeInstanceOf(HostAnswerInvalid);
+});
+
+it('replaces the hidden roster through hiddenSet and validates the answer', async () => {
+  const set = host({ hidden: ['dm-tea', 'lobby'] });
+  await expect(setRosterHidden(set, ['dm-tea', 'lobby'])).resolves.toEqual(['dm-tea', 'lobby']);
+  expect(set.call).toHaveBeenCalledWith('hiddenSet', { hidden: ['dm-tea', 'lobby'] });
+  await expect(setRosterHidden(host({ hidden: 'lobby' }), [])).rejects.toBeInstanceOf(
+    HostAnswerInvalid,
+  );
 });
