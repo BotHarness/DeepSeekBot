@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
@@ -632,7 +633,7 @@ export function MarketAvatarPublishDialog({
     if (readyAuthor === undefined) {
       session.saveAuthor();
     } else if (image !== undefined && text !== undefined) {
-      const key = (requestKey.current ??= crypto.randomUUID());
+      const key = (requestKey.current ??= createBrowserUuid());
       void run(async () =>
         onPublished(
           await actions.marketplaceAvatarPublish({

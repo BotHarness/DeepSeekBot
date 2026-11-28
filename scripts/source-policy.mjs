@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { parse as parseAstro } from '@astrojs/compiler';
 import { parse as parseJavaScript } from '@babel/parser';
+import traverseModule from '@babel/traverse';
 import postcss from 'postcss';
 import { findReactEffects } from './react-effect-policy.mjs';
 import {
@@ -35,6 +36,14 @@ const licenseHeaderHashes = new Map([
   ['packages/client/src/client/quote-icon.tsx', '4c7e7129d7394642'],
 ]);
 const firstPartyPrefixes = ['packages/', 'scripts/', 'apps/docs/', 'apps/mobile/', 'design/'];
+const traverse = typeof traverseModule === 'function' ? traverseModule : traverseModule.default;
+const browserSource =
+  /^packages\/(?:(?:client|host-client|host-protocol)\/src\/|[^/]+\/src\/client\/)/u;
+const browserScripts = new Set([
+  'packages/browser/src/runtime/browser-page-scripts.ts',
+  'packages/core/src/diagnostics/client-observer.ts',
+]);
+const browserUuidHelper = 'packages/host-protocol/src/browser-uuid.ts';
 
 export function isPolicySource(path) {
   const normalized = path.replaceAll('\\', '/');
@@ -85,6 +94,10 @@ function isException(path, item) {
   return false;
 }
 
+function memberName(node) {
+  return node.computed ? node.property?.value : node.property?.name;
+}
+
 function scanScript(path, fragment, source, baseOffset) {
   const plugins = /\.[mc]?ts$/.test(path)
     ? ['typescript', 'decorators-legacy']
@@ -129,6 +142,27 @@ function scanScript(path, fragment, source, baseOffset) {
           fragment.slice(node.start, node.end),
         ),
       );
+  if (
+    path !== browserUuidHelper &&
+    (browserSource.test(path) || browserScripts.has(path)) &&
+    fragment.includes('randomUUID')
+  ) {
+    traverse(parsed, {
+      'MemberExpression|OptionalMemberExpression'({ node }) {
+        if (memberName(node) !== 'randomUUID') return;
+        if (node.object.name !== 'crypto' && memberName(node.object) !== 'crypto') return;
+        found.push(
+          issue(
+            path,
+            source,
+            'browser-uuid',
+            baseOffset + node.start,
+            fragment.slice(node.start, node.end),
+          ),
+        );
+      },
+    });
+  }
   if (fragment.startsWith('#!')) {
     found.push(
       issue(path, source, 'comment', baseOffset, fragment.split('\n', 1)[0].replace(/\r$/, '')),

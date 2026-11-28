@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { Input } from './ds/input.js';
 import {
   Component,
@@ -219,7 +220,7 @@ function SnapshotReportCard({
     const submission =
       previous?.payload === payload
         ? previous
-        : { payload, id: `human-${crypto.randomUUID()}`, sent: false };
+        : { payload, id: `human-${createBrowserUuid()}`, sent: false };
     view.session.attempts[intent] = submission;
     if (submission.sent) return;
     view.session.setSendStatus('sending');

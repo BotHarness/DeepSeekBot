@@ -6,6 +6,8 @@ import { scanRepository } from './source-policy.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 function describe(item) {
+  if (item.kind === 'browser-uuid')
+    return `${item.path}:${item.line}:${item.column} use createBrowserUuid from @botharness/host-protocol/browser-uuid`;
   return `${item.path}:${item.line}:${item.column} ${item.kind}: ${item.token.replace(/\s+/g, ' ').slice(0, 100)}`;
 }
 
@@ -16,13 +18,13 @@ try {
   const issues = await scanRepository(root, files.length ? files : undefined);
   if (issues.length) {
     console.error(
-      'Code comments, React useEffect calls and whole client-store subscriptions are prohibited (docs/agents/ui-state.md):',
+      'Source policy violations (see docs/agents/ui-state.md for React and store rules):',
     );
     for (const item of issues) console.error(describe(item));
     process.exitCode = 1;
   } else {
     console.log(
-      'source policy: no code comments, React useEffect calls or whole client-store subscriptions',
+      'source policy: comments, React effects, store subscriptions and browser UUIDs checked',
     );
   }
 } catch (error) {

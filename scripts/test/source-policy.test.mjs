@@ -8,6 +8,28 @@ import { isPolicySource, scanSource } from '../source-policy.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('source policy', () => {
+  it('requires the portable UUID helper in browser sources', async () => {
+    const source = `crypto.randomUUID(); window.crypto?.randomUUID?.(); globalThis['crypto']['randomUUID']();`;
+    for (const path of [
+      'packages/client/src/composer.ts',
+      'packages/browser/src/client/panel.ts',
+      'packages/computer/src/client/panel.ts',
+      'packages/vrm-companion/src/client/panel.ts',
+      'packages/market/src/client/panel.ts',
+      'packages/core/src/diagnostics/client-observer.ts',
+    ]) {
+      const result = await scanSource(path, source);
+      expect(result.map((item) => item.kind)).toEqual(Array(3).fill('browser-uuid'));
+    }
+    for (const path of [
+      'packages/host-protocol/src/browser-uuid.ts',
+      'packages/market/src/avatars.ts',
+    ]) {
+      expect(await scanSource(path, source)).toEqual([]);
+    }
+    expect(await scanSource('packages/client/src/panel.ts', 'createBrowserUuid();')).toEqual([]);
+  });
+
   it('keeps document and generated boundaries explicit', () => {
     expect(isPolicySource('packages/client/src/main.tsx')).toBe(true);
     expect(isPolicySource('apps/docs/src/pages/index.astro')).toBe(true);
