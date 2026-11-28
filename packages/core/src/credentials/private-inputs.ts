@@ -452,6 +452,15 @@ export class PrivateInputs {
         references: existing.references,
       };
     }
+    if (!this.deps.canRequest(agent, sourceEventId)) {
+      this.deps.log('owner-action-required', {
+        botSlug: owner.botSlug,
+        sessionId: agent.session.id,
+      });
+      throw new Error(
+        'Private account requires Owner action in an interactive conversation; do not retry this unattended request',
+      );
+    }
     if (mode !== 'collect') {
       const accounts = await this.listSavedAccounts(agent);
       if (signal.aborted || (origin !== undefined && !origin.current()))
@@ -463,15 +472,6 @@ export class PrivateInputs {
         message:
           'No saved credential matches this account and its required fields. Use an exact saved account name or ask the Human before requesting new credentials.',
       };
-    }
-    if (!this.deps.canRequest(agent, sourceEventId)) {
-      this.deps.log('owner-action-required', {
-        botSlug: owner.botSlug,
-        sessionId: agent.session.id,
-      });
-      throw new Error(
-        'Private account requires Owner action in an interactive conversation; do not retry this unattended request',
-      );
     }
     if (origin !== undefined && this.deps.notify === undefined)
       throw new PrivateInputRefusal('private-input-notice-unavailable');
