@@ -88,6 +88,50 @@ it('starts Quick Tunnel only after an explicit action and keeps other deployment
   });
 });
 
+it('starts public direct in one action and offers a QR only after readiness', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ ok: true }));
+  vi.stubGlobal('fetch', fetch);
+  const pair = vi.fn();
+  const renderDirect = (
+    route?: import('../src/client/private-tunnel-settings.js').PrivateRouteView,
+  ) =>
+    act(async () =>
+      root.render(
+        <PrivateTunnelSettings
+          t={t}
+          routes={route ? [route] : []}
+          refresh={async () => undefined}
+          pair={pair}
+          advanced={() => undefined}
+          step="direct"
+          method="direct"
+          setStep={() => undefined}
+        />,
+      ),
+    );
+  const button = (label: string) =>
+    [...host.querySelectorAll('button')].find((value) => value.textContent === label);
+  await renderDirect();
+  expect(fetch).not.toHaveBeenCalled();
+  await act(async () => button(t('privateTunnel.direct.enable'))?.click());
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(fetch.mock.calls[0]?.[1]?.body).toBe(
+    JSON.stringify({
+      action: 'add',
+      mode: 'direct',
+      routeId: 'direct',
+      confirm: true,
+    }),
+  );
+  const direct = { id: 'direct', mode: 'direct', enabled: true } as const;
+  await renderDirect({ ...direct, state: 'error', issue: 'direct-port-busy' });
+  expect(host.textContent).toContain(t('privateTunnel.direct.portBusy'));
+  expect(button(t('privateRelay.pair'))).toBeUndefined();
+  await renderDirect({ ...direct, state: 'connected', origin: 'https://public.example.test' });
+  await act(async () => button(t('privateRelay.pair'))?.click());
+  expect(pair).toHaveBeenCalledOnce();
+});
+
 it.each(['starting', 'verifying', 'error'] as const)(
   'withholds pairing while the public route is %s',
   async (state) => {

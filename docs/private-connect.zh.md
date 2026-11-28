@@ -43,6 +43,16 @@ Host 不会改用官方中继。公网检查失败时，页面会显示原因代
 
 CLI：`tobs private-tunnel-enable --quick --confirm`、`tobs private-tunnel-enable --hostname <主机名> --token-stdin --confirm`（通过 stdin 传入令牌）和 `tobs private-tunnel-disable --confirm`。`tobs devices` 会显示 `privateTunnel` 状态。
 
+## 公网直连
+
+Tobs Host 运行在具有公网 IP 的 Linux 机器上时，在 **连接 → 添加连接 → 高级方式 → 公网直连** 选择 **启用公网直连**。请在云安全组和系统防火墙中放行入站 TCP 443，并确保端口空闲。证书通过 443 上的 TLS-ALPN-01 自动签发，80 可以保持关闭。Host 自动选择一个公网 IP；在容器或 NAT 后可通过 AWS Check IP 查询出口公网 IPv4。
+
+- 非 root 的 Linux 服务可以给安装的 `tobs-relay` 授予 `CAP_NET_BIND_SERVICE`。升级替换二进制后，需重新授予文件能力。
+- Docker 部署需映射 `443:443/tcp`，并将容器的非特权端口下限设为 443 或更低，或配置绑定端口所需的能力。保留 Host Profile 以保存证书和设备授权，管理端口仅供私网访问。
+- 如需使用自己的域名，把公网 DNS 记录指向 VPS 后运行 `tobs private-direct-enable --hostname <域名> --confirm`。请使用仅 DNS 解析，让证书验证直达 TCP 443。
+
+检查通过后显示手机配对码。扫码、比对 Host 指纹，再批准对应手机。停止会暂停该线路，恢复会重新检查，移除会忘记线路配置。Host 重启后会恢复已启用的线路。公网 IP 变化后请重新扫码。若需阻止手机通过任何线路访问，请单独撤销设备授权。
+
 ## 高级：Docker 私有中继
 
 服务器部署、多电脑独立认领、验证、恢复和 agent 提示词见 [Docker 私有 Relay](private-relay.zh.md)。第三方实现见[中继标准](private-relay-standard.zh.md)。

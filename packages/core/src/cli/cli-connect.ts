@@ -35,6 +35,15 @@ export const CONNECT_COMMANDS = [
     description: 'stop accepting the custom ingress and forget its phone admission (--confirm)',
   },
   {
+    command: 'private-direct-enable',
+    description:
+      'publish the encrypted device channel directly on TCP 443 [--hostname <name>] --confirm',
+  },
+  {
+    command: 'private-direct-disable',
+    description: 'stop the public direct route and remove its configuration (--confirm)',
+  },
+  {
     command: 'connect-status',
     description: 'read Tobs Connect state, shared tunnel pool, queue position and the phone routes',
   },
@@ -138,19 +147,22 @@ export async function runConnectCommand(
     }
     if (
       rest.length !== 2 ||
-      (routeId !== 'quick' && routeId !== 'custom') ||
+      (routeId !== 'quick' && routeId !== 'custom' && routeId !== 'direct') ||
       !['add', 'replace', 'start', 'stop', 'remove'].includes(action ?? '') ||
       !values.confirm ||
       values.wait
     )
       throw new CliLiveError(
         'usage',
-        'private-route requires list, or add/replace/start/stop/remove <quick|custom> --confirm.',
+        'private-route requires list, or add/replace/start/stop/remove <quick|custom|direct> --confirm.',
       );
     const configure = action === 'add' || action === 'replace';
     const named = values.hostname !== undefined || values['token-stdin'] === true;
     if (
       (!configure && (named || values.origin !== undefined || values.lan || values.quick)) ||
+      (configure &&
+        routeId === 'direct' &&
+        (values.origin !== undefined || values.lan || values.quick || values['token-stdin'])) ||
       (configure && routeId === 'quick' && (named || values.origin !== undefined || values.lan)) ||
       (configure &&
         routeId === 'custom' &&
@@ -162,8 +174,12 @@ export async function runConnectCommand(
         'usage',
         'Custom routes require --origin <https-origin> [--lan], or --hostname <name> --token-stdin.',
       );
-    const token = named ? (await (io.readStdin?.() ?? Promise.resolve(''))).trim() : undefined;
-    if (named && !token) throw new CliLiveError('usage', 'Read the Named Tunnel token from stdin.');
+    const namedTunnel = named && routeId === 'custom';
+    const token = namedTunnel
+      ? (await (io.readStdin?.() ?? Promise.resolve(''))).trim()
+      : undefined;
+    if (namedTunnel && !token)
+      throw new CliLiveError('usage', 'Read the Named Tunnel token from stdin.');
     const host = await connect();
     return JSON.parse(
       new TextDecoder().decode(
@@ -174,7 +190,7 @@ export async function runConnectCommand(
             confirm: true,
             ...(expectedRevision === undefined ? {} : { expectedRevision }),
             ...(configure
-              ? { mode: routeId === 'quick' ? 'quick' : named ? 'named' : 'ingress' }
+              ? { mode: routeId === 'custom' ? (named ? 'named' : 'ingress') : routeId }
               : {}),
             ...(named ? { hostname: values.hostname, token } : {}),
             ...(values.origin !== undefined
@@ -184,6 +200,33 @@ export async function runConnectCommand(
         ).bytes,
       ),
     ) as unknown;
+  }
+  if (command === 'private-direct-enable' || command === 'private-direct-disable') {
+    const enable = command === 'private-direct-enable';
+    if (
+      rest.length ||
+      !values.confirm ||
+      values.wait ||
+      values.quick ||
+      values.lan ||
+      values.origin !== undefined ||
+      values['token-stdin'] ||
+      (!enable && values.hostname !== undefined)
+    )
+      throw new CliLiveError('usage', `${command} requires --confirm.`);
+    const host = await connect();
+    const response = await host.http(DEVICES + '/private-tunnel', {
+      action: enable ? 'add' : 'remove',
+      routeId: 'direct',
+      confirm: true,
+      ...(enable
+        ? {
+            mode: 'direct',
+            ...(values.hostname === undefined ? {} : { hostname: values.hostname }),
+          }
+        : {}),
+    });
+    return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
   }
   if (command === 'private-ingress-enable' || command === 'private-ingress-disable') {
     const enable = command === 'private-ingress-enable';

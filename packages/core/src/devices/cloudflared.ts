@@ -111,7 +111,7 @@ function detail(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, DETAIL_CHARS);
 }
 
-function locateFrom(anchors: readonly string[]) {
+export function locateFrom(anchors: readonly string[]) {
   return (name: string): string | undefined => {
     for (const anchor of anchors) {
       const local = createRequire(anchor);

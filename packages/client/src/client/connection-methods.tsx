@@ -73,6 +73,7 @@ export function ConnectionMethods({
 }): ReactElement {
   const { snapshot, routes, freshSnapshot, busy, setSetup, setTunnelStep, setError } = state;
   const quick = quickRoute(snapshot);
+  const direct = snapshot?.privateRoutes?.find((route) => route.id === 'direct');
   const custom =
     snapshot?.privateRoutes?.find((route) => route.id === 'custom') ??
     (snapshot?.privateTunnel?.mode === 'quick' ? undefined : snapshot?.privateTunnel);
@@ -95,7 +96,7 @@ export function ConnectionMethods({
     snapshot?.privateRelay?.origin !== undefined &&
       routeReady('private', snapshot.privateRelay.origin),
   );
-  const tunnel = (step: 'named' | 'ingress'): void => {
+  const tunnel = (step: 'named' | 'ingress' | 'direct'): void => {
     setTunnelStep(step);
     setSetup('private');
   };
@@ -131,6 +132,16 @@ export function ConnectionMethods({
     },
   ];
   const advanced: ConnectionMethod[] = [
+    {
+      title: t('privateTunnel.directTitle'),
+      icon: 'server',
+      facts: ['anyNetwork', 'server', 'noAccount'],
+      status: methodStatus(
+        direct?.state,
+        direct?.origin !== undefined && routeReady('private', direct.origin),
+      ),
+      select: () => tunnel('direct'),
+    },
     {
       title: 'Tailscale',
       icon: 'shield-check',

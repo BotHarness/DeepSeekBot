@@ -56,6 +56,22 @@ Why: a person moves between home, office and mobile networks, so one Host needs 
 
 Enforced by: `packages/core/test/private-tunnel-address-sign-in.test.ts`, `packages/core/test/open-route-admission.test.ts`, `packages/core/test/private-tunnel-configuration-revisions.test.ts`, `packages/core/test/private-tunnel-dns-recovery.test.ts`, `packages/core/test/private-tunnel-managed-routes.test.ts`, `packages/core/test/private-tunnel-phone-admission.test.ts`, `packages/core/test/private-tunnel-public-probes.test.ts`, `private-relay.test.ts`, `private-browser-admission.test.ts`, `managed-tls-ingress.test.ts`, `ssh-tunnel.test.ts`, `bot-tailnet.test.ts`, `connect-health.test.ts`, `apps/mobile/test/route-preference.test.ts`, `learned-routes.test.ts`, `deploy/private-relay/conformance.mjs`.
 
+### Public direct connection
+
+<a id="public-direct-connection"></a>
+
+The Device Pairing Plugin Fiber owns an application-defined public direct route. It starts the bundled Linux `tobs-relay edge` child after explicit enablement, restores it from the Profile's saved intent, and stops it on disposal. The child terminates public HTTPS on TCP 443 using TLS-ALPN-01. Port 80 can stay closed or serve another application. Bare IPs use the Let's Encrypt short-lived profile. The edge picks one public address, with a DNS name available as an explicit CLI override.
+
+On Linux, deploy the edge with permission to bind TCP 443. Grant `CAP_NET_BIND_SERVICE` to the binary or through the Host's service configuration. For a non-root container, publish TCP 443 from the container and grant the edge the same bind permission or set the container's unprivileged-port floor to 443. The Host never elevates itself, changes firewall rules, or displaces a process already serving 443.
+
+The edge forwards only the exact device WebSocket upgrade and the one-time readiness probe to the Host-owned loopback ingress. A successful CA challenge and a trusted HTTPS probe gate first use. A cached certificate enables restart without an ACME reissue, so the Host checks the public URL again on restart. A probe from the Host cannot establish whether every carrier can reach the route.
+
+The route uses the existing private-route admission token as a transport gate. The pinned Noise handshake, exact phone-key approval and per-device grant remain the authority. Revocation closes the device on every route. The direct route cannot be used for sign-in by address. Public direct shares the same Host identity as other routes. Pairing offers stay within the existing two-address wire limit.
+
+Why: the dedicated edge can serve a phone on the public network while DSH administration stays on its existing address. TLS-ALPN-01 avoids needing a second public port or taking over an HTTP service. Keeping the device grant at the Host preserves revocation without creating relay credentials or a second approval flow.
+
+Enforced by: the Go edge HTTP allowlist, the private-route owner, the Host readiness probe and the existing Device Pairing gateway.
+
 ## 4. Device traffic is encrypted against pinned Host keys
 
 <a id="adr-0244"></a>

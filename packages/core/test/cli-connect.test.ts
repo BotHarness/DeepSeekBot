@@ -3,6 +3,29 @@ import { runConnectCommand } from '../src/cli/cli-connect.js';
 const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });
+it('enables and disables only public direct with explicit confirmation', async () => {
+  const http = vi.fn(async () => reply({ ok: true }));
+  const connect = vi.fn(async () => ({ http }));
+  for (const command of ['private-direct-enable', 'private-direct-disable']) {
+    await expect(runConnectCommand(command, [], {}, {}, connect)).rejects.toMatchObject({
+      code: 'usage',
+    });
+  }
+  expect(connect).not.toHaveBeenCalled();
+  await runConnectCommand('private-direct-enable', [], { confirm: true }, {}, connect);
+  expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+    action: 'add',
+    mode: 'direct',
+    routeId: 'direct',
+    confirm: true,
+  });
+  await runConnectCommand('private-direct-disable', [], { confirm: true }, {}, connect);
+  expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+    action: 'remove',
+    routeId: 'direct',
+    confirm: true,
+  });
+});
 it('supports conditional direct private stop while retaining the explicit unconditional owner command', async () => {
   const http = vi.fn(async () => reply({ ok: true }));
   const connect = vi.fn(async () => ({ http }));

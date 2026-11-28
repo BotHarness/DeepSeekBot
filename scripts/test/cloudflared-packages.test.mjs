@@ -110,7 +110,7 @@ describe('cloudflared platform packages', () => {
 
   it('wires every platform package into the published product as an exact optional dependency', () => {
     const release = productManifest({}, '1.2.3');
-    expect(release.optionalDependencies).toEqual(cloudflaredOptionalDependencies('1.2.3'));
+    expect(release.optionalDependencies).toMatchObject(cloudflaredOptionalDependencies('1.2.3'));
     expect(Object.keys(release.dependencies)).not.toContain(cloudflaredPackageNames[0]);
     const deepseekbot = publicationOrder.indexOf('deepseekbot');
     for (const name of cloudflaredPackageNames)

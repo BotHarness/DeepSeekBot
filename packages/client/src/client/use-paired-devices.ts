@@ -214,11 +214,15 @@ export function usePairedDevices({
     return request;
   };
 
-  const availableRouteKey = (value: DevicesSnapshot): string =>
-    routeKey([
-      ...value.routes.routes.filter((route) => route.ready).map((route) => route.url),
+  const availableRouteKey = (value: DevicesSnapshot): string => {
+    const ready = value.routes.routes.filter((route) => route.ready);
+    const privateRoutes = ready.filter((route) => route.kind === 'private');
+    if (privateRoutes.length) return routeKey(privateRoutes.slice(0, 2).map((route) => route.url));
+    return routeKey([
+      ...ready.map((route) => route.url),
       ...(onTailnet() ? [location.origin] : []),
     ]);
+  };
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;

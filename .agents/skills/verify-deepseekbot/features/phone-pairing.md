@@ -14,6 +14,8 @@
 - `packages/client/src/client/{bot-intro,connection-methods,connections-dialog,paired-device-setup,paired-devices,pairing-settings,pairing-table,phone-pairing-address}.tsx`
 - `packages/client/src/client/use-paired-devices.ts`
 - `packages/core/src/devices/pairing.ts`
+- `packages/core/src/devices/private-direct.ts`
+- `deploy/private-relay/edge.go`
 
 ## Terms
 
@@ -44,6 +46,8 @@ the visual check in light and dark mode and in English and Chinese. The guide
 stays on its installation step when opening an external link.
 
 ## Advanced connection guidance (#4078)
+
+For public direct (#5691), open **Add connection → Advanced methods → Public direct connection** on a fresh Linux VPS Host. Choose **Enable public direct connection** once. Confirm the status remains unready before trusted HTTPS reaches the Host and that no QR is visible in that setup. Compare the visible status with `tobs devices` and require `direct` to reach `connected`. From outside the VPS verify the same origin returns 404 for `/api/botharness/devices`. Scan the code from Android and iOS over mobile data, compare the fingerprint, approve each exact phone, and require a real Bot reply. Restart the Host Profile and check both phones reconnect without a fresh scan. Revoke each test device and require reconnect refusal. Repeat the enable check with an occupied port and with inbound TCP 443 closed. Only expose the dedicated edge and retain redacted evidence.
 
 Open Settings → Connections and find Advanced below Recommended. Choose Your own domain or Your own reverse proxy directly, return without mutating prepared routes, and check the existing private-mode replacement notice before choosing Docker. Invalid origins, untrusted certificates and failed DNS/proxy checks must provide an actionable next step and deployment guide, never a QR before verification. Tailscale setup shows its mobile VPN limitation even when its route is ready. Use a task-owned HTTPS ingress through the existing owner, compare both fingerprints, approve exactly one Simulator device and observe real Host Feed; separately qualify LAN/Tailscale presentation. Record external edge versus Named/Docker provider coverage, preserve other routes and release owned resources.
 

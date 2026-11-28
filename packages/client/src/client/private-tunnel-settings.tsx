@@ -22,7 +22,7 @@ import { color, space, text } from './ds/tokens.stylex.js';
 
 export interface PrivateTunnelView {
   state: 'off' | 'starting' | 'verifying' | 'connected' | 'error';
-  mode?: 'quick' | 'named' | 'ingress';
+  mode?: 'quick' | 'named' | 'ingress' | 'direct';
   lan?: boolean;
   origin?: string;
   originPort?: number;
@@ -32,7 +32,7 @@ export interface PrivateTunnelView {
   addressSignIn?: boolean;
 }
 
-export type PrivateTunnelStep = 'choose' | 'named' | 'ingress';
+export type PrivateTunnelStep = 'choose' | 'named' | 'ingress' | 'direct';
 
 const styles = stylex.create({
   meta: {
@@ -65,6 +65,7 @@ function chip(t: Translate, value: string, marker?: `data-${string}`): ReactElem
 }
 
 function modeTitle(mode: PrivateTunnelView['mode']) {
+  if (mode === 'direct') return 'privateTunnel.directTitle';
   return mode === 'named'
     ? 'privateTunnel.namedTitle'
     : mode === 'ingress'
@@ -73,6 +74,12 @@ function modeTitle(mode: PrivateTunnelView['mode']) {
 }
 
 function recoveryKey(reason: string | undefined) {
+  if (reason === 'direct-port-busy') return 'privateTunnel.direct.portBusy';
+  if (reason === 'direct-port-permission') return 'privateTunnel.direct.portPermission';
+  if (reason === 'direct-inbound-closed') return 'privateTunnel.direct.inbound';
+  if (reason === 'direct-acme-failed') return 'privateTunnel.direct.acme';
+  if (reason === 'direct-public-address-missing') return 'privateTunnel.direct.address';
+  if (reason === 'direct-binary-missing') return 'privateTunnel.direct.binary';
   if (reason === 'private-ingress-origin-invalid') return 'connections.recovery.address';
   if (reason === 'private-tunnel-hostname-invalid' || reason === 'private-tunnel-token-invalid')
     return 'connections.recovery.token';
@@ -149,7 +156,8 @@ function PrivateTunnelRouteSettings({
           ...(body['action'] === 'enable'
             ? {
                 action: replace ? 'replace' : 'add',
-                routeId: body['mode'] === 'quick' ? 'quick' : 'custom',
+                routeId:
+                  body['mode'] === 'quick' || body['mode'] === 'direct' ? body['mode'] : 'custom',
               }
             : routeId
               ? { action: 'stop', routeId }
@@ -265,7 +273,11 @@ function PrivateTunnelRouteSettings({
           icon="info"
           tone="warning"
           title={t('privateTunnel.panel.errorTitle')}
-          body={t(recoveryKey(status.probe ?? status.issue))}
+          body={t(
+            recoveryKey(
+              status.issue?.startsWith('direct-') ? status.issue : (status.probe ?? status.issue),
+            ),
+          )}
           data={{ 'data-private-tunnel': 'error' }}
         >
           {status.probe ? (
@@ -304,7 +316,9 @@ function PrivateTunnelRouteSettings({
           ? customSteps(status.mode, status.state === 'connected' ? 3 : forward ? 1 : 2)
           : null}
         {block}
-        <ConnectionGuide t={t} method={status.mode === 'ingress' ? 'ingress' : 'named'} />
+        {status.mode !== 'direct' ? (
+          <ConnectionGuide t={t} method={status.mode === 'ingress' ? 'ingress' : 'named'} />
+        ) : null}
         {status.addressChanged ? (
           <StatusBlock
             icon="alarm-clock"
@@ -377,6 +391,29 @@ function PrivateTunnelRouteSettings({
       </StatusStack>
     );
   }
+
+  if (step === 'direct')
+    return (
+      <StatusStack title={t('privateTunnel.directTitle')}>
+        {failed}
+        <StatusBlock
+          icon="server"
+          tone="accent"
+          title={t('privateTunnel.directTitle')}
+          body={t('privateTunnel.direct.description')}
+          action={
+            <Button
+              variant="primary"
+              disabled={busy || locked}
+              onClick={() => void send({ action: 'enable', mode: 'direct' })}
+            >
+              {t('privateTunnel.direct.enable')}
+            </Button>
+          }
+          data={{ 'data-private-tunnel-setup': 'direct' }}
+        />
+      </StatusStack>
+    );
 
   if (step === 'ingress')
     return (
@@ -543,7 +580,7 @@ function PrivateTunnelRouteSettings({
 }
 
 export interface PrivateRouteView extends PrivateTunnelView {
-  id: 'quick' | 'custom';
+  id: 'quick' | 'custom' | 'direct';
   enabled: boolean;
 }
 
@@ -552,7 +589,7 @@ export function PrivateTunnelSettings(
     routes?: PrivateRouteView[];
     managementOnly?: boolean;
     fresh?: boolean;
-    method?: 'named' | 'ingress' | undefined;
+    method?: 'named' | 'ingress' | 'direct' | undefined;
   },
 ): ReactElement {
   const { t, routes, step, setStep, method, managementOnly = false, fresh = true, locked } = props;
@@ -612,7 +649,13 @@ export function PrivateTunnelSettings(
               leading={
                 <Icon
                   name={
-                    route.mode === 'quick' ? 'zap' : route.mode === 'named' ? 'globe' : 'git-branch'
+                    route.mode === 'direct'
+                      ? 'server'
+                      : route.mode === 'quick'
+                        ? 'zap'
+                        : route.mode === 'named'
+                          ? 'globe'
+                          : 'git-branch'
                   }
                 />
               }
@@ -690,13 +733,13 @@ export function PrivateTunnelSettings(
       ) : null}
       {managementOnly || (method !== undefined && current) ? null : step !== 'choose' ? (
         <>
-          {custom ? (
+          {custom && method !== 'direct' ? (
             <p {...stylex.props(styles.meta)}>{t('privateTunnel.routes.replaceHint')}</p>
           ) : null}
           <PrivateTunnelRouteSettings
             {...scopedProps}
             status={{ state: 'off' }}
-            replace={!!custom}
+            replace={method !== 'direct' && !!custom}
           />
           {method === undefined ? (
             <Button variant="outline" onClick={() => setStep('choose')}>

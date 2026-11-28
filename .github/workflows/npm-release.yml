@@ -82,6 +82,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: deploy/private-relay/go.mod
+          cache-dependency-path: deploy/private-relay/go.sum
       - name: Read the reviewed Provider pin
         id: provider
         run: node --input-type=module -e 'import {appendFileSync} from "node:fs"; import {productImProvider} from "./scripts/product-artifacts.mjs"; appendFileSync(process.env.GITHUB_OUTPUT,"sha="+productImProvider.upstream.source+"\n")'

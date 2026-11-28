@@ -73,6 +73,15 @@ export const zh = {
   'privateTunnel.starting': '正在启动 cloudflared…',
   'privateTunnel.verifying': '正在通过公网地址确认可以连到这台电脑…',
   'privateTunnel.connected': '公网地址已确认可以连到这台电脑，可以配对手机。',
+  'privateTunnel.directTitle': '公网直连',
+  'privateTunnel.direct.description': '在有公网地址的电脑上，通过 TCP 443 连接手机。',
+  'privateTunnel.direct.enable': '启用公网直连',
+  'privateTunnel.direct.portBusy': 'TCP 443 已被其他服务占用。请释放端口后重试。',
+  'privateTunnel.direct.portPermission': '请授予 tobs-relay 监听 TCP 443 的权限。',
+  'privateTunnel.direct.inbound': '请在防火墙和云安全组中允许入站 TCP 443。',
+  'privateTunnel.direct.acme': '暂时无法签发证书。请检查网络连接和公网地址。',
+  'privateTunnel.direct.address': '未找到公网 IP。请检查网络设置或使用自己的域名。',
+  'privateTunnel.direct.binary': '当前安装缺少适用于 Linux 的直连组件。',
   'privateTunnel.error': '暂时连不上（{issue}）。会自动重试，不会改用官方中继。',
   'privateTunnel.probe': '最近一次检查：{probe}',
   'privateTunnel.addressChanged': '临时地址已变化。已配对的手机需要扫描新的配对码才能连接。',
@@ -401,6 +410,20 @@ export const en = {
   'privateTunnel.starting': 'Starting cloudflared…',
   'privateTunnel.verifying': 'Checking that the public address reaches this computer…',
   'privateTunnel.connected': 'The public address reaches this computer. You can pair your phone.',
+  'privateTunnel.directTitle': 'Public direct connection',
+  'privateTunnel.direct.description':
+    'Connect your phone over TCP 443 when this computer has a public address.',
+  'privateTunnel.direct.enable': 'Enable public direct connection',
+  'privateTunnel.direct.portBusy': 'Another service is using TCP 443. Free the port and try again.',
+  'privateTunnel.direct.portPermission': 'Give tobs-relay permission to listen on TCP 443.',
+  'privateTunnel.direct.inbound':
+    'Allow inbound TCP 443 in your firewall and cloud security group.',
+  'privateTunnel.direct.acme':
+    'Certificate issuance failed. Check the public address and network access.',
+  'privateTunnel.direct.address':
+    'No public IP was found. Check your network or use your own DNS name.',
+  'privateTunnel.direct.binary':
+    'This installation is missing the Linux direct connection component.',
   'privateTunnel.error':
     'Not reachable right now ({issue}). Retrying automatically; the official relay is never used instead.',
   'privateTunnel.probe': 'Last check: {probe}',

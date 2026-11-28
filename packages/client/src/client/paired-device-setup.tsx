@@ -108,7 +108,9 @@ export function renderPairedDeviceSetup({
         ? t('connections.method.domain')
         : namedMethod === 'ingress'
           ? t('connections.method.proxy')
-          : t('privateTunnel.title'),
+          : namedMethod === 'direct'
+            ? t('privateTunnel.directTitle')
+            : t('privateTunnel.title'),
     privateRelay: t('connections.method.relay'),
     lan: t('connections.lan'),
     tailscale: t('devices.tailscale.title'),

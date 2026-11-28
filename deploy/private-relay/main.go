@@ -73,6 +73,8 @@ func run(ctx context.Context, args []string) error {
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	switch command {
+	case "edge":
+		return runEdge(ctx, flags, args)
 	case "setup", "add-host":
 		dir := flags.String("config-dir", envOr("RELAY_CONFIG_DIR", "."), "path containing setup files")
 		if err := flags.Parse(args); err != nil {
@@ -112,7 +114,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		return serve(ctx, o)
 	default:
-		return errors.New("usage: tobs-relay [serve|setup|add-host|health|version]")
+		return errors.New("usage: tobs-relay [serve|edge|setup|add-host|health|version]")
 	}
 }
 
