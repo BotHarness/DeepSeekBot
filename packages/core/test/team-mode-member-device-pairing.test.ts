@@ -312,9 +312,13 @@ const visiblePolicy = {
   ...DEFAULT_CHANNEL_POLICY,
   approvalMode: 'channel',
 } satisfies ChannelPolicy;
-const maskedPolicy = {
+const approvalDeniedPolicy = {
   ...visiblePolicy,
-  everyone: { ...visiblePolicy.everyone, seeApprovals: 'deny', wakeBot: 'deny' },
+  everyone: { ...visiblePolicy.everyone, seeApprovals: 'deny' },
+} satisfies ChannelPolicy;
+const maskedPolicy = {
+  ...approvalDeniedPolicy,
+  everyone: { ...approvalDeniedPolicy.everyone, wakeBot: 'deny' },
 } satisfies ChannelPolicy;
 const approvalInput = 'private-approval-input';
 
@@ -396,38 +400,49 @@ it('returns a Channel approval save reply and keeps the paired caller connected'
   expect(openSocket).toHaveBeenCalledTimes(1);
 });
 
-it('closes the Noise socket and masks approval details for a phone-only member after revocation', async () => {
-  const f = await enabledFixture();
-  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
-  const { channelId, messageId } = await channelWithApproval(f);
-  await expect(
-    f.methods(owner).channelPolicySet({ channelId, policy: visiblePolicy }),
-  ).resolves.toEqual({
-    ok: true,
-    value: null,
-  });
-  const { carrier } = await memberDeviceHost(f);
-  const { client, closed, openSocket } = await pairedPhone(f, f.human, carrier);
-  const read = () => client.call('channelMessages', { channelId });
-  await expect(read()).resolves.toMatchObject({
-    messages: [{ id: messageId, toolApprovalRequest: { input: approvalInput } }],
-  });
-  expect(f.team.memberDevices(owner, f.human.humanId).map(({ kind }) => kind)).toEqual([
-    'paired-device',
-  ]);
+it.each([
+  { policy: approvalDeniedPolicy, revoked: ['seeApprovals'] },
+  { policy: maskedPolicy, revoked: ['wakeBot', 'seeApprovals'] },
+])(
+  'closes the phone-only member’s Noise socket after revoking $revoked',
+  async ({ policy, revoked }) => {
+    const f = await enabledFixture();
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const { channelId, messageId } = await channelWithApproval(f);
+    await expect(
+      f.methods(owner).channelPolicySet({ channelId, policy: visiblePolicy }),
+    ).resolves.toEqual({
+      ok: true,
+      value: null,
+    });
+    const { carrier } = await memberDeviceHost(f);
+    const { client, closed, openSocket } = await pairedPhone(f, f.human, carrier);
+    const read = () => client.call('channelMessages', { channelId });
+    await expect(read()).resolves.toMatchObject({
+      messages: [{ id: messageId, toolApprovalRequest: { input: approvalInput } }],
+    });
+    expect(f.team.memberDevices(owner, f.human.humanId).map(({ kind }) => kind)).toEqual([
+      'paired-device',
+    ]);
+    const permissions = () =>
+      CHANNEL_ACTIONS.filter((action) =>
+        f.team.channelAccess.allowsAction(f.human, channelId, action),
+      );
+    const before = permissions();
+    expect(before).toEqual(expect.arrayContaining(revoked));
 
-  await expect(
-    f.methods(owner).channelPolicySet({ channelId, policy: maskedPolicy }),
-  ).resolves.toEqual({
-    ok: true,
-    value: null,
-  });
-  await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
-  const result = await read();
-  expect(result).toMatchObject({ messages: [{ id: messageId, approval: { masked: true } }] });
-  expect(JSON.stringify(result)).not.toContain(approvalInput);
-  expect(openSocket).toHaveBeenCalledTimes(2);
-});
+    await expect(f.methods(owner).channelPolicySet({ channelId, policy })).resolves.toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(permissions()).toEqual(before.filter((action) => !revoked.includes(action)));
+    await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
+    const result = await read();
+    expect(result).toMatchObject({ messages: [{ id: messageId, approval: { masked: true } }] });
+    expect(JSON.stringify(result)).not.toContain(approvalInput);
+    expect(openSocket).toHaveBeenCalledTimes(2);
+  },
+);
 
 it('closes a phone-only member’s Noise socket and refuses Channel reads when visibility is withdrawn', async () => {
   const f = await enabledFixture();
