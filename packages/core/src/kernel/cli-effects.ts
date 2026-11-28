@@ -563,6 +563,8 @@ export const CLI_EFFECTS = {
   'skills-delete': { effects: externalIrreversibleManagement, brokerRead: false },
   'skills-mine': { effects: externalRead, brokerRead: false },
   'skills-add': { effects: externalWrite, brokerRead: false },
+  market: { effects: externalRead, brokerRead: false },
+  'market-skills-sections': { effects: externalRead, brokerRead: true },
   'skills-added': { effects: memoryRead, brokerRead: true },
   'marketplace-skill-list': { effects: externalRead, brokerRead: true },
   'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
@@ -679,6 +681,8 @@ function familyEffects(
           return botAccessEffects(action, values);
       }
     }
+    case 'market':
+      return action === 'skills' && rest[1] === 'sections' ? externalRead : undefined;
     case 'skills':
       if (
         action === 'mine' ||
