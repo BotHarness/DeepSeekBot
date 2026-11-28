@@ -188,6 +188,7 @@ describe('message attachment native action bridge', () => {
     expect(nativeFiles.open).toHaveBeenCalledWith(
       { path: '/host/files/notes.txt', relativePath: 'notes.txt', kind: 'file' },
       { application: 'editor' },
+      expect.any(AbortSignal),
     );
     call.mockResolvedValueOnce({
       ok: false,
