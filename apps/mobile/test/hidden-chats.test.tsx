@@ -10,12 +10,19 @@ vi.mock('../src/ui/primitives/settings-row', () => ({
     createElement('div', { 'data-testid': props.testID }, props.title, props.trailing),
 }));
 vi.mock('../src/ui/primitives/button', () => ({
-  Button: (props: { label: string; testID?: string; disabled?: boolean; onPress(): void }) =>
+  Button: (props: {
+    label: string;
+    testID?: string;
+    disabled?: boolean;
+    fit?: boolean;
+    onPress(): void;
+  }) =>
     createElement(
       'button',
       {
         type: 'button',
         'data-testid': props.testID,
+        'data-fit': String(props.fit === true),
         disabled: props.disabled === true,
         onClick: props.onPress,
       },
@@ -72,6 +79,7 @@ it('unhides one chat through the Host hidden roster', async () => {
     '[data-testid="hidden-chat-unhide-channel:studio"]',
   )!;
   expect(unhide.textContent).toBe(t.hiddenChats.unhide);
+  expect(unhide.getAttribute('data-fit')).toBe('true');
   await act(async () => unhide.click());
   expect(call).toHaveBeenCalledWith('hiddenSet', { hidden: ['dm-ada'] });
   expect(refresh).toHaveBeenCalledOnce();

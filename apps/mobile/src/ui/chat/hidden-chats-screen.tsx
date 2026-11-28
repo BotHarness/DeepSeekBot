@@ -64,6 +64,7 @@ export function HiddenChats({
               testID={`hidden-chat-unhide-${item.key}`}
               label={t.hiddenChats.unhide}
               on="canvas"
+              fit
               busy={busy === item.key}
               disabled={client === undefined || (busy !== undefined && busy !== item.key)}
               onPress={() => unhide(item)}
