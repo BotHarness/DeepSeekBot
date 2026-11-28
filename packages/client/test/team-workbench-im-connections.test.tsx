@@ -178,7 +178,7 @@ it('keeps the saved list when the status check fails and hides settings it canno
           ok: true,
           value: { checks: 'pending', bindings: [connection({ canOpenSettings: false })] },
         }
-      : { ok: false, error: 'provider offline' },
+      : { ok: false, error: { code: 'provider-unavailable', message: 'offline', details: {} } },
   );
   await act(async () =>
     root.render(
