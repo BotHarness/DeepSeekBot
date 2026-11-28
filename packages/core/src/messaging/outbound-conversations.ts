@@ -3,6 +3,11 @@ import { createPairingCards } from './pairing-cards.js';
 import { createMessagingDirectory } from './directory.js';
 import type { BotPairing } from './pairing.js';
 import {
+  changeHostExternalRole,
+  coversBot,
+  externalContactAccess,
+  hostExternalRoles,
+  readExternalRole,
   botSourceBlocks,
   changeSenderAccess,
   bumpSenderPolicy,
@@ -61,6 +66,9 @@ export function createOutboundConversations({
   >;
 }): Pick<
   OutboundMessaging,
+  | 'externalRoles'
+  | 'externalRoleChange'
+  | 'externalContactAccess'
   | 'senderAccess'
   | 'toolRuleCreatorAuthorized'
   | 'senderPermissions'
@@ -70,6 +78,52 @@ export function createOutboundConversations({
   | 'conversation'
 > {
   return {
+    externalRoles() {
+      return database.read(hostExternalRoles);
+    },
+    externalRoleChange(input) {
+      const { role, affected } = transaction(
+        (db) => {
+          const previous = input.kind === 'update' ? readExternalRole(db, input.id) : undefined;
+          const role = changeHostExternalRole(db, input);
+          const slugs = db
+            .prepare(`SELECT bot_slug FROM messaging_bindings WHERE revoked_at IS NULL
+          UNION SELECT bot_slug FROM messaging_sender_policies`)
+            .all() as { bot_slug: string }[];
+          const affected = slugs
+            .map(({ bot_slug }) => bot_slug)
+            .filter(
+              (slug) =>
+                coversBot(role.botScope, slug) || (previous && coversBot(previous.botScope, slug)),
+            );
+          for (const slug of affected) bumpSenderPolicy(db, slug);
+          return { role, affected };
+        },
+        ['pairing', 'bot-inbox'],
+      );
+      const failures = [];
+      for (const slug of affected) {
+        try {
+          options.onAuthorizationChanged?.(slug);
+        } catch {
+          failures.push({ botSlug: slug, operation: 'authorization-change' });
+        }
+        try {
+          pairingCards.refresh(slug);
+        } catch {
+          failures.push({ botSlug: slug, operation: 'pairing-card-refresh' });
+        }
+      }
+      if (failures.length)
+        options.warn?.(
+          JSON.stringify({ event: 'external-role-notification-failed', roleId: role.id, failures }),
+        );
+      return role;
+    },
+    externalContactAccess({ slug, bindingId, actorId }) {
+      active(slug);
+      return database.read((db) => externalContactAccess(db, slug, bindingId, actorId));
+    },
     senderAccess(botSlug, input) {
       active(botSlug);
       transaction((db) => changeSenderAccess(db, botSlug, input), ['pairing', 'bot-inbox']);

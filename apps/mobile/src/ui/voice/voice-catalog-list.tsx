@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { FlatList, Keyboard, Pressable, View, type ViewInstance } from 'react-native';
+import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
 
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import {
@@ -25,7 +25,7 @@ import { confirmAppDialog } from '../primitives/app-dialog';
 import { Button } from '../primitives/button';
 import { Chip } from '../primitives/chip';
 import { SheetHeader } from '../primitives/sheet-header';
-import { SearchField } from '../primitives/search-field';
+import { dismissSheetSearchKeyboard, SheetSearchField } from '../primitives/sheet-search-field';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { useMounted } from '../mounted';
@@ -233,7 +233,7 @@ export function VoiceCatalogList({
                 ? t.catalog.narrow
                 : undefined;
   const choose = (entry: Entry) => {
-    Keyboard.dismiss();
+    dismissSheetSearchKeyboard();
     if (importing !== undefined) return;
     const { item } = entry;
     if (item.importFrom === undefined || catalog === undefined) {
@@ -278,8 +278,14 @@ export function VoiceCatalogList({
   };
   return (
     <View ref={mount} testID={testID} style={{ flexShrink: 1 }}>
-      <SheetHeader title={title} onBack={onBack} />
-      <SearchField
+      <SheetHeader
+        title={title}
+        onBack={() => {
+          dismissSheetSearchKeyboard();
+          onBack();
+        }}
+      />
+      <SheetSearchField
         testID={`${testID}-search`}
         value={search}
         onChangeText={setSearch}

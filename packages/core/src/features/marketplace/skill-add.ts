@@ -6,6 +6,7 @@ import {
   MARKETPLACE_SKILL_ID,
   MAX_MARKETPLACE_SKILL_QUERY,
   type MarketplaceSkillAddCandidates,
+  type MarketplaceSkillAddedList,
   type MarketplaceSkillAddResult,
   type MarketplaceSkillDetail,
   type MarketplaceSkillPage,
@@ -27,6 +28,7 @@ import {
   writeSkill,
   type StagedSkill,
 } from '../../marketplace/skill-install.js';
+import { addedMarketplaceSkills } from './skill-added.js';
 import type { MarketplaceSkillSource } from '../../marketplace/skill-source.js';
 import { listBotSkills } from '../../skills/bot-skills.js';
 import { ownsBot } from '../../team-policy/bot-access.js';
@@ -52,6 +54,7 @@ export type MarketplaceSkillBridgeMethods = {
   marketplaceSkillAddCandidates(payload: unknown): BridgeResult<MarketplaceSkillAddCandidates>;
   marketplaceSkillReview(payload: unknown): Promise<BridgeResult<MarketplaceSkillReview>>;
   marketplaceSkillAdd(payload: unknown): Promise<BridgeResult<MarketplaceSkillAddResult>>;
+  marketplaceSkillAdded(payload: unknown): Promise<BridgeResult<MarketplaceSkillAddedList>>;
 };
 
 const failure = (code: string, message = code): BridgeResult<never> => ({
@@ -111,6 +114,18 @@ export function createMarketplaceSkillMethods(
       const id = validId(payload);
       if (id === undefined) return Promise.resolve(invalidInput('invalid Skill ID'));
       return call((host) => host.source.detail(id));
+    },
+    async marketplaceSkillAdded() {
+      const scans = candidates().map((bot) => {
+        const target = botTarget(bot.slug);
+        return target === undefined
+          ? Promise.resolve([])
+          : addedMarketplaceSkills(target.skillsDir, bot.slug);
+      });
+      const host = deps.marketplaceSkills;
+      if (host !== undefined && isHostOwner())
+        scans.push(addedMarketplaceSkills(host.hostSkillsDir, 'global'));
+      return { ok: true, value: { skills: (await Promise.all(scans)).flat() } };
     },
     marketplaceSkillAddCandidates() {
       return {

@@ -10,6 +10,7 @@ export interface MessagingIdentity {
   platform: string;
   accountRef: string;
   fingerprint: string;
+  contactWorkspaceId?: string;
   name: string;
   enabled: boolean;
   postLimit?: number | null;
@@ -65,6 +66,7 @@ interface BindingRow {
   account_ref: string;
   fingerprint: string;
   display_name: string;
+  contact_workspace_id: string | null;
   enabled: number;
   post_limit: number | null;
   post_limit_revision: number;
@@ -92,6 +94,7 @@ export function readMessagingIdentity(db: DatabaseSync, id: string): MessagingId
     platform: r.platform,
     accountRef: r.account_ref,
     fingerprint: r.fingerprint,
+    ...(r.contact_workspace_id ? { contactWorkspaceId: r.contact_workspace_id } : {}),
     name: r.display_name,
     postLimit: r.post_limit,
     postLimitRevision: r.post_limit_revision,

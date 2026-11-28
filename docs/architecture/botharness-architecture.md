@@ -370,6 +370,8 @@ Memory Service 在 Host 启动、Orchestrator 回合前，以及本地 DM 或群
 
 ## 3 · Host 启动、迁移与 recovery
 
+Host Core 的包边界检查按模块统计向上导入和同层循环。每个 Feature 目录和顶层源文件单独计入，Runtime 仍是一个模块。详见 [同层依赖循环的检测规则](../decisions/core-architecture.md#same-layer-dependency-cycles)。
+
 Operational Database 在 `bot_management_grants` 中保存每个 Bot 的 **App 管理授权**（`manage-app`、`manage-bots`），通过 RBAC 授权解析器读取。Host 创建内置 Tob 时为它打开两项授权。Owner Bridge 在同一事务中修改授权并写入该 Bot 自己 Human DM 的系统提示；Owner 变更时撤销全部授权并为新 Owner 的 Tob 打开两项。Shell broker 在捕获、准入和执行时校验授权，以及根 Orchestrator 已准入的 Owner DM 来源事件。参见 [Tob 决策 §11](../decisions/tob.md#app-management-grant)。
 
 ```mermaid
@@ -1027,6 +1029,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 Marketplace Worker 在 D1 中为每位作者的每个 Skill 名称保留一条有效上传记录。Host 通过 `GET /v1/me/skills` 读取已登录作者的有效上传，并通过 `marketplaceSkillMine()` 提供给客户端。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
 
+Marketplace 的「你的」区块通过 `marketplaceSkillAdded()` 读取已添加的市场 Skill：Host 扫描当前 Human 可编辑的各 Bot 的 `.agents/skills/` 和（仅 Host owner）全局 Host Skill 目录，按 `SKILL.md` 里的 `metadata.tobs-source` 识别来源，不访问 Marketplace Worker。CLI 是 `deepseekbot skills added`。
+
 每日定时发现 Bot 与 Skill 时，Marketplace Worker 共享 D1 请求预算。两个阶段各自在 D1 保存已处理的仓库节点 ID，下次从该位置继续，到末尾后回到起点。Skill 以仓库为单位批量写入，提交和展示元数据都未变化时复用现有记录。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
 
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。
@@ -1392,6 +1396,8 @@ Android 表单创建（#2673）为空白 Bot、Git 导入与远程 Host 群频�
 The existing Expo Router tabs and root Stack own contextual creation ([ADR-0235](../decisions/mobile-ui.md#adr-0235)). The iOS app-owned tab island uses SwiftUI buttons, with an adjacent UIKit pull-down button for creation. On Android, the Compose Material 3 navigation bar keeps the three destinations and Chats has a separate FAB menu. Target-bound native forms handle Bot creation and import on both platforms and Computer Group creation on Android. Cloud creation rechecks account scope and Organization ownership through CloudClient, uses the existing idempotent mutation and opens the returned Channel.
 
 ### Mobile presentation (#2028)
+
+Mobile choice sheets keep the search query and result list in React Native. The platform view owns text entry and sends edits to React Native. The iOS Expo `SheetSearch` module pairs each edit with a count so a delayed React update cannot replace newer native text. See [Inline search in choice sheets](../decisions/mobile-ui.md#inline-search-in-choice-sheets).
 
 Phone Chats projects the current Remote Host's canonical `rosterGet` arrangement into section headers and individually virtualized conversation rows, including Pinned (#2571). The shared Host client also reads the DSH-native `settings/describe` response and retains only the `botharness-client` global/per-scope sorting fields used by Web; the existing `deepseekbot settings botharness-client` command reads that same authority. A successful refresh publishes roster and sorting together; a failed read keeps the last confirmed snapshot. Settings-only Web changes become visible after refresh/reconnect. No Host method, write path or second arrangement store is introduced. Pinned display excludes the same Channel from its retained ordinary membership; unpin returns it there. Top-level ordering retains loose rows between section blocks. Per-Host collapse remains device-local. Pinned uses the same conversation row, message preview, timestamp, unread/status indicators and actions as other sections, following Human screenshot feedback. Search temporarily flattens the grouped list, and All keeps Cloud rows outside Host organization. Native row geometry, gestures and accessibility require separate test-center evidence.
 

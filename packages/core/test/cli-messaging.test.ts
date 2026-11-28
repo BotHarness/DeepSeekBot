@@ -676,3 +676,59 @@ it('runs cloud_work through authenticated CLI parity and refuses caller-supplied
   expect(bad.text).not.toContain('canary-authority');
   expect(live.calls).toHaveLength(1);
 });
+
+it('uses Host external role listing, change and access methods over the authenticated transport', async () => {
+  const roleId = '55555555-5555-4555-8555-555555555555';
+  const role = {
+    id: roleId,
+    name: 'Support',
+    botScope: { kind: 'only', botSlugs: [BOT] },
+    revision: 1,
+  };
+  const response = {
+    status: 'paired',
+    canSpeak: true,
+    roleIds: [roleId],
+    capabilities: ['answer'],
+  };
+  const live = await host((method) => {
+    if (method === 'externalRoles') return { ok: true, value: { roles: [role] } };
+    if (method === 'externalContactAccess') return { ok: true, value: response };
+    return { ok: true, value: { role } };
+  });
+  expect(await invoke(['external-roles'], live.url)).toMatchObject({ code: 0 });
+  const create = { name: role.name, botScope: role.botScope, capabilities: ['answer'] };
+  expect(
+    await invoke(['external-role-create', '--input-stdin'], live.url, JSON.stringify(create)),
+  ).toMatchObject({ code: 0 });
+  const update = { id: roleId, expectedRevision: 1, botScope: { kind: 'all' } };
+  expect(
+    await invoke(['external-role-update', '--input-stdin'], live.url, JSON.stringify(update)),
+  ).toMatchObject({ code: 0 });
+  expect(
+    await invoke(
+      ['external-contact-access', BOT, '--binding', BINDING, '--actor', 'U12345'],
+      live.url,
+    ),
+  ).toMatchObject({ code: 0 });
+  expect(live.calls).toEqual([
+    { method: 'externalRoles', args: {} },
+    { method: 'externalRoleChange', args: { input: { kind: 'create', ...create } } },
+    { method: 'externalRoleChange', args: { input: { kind: 'update', ...update } } },
+    { method: 'externalContactAccess', args: { slug: BOT, bindingId: BINDING, actorId: 'U12345' } },
+  ]);
+});
+
+it('returns the Host refusal when a CLI external role edit is stale', async () => {
+  const live = await host(() => ({
+    ok: false,
+    error: { code: 'role-stale', message: 'role-stale' },
+  }));
+  const result = await invoke(
+    ['external-role-update', '--input-stdin'],
+    live.url,
+    JSON.stringify({ id: BINDING, expectedRevision: 1, name: 'Old edit' }),
+  );
+  expect(result.code).not.toBe(0);
+  expect(result.json).toMatchObject({ error: { code: 'role-stale' } });
+});

@@ -1,6 +1,6 @@
 import { enginePickerAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard } from 'react-native';
+import { FlatList } from 'react-native';
 
 import {
   modelCatalogGroupFront,
@@ -23,7 +23,7 @@ import {
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Chip } from '../primitives/chip';
-import { SearchField } from '../primitives/search-field';
+import { dismissSheetSearchKeyboard, SheetSearchField } from '../primitives/sheet-search-field';
 import { SettingsGroupItem } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 import { modelFamilyKey } from './composer-labels';
@@ -164,7 +164,7 @@ export function RoutingGroupMemberPicker({
   );
   const pending = rows.find((row) => key(row) === selected?.key);
   const select = (choice: Choice, effort = '') => {
-    Keyboard.dismiss();
+    dismissSheetSearchKeyboard();
     const member = memberOf(choice);
     onSelect(
       member.kind === 'group' || effort === '' ? member : { ...member, reasoningEffort: effort },
@@ -176,7 +176,7 @@ export function RoutingGroupMemberPicker({
       select(choice, options[0]?.value);
       return;
     }
-    Keyboard.dismiss();
+    dismissSheetSearchKeyboard();
     const preferred =
       choice.kind === 'engine'
         ? choice.model.defaultEffort
@@ -200,11 +200,11 @@ export function RoutingGroupMemberPicker({
       avoidKeyboard
       fill
       onClose={() => {
-        Keyboard.dismiss();
+        dismissSheetSearchKeyboard();
         onClose();
       }}
     >
-      <SearchField
+      <SheetSearchField
         testID="routing-group-member-search"
         value={query}
         onChangeText={(text) => {

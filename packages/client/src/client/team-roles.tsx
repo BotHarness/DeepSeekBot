@@ -39,6 +39,7 @@ import { PrivateContentEntry } from './team-audit.js';
 import { PRIVATE_VIEW } from './team-audit-bridge.js';
 import { teamErrorText } from './team-settings.js';
 
+const INTERNAL_EFFECTS = ['allow', 'deny'] as const;
 const styles = stylex.create({
   group: {
     display: 'flex',
@@ -387,7 +388,13 @@ function RoleDialog({
           apiLocked={builtin === 'admin'}
           onChange={setModels}
         />
-        <RolePolicyField t={t} value={policy} disabled={busy} onChange={setPolicy} />
+        <RolePolicyField
+          t={t}
+          value={policy}
+          effects={INTERNAL_EFFECTS}
+          disabled={busy}
+          onChange={setPolicy}
+        />
       </FieldStack>
     </FormDialog>
   );
