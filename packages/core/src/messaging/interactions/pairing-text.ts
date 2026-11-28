@@ -9,6 +9,7 @@ import {
 } from '../pairing.js';
 import { reviewCards } from '../pairing-cards.js';
 import {
+  canDelegateExternalRole,
   effectivePairingPermissions,
   externalUserRoles,
   platformPeople,
@@ -166,9 +167,7 @@ export function createPairingText(options: {
       return {
         reviewer: permissions.capabilities.includes('review-pairing'),
         roles: externalUserRoles(db, botSlug).filter((role) =>
-          [...role.capabilities, ...(role.delegableCapabilities ?? [])].every((cap) =>
-            delegable.includes(cap),
-          ),
+          canDelegateExternalRole(role, botSlug, delegable),
         ),
         all: externalUserRoles(db, botSlug),
         defaultRoleId: readSenderPolicy(db, botSlug).defaultRoleId,

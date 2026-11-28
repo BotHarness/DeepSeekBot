@@ -1366,6 +1366,27 @@
       ]
     },
     {
+      "id": "team-external-roles",
+      "description": "Host-level external roles in the Team workbench. List roles, their Bot scope, pairing capabilities and behavior rules with external-roles; create one with external-role-create --input-stdin and change its name, Bot scope, capabilities or behavior rules with external-role-update --input-stdin. Read a contact's live status and effective capabilities on a Bot with external-contact-access <bot-id> --binding <binding-id> --actor <actor-id>; list a Bot's pairings and their role with pairing-list <bot-id>.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{contact.name}",
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{t('team.error.load')}",
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{t('team.externalRoles.noContacts')}",
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{t('team.workbench.loading')}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{bot.name}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{botName(slug)}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{label}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{t('team.externalRoles.scope.title')}"
+      ],
+      "commands": [
+        "external-roles",
+        "external-role-create",
+        "external-role-update",
+        "external-contact-access"
+      ]
+    },
+    {
       "id": "team-member-browser-sign-out",
       "description": "A member ends the sign-in grant held by this browser.",
       "scope": "Client",
