@@ -15,6 +15,7 @@ import { createMarketplaceSkillSource } from '../src/marketplace/skill-source.js
 import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createMarketplaceUploads } from '../src/marketplace/uploaded-bots.js';
 import { createCore } from '../src/plugin.js';
+import { host as cliHost, invoke } from './cli-host-admin-fixture.js';
 import { createTempRoot } from './helpers.js';
 
 const scanControl = vi.hoisted(() => ({ fail: false }));
@@ -182,6 +183,28 @@ async function authorWithSkill(files: Record<string, string>) {
   value(await bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }));
   return { bridge, uploads };
 }
+
+it('returns the existing listing ID and replacement command through the Host and CLI', async () => {
+  const { bridge } = await authorWithSkill({});
+  const publication = { bot: 'author', name: 'tidy-notes' };
+  const { id } = value(await bridge.marketplaceSkillPublish(publication));
+  const live = await cliHost((method, args) => {
+    if (method === 'marketplaceSkillPublish') return bridge.marketplaceSkillPublish(args);
+    if (method === 'marketplaceSkillMine') return bridge.marketplaceSkillMine(args);
+    throw new Error(`Unexpected method ${method}`);
+  });
+  const error = {
+    code: 'skill-name-taken',
+    message: expect.stringContaining(`skills replace ${id} tidy-notes --bot author --confirm`),
+  };
+  expect(await bridge.marketplaceSkillPublish(publication)).toMatchObject({ ok: false, error });
+  const refused = await invoke(['skills', 'publish', 'tidy-notes', '--bot', 'author'], live.url);
+  expect(refused.code).not.toBe(0);
+  expect(refused.json).toMatchObject({ error });
+  expect((await invoke(['skills', 'mine'], live.url)).json).toMatchObject({
+    skills: [{ id, name: 'tidy-notes' }],
+  });
+});
 
 it('refuses a written secret on the Host before any file reaches the Marketplace', async () => {
   const { bridge, uploads } = await authorWithSkill({
@@ -588,4 +611,61 @@ it('refuses to write over a Skill folder unless replacing, and keeps it on failu
   expect(readFileSync(join(skillsDir, 'tidy-notes', 'SKILL.md'), 'utf8')).toBe('mine');
   await writeSkill(staged, skillsDir, 'tidy-notes', { replace: true });
   expect(readFileSync(join(skillsDir, 'tidy-notes', 'SKILL.md'), 'utf8')).toContain('tobs-source');
+});
+
+it('lists the Marketplace Skills added to Bots and globally, and skips hand-written ones', async () => {
+  const market = createMarket();
+  publishSkill(market, { 'SKILL.md': SKILL_MD });
+  const id = await listedId(market);
+  const host = makeHost(market);
+  host.bot('first');
+  host.bot('second');
+  const bridge = host.methods(owner);
+  expect(value(await bridge.marketplaceSkillAdded({}))).toEqual({ skills: [] });
+
+  const review = value(await bridge.marketplaceSkillReview({ id }));
+  value(
+    await bridge.marketplaceSkillAdd({
+      id,
+      reviewId: review.reviewId,
+      bots: ['first'],
+      global: true,
+    }),
+  );
+  const handWritten = join(host.core.registry.memoryDirFor('second')!, '.agents/skills/own-notes');
+  mkdirSync(handWritten, { recursive: true });
+  writeFileSync(
+    join(handWritten, 'SKILL.md'),
+    '---\nname: own-notes\ndescription: Written by hand.\n---\n',
+  );
+
+  const malformed = join(host.core.registry.memoryDirFor('second')!, '.agents/skills/broken');
+  mkdirSync(malformed, { recursive: true });
+  writeFileSync(
+    join(malformed, 'SKILL.md'),
+    `---\nname: broken\ndescription: Bad flag.\nuser-invocable: maybe\nmetadata:\n  tobs-source: "${id}"\n---\n`,
+  );
+
+  const added = value(await bridge.marketplaceSkillAdded({}));
+  expect(added.skills).toEqual([
+    {
+      id,
+      name: 'tidy-notes',
+      description: 'Keep meeting notes tidy.',
+      target: 'first',
+      hash: review.hash,
+    },
+    {
+      id,
+      name: 'tidy-notes',
+      description: 'Keep meeting notes tidy.',
+      target: 'global',
+      hash: review.hash,
+    },
+  ]);
+  const live = await cliHost((method, args) => {
+    if (method === 'marketplaceSkillAdded') return bridge.marketplaceSkillAdded(args);
+    throw new Error(`Unexpected method ${method}`);
+  });
+  expect((await invoke(['skills', 'added'], live.url)).json).toEqual(added);
 });

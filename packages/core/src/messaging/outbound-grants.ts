@@ -288,7 +288,7 @@ export function createOutboundGrants(context: {
           };
           if (!reusable)
             db.prepare(
-              'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name, enabled_inherited, typing_inherited) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name, enabled_inherited, typing_inherited, contact_workspace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             ).run(
               bindingId,
               input.botSlug,
@@ -300,6 +300,7 @@ export function createOutboundGrants(context: {
               inspected.account.name,
               messagingDefaultsPlatform.safeParse(value.platform).success ? 1 : 0,
               value.platform === 'weixin' ? 1 : 0,
+              value.platform === 'slack' ? (inspected.account.contactWorkspaceId ?? null) : null,
             );
           if (!reusable && readMessagingIdentity(db, bindingId).enabled)
             createdBinding = value.platform;

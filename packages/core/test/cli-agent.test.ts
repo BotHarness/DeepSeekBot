@@ -66,6 +66,88 @@ async function invoke(
   return { code, json: JSON.parse(stdout[0]!) };
 }
 describe('scoped Tob CLI', () => {
+  it.each([
+    ['skills', 'publish', 'skills-publish', ['tidy-notes', '--bot', 'helper']],
+    [
+      'skills',
+      'replace',
+      'skills-replace',
+      ['listing', 'tidy-notes', '--bot', 'helper', '--confirm'],
+    ],
+    ['skills', 'delete', 'skills-delete', ['listing', '--confirm']],
+    ['skills', 'mine', 'skills-mine', []],
+    ['skills', 'added', 'skills-added', []],
+    ['engine', 'list', 'engine-list', []],
+    ['engine', 'status', 'engine-status', []],
+    ['engine', 'accounts', 'engine-accounts', []],
+    ['engine', 'quota', 'engine-quota', []],
+    ['engine', 'account-add', 'engine-account-add', ['engine-id']],
+    ['engine', 'account-rename', 'engine-account-rename', ['engine-id', 'account']],
+    ['engine', 'account-remove', 'engine-account-remove', ['engine-id', 'account']],
+    ['engine', 'approvals', 'engine-approvals', []],
+    ['engine', 'tools', 'engine-tools', []],
+    ['engine', 'tool', 'engine-tool', ['engine-id', 'tool-id']],
+    ['engine', 'login', 'engine-login', ['engine-id']],
+    ['engine', 'login-cancel', 'engine-login-cancel', ['engine-id']],
+    ['engine', 'models', 'engine-models', ['engine-id']],
+    ['engine', 'use', 'engine-use', ['engine-id']],
+  ])('forwards %s %s to the Host as %s', async (noun, action, flat, args) => {
+    const live = await broker();
+    expect(
+      (await invoke(['--compact', flat, '--timeout', '17', ...args], live.endpoint)).code,
+    ).toBe(0);
+    expect(
+      (await invoke(['--compact', noun, '--timeout', '17', action, ...args], live.endpoint)).code,
+    ).toBe(0);
+    expect(live.calls).toEqual(
+      Array.from({ length: 2 }, () => ({
+        command: 'cli',
+        args: { argv: [flat, '--timeout', '17', ...args], cwd: process.cwd(), stdin: '' },
+      })),
+    );
+  });
+
+  it.each(['visibility', 'visibility-set', 'switches', 'reachable', 'proactive-opt-out'])(
+    'forwards bots %s with the action retained for bot-access',
+    async (action) => {
+      const live = await broker();
+      const args = [action, 'helper'];
+      expect((await invoke(['bot-access', ...args], live.endpoint)).code).toBe(0);
+      expect((await invoke(['bots', ...args], live.endpoint)).code).toBe(0);
+      expect(live.calls).toHaveLength(2);
+      expect(live.calls[1]).toEqual(live.calls[0]);
+    },
+  );
+
+  it.each([
+    ['list', 'list', [], ''],
+    ['show', 'show', ['helper'], ''],
+    ['create', 'create', ['--name', 'Helper', '--operation-key', 'new-helper'], ''],
+    [
+      'delete',
+      'bot-delete-confirm',
+      ['helper', '--confirm', '--confirmation-stdin'],
+      '{"token":"review-token"}',
+    ],
+  ])(
+    'routes bots %s through the same scoped operation as %s',
+    async (action, flat, args, stdin) => {
+      const live = await broker();
+      expect((await invoke([flat, ...args], live.endpoint, stdin)).code).toBe(0);
+      expect((await invoke(['bots', action, ...args], live.endpoint, stdin)).code).toBe(0);
+      expect(live.calls).toHaveLength(2);
+      expect(live.calls[1]).toEqual(live.calls[0]);
+    },
+  );
+
+  it('forwards activity list as activity', async () => {
+    const live = await broker();
+    expect((await invoke(['activity'], live.endpoint)).code).toBe(0);
+    expect((await invoke(['activity', 'list'], live.endpoint)).code).toBe(0);
+    expect(live.calls).toHaveLength(2);
+    expect(live.calls[1]).toEqual(live.calls[0]);
+  });
+
   it('refuses scoped writes to the retired default model namespace before dispatch', async () => {
     const live = await broker();
     const result = await invoke(

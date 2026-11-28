@@ -16,7 +16,7 @@ import { SUB_MODEL_LIMIT, addSubChoice, setSubEffort } from '@botharness/host-cl
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { SearchField } from '../primitives/search-field';
+import { SheetSearchField } from '../primitives/sheet-search-field';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { SheetPage } from '../primitives/sheet-page';
 import { useStrings } from '../strings';
@@ -118,7 +118,7 @@ export function SubChoicePicker({
     models.run(() => setModelSub(client, scope, value, addSubChoice(sub, option.choice)), back);
   return (
     <SheetPage title={title}>
-      <SearchField
+      <SheetSearchField
         testID="sub-choice-search"
         value={query}
         inset={space.x5}

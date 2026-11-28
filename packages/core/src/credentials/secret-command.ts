@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { PrivateInputFailure } from './diagnostics.js';
+import { hostNodeEnv } from '../execution/host-node-env.js';
+import { PrivateInputFailure, type PrivateInputLog } from './diagnostics.js';
 import { SECRET_PLACEHOLDER } from './references.js';
 
 export class SecretCommandRefusal extends Error {}
@@ -170,7 +171,10 @@ export function runSecretCommand(
   cwd: string,
   secrets: readonly string[],
   signal: AbortSignal,
-  timeoutMs = SECRET_COMMAND_TIMEOUT_MS,
+  {
+    timeoutMs = SECRET_COMMAND_TIMEOUT_MS,
+    log,
+  }: { timeoutMs?: number; log?: PrivateInputLog } = {},
 ): Promise<SecretCommandResult> {
   return new Promise((resolve, reject) => {
     if (signal.aborted || argv[0] === undefined) {
@@ -179,7 +183,7 @@ export function runSecretCommand(
     }
     const child = spawn(argv[0], argv.slice(1), {
       cwd,
-      env,
+      env: hostNodeEnv(env, argv[0]),
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
@@ -206,9 +210,15 @@ export function runSecretCommand(
     child.on('error', (error: NodeJS.ErrnoException) => {
       clearTimeout(timer);
       signal.removeEventListener('abort', abort);
+      const errorCode = error.code ?? error.name;
+      log?.('execution-spawn-failed', {
+        consumer: 'command-v1',
+        program: maskSecrets(child.spawnfile, secrets),
+        errorCode,
+      });
       reject(
         new SecretCommandRefusal(
-          `the program could not be started (${typeof error.code === 'string' ? error.code : error.name}); is it installed and allowed by the Shell sandbox?`,
+          `the program could not be started (${errorCode}); is it installed and allowed by the Shell sandbox?`,
         ),
       );
     });

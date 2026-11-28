@@ -1,4 +1,10 @@
 import type {
+  ExternalContactAccess,
+  ExternalContactQuery,
+  HostExternalRole,
+  HostExternalRoleChange,
+} from '@botharness/host-protocol/external-roles';
+import type {
   MessagingConnection,
   MessagingReadMode,
 } from '@botharness/host-protocol/messaging-connections';
@@ -207,6 +213,9 @@ export interface OutboundMessaging {
   failureAlerts: FailureAlerts;
   beginProcessing(botSlug: string, sourceEventIds: readonly string[]): MessagingProcessing;
   pairing: BotPairing;
+  externalRoles(): HostExternalRole[];
+  externalRoleChange(input: HostExternalRoleChange): HostExternalRole;
+  externalContactAccess(input: ExternalContactQuery): ExternalContactAccess;
   senderAccess(botSlug: string, input: SenderAccessInput): void;
   toolRuleCreatorAuthorized(botSlug: string, creator: ToolApprovalActor): boolean;
   senderPermissions(botSlug: string, sourceEventId: string): SenderPermissions;

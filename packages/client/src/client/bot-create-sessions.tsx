@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
@@ -155,7 +156,7 @@ export function CreateBotFromSessionsModal({
     const sessionIds = [...selected].sort();
     const input = JSON.stringify([displayName.trim(), about, sessionIds]);
     if (attempt.current?.input !== input)
-      attempt.current = { input, key: `sessions:${crypto.randomUUID()}` };
+      attempt.current = { input, key: `sessions:${createBrowserUuid()}` };
     void actions
       .createBotFromSessions(
         {

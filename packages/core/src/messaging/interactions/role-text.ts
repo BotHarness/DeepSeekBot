@@ -3,6 +3,7 @@ import type { MessagingIdentity } from '../identity.js';
 import type { BotPairing, PairingCapability, PairingRequest } from '../pairing.js';
 import {
   changeSenderAccess,
+  canDelegateExternalRole,
   effectivePairingPermissions,
   externalPermissionGroups,
   externalUserRoles,
@@ -214,10 +215,8 @@ export function createRoleText(options: {
     database.read((db) => {
       const permissions = effectivePairingPermissions(db, botSlug, bindingId, actorId);
       const delegable = permissions.delegableCapabilities ?? [];
-      const within = (role: ExternalUserRole) =>
-        [...role.capabilities, ...(role.delegableCapabilities ?? [])].every((cap) =>
-          delegable.includes(cap),
-        );
+      const within = (role: Parameters<typeof canDelegateExternalRole>[0]) =>
+        canDelegateExternalRole(role, botSlug, delegable);
       const all = externalUserRoles(db, botSlug);
       const groupWithin = (group: ExternalPermissionGroup) =>
         !group.behaviorAllow?.length &&

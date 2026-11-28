@@ -129,3 +129,54 @@ it('names the person or conversation a block approval covers', async () => {
     await act(async () => root.unmount());
   }
 });
+
+it('shows the content without decision buttons to someone who can see but not decide', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const live = resourceEvents();
+  const actions = {
+    toolApprovalStatus: vi.fn(async () => 'pending' as const),
+    toolApprovalExecutionState: vi.fn(async () => undefined),
+    decideToolApproval: vi.fn(),
+  };
+  const message: ChannelMessage = {
+    id: 'approval-view',
+    at: '2026-11-20T00:00:00Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Approve bash',
+    approval: {
+      masked: false,
+      kind: 'tool-approval',
+      state: 'pending',
+      botSlug: 'ada',
+      requestedAt: '2026-11-20T00:00:00Z',
+      opaque: false,
+      canDecide: false,
+    },
+    toolApprovalRequest: {
+      role: 'assignment',
+      sessionId: 'assignment',
+      callId: 'call',
+      toolName: 'bash',
+      cwd: '/qa',
+      input: '{"command":"ls"}',
+    },
+  };
+  try {
+    await act(async () => {
+      root.render(createElement(ToolApprovalCard, { message, actions, t: zhTranslate }));
+    });
+    expect(container.textContent).toContain('ls');
+    expect(container.querySelector('[data-approval-view-only]')?.textContent).toBe(
+      '你可以查看，但不能在这里审批。',
+    );
+    expect(
+      [...container.querySelectorAll('button')].some((button) => button.textContent === '允许这次'),
+    ).toBe(false);
+    expect(container.textContent).not.toContain('需要你确认');
+  } finally {
+    await act(async () => root.unmount());
+    live.dispose();
+  }
+});

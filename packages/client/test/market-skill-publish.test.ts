@@ -76,6 +76,22 @@ function skillsSource(publish: Pick<BridgeActions, 'marketplaceSkillPublish'> & 
   const actions = {
     marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
     marketplaceAuthorSave: vi.fn(async () => author),
+    marketplaceSkillMine: vi.fn(async (): Promise<{ skills: MarketplaceSkill[] }> => ({
+      skills: [],
+    })),
+    marketplaceSkillAddCandidates: vi.fn(async () => ({
+      bots: [
+        { slug: 'bob', displayName: 'Bob' },
+        { slug: 'ada', displayName: 'Ada' },
+      ],
+      global: false,
+    })),
+    botSkills: vi.fn(async () => [{ name: 'tidy', description: 'Tidy' }]),
+    marketplaceSkillDetail: vi.fn(async () => ({
+      skill: uploaded,
+      content: '---\nname: tidy\n---\nBody',
+      files: [],
+    })),
     ...publish,
   };
   const source: BotSkillsSource = {
@@ -181,6 +197,51 @@ describe('Publishing a Bot Skill', () => {
   });
 });
 
+describe('A Bot Skill that is already listed (#5580)', () => {
+  async function openSkill(source: BotSkillsSource): Promise<void> {
+    await render(createElement(BotSkillsCard, { source, botName: 'Ada', t }));
+    await press(host.querySelector('[data-skill-row="tidy"]'));
+  }
+
+  it('shows the listing and offers Replace and View listing instead of Publish', async () => {
+    const { source, actions } = skillsSource({ marketplaceSkillPublish: vi.fn() });
+    actions.marketplaceSkillMine.mockResolvedValue({ skills: [uploaded] });
+    await openSkill(source);
+    expect(host.querySelector(`[data-skill-listed="${uploaded.id}"]`)?.textContent).toBe(
+      t('market.skills.listed'),
+    );
+    expect(host.querySelector('[data-skill-publish]')).toBeNull();
+    await press(host.querySelector('[data-skill-replace="tidy"]'));
+    expect(actions.botSkills).toHaveBeenCalledWith('ada');
+    expect(document.querySelector(`[data-market-skill-replace="${uploaded.id}"]`)).not.toBeNull();
+    await press(buttonNamed(t('common.cancel')));
+    await press(host.querySelector('[data-skill-view-listing="tidy"]'));
+    expect(actions.marketplaceSkillDetail).toHaveBeenCalledWith(uploaded.id);
+  });
+
+  it('offers Publish when the listing check fails', async () => {
+    const { source, actions } = skillsSource({ marketplaceSkillPublish: vi.fn() });
+    actions.marketplaceSkillMine.mockRejectedValue(new BridgeCallError('sign-in-required', 'x'));
+    await openSkill(source);
+    expect(host.querySelector('[data-skill-publish="tidy"]')).not.toBeNull();
+    expect(host.querySelector('[data-skill-listed]')).toBeNull();
+  });
+
+  it('explains a taken name and shows the listing once the dialog closes', async () => {
+    const publish = vi.fn().mockRejectedValue(new BridgeCallError('skill-name-taken', 'taken'));
+    const { source, actions } = skillsSource({ marketplaceSkillPublish: publish });
+    await openSkill(source);
+    await press(host.querySelector('[data-skill-publish="tidy"]'));
+    await press(submitButton());
+    expect(document.querySelector('[data-market-skill-rejected]')?.textContent).toContain(
+      t('market.error.skillNameTaken'),
+    );
+    actions.marketplaceSkillMine.mockResolvedValue({ skills: [uploaded] });
+    await press(buttonNamed(t('common.close')));
+    expect(actions.marketplaceSkillMine).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('[data-skill-replace="tidy"]')).not.toBeNull();
+  });
+});
 describe('Uploaded Skills in the Marketplace', () => {
   it('shows the author display name and Author ID and offers a report', async () => {
     const actions = {

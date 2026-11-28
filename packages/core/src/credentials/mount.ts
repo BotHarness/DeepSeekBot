@@ -578,6 +578,7 @@ export function mountPrivateInputs(
                           cwd,
                           Object.values(values),
                           signal,
+                          { log },
                         );
                       } catch (error) {
                         if (!(error instanceof SecretCommandRefusal)) throw error;

@@ -327,7 +327,7 @@ export class TeamService {
     );
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
-    this.approvals = new TeamApprovals(db, channels, this.roles, this.bots);
+    this.approvals = new TeamApprovals(db, channels, this.roles, this.bots, this.channelAccess);
     bindTeamChannelAccess(channels, this);
     this.now = options.now ?? Date.now;
     this.log = options.log ?? (() => {});

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import {
   readCallReadiness,
   type CallClientMedia,
@@ -109,9 +110,12 @@ export interface DesktopCall {
 }
 
 function windowClientId(): string {
-  const fresh = () =>
-    globalThis.crypto?.randomUUID?.().replaceAll('-', '') ??
-    Math.random().toString(36).slice(2).padEnd(12, '0');
+  const fresh = () => {
+    const crypto = globalThis.crypto;
+    return typeof crypto?.getRandomValues === 'function'
+      ? createBrowserUuid(crypto).replaceAll('-', '')
+      : Math.random().toString(36).slice(2).padEnd(12, '0');
+  };
   try {
     const saved = sessionStorage.getItem(CLIENT_KEY);
     if (saved !== null && /^[A-Za-z0-9_-]{8,64}$/u.test(saved)) return saved;

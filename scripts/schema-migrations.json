@@ -798,5 +798,13 @@
   {
     "id": "host-role-revision",
     "sha256": "de2602befc612092b29d849b01425ac37fea1aaa1014dbd166a30d56c2a4ba1a"
+  },
+  {
+    "id": "channel-approval-policy",
+    "sha256": "952697044a5c515fe7cde3271f66907563463642db9b382565623687793a3d14"
+  },
+  {
+    "id": "host-external-roles",
+    "sha256": "0e8130fb66b84cdfde484667ebf8eb940afec2ddf63e10a8d3871ea751747833"
   }
 ]

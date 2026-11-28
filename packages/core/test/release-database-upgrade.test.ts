@@ -114,6 +114,27 @@ function assertPreserved(
       expect(change).toEqual({ channel_id: group, kind: 'channel', message_id: null });
     }
     for (const [name, table] of before.tables) {
+      if (name === 'messaging_external_roles') {
+        expect(after.tables.has(name)).toBe(false);
+        const migrated = after.tables.get('messaging_host_external_roles');
+        expect(
+          migrated?.rows.map(({ id, body }) => ({ id, body: JSON.parse(String(body)) })),
+        ).toEqual(
+          table.rows.map(({ id, bot_slug: botSlug, body }) => {
+            const { botSlug: _storedBotSlug, ...role } = JSON.parse(String(body));
+            return {
+              id,
+              body: {
+                ...role,
+                botScope: { kind: 'only', botSlugs: [botSlug] },
+                policy: [],
+                deniedCapabilities: [],
+              },
+            };
+          }),
+        );
+        continue;
+      }
       const upgraded = after.tables.get(name);
       expect(upgraded, name).toBeDefined();
       if (name === '_botharness_schema' || name === 'schema_migrations' || upgraded === undefined)

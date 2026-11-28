@@ -145,6 +145,8 @@ export function createHumanAttention({
     },
     () => new Date(),
     (human, value) => team.approvals.project(human, value),
+    (human, channelId, messageId) =>
+      team.approvals.channelDecisionForActivity(human, channelId, messageId),
   );
   startup.enter('human-attention', 'decisions');
   const humanAttentionDecisions = createHumanAttentionDecisions(humanAttentionDatabase);

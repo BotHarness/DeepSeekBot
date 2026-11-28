@@ -27,6 +27,7 @@ import {
 } from './team-roles-bridge.js';
 import { teamErrorText } from './team-settings.js';
 import { ChannelsSection } from './team-workbench/channels-section.js';
+import { ExternalRolesSection } from './team-workbench/external-roles-section.js';
 import { DetailNotice, EmptyDetail, WorkbenchFrame } from './team-workbench/frame.js';
 import { MembersSection } from './team-workbench/members-section.js';
 import { withChoice, type PermissionChoice } from './team-workbench/permission-model.js';
@@ -114,6 +115,7 @@ export function TeamWorkbench({
 
   const inspect = async (member: TeamMember): Promise<void> => {
     const request = ++inspection.current;
+    if (inspecting.current?.humanId !== member.humanId) setInspected(undefined);
     inspecting.current = member;
     setInspectError(undefined);
     setPending(member.humanId);
@@ -131,11 +133,17 @@ export function TeamWorkbench({
     const member = inspecting.current;
     if (member === undefined) return;
     const reload = ++inspection.current;
+    setPending(member.humanId);
     try {
       const result = await loadMemberPermissions(call, member.humanId);
-      if (reload === inspection.current) setInspected({ member, result });
+      if (reload === inspection.current) {
+        setInspected({ member, result });
+        setInspectError(undefined);
+      }
     } catch (failure) {
       if (reload === inspection.current) setInspectError(teamErrorText(t, failure));
+    } finally {
+      if (reload === inspection.current) setPending(undefined);
     }
   };
 
@@ -232,6 +240,7 @@ export function TeamWorkbench({
       />
     ),
     channels: () => <ChannelsSection call={call} t={t} />,
+    externalRoles: () => <ExternalRolesSection call={call} t={t} />,
   };
 
   return (

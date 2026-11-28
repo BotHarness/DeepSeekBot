@@ -1,4 +1,5 @@
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import type * as prompts from '@botharness/host-client/prompt-presets';
 import { onboardingFor } from './onboarding.js';
@@ -75,10 +76,11 @@ export interface ComposerActions {
 let localEchoSequence = 0;
 
 function nextLocalEchoId(): string {
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.getRandomValues === 'function') return `human-${createBrowserUuid(crypto)}`;
+
   localEchoSequence += 1;
-  const fallback = `${localEchoSequence.toString(16).padStart(8, '0').slice(-8)}-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
-  const unique = globalThis.crypto?.randomUUID?.() ?? fallback;
-  return `human-${unique}`;
+  return `human-${localEchoSequence.toString(16).padStart(8, '0').slice(-8)}-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
 }
 
 function reconcileCommittedMessage(

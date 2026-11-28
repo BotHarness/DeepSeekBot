@@ -33,6 +33,7 @@ const roles = [
 
 const policy: ChannelPolicy = {
   ...DEFAULT_POLICY,
+  approvalMode: 'channel',
   overrides: [{ roleId: 'support', actions: { addBots: 'allow' } }],
 };
 
@@ -72,7 +73,7 @@ it('lays out actions as rows and roles as columns with named state cells', async
   expect(headers[0]).toBe('操作');
   expect(headers[1]).toBe('所有成员');
   expect(headers[2]).toBe('Support');
-  expect(host.querySelectorAll('tbody tr')).toHaveLength(6);
+  expect(host.querySelectorAll('tbody tr')).toHaveLength(8);
   expect(cell('post', 'everyone').getAttribute('aria-label')).toBe('谁能发消息 · 所有成员 · 允许');
   expect(cell('addBots', 'support').getAttribute('aria-label')).toBe(
     '谁能添加 Bot · Support · 允许',
@@ -131,4 +132,64 @@ it('shows a read-only table without role controls when editing is not allowed', 
   expect(host.querySelector('[data-permission-add-role]')).toBeNull();
   expect(host.querySelector('[data-permission-column="support"] button')).toBeNull();
   expect(cell('post', 'everyone').disabled).toBe(true);
+});
+
+it('locks the approval rows for someone who cannot change approval rules', async () => {
+  await act(async () =>
+    root.render(
+      <ChannelPermissionTable
+        t={zhTranslate}
+        policy={policy}
+        roles={roles}
+        disabled={false}
+        approvalLocked
+        onChange={() => undefined}
+      />,
+    ),
+  );
+  expect(cell('seeApprovals', 'everyone').disabled).toBe(true);
+  expect(cell('decideApprovals', 'support').disabled).toBe(true);
+  expect(cell('post', 'everyone').disabled).toBe(false);
+  expect(cell('decideApprovals', 'everyone').getAttribute('aria-label')).toBe(
+    '谁能在这里审批 · 所有成员 · 拒绝',
+  );
+});
+
+it('keeps a role with approval rules from being removed by someone who cannot change them', async () => {
+  await act(async () =>
+    root.render(
+      <ChannelPermissionTable
+        t={zhTranslate}
+        policy={{
+          ...policy,
+          overrides: [{ roleId: 'support', actions: { addBots: 'allow', seeApprovals: 'allow' } }],
+        }}
+        roles={roles}
+        disabled={false}
+        approvalLocked
+        onChange={() => undefined}
+      />,
+    ),
+  );
+  expect(host.querySelector('[data-permission-column="support"] button')).toBeNull();
+  expect(host.querySelector('[data-permission-column="support"]')?.textContent).toBe('Support');
+});
+
+it('shows a legacy channel approval rows as the original behavior instead of table cells', async () => {
+  await act(async () =>
+    root.render(
+      <ChannelPermissionTable
+        t={zhTranslate}
+        policy={{ ...policy, approvalMode: 'legacy' }}
+        roles={roles}
+        disabled={false}
+        onChange={() => undefined}
+      />,
+    ),
+  );
+  const row = host.querySelector<HTMLElement>('[data-permission-action="seeApprovals"]');
+  expect(row?.dataset['state']).toBe('legacy');
+  expect(row?.textContent).toContain('沿用原来的审批方式');
+  expect(host.querySelector('[data-permission-cell^="decideApprovals:"]')).toBeNull();
+  expect(cell('post', 'everyone').disabled).toBe(false);
 });

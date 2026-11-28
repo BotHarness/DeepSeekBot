@@ -7,7 +7,16 @@ import type {
   ChannelBotChange,
   ChannelBotsView,
 } from '@botharness/host-protocol/channel-bots';
+import {
+  enableChannelApprovalRules,
+  readChannelApprovalRules,
+  setChannelApprovalRule,
+  type ChannelApprovalChoice,
+  type ChannelApprovalKey,
+  type ChannelApprovalRules,
+} from '@botharness/host-client/channel-approvals';
 import { followConnection } from '../../host/follow-connection';
+import { PreferenceRow } from '../primitives/preference-row';
 import { useMounted } from '../mounted';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import {
@@ -39,11 +48,26 @@ export function useGroupBotSettings(
   const [draft, setDraft] = useState<ChannelBotAudience>();
   const writing = useRef(false);
   const latestSave = useRef(0);
+  const rulesRead = useRef(0);
+  const [rules, setRules] = useState<ChannelApprovalRules>();
+  const [rulesBusy, setRulesBusy] = useState(false);
+  const [rulesStatus, setRulesStatus] = useState<'readFailed' | 'saveFailed' | 'refreshFailed'>();
   const mount = useMounted<ViewInstance>(() => {
     if (!active || !client) return;
     let live = true;
     const unfollow = followConnection(client, async () => {
       const started = latestSave.current;
+      const read = ++rulesRead.current;
+      void readChannelApprovalRules(client, channelId).then(
+        (next) => {
+          if (!live || read !== rulesRead.current) return;
+          setRules(next);
+          setRulesStatus(undefined);
+        },
+        () => {
+          if (live && read === rulesRead.current) setRulesStatus('readFailed');
+        },
+      );
       try {
         const value = await channelBotSettings(client, channelId);
         if (live && started === latestSave.current) {
@@ -120,6 +144,41 @@ export function useGroupBotSettings(
         </SettingsGroupItem>
       )),
     );
+  const reloadRules = async (afterSave: boolean) => {
+    if (!client) return;
+    const read = ++rulesRead.current;
+    try {
+      const next = await readChannelApprovalRules(client, channelId);
+      if (read !== rulesRead.current) return;
+      setRules(next);
+      if (!afterSave) setRulesStatus(undefined);
+    } catch {
+      if (read === rulesRead.current) setRulesStatus(afterSave ? 'refreshFailed' : 'readFailed');
+    }
+  };
+  const writeRules = async (
+    write: (host: NonNullable<typeof client>, current: ChannelApprovalRules) => Promise<void>,
+  ) => {
+    if (!client || rules === undefined || rulesBusy) return;
+    setRulesBusy(true);
+    setRulesStatus(undefined);
+    rulesRead.current += 1;
+    try {
+      await write(client, rules);
+    } catch {
+      setRulesStatus('saveFailed');
+      await reloadRules(true).catch(() => undefined);
+      setRulesStatus('saveFailed');
+      setRulesBusy(false);
+      return;
+    }
+    await reloadRules(true);
+    setRulesBusy(false);
+  };
+  const saveRule = (key: ChannelApprovalKey, value: ChannelApprovalChoice) =>
+    writeRules((host, current) => setChannelApprovalRule(host, channelId, current, key, value));
+  const enableRules = () =>
+    writeRules((host, current) => enableChannelApprovalRules(host, channelId, current));
   if (!bot && (view?.bots.length ?? 0) > 0) {
     heading('bots:heading', t.profileSettingsBot);
     group(
@@ -269,6 +328,122 @@ export function useGroupBotSettings(
         ),
       );
     }
+  }
+  if (!bot && rules === undefined && rulesStatus === 'readFailed') {
+    const a = t.channelApprovals;
+    heading('approvals:heading', a.title);
+    add('approvals:error', () => <Text tone="danger">{a.readFailed}</Text>);
+    group(
+      ['retry'],
+      () => 'approvals:retry',
+      () => (
+        <SettingsRow
+          on={ON}
+          title={t.retry}
+          testID="channel-approvals-retry"
+          onPress={() => void reloadRules(false)}
+        />
+      ),
+    );
+  }
+  if (!bot && rules !== undefined) {
+    const a = t.channelApprovals;
+    const labels = {
+      seeApprovals: { allow: a.everyone, deny: a.tableOnly },
+      decideApprovals: { allow: a.everyone, deny: a.ownersAndTable },
+    } as const;
+    heading('approvals:heading', a.title);
+    const legacy = rules.mode === 'legacy';
+    if (legacy)
+      group(
+        [
+          ['seeApprovals', a.see, a.legacySee],
+          ['decideApprovals', a.decide, a.legacyDecide],
+          ...(rules.manager ? ([['enable', a.enable, '']] as const) : []),
+        ] as const,
+        ([key]) => `approvals:${key}`,
+        ([key, title, value]) =>
+          key === 'enable' ? (
+            <SettingsRow
+              on={ON}
+              title={title}
+              testID="channel-approvals-enable"
+              control={rulesBusy ? { kind: 'busy' } : { kind: 'chevron' }}
+              {...(rulesBusy ? {} : { onPress: () => void enableRules() })}
+            />
+          ) : (
+            <SettingsRow on={ON} title={title} detail={value} />
+          ),
+      );
+    else
+      group(
+        [
+          ['seeApprovals', a.see, rules.see],
+          ['decideApprovals', a.decide, rules.decide],
+        ] as const,
+        ([key]) => `approvals:${key}`,
+        ([key, title, value]) =>
+          rules.manager && rulesBusy ? (
+            <SettingsRow
+              on={ON}
+              title={title}
+              detail={labels[key][value]}
+              control={{ kind: 'busy' }}
+            />
+          ) : rules.manager ? (
+            <PreferenceRow
+              on={ON}
+              title={title}
+              testID={`channel-approvals-${key}`}
+              value={value}
+              options={[
+                { value: 'allow', label: labels[key].allow },
+                { value: 'deny', label: labels[key].deny },
+              ]}
+              onChange={(next) => void saveRule(key, next)}
+            />
+          ) : (
+            <SettingsRow
+              on={ON}
+              title={title}
+              control={{ kind: 'value', text: labels[key][value] }}
+            />
+          ),
+      );
+    group(
+      ['unhandled'],
+      () => 'approvals:unhandled',
+      () => (
+        <SettingsRow
+          on={ON}
+          title={a.unhandled}
+          control={{ kind: 'value', text: a.unhandledValue }}
+        />
+      ),
+    );
+    if (rulesStatus !== undefined)
+      add('approvals:error', () => (
+        <Text tone="danger">
+          {rulesStatus === 'saveFailed'
+            ? a.saveFailed
+            : rulesStatus === 'refreshFailed'
+              ? a.refreshFailed
+              : a.readFailed}
+        </Text>
+      ));
+    footer(
+      'approvals:footer',
+      legacy
+        ? rules.manager
+          ? a.legacy(
+              rules.see === 'allow' ? labels.seeApprovals.allow : labels.seeApprovals.deny,
+              rules.decide === 'allow' ? labels.decideApprovals.allow : labels.decideApprovals.deny,
+            )
+          : `${a.legacyState} ${a.managersOnly}`
+        : !rules.manager
+          ? a.managersOnly
+          : a.byRole,
+    );
   }
   return { mount, body: { rows } };
 }

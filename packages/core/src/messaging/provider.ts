@@ -6,6 +6,7 @@ export interface MessagingAccount {
   name: string;
   fingerprint: string;
   connected: boolean;
+  contactWorkspaceId?: string;
   typingSupported?: boolean;
   reactionSupported?: boolean;
   postSupported?: boolean;

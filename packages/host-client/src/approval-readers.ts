@@ -142,10 +142,16 @@ export function isApprovalCard(value: unknown): value is WireApprovalCard {
     !optional(row['decidedAt'], text)
   )
     return false;
-  if (row['masked'] === true) return row['opaque'] === undefined && row['decidedBy'] === undefined;
+  if (row['masked'] === true)
+    return (
+      row['opaque'] === undefined &&
+      row['decidedBy'] === undefined &&
+      row['canDecide'] === undefined
+    );
   return (
     row['masked'] === false &&
     typeof row['opaque'] === 'boolean' &&
+    optional(row['canDecide'], (decision) => typeof decision === 'boolean') &&
     optional(row['decidedBy'], (value) => {
       const decider = record(value);
       return text(decider?.['humanId']) && optional(decider['displayName'], text);
