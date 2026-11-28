@@ -17,6 +17,7 @@ import {
   blockConversationSource,
   blockSender,
   sourceBlocked,
+  personBlockApplies,
   senderBlocked,
   unblockConversationSource,
   unblockSender,
@@ -738,6 +739,7 @@ export function externalContactAccess(
   if (identity.revokedAt || !identity.enabled || !platformPeople(identity.platform))
     return { ...empty, status: 'unavailable' };
   if (
+    personBlockApplies(db, botSlug, identity, actorId) ||
     senderBlocked(db, botSlug, {
       fingerprint: identity.fingerprint,
       actor: { kind: 'user', id: actorId },

@@ -1,3 +1,7 @@
+import type {
+  ExternalContactBlockChange,
+  ExternalContactListQuery,
+} from '@botharness/host-protocol/external-contacts';
 import type { HostExternalRoleChange } from '@botharness/host-protocol/external-roles';
 import type { MessagingConnectionsView } from '@botharness/host-protocol/messaging-connections';
 import type { ExternalSource } from '../../messaging/inbound.js';
@@ -411,6 +415,14 @@ export const messagingPolicyRpc = {
 
   externalRoleChange(input: HostExternalRoleChange) {
     return unwrapAsync(this.methods.externalRoleChange(input));
+  },
+
+  externalContacts(query: ExternalContactListQuery) {
+    return unwrapAsync(this.methods.externalContacts(query));
+  },
+
+  externalContactBlock(input: ExternalContactBlockChange) {
+    return unwrapAsync(this.methods.externalContactBlock(input));
   },
 
   externalContactAccess(slug: string, bindingId: string, actorId: string) {

@@ -1,4 +1,9 @@
 import type {
+  ExternalContactBlockChange,
+  ExternalContactList,
+  ExternalContactListQuery,
+} from '@botharness/host-protocol/external-contacts';
+import type {
   ExternalContactAccess,
   ExternalContactQuery,
   HostExternalRole,
@@ -215,6 +220,12 @@ export interface OutboundMessaging {
   pairing: BotPairing;
   externalRoles(): HostExternalRole[];
   externalRoleChange(input: HostExternalRoleChange): HostExternalRole;
+  listExternalContacts(
+    slugs: string[],
+    managedSlugs: string[],
+    status: ExternalContactListQuery['status'],
+  ): ExternalContactList;
+  changeExternalContactBlock(input: ExternalContactBlockChange): { blocked: boolean };
   externalContactAccess(input: ExternalContactQuery): ExternalContactAccess;
   senderAccess(botSlug: string, input: SenderAccessInput): void;
   toolRuleCreatorAuthorized(botSlug: string, creator: ToolApprovalActor): boolean;

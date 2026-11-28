@@ -90,6 +90,8 @@ export const bridgeMethodInventory = [
   'externalRoles',
   'externalRoleChange',
   'externalContactAccess',
+  'externalContacts',
+  'externalContactBlock',
   'failureAlertsSet',
   'failureAlertsTest',
   'failureAlertsRetry',

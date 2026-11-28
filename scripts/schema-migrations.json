@@ -810,5 +810,9 @@
   {
     "id": "host-role-bot-scope",
     "sha256": "bdf981f5ad39f703b055145fa15435f6e105849a039fad07824a55066111f357"
+  },
+  {
+    "id": "external-contacts",
+    "sha256": "457746381e31b643abecc76f38905d51403c961cffd7ddc2959cfee0c30c8559"
   }
 ]

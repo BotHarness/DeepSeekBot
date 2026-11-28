@@ -381,6 +381,21 @@ describe('M7 CLI parity', () => {
     },
     { args: ['roles', 'effective'], method: 'memberPermissions', payload: {} },
     {
+      args: ['external-contacts', '--bot-slugs', 'support,sales', '--contact-status', 'blocked'],
+      method: 'externalContacts',
+      payload: { query: { botSlugs: ['support', 'sales'], status: 'blocked' } },
+    },
+    {
+      args: ['external-contact-block', 'support', '--contact', 'a'.repeat(64)],
+      method: 'externalContactBlock',
+      payload: { input: { slug: 'support', contactId: 'a'.repeat(64), blocked: true } },
+    },
+    {
+      args: ['external-contact-unblock', 'support', '--contact', 'a'.repeat(64)],
+      method: 'externalContactBlock',
+      payload: { input: { slug: 'support', contactId: 'a'.repeat(64), blocked: false } },
+    },
+    {
       args: [
         'roles',
         'update',

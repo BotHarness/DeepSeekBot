@@ -1,3 +1,4 @@
+import { contactId, personBlocked, type ContactBinding } from '../contact-identity.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { ConversationRef } from '../conversations.js';
@@ -196,6 +197,22 @@ export function senderBlocked(
   );
 }
 
+export function personBlockApplies(
+  db: DatabaseSync,
+  botSlug: string,
+  binding: ContactBinding & { fingerprint: string },
+  actorId: string,
+): boolean {
+  if (!personBlocked(db, botSlug, contactId(binding, actorId))) return false;
+  if (!binding.contactWorkspaceId) return !ownerActor(db, botSlug, binding.fingerprint, actorId);
+  const apps = db
+    .prepare(`SELECT fingerprint FROM messaging_bindings
+    WHERE bot_slug = ? AND provider_id = ? AND platform = ? AND contact_workspace_id = ?
+      AND revoked_at IS NULL`)
+    .all(botSlug, binding.providerId, binding.platform, binding.contactWorkspaceId);
+  return !apps.some((app) => ownerActor(db, botSlug, String(app.fingerprint), actorId));
+}
+
 export function sourceBlocked(
   db: DatabaseSync,
   botSlug: string,
@@ -203,8 +220,37 @@ export function sourceBlocked(
     fingerprint: string;
     actor: { kind: string; id: string };
     conversation: ConversationRef;
+    botId?: string;
+    channel?: string;
   },
 ): boolean {
+  if (event.actor.kind === 'user' && event.botId && event.channel) {
+    const providerId = `dsh-im/${event.channel}`;
+    const binding = db
+      .prepare(`SELECT id, contact_workspace_id FROM messaging_bindings
+      WHERE provider_id = ? AND platform = ? AND account_ref = ? AND fingerprint = ?
+        AND revoked_at IS NULL
+        AND EXISTS (SELECT 1 FROM messaging_person_blocks WHERE bot_slug = ?)`)
+      .get(providerId, event.channel, event.botId, event.fingerprint, botSlug);
+    if (
+      binding &&
+      personBlockApplies(
+        db,
+        botSlug,
+        {
+          id: String(binding.id),
+          providerId,
+          platform: event.channel,
+          fingerprint: event.fingerprint,
+          ...(typeof binding.contact_workspace_id === 'string'
+            ? { contactWorkspaceId: binding.contact_workspace_id }
+            : {}),
+        },
+        event.actor.id,
+      )
+    )
+      return true;
+  }
   if (senderBlocked(db, botSlug, event)) return true;
   return (
     readConversationSourceBlock(db, botSlug, event.fingerprint, event.conversation) !== undefined &&

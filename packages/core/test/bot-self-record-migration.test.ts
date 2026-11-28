@@ -64,6 +64,7 @@ it('admits Self-Record kinds at generation 75 and keeps rows and purge triggers'
     'inbox_history_before_update',
     'inbox_history_delete',
     'inbox_history_insert',
+    'messaging_observe_inbox_contact',
     'messaging_purge_admission_insert',
     'messaging_purge_admission_update',
     'messaging_purge_source_delete',

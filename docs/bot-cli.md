@@ -9,6 +9,16 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ## Usage
 
+### External contacts
+
+```sh
+deepseekbot external-contacts --bot-slugs support,sales --contact-status requested --json
+deepseekbot external-contact-block support --contact <contact-id> --json
+deepseekbot external-contact-unblock support --contact <contact-id> --json
+```
+
+Omit `--bot-slugs` to include every Bot you can manage. Status accepts `all`, `paired`, `blocked` and `requested`. Use the contact ID returned by the list. Add `--as <member>` to run as that Team member. The Host Owner and members with `bots.manageAll` can manage all Bots. Members with `im.bind` can manage contacts of their own Bots. Unblocking removes the Bot-wide person block. Existing App-scoped blocks keep their effect and must be cleared through their original controls.
+
 ### Reciprocal computer relationships
 
 `relationships cancel <id> --confirm` cancels a proposal only while the owning Host still considers it pending. If a lost sync reply hid activation, it refuses with `relationship-already-active` and leaves the approved relationship and grants intact. The browser uses this condition when cleaning up cancelled enrollment; an unavailable cleanup response never triggers an unconditional retry.

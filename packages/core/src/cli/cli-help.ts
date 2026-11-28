@@ -148,6 +148,9 @@ Usage:
   tobs telemetry-set (--enabled | --disabled)
   tobs git-status
   tobs git-install
+  tobs external-contacts [--bot-slugs <bot-a,bot-b>] [--contact-status <all|paired|blocked|requested>]
+  tobs external-contact-block <bot-id> --contact <contact-id>
+  tobs external-contact-unblock <bot-id> --contact <contact-id>
   tobs external-roles
   tobs external-role-create --input-stdin
   tobs external-role-update --input-stdin
