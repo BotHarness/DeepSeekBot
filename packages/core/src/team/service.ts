@@ -106,12 +106,12 @@ export class TeamService {
   accessSettled(): Promise<void> {
     return this.pendingAccess;
   }
-  private accessChanged(revoke = false): void {
+  private accessChanged(revoke: boolean | ReadonlySet<string> = false): void {
     this.invalidate();
     if (!revoke) return;
     this.privateAccess.closeViews();
     for (const listener of this.accessListeners) listener();
-    this.pairing?.closeStreams?.();
+    if (revoke === true) this.pairing?.closeStreams?.();
     this.db.transaction(
       (db) =>
         db
@@ -121,12 +121,11 @@ export class TeamService {
           .run(),
       ['channel'],
     );
-    this.pendingAccess = Promise.allSettled([this.pendingAccess, this.disposePeers()]).then(
-      (settled) => {
-        if (settled.some((result) => result.status === 'rejected'))
-          this.log('access-disposal-failed', { initiator: 'host', reason: 'peer-disposal-failed' });
-      },
-    );
+    const disposal = this.disposePeers(revoke === true ? undefined : revoke);
+    this.pendingAccess = Promise.allSettled([this.pendingAccess, disposal]).then((settled) => {
+      if (settled.some((result) => result.status === 'rejected'))
+        this.log('access-disposal-failed', { initiator: 'host', reason: 'peer-disposal-failed' });
+    });
   }
   private pairing:
     | (Pick<DevicePairing, 'revoke' | 'clearOffers'> & Partial<Pick<DevicePairing, 'closeStreams'>>)
@@ -308,8 +307,17 @@ export class TeamService {
     this.settleBotPreparations = options.settleBotPreparations;
     this.ensureTob = options.ensureTob;
     this.roles = new TeamRoles(db, (revoke) => this.accessChanged(revoke));
-    this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
-      this.accessChanged(revoke),
+    this.channelAccess = new TeamChannels(
+      db,
+      channels,
+      this.roles,
+      (revoke) => this.accessChanged(revoke),
+      () =>
+        new Set(
+          [...this.peers.values()].flatMap(({ principal }) =>
+            principal.kind === 'botharness-member' ? [principal.humanId] : [],
+          ),
+        ),
     );
     this.channelBots = new TeamChannelBots(db, channels, this.channelAccess);
     this.bots = new TeamBots(
@@ -961,7 +969,7 @@ export class TeamService {
     return this.channelAccess.canRead(human, channelId, true);
   }
 
-  disposePeers(humanId?: string, keepGrant?: string): Promise<void> {
-    return memberAuth.disposePeers.call(this.#memberOperations, humanId, keepGrant);
+  disposePeers(target?: string | ReadonlySet<string>, keepGrant?: string): Promise<void> {
+    return memberAuth.disposePeers.call(this.#memberOperations, target, keepGrant);
   }
 }
