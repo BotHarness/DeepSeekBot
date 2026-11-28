@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
 import { zhTranslate } from '../src/client/locale.js';
-import { SessionTargetChip } from '../src/client/session-target-chip.js';
+import { SessionTargetChip, sessionTargetChipData } from '../src/client/session-target-chip.js';
 import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
 const catalog: TurnTargetCatalog = {
@@ -19,6 +19,32 @@ const catalog: TurnTargetCatalog = {
     },
   ],
 };
+
+it('makes the executing engine account available separately from the model', () => {
+  expect(
+    sessionTargetChipData({
+      target: { kind: 'engine', engine: 'codex', account: 'ChatGPT Pro', model: 'fixture-model' },
+      engine: { engine: 'codex', account: 'A later account' },
+      t: zhTranslate,
+    }),
+  ).toMatchObject({ model: { label: 'fixture-model' }, accountTitle: 'Codex · ChatGPT Pro' });
+});
+
+it('can describe an older engine Session before its model is known', () => {
+  expect(
+    sessionTargetChipData({ engine: { engine: 'claude', account: 'Claude Max' }, t: zhTranslate }),
+  ).toMatchObject({ accountTitle: 'Claude Code · Claude Max', model: undefined });
+});
+
+it('does not attribute a native target to a previously used engine', () => {
+  expect(
+    sessionTargetChipData({
+      target: { kind: 'dsh', provider: 'fixture-provider', model: 'fixture-model' },
+      engine: { engine: 'codex', account: 'ChatGPT Pro' },
+      t: zhTranslate,
+    }).accountTitle,
+  ).toBeUndefined();
+});
 
 it('uses a single provider badge and the model name in a Sessions row', () => {
   const result = renderToStaticMarkup(
