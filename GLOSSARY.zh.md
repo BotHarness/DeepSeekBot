@@ -278,14 +278,14 @@ _避免使用_：project、multi-root folder、group
 一种面向单个 PersonaBot 与单个已解析 Workspace 的持久、可撤销、application-defined 授权。其 Orchestrator 可读取该 Workspace，只有 Human 明确开启 Orchestrator 写入权限后才可写入；选用此授权的 Assignment 可读写它。它既不是 DSH Workspace，也不是逐事项确认的 prompt。
 _避免使用_：Service Grant、Workspace、one-time approval、cwd inference
 
-**Connector（连接器）**：
-Host 上为外部服务提供工具的来源。一个连接器可以关联多个已登录的账号。
+**Connector**：
+连接器是 Host 上为外部服务提供工具的来源。一个连接器可以关联多个已登录的账号。
 
-**Connector Account（连接器账号）**：
-连接器上的一个登录身份，拥有独立的标签、持有者和凭据引用。每个 Bot 只能使用单独授权给它的账号。
+**Connector Account**：
+连接器账号是连接器上的一个登录身份，拥有独立的标签、持有者和凭据引用。每个 Bot 只能使用单独授权给它的账号。
 
-**Account Grant（账号授权）**：
-允许一个 PersonaBot 使用一个连接器账号的可撤销授权。读取和写入权限控制账号的使用，账号的授权权限决定谁可以授予访问权限。
+**Account Grant**：
+账号授权允许一个 PersonaBot 使用一个连接器账号，可以撤销。读取和写入权限控制账号的使用，账号的授权权限决定谁可以授予访问权限。
 
 **Tool Approval Rule**：
 Web Human 或当前获授权的外部审核人显式保存且可撤销的规则，针对一个 PersonaBot 角色与 Workspace Grant 范围，自动回答后续 DSH 审批请求。精确规则匹配原生工具名称与完整输入；全部不透明工具规则覆盖该范围内所有无法按路径核对的原生工具。外部审核人保存的规则依赖原配对及其当前批准／保存规则能力；失去授权会停用规则，不转移到后来的配对。每次命中仍产生独立的 DSH 审批决定与审计事件。
