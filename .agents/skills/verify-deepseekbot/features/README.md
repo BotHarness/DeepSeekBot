@@ -80,7 +80,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | About and running product identity | no (source-only observation; packaged/restart pending) | none (manual path) | [release-identity.md](release-identity.md) |
 | Historical Overview: idle PersonaBot (retired by #2026) | no | `scripts/e2e-activity-idle.mjs` | [activity-center-idle.md](activity-center-idle.md) |
 | Temporary Workspace Grant authorization, read and revocation | no | `scripts/e2e-workspace-grant.mjs` | [workspace-grant.md](workspace-grant.md) |
-| App connections (Composio): Host key, connected apps, per-Bot access, CLI | no (yes for a live Bot turn) | `verify-app` Bot settings path + connector CLI | [app-connections.md](app-connections.md) |
+| App connections: Composio, remote MCP and Google Workspace, per-Bot access, CLI | no (yes for a live Bot turn) | `verify-app` Bot settings path + connector CLI | [app-connections.md](app-connections.md) |
 | Default Bot Browser open, observe, stop and Access refusal | no | `scripts/e2e-browser-lifecycle.mjs` | [browser-lifecycle.md](browser-lifecycle.md) |
 | Skill Invocation from `/` and Bot-installed Skills in a Bot DM or Group Channel | yes for the reply | `verify-app` DM/Group; `skills-list`, `send --skill` / `channelSend` | [skill-invocation.md](skill-invocation.md) |
 | Composer footer customization and optional reply speed | yes for a speed sample | none (Web interaction path) | [composer-footer.md](composer-footer.md) |

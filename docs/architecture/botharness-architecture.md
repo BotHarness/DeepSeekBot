@@ -1967,3 +1967,7 @@ Codex 账号支持在其他设备上登录（ADR-0353）。Host 在所选账号�
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
 - **订阅额度**：EngineHost 按账号在 `engines.json` 记录会话与每周额度窗口。主动刷新在该账号的目录中通过 Codex App Server 的 `account/rateLimits/read` 或 Claude Agent SDK 的结构化 `/usage` 查询。邮箱来自同一引擎的账号信息。只有具有 `modelSources.manage` 权限的 Human 可以刷新或读取邮箱，成员只能读取已授权账号的缓存额度。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。
+
+## Google Workspace App connections
+
+The application-defined Connectors Feature Contribution adapts Owner management through Typert, binds the existing OAuth callback through the DSH web server, and registers deferred Google tools in the current Bot Agent scope. The Connector domain owns Google authorization and API calls. The existing Operational Database account and grant tables hold identity and access facts. The DSH Credentials Provider holds the client secret and account refresh tokens. Access tokens stay in Host memory and refresh when needed, including after restart. When refresh fails, the account becomes expired and its tools are removed. The same Tool Approval and live grant checks apply to model calls and direct CLI calls. [Connector custody decision](../decisions/core-architecture.md#google-workspace-connector-custody)
