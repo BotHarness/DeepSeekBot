@@ -23,6 +23,17 @@ export interface TeamAccessBot {
   displayName: string;
 }
 
+export interface TeamWorkbenchBot extends TeamAccessBot {
+  requiresAudit?: true;
+}
+
+export interface TeamWorkbenchChannel {
+  id: string;
+  name: string;
+  visibility: 'public' | 'roles' | 'private';
+  requiresAudit?: true;
+}
+
 export type BotRoleAccessSource = 'everyone' | 'all' | 'selected';
 
 export type PublicBotAudience = 'everyone' | 'roles' | 'members';

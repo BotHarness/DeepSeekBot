@@ -328,6 +328,7 @@ export interface ChannelMessage {
   turnStop?: ChannelTurnStop;
   modelSwitch?: ChannelModelSwitch;
   managementGrant?: ChannelManagementGrant;
+  privateAccessNotice?: true;
   turnTargets?: TurnTarget[];
   turnModelSwitch?: SessionTurnModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;

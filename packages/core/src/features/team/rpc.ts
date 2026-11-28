@@ -366,6 +366,10 @@ export function channelPublicSet(
 }
 
 export const teamServiceRpc = {
+  channelWorkbenchDirectory() {
+    return unwrapAsync(this.methods.channelWorkbenchDirectory({}));
+  },
+
   botAccessDirectory() {
     return unwrapAsync(this.methods.botAccessDirectory({}));
   },

@@ -41,6 +41,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'marketplaceSkillAdded',
   ...MODEL_CONFIGURATION_METHODS,
   'botAccessDirectory',
+  'channelWorkbenchDirectory',
   'botAccessRoles',
   'botVisibility',
   'botVisibilitySet',

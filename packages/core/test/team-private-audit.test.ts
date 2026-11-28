@@ -239,6 +239,117 @@ async function cliHost(f: Awaited<ReturnType<typeof fixture>>) {
 }
 
 describe('M11 private-content audit', () => {
+  it('omits foreign private content from member RPC and CLI workbench reads', async () => {
+    const f = await fixture();
+    const run = await cliHost(f);
+    for (const [method, command, target] of [
+      ['botAccessDirectory', ['bots', 'access-directory'], f.targets[0]],
+      ['channelWorkbenchDirectory', ['channels', 'workbench'], f.targets[1]],
+    ] as const) {
+      if (!target) throw new Error('missing-target');
+      const list = await f.team.asMember('bob', (peer) => f.invoke(method, {}, peer));
+      expect(JSON.stringify(list)).not.toContain(target.objectId);
+      const listed = await run(['--as', 'bob', ...command]);
+      expect(listed.status).toBe(0);
+      expect(JSON.stringify(listed.output)).not.toContain(target.objectId);
+      await expect(
+        f.team.asMember('bob', (peer) => f.invoke('privateContentOpen', target, peer)),
+      ).rejects.toMatchObject({ code: 'permission-required' });
+      const opened = await run(['--as', 'bob', 'private', 'open', target.kind, target.objectId]);
+      expect(opened.status).not.toBe(0);
+      expect(opened.output).toMatchObject({ error: { code: 'permission-required' } });
+    }
+    expect(f.log().records).toHaveLength(0);
+  });
+
+  it.each([owner.humanId, 'carol'])(
+    'flags private workbench rows and notifies the owner once per audited open by %s',
+    async (viewer) => {
+      const f = await fixture();
+      const invoke = (method: string, args = {}) =>
+        viewer === owner.humanId
+          ? f.invoke(method, args)
+          : f.team.asMember(viewer, (peer) => f.invoke(method, args, peer));
+      const [bot, channel] = f.targets;
+      if (!bot || !channel) throw new Error('missing-target');
+      expect(await invoke('botAccessDirectory')).toContainEqual({
+        slug: bot.objectId,
+        displayName: 'Alice Bot',
+        requiresAudit: true,
+      });
+      expect(await invoke('channelWorkbenchDirectory')).toContainEqual({
+        id: channel.objectId,
+        name: 'Private group',
+        visibility: 'private',
+        requiresAudit: true,
+      });
+      expect(f.log().records).toHaveLength(0);
+      for (const target of [bot, channel]) {
+        const opened = openedSchema.parse(await invoke('privateContentOpen', target));
+        await invoke('privateContentPage', { viewId: opened.viewId, before: 'message-2' });
+      }
+      expect(f.log().records).toMatchObject([
+        { ...bot, viewerHumanId: viewer },
+        { ...channel, viewerHumanId: viewer },
+      ]);
+      const noticeDm = f.core.channels
+        .list()
+        .find(
+          (item) =>
+            item.humanParticipants?.length === 2 &&
+            item.humanParticipants.includes(viewer) &&
+            item.humanParticipants.includes(alice.humanId),
+        );
+      if (!noticeDm) throw new Error('missing-notice-dm');
+      const response = await f.team.asMember('alice', (peer) =>
+        f.invoke('channelMessages', { channelId: noticeDm.id }, peer),
+      );
+      expect(response).toMatchObject({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            author: { kind: 'system' },
+            privateAccessNotice: true,
+            body: expect.stringContaining('opened your bot “Alice Bot”'),
+          }),
+          expect.objectContaining({
+            author: { kind: 'system' },
+            privateAccessNotice: true,
+            body: expect.stringContaining('opened your channel “Private group”'),
+          }),
+        ]),
+      });
+      expect(f.core.channels.readMessages(noticeDm.id)).toHaveLength(2);
+    },
+  );
+
+  it('keeps private Channel content outside the channels.manageAll grant', async () => {
+    const f = await fixture();
+    const role = f.team.roles.create(owner, 'Channel manager', ['channels.manageAll']).role;
+    f.team.roles.set(owner, bob.humanId, [role.roleId]);
+    const target = f.targets[1];
+    if (!target) throw new Error('missing-target');
+    const args = { channelId: target.objectId };
+    const invoke = (method: string, payload = {}) =>
+      f.team.asMember('bob', (peer) => f.invoke(method, payload, peer));
+    expect(await invoke('channelWorkbenchDirectory')).toEqual([]);
+    await expect(invoke('channelMessages', args)).rejects.toBeDefined();
+    await expect(invoke('privateContentOpen', target)).rejects.toMatchObject({
+      code: 'permission-required',
+    });
+    await expect(
+      invoke('channelHumanAdd', { ...args, humanId: bob.humanId }),
+    ).rejects.toMatchObject({ code: 'channel-not-found' });
+    await expect(
+      invoke('channelVisibilitySet', { ...args, visibility: { kind: 'public' } }),
+    ).rejects.toMatchObject({ code: 'channel-not-found' });
+    expect(f.log().records).toHaveLength(0);
+    f.team.channelAccess.addMember(alice, target.objectId, bob.humanId);
+    expect(await invoke('channelWorkbenchDirectory')).toEqual([
+      { id: target.objectId, name: 'Private group', visibility: 'private' },
+    ]);
+    await expect(invoke('channelMessages', args)).resolves.toBeDefined();
+  });
+
   it('lists ordered current owner display names without member-management permission, content or audit records', async () => {
     const f = await fixture();
     const viewer = f.team.roles.create(owner, 'Picker viewer', ['privateContent.view']).role;

@@ -266,6 +266,12 @@ export class TeamChannels {
   }
   visibilitySet(human: HumanContext, channelId: string, visibility: ChannelVisibility): null {
     this.requireManage(human, channelId);
+    if (
+      !this.roles.isOwner(human) &&
+      this.settings(channelId).visibility.kind === 'private' &&
+      !this.canRead(human, channelId)
+    )
+      throw new TeamError('channel-not-found');
     if (visibility.kind === 'roles')
       for (const roleId of visibility.roleIds) {
         if (
@@ -402,6 +408,13 @@ export class TeamChannels {
   ): null {
     this.requirePolicy(human, channelId, 'addMembers');
     const humanId = typeof reference === 'string' ? this.memberId(reference) : reference.humanId;
+    if (
+      humanId === human.humanId &&
+      !this.roles.isOwner(human) &&
+      this.settings(channelId).visibility.kind === 'private' &&
+      !this.canRead(human, channelId)
+    )
+      throw new TeamError('channel-not-found');
     const operationKey = typeof reference === 'string' ? undefined : reference.operationKey;
     this.requireActiveMember(humanId);
     const outcome = this.db.transaction(
@@ -505,13 +518,16 @@ export class TeamChannels {
         ),
       );
   }
+  humanDm(human: HumanContext, humanId: string) {
+    if (!this.channels.getOrCreateHumanDm) throw new TeamError('unavailable');
+    const participants = [human.humanId, humanId].sort();
+    const id = `dm-humans-${createHash('sha256').update(JSON.stringify(participants)).digest('hex').slice(0, 32)}`;
+    return this.channels.getOrCreateHumanDm(human, id, participants);
+  }
   dm(human: HumanContext, humanId: string) {
     this.roles.require(human, 'dm.humans');
     if (!this.active(human) || human.humanId === humanId || !this.active(humanContext(humanId)))
       throw new TeamError('member-not-found');
-    const participants = [human.humanId, humanId].sort();
-    const id = `dm-humans-${createHash('sha256').update(JSON.stringify(participants)).digest('hex').slice(0, 32)}`;
-    if (!this.channels.getOrCreateHumanDm) throw new TeamError('unavailable');
     const target = z
       .object({ displayName: z.string() })
       .parse(
@@ -523,7 +539,7 @@ export class TeamChannels {
       );
     return {
       channel: {
-        ...this.channels.getOrCreateHumanDm(human, id, participants),
+        ...this.humanDm(human, humanId),
         name: target.displayName,
       },
     };

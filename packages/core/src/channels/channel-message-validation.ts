@@ -417,6 +417,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     )
       return false;
   }
+  const privateAccessNotice = message['privateAccessNotice'];
+  if (
+    privateAccessNotice !== undefined &&
+    (privateAccessNotice !== true || (message['author'] as ChannelMessageAuthor)?.kind !== 'system')
+  )
+    return false;
   const memberDeparture = message['memberDeparture'];
   if (
     message['managementGrant'] !== undefined &&
@@ -517,6 +523,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
     message['managementGrant'] === undefined &&
+    privateAccessNotice === undefined &&
     !(
       typeof message['onboardingWelcome'] === 'object' &&
       message['onboardingWelcome'] !== null &&

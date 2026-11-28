@@ -50,7 +50,12 @@ export function createTeamBridge(
   };
   return {
     botAccessDirectory: (_payload: unknown) =>
-      call((service) => service.botRoleAccess.directory(human)),
+      call((service) => [
+        ...service.botRoleAccess.directory(human),
+        ...service.privateAccess.workbenchForeignBots(human),
+      ]),
+    channelWorkbenchDirectory: (_payload: unknown) =>
+      call((service) => service.privateAccess.workbenchChannels(human)),
     botAccessRoles: (payload: unknown) =>
       call((service) => {
         const { slug } = z
