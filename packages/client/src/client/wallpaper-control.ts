@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import {
   WallpaperError,
   VIDEO_LIMIT,
@@ -77,7 +78,7 @@ export function createWallpaperControl(owner: Wallpaper) {
         if (owner.getSnapshot().revision !== expectedRevision)
           throw new WallpaperError('wallpaper-revision-conflict');
         upload = {
-          id: crypto.randomUUID(),
+          id: createBrowserUuid(),
           size: command.size,
           bytes: [],
           received: 0,

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import type { ConversationStateView } from './store.js';
 import { useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
 import {
@@ -28,7 +29,7 @@ function owner(): ComposerDraftStore {
   } catch {
     storage = undefined;
   }
-  persistent = new ComposerDraftStore(storage, crypto.randomUUID());
+  persistent = new ComposerDraftStore(storage, createBrowserUuid());
   return persistent;
 }
 

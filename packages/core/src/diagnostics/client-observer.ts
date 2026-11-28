@@ -1,3 +1,5 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
+
 export interface ClientDiagnosticEvent {
   seq: number;
   elapsedMs: number;
@@ -16,7 +18,10 @@ export interface ClientDiagnosticSnapshot {
   shellMounted?: ClientDiagnosticEvent;
   delivery: 'pending' | 'delivered' | 'failed';
 }
-export function installClientObserver(win: Window & typeof globalThis): void {
+export function installClientObserver(
+  win: Window & typeof globalThis,
+  makeAttemptId = createBrowserUuid,
+): void {
   const target = win as Window &
     typeof globalThis & {
       __BOTHARNESS_CLIENT_DIAGNOSTICS__?: {
@@ -28,7 +33,7 @@ export function installClientObserver(win: Window & typeof globalThis): void {
   const started = win.performance.now();
   const data: ClientDiagnosticSnapshot = {
     version: 1,
-    attempt: win.crypto.randomUUID(),
+    attempt: makeAttemptId(win.crypto),
     startedAt: Date.now(),
     state: 'starting',
     events: [],
@@ -249,5 +254,5 @@ export function installClientObserver(win: Window & typeof globalThis): void {
 }
 
 export function clientObserverScript(): string {
-  return `(${installClientObserver.toString()})(window);`;
+  return `(${installClientObserver.toString()})(window, (${createBrowserUuid.toString()}));`;
 }

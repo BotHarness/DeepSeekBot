@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -135,7 +136,7 @@ export function ImportPlan({
       const input = JSON.stringify([displayName, sessionIds]);
       const previous = attempts.current.get(draft.id);
       const attempt =
-        previous?.input === input ? previous : { input, key: `sessions:${crypto.randomUUID()}` };
+        previous?.input === input ? previous : { input, key: `sessions:${createBrowserUuid()}` };
       attempts.current.set(draft.id, attempt);
       const { paths, added } = grantPreview(rows, new Set(sessionIds));
       try {

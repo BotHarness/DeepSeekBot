@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { NavGroupHeading, NavItem } from './ds/nav-item.js';
 import { CHANNEL_LIST_AVATAR_SIZE } from './ds/roster-styles.js';
 import { hooked } from './ds/hooked.js';
@@ -482,7 +483,7 @@ export function AddRemoteHostDialog({
             });
           return;
         }
-        attemptId.current = crypto.randomUUID();
+        attemptId.current = createBrowserUuid();
         owner.execute({ action: 'start', attemptId: attemptId.current, link }, request);
       }
     } catch {
