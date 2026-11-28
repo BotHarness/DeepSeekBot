@@ -34,10 +34,11 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useRef, useState } from 'react';
-import { Platform, PlatformColor, View } from 'react-native';
+import { PlatformColor, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import type { SystemListRow, SystemListSheetProps } from './system-list-sheet';
+import { iosMajor } from '../platform-version';
 
 export function SystemListSheet({
   visible,
@@ -55,7 +56,7 @@ export function SystemListSheet({
   open.current = visible;
   if (visible && !shown) setShown(true);
   if (!shown) return null;
-  const glass = Number(Platform.Version) >= 26;
+  const glass = iosMajor() >= 26;
   const row = (item: SystemListRow) => {
     if (item.kind === 'toggle')
       return (
@@ -224,7 +225,7 @@ export function SystemListSheet({
               </List>
               <Toolbar.Content>
                 <ToolbarItem placement="cancellationAction">
-                  {Number(Platform.Version) >= 26 ? (
+                  {iosMajor() >= 26 ? (
                     <Button
                       role="close"
                       systemImage="xmark"

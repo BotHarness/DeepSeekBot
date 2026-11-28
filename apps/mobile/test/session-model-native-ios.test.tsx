@@ -20,6 +20,7 @@ const detentChange = vi.hoisted(() => ({
 const os = vi.hoisted(() => ({ version: '26.0' }));
 vi.mock('react-native', () => ({
   Platform: {
+    OS: 'ios',
     get Version() {
       return os.version;
     },
