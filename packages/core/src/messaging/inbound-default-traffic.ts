@@ -1,10 +1,10 @@
 import { observeContact } from './contact-identity.js';
-import { personBlockApplies } from './permissions/sender-blocks.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { admissionBound, conversationName, hold, readBlock, removeHeld } from './conversations.js';
 import type { ConversationIngest } from './conversation-ingest.js';
 import type { MessagingIdentity } from './identity.js';
 import {
+  personBlockApplies,
   senderAdmission,
   threadReceptionPolicy,
   groupReceptionPolicy,

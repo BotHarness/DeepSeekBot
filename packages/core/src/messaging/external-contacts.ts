@@ -8,9 +8,13 @@ import type {
 } from '@botharness/host-protocol/external-contacts';
 import { contactId, personBlocked } from './contact-identity.js';
 import { readMessagingIdentity } from './identity.js';
-import { approvedConversationPairing, externalContactRoles } from './permissions/contact-roles.js';
-import { ownerActor, senderBlocked } from './permissions/sender-blocks.js';
-import { externalContactAccess } from './permissions/senders.js';
+import {
+  approvedConversationPairing,
+  externalContactRoles,
+  ownerActor,
+  senderBlocked,
+  externalContactAccess,
+} from './permissions/index.js';
 import { MessagingError } from './provider.js';
 
 type Observation = {

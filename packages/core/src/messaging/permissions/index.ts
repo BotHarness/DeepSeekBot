@@ -37,6 +37,7 @@ export {
   listConversationSourceBlocks,
   listSenderBlocks,
   ownerActor,
+  personBlockApplies,
   readConversationSourceBlock,
   senderBlockBindingIds,
   readSenderBlock,
@@ -77,7 +78,7 @@ export {
   chatSenderNamespace,
   platformPeople,
 } from './people.js';
-export { externalContactRoles } from './contact-roles.js';
+export { approvedConversationPairing, externalContactRoles } from './contact-roles.js';
 export {
   canDelegateExternalRole,
   changeHostExternalRole,

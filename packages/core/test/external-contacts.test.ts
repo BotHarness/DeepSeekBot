@@ -3,7 +3,7 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { observeContact } from '../src/messaging/contact-identity.js';
-import { blockSender, sourceBlocked } from '../src/messaging/permissions/sender-blocks.js';
+import { blockSender, sourceBlocked } from '../src/messaging/permissions/index.js';
 import { cleanup, dm, fixture } from './messaging-default-traffic-fixtures.js';
 import { directMessage } from './messaging-pairing-text-fixtures.js';
 import { cleanup as cleanupTeam, enabledFixture } from './team-mode-fixtures.js';
