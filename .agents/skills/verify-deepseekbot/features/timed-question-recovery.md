@@ -4,7 +4,7 @@
 
 - `packages/core/src/features/approvals/runtime-inputs.ts`
 - `packages/core/src/channels/{native-timed-questions,user-questions,accepted-question-answer,question-answer-receipts}.ts`
-- `packages/client/src/client/user-question-card.tsx`
+- `packages/client/src/client/features/approvals/user-question-card.tsx`
 - `scripts/experiment-timed-question*.mjs`
 
 ## Terms
@@ -19,8 +19,9 @@
 - Web and `user-question-answer` use the same native answer owner; invalid and duplicate answers refuse.
 - Cold recovery preserves Memory without turning the question's Bot Source Event into a new Memory admission.
 - A follow-up question created by a recovered continuation retains that mode and validates its own new card.
-- A timed question whose continuation refuses delivery is shown as expired. The original card stays
+- A timed question whose native continuation is lost is shown as expired. The original card stays
   closed after restart. The CLI reports `expired` and a late answer returns `question-expired`.
+- A temporary delivery refusal keeps the card pending and allows a later answer to the same call.
 
 ## How to get to it (user POV)
 
@@ -45,8 +46,12 @@ and readback plus the final reply, with one settlement for each original call.
 
 For an orphan, use a disposable Profile with a timed question whose native continuation cannot
 run. Submit a valid offered choice. Check that the original card shows Expired without answer
-controls and disappears from the actionable Inbox. Restart and check the same card and CLI
+controls and disappears from Activity. Restart and check the same card and CLI
 status again.
+
+For a temporary refusal, pause the Bot after the question is durably continued. Submit a valid
+choice and check the retry message and pending status. Resume the Bot and submit on the original
+card. Check that the original call settles.
 
 ## Gotchas
 

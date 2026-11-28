@@ -433,7 +433,7 @@ export function createQuestionMessaging(options: {
             write({
               ...latest,
               status: state(latest),
-              submission: accepted ? 'accepted' : 'refused',
+              submission: accepted === true ? 'accepted' : 'refused',
             });
           void update(value.id);
         })

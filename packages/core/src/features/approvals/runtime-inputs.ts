@@ -2,6 +2,11 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelStore } from '../../channels/store.js';
+import {
+  NativeQuestionSessionMissing,
+  type NativeDelivery,
+  type NativeDeliveryResult,
+} from '../../channels/user-questions.js';
 import { PrivateInputRefusal, type PrivateInputOrigin } from '../../credentials/im-origin.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
@@ -228,7 +233,7 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
     sessionId: string,
     channelId: string,
     question?: { messageId: string; callId: string },
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
+  ): NativeDelivery | undefined {
     const owner = ports.ownership.resolve(sessionId);
     const turn = owner === undefined ? undefined : ports.turnSources.get(owner.botSlug);
     const sources = turn?.sessionId === sessionId ? turn.acceptedEventIds : undefined;
@@ -242,11 +247,11 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
           ports.warn?.(
             'native-question-input-refused phase=binding reason=question-card-unavailable',
           );
-          return Promise.resolve(false);
+          return Promise.resolve('lost');
         }
         return (
           ports.recoverNativeQuestionInput(sessionId, channelId, question.messageId)?.(deliver) ??
-          Promise.resolve(false)
+          Promise.resolve('lost')
         );
       };
     }
@@ -264,7 +269,7 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
     sessionId: string,
     channelId: string,
     requestMessageId: string,
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
+  ): NativeDelivery | undefined {
     const owner = ports.ownership.resolve(sessionId);
     if (owner?.rootRole !== 'orchestrator') return undefined;
     const request = ports.channels.message(channelId, requestMessageId)?.userQuestionRequest;
@@ -306,20 +311,29 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
     );
   }
 
-  function nativeQuestionAvailable(sessionId: string, channelId: string): boolean {
+  function nativeQuestionOwner(
+    sessionId: string,
+    channelId: string,
+    expectedBot?: string,
+  ): PersonaBotRecord | undefined {
     const owner = ports.ownership.resolve(sessionId);
-    const bot = owner === undefined ? undefined : ports.registry.get(owner.botSlug);
+    if (
+      owner?.rootRole !== 'orchestrator' ||
+      (expectedBot !== undefined && owner.botSlug !== expectedBot) ||
+      !ports.ownership.contentAvailable(sessionId) ||
+      ports.sessionArchived(sessionId) === true
+    )
+      return undefined;
     const channel = ports.channels.get(channelId);
-    return (
-      !ports.closed() &&
-      bot !== undefined &&
-      owner?.rootRole === 'orchestrator' &&
-      ports.ownership.contentAvailable(sessionId) &&
-      ports.sessionArchived(sessionId) !== true &&
-      (channel?.type === 'group'
+    const holdsChannel =
+      channel?.type === 'group'
         ? channel.members.includes(owner.botSlug)
-        : channel?.botSlug === owner.botSlug)
-    );
+        : channel?.botSlug === owner.botSlug;
+    return holdsChannel ? ports.registry.get(owner.botSlug) : undefined;
+  }
+
+  function nativeQuestionAvailable(sessionId: string, channelId: string): boolean {
+    return nativeQuestionOwner(sessionId, channelId) !== undefined;
   }
 
   function nativeQuestionInput(
@@ -332,15 +346,15 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
     input: { kind: 'source-event' } | { kind: 'recovered-question'; holdsCard(): boolean } = {
       kind: 'source-event',
     },
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
-    const owner = { botSlug };
-    const held = (): boolean => {
-      const channel = ports.channels.get(channelId);
-      return channel?.type === 'group'
-        ? channel.members.includes(owner.botSlug)
-        : channel?.botSlug === owner.botSlug;
+  ): NativeDelivery | undefined {
+    if (nativeQuestionOwner(sessionId, channelId, botSlug) === undefined) return undefined;
+    const checkAuthority = (): PersonaBotRecord | 'retry' | 'lost' => {
+      if (ports.closed()) return 'retry';
+      const bot = nativeQuestionOwner(sessionId, channelId, botSlug);
+      if (bot === undefined || (input.kind === 'recovered-question' && !input.holdsCard()))
+        return 'lost';
+      return bot.paused === true ? 'retry' : bot;
     };
-    if (!held()) return undefined;
     return (deliver) => {
       let phase:
         | 'queue'
@@ -357,31 +371,21 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
         ports.warn?.(
           `native-question-input-refused phase=${phase} reason=${reason}${kind === undefined ? '' : ` kind=${kind}`} ${correlation}`,
         );
-      let accept!: (value: boolean) => void;
-      const accepted = new Promise<boolean>((resolve) => {
+      let accept!: (value: NativeDeliveryResult) => void;
+      const accepted = new Promise<NativeDeliveryResult>((resolve) => {
         accept = resolve;
       });
-      const done = ports.enqueue(owner.botSlug, async () => {
+      const done = ports.enqueue(botSlug, async () => {
         try {
           phase = 'authority';
-          const bot = ports.registry.get(owner.botSlug);
-          const current = ports.ownership.resolve(sessionId);
-          if (
-            ports.closed() ||
-            bot === undefined ||
-            bot.paused === true ||
-            current?.rootRole !== 'orchestrator' ||
-            current.botSlug !== owner.botSlug ||
-            !ports.ownership.contentAvailable(sessionId) ||
-            ports.sessionArchived(sessionId) === true ||
-            !held() ||
-            (input.kind === 'recovered-question' && !input.holdsCard())
-          ) {
+          const bot = checkAuthority();
+          if (typeof bot === 'string') {
             refused('owner-unavailable');
+            accept(bot);
             return;
           }
           ports.database.read((db) => {
-            for (const id of sourceIds) requireSourceEffects(db, id, owner.botSlug);
+            for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
           });
           phase = 'resume';
           await ports.runOrchestratorTurn(
@@ -397,59 +401,49 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
             [],
             () => {
               phase = 'native-delivery';
-              const currentBot = ports.registry.get(owner.botSlug);
-              const currentOwner = ports.ownership.resolve(sessionId);
-              if (
-                ports.closed() ||
-                currentBot === undefined ||
-                currentBot.paused === true ||
-                currentOwner?.rootRole !== 'orchestrator' ||
-                currentOwner.botSlug !== owner.botSlug ||
-                !ports.ownership.contentAvailable(sessionId) ||
-                ports.sessionArchived(sessionId) === true ||
-                !held() ||
-                (input.kind === 'recovered-question' && !input.holdsCard())
-              ) {
+              const current = checkAuthority();
+              if (typeof current === 'string') {
                 refused('owner-unavailable');
-                accept(false);
+                accept(current);
                 return false;
               }
               ports.database.read((db) => {
-                for (const id of sourceIds) requireSourceEffects(db, id, owner.botSlug);
+                for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
               });
               const result = deliver();
-              if (!result) refused('native-refused');
+              if (result !== 'accepted') refused('native-refused');
               else phase = 'continuation';
               accept(result);
-              return result;
+              return result === 'accepted';
             },
             sourceIds,
             input.kind,
           );
           phase = 'completed';
-        } finally {
-          accept(false);
+        } catch (error) {
+          if (!(error instanceof NativeQuestionSessionMissing)) throw error;
+          refused('native-refused', 'session-missing');
+          accept('lost');
         }
       });
-      void done.catch((error: unknown) => {
-        accept(false);
-        const kind =
-          error instanceof MemoryAcceptError
-            ? 'memory'
-            : error instanceof TypeError
-              ? 'type'
-              : error instanceof RangeError
-                ? 'range'
-                : error instanceof SyntaxError
-                  ? 'syntax'
-                  : error instanceof Error
-                    ? 'error'
-                    : 'non-error';
-        refused('run-failed', kind);
-      });
       void done.then(
-        () => accept(false),
-        () => accept(false),
+        () => accept('retry'),
+        (error: unknown) => {
+          accept('retry');
+          const kind =
+            error instanceof MemoryAcceptError
+              ? 'memory'
+              : error instanceof TypeError
+                ? 'type'
+                : error instanceof RangeError
+                  ? 'range'
+                  : error instanceof SyntaxError
+                    ? 'syntax'
+                    : error instanceof Error
+                      ? 'error'
+                      : 'non-error';
+          refused('run-failed', kind);
+        },
       );
       return accepted;
     };

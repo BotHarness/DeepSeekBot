@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { resetSendStreak } from './send-streak.js';
 import { TeamError } from '../team-policy/error.js';
+import { NativeQuestionSessionMissing } from '../channels/user-questions.js';
 import {
   executeNativeTool,
   installNativeModelSelection,
@@ -807,6 +808,7 @@ export async function orchestratorHandle(
   };
   const resume =
     run.resume && (adapter.hasSession === undefined || (await adapter.hasSession(run.sessionId)));
+  if (!resume && run.acceptNativeInput !== undefined) throw new NativeQuestionSessionMissing();
   const modeChoices = await readAssignmentModes(adapter, run.bot.slug, signal);
   if (modeChoices === undefined) adapter.orchestratorModeChoices.delete(run.sessionId);
   else adapter.orchestratorModeChoices.set(run.sessionId, modeChoices);

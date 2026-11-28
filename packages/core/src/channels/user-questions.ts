@@ -27,7 +27,10 @@ export interface ChannelQuestionRequest {
 
 export type ChannelQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expired';
 
-type NativeDelivery = (deliver: () => boolean) => Promise<boolean>;
+export type NativeDeliveryResult = 'accepted' | 'retry' | 'lost';
+export type NativeDelivery = (deliver: () => NativeDeliveryResult) => Promise<NativeDeliveryResult>;
+
+export class NativeQuestionSessionMissing extends Error {}
 
 export interface TimedQuestionPort {
   recordAnswer?(
@@ -61,7 +64,7 @@ export interface TimedQuestionPort {
     | { state: 'open' | 'continued' }
     | { state: 'answered'; answer: AskUserQuestionAnswer }
     | undefined;
-  answer(sessionId: string, callId: string, answer: AskUserQuestionAnswer): boolean;
+  answer(sessionId: string, callId: string, answer: AskUserQuestionAnswer): NativeDeliveryResult;
 }
 
 export interface ChannelQuestionCard {
@@ -417,7 +420,7 @@ export class ChannelUserQuestions {
     answer: AskUserQuestionAnswer,
     human: HumanContext,
     external?: { actor: ToolApprovalActor; authorized(): boolean },
-  ): Promise<boolean> {
+  ): Promise<boolean | 'retry'> {
     const pending = this.#pending.get(messageId);
     if (
       pending === undefined ||
@@ -450,22 +453,21 @@ export class ChannelUserQuestions {
         )
           return false;
         try {
-          const submit = (): boolean => {
-            if (
-              this.#pending.get(messageId) !== pending ||
-              !this.#holds(messageId, pending) ||
-              timed.read(pending.sessionId, callId)?.state !== 'continued'
-            )
-              return false;
+          const submit = (): NativeDeliveryResult => {
+            const current = timed.read(pending.sessionId, callId)?.state;
+            if (current === 'answered') return 'retry';
+            if (current === undefined || this.#pending.get(messageId) !== pending) return 'lost';
+            if (!this.#holds(messageId, pending)) return 'lost';
+            if (current !== 'continued') return 'retry';
             this.approvals?.requireRequest(human, pending.channelId, messageId);
             phase = 'native-receipt';
             timed.recordAnswer?.(pending.sessionId, callId, answer, human);
             try {
               phase = 'native-submit';
-              const accepted = timed.answer(pending.sessionId, callId, answer);
-              if (!accepted) timed.discardAnswer?.(pending.sessionId, callId);
+              const result = timed.answer(pending.sessionId, callId, answer);
+              if (result !== 'accepted') timed.discardAnswer?.(pending.sessionId, callId);
               else pending.answeringHuman = human;
-              return accepted;
+              return result;
             } catch (error) {
               timed.discardAnswer?.(pending.sessionId, callId);
               throw error;
@@ -474,18 +476,22 @@ export class ChannelUserQuestions {
           const deliver =
             pending.deliverNative ??
             timed.recover?.(pending.sessionId, pending.channelId, messageId);
-          pending.submitted =
+          const delivery =
             deliver === undefined
               ? timed.bind === undefined && timed.recover === undefined
                 ? submit()
-                : false
+                : 'lost'
               : await deliver(submit);
+          pending.submitted = delivery === 'accepted';
           if (pending.submitted) this.#statusChanged(messageId, pending);
           else if (
+            delivery === 'lost' &&
             this.#pending.get(messageId) === pending &&
             timed.read(pending.sessionId, callId)?.state !== 'answered'
           )
             await this.#cancel(messageId);
+          if (delivery === 'retry' && timed.read(pending.sessionId, callId)?.state !== 'answered')
+            return 'retry';
           return pending.submitted;
         } catch (error) {
           if (error instanceof TeamError) throw error;

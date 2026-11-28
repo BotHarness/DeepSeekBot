@@ -392,7 +392,7 @@ describe('native timed question card continuation', () => {
   it('logs unexpected answer failures without prompt or answer text and leaves the card retryable', async () => {
     const port = {
       read: () => ({ state: 'open' as const }),
-      answer: vi.fn(() => true),
+      answer: vi.fn(() => 'accepted' as const),
       recordAnswer: vi.fn(),
     };
     port.recordAnswer.mockImplementationOnce(() => {
@@ -425,7 +425,10 @@ describe('native timed question card continuation', () => {
   it('notifies subscribers of a deferred native answer before settlement', async () => {
     const answer = { answers: [{ id: 'memory-branch', selected: ['main'] }] };
     let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
-    const port: TimedQuestionPort = { read: () => native, answer: vi.fn(() => true) };
+    const port: TimedQuestionPort = {
+      read: () => native,
+      answer: vi.fn(() => 'accepted' as const),
+    };
     const state = fixture('orchestrator', port);
     const wait = state.answerer.ask({
       agent: state.agent,
@@ -453,7 +456,10 @@ describe('native timed question card continuation', () => {
   async function continued() {
     const answer = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
     let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
-    const port: TimedQuestionPort = { read: vi.fn(() => native), answer: vi.fn(() => true) };
+    const port: TimedQuestionPort = {
+      read: vi.fn(() => native),
+      answer: vi.fn(() => 'accepted' as const),
+    };
     const state = fixture('orchestrator', port);
     const controller = new AbortController();
     const wait = state.answerer.ask({
@@ -614,12 +620,12 @@ describe('timed question cards outlive their asking Agent', () => {
     const delivered: string[][] = [];
     const port = {
       read: vi.fn(() => native()),
-      answer: vi.fn(() => true),
+      answer: vi.fn(() => 'accepted' as const),
       available: vi.fn(() => true),
       bind: vi.fn(() => undefined),
-      recover: vi.fn((sessionId: string, channel: string, messageId: string) => {
+      recover: vi.fn<NonNullable<TimedQuestionPort['recover']>>((sessionId, channel, messageId) => {
         delivered.push([sessionId, channel, messageId]);
-        return async (deliver: () => boolean) => deliver();
+        return async (deliver) => deliver();
       }),
     } satisfies TimedQuestionPort;
     return { port, delivered };

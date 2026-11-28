@@ -133,8 +133,8 @@ export function nativeTimedQuestions(
     answer(sessionId, callId, answer) {
       const service = record(ctx.get('userQuestions'));
       const agent = liveRoot(sessionId);
-      if (typeof service?.['answer'] !== 'function' || agent === undefined) return false;
-      return service['answer'].call(service, agent, callId, answer) === true;
+      if (typeof service?.['answer'] !== 'function' || agent === undefined) return 'retry';
+      return service['answer'].call(service, agent, callId, answer) === true ? 'accepted' : 'lost';
     },
   };
 }

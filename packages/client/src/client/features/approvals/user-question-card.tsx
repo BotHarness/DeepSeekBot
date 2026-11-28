@@ -63,6 +63,7 @@ export function UserQuestionCard({
   target.current = companionTarget;
   const mounted = useRef(false);
   const submitting = useRef(false);
+  const expiredAnswer = useRef<string | undefined>(undefined);
   const qualified = (): boolean => {
     const current = target.current;
     return (
@@ -80,7 +81,7 @@ export function UserQuestionCard({
     let stop: (() => void) | undefined;
     if (resolved !== undefined) {
       setStatus(resolved);
-    } else if (botSlug !== undefined) {
+    } else if (botSlug !== undefined && expiredAnswer.current !== message.id) {
       if (companionTarget && statusRetry === 0) setStatus('loading');
       setStatusError(false);
       stop = observeHostResource(
@@ -91,12 +92,12 @@ export function UserQuestionCard({
         async () => {
           try {
             const value = await actions.userQuestionStatus(cardChannelId, message.id);
-            if (!active) return;
+            if (!active || expiredAnswer.current === message.id) return;
             setStatus(value);
             setStatusError(false);
             if (value === 'answered' || value === 'expired') stop?.();
           } catch {
-            if (active) setStatusError(true);
+            if (active && expiredAnswer.current !== message.id) setStatusError(true);
           }
         },
         host ?? actions.requestHost?.(),
@@ -183,16 +184,17 @@ export function UserQuestionCard({
         () => undefined,
         (cause: unknown) => {
           if (!mounted.current) return;
-          if (
-            typeof cause === 'object' &&
-            cause !== null &&
-            'code' in cause &&
-            cause.code === 'question-expired'
-          ) {
+          const code =
+            typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
+          if (code === 'question-expired') {
+            expiredAnswer.current = message.id;
             setStatus('expired');
+            setStatusRetry((current) => current + 1);
             return;
           }
-          setError(errorMessage(cause));
+          setError(
+            code === 'question-delivery-retry' ? t('question.deliveryRetry') : errorMessage(cause),
+          );
           setStatus('loading');
           setStatusRetry((current) => current + 1);
         },
