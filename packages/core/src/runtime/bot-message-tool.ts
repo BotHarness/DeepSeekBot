@@ -535,6 +535,7 @@ export function createBotMessageTool(
         const qqReply = source === undefined ? undefined : sourceReplyCapability(source);
         if (qqReply?.state === 'unavailable') {
           runsWithFailedQqReply.add(run);
+          record(run, 'refused', { reason: qqReply.reason });
           return JSON.stringify({
             status: 'refused',
             reason: qqReply.reason,
@@ -583,6 +584,7 @@ export function createBotMessageTool(
         } catch (error) {
           if (qqReply === undefined || !(error instanceof MessagingError)) throw error;
           runsWithFailedQqReply.add(run);
+          record(run, 'refused', { reason: error.code });
           return JSON.stringify({
             status: 'refused',
             reason: error.code,
@@ -593,6 +595,13 @@ export function createBotMessageTool(
         }
         if (result.state !== 'provider-accepted' || result.receipt === undefined) {
           if (qqReply !== undefined) runsWithFailedQqReply.add(run);
+          record(
+            run,
+            result.state === 'unknown-outcome' || result.state === 'provider-accepted'
+              ? 'delivery-unknown'
+              : 'failed',
+            { reason: result.reason ?? result.state },
+          );
           return JSON.stringify({
             status: result.state,
             intentId: result.id,
