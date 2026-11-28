@@ -1,4 +1,6 @@
 import type { SessionRemote } from '@deepseek-ai/dsh-api-session-controller/client';
+import type { Context as ClientContext } from '@deepseek-ai/cordis';
+import { createAttachmentOpenRequests } from './attachment-open-requests.js';
 
 export interface HostFileTarget {
   path: string;
@@ -58,6 +60,13 @@ const directoryNames: Readonly<Record<string, string>> = {
   gnometerminal: 'GNOME Terminal',
   konsole: 'Konsole',
 };
+
+export function bindNativeHostFiles(ctx: ClientContext) {
+  const attachmentOpenRequests = createAttachmentOpenRequests();
+  ctx.on('connection/reset', attachmentOpenRequests.reset);
+  ctx.effect(() => attachmentOpenRequests.dispose, 'botharness: attachment open requests');
+  return { nativeFiles: createNativeHostFiles(ctx.remote.session), attachmentOpenRequests };
+}
 
 export function createNativeHostFiles(
   session: Pick<
