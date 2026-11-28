@@ -28,6 +28,7 @@ type OrchestratorToolsContext = Pick<
   DshBotAgentAdapterState,
   | 'assignmentGroups'
   | 'assignmentModes'
+  | 'botMessageDiagnostics'
   | 'drafts'
   | 'engineChannels'
   | 'featureContributions'
@@ -142,6 +143,8 @@ export function orchestratorTools(
         const active = adapter.runs.get(run.sessionId);
         if (active?.role === 'orchestrator') (active.dmMessageIds ??= []).push(messageId);
       },
+      undefined,
+      adapter.botMessageDiagnostics,
     ),
   );
   registerPlacedFeatureTools('before-assignment-tools');

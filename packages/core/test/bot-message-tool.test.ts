@@ -1,9 +1,10 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { randomUUID } from 'node:crypto';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { HarnessError, ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { attachOperationalModule } from '../src/database/owner.js';
 import {
@@ -48,6 +49,127 @@ async function fixture() {
   };
 }
 describe('explicit local Bot messages', { timeout: 60_000 }, () => {
+  it(
+    'delivers long text and imported attachments by Bot ID and reports the same-turn send limit',
+    { timeout: 120_000 },
+    async () => {
+      const f = await fixture();
+      try {
+        f.core.registry.create({ slug: 'bea', displayName: 'Bea' });
+        const bytes = Buffer.alloc(32 * 1024, 97);
+        async function* data() {
+          yield bytes;
+        }
+        const attachment = await f.core.attachments.upload({ data: data(), name: 'report.txt' });
+        const outcomes: unknown[] = [];
+        const record = vi.fn();
+        let call = 0;
+        let conclusions = 0;
+        const send = async (
+          run: OrchestratorAgentRun,
+          args: { bot_id?: string; body: string; attachments?: unknown[] },
+        ) => {
+          const tool = createBotMessageTool(() => run, undefined, undefined, undefined, { record });
+          const context = {
+            callId: ToolCallId(`dm-${++call}`),
+            signal: new AbortController().signal,
+            concludeTurn: () => {
+              conclusions += 1;
+            },
+          } as ToolRunContext;
+          try {
+            const result = receipt(await tool.execute(args, context));
+            return { status: result.status, reason: result.reason, notWoken: result.notWoken };
+          } catch (error) {
+            return {
+              status: 'error',
+              reason: error instanceof HarnessError ? error.code : String(error),
+            };
+          }
+        };
+        await f.send('Send short messages', async (run) => {
+          for (let i = 0; i < 181; i += 1) {
+            outcomes.push(await send(run, { bot_id: 'bea', body: `Short ${i + 1}` }));
+          }
+        });
+        const longBody = 'Long text '.repeat(600);
+        await f.send('Send text and a file', async (run) => {
+          outcomes.push(await send(run, { bot_id: 'bea', body: longBody }));
+          outcomes.push(await send(run, { bot_id: 'bea', body: '', attachments: [attachment] }));
+          outcomes.push(
+            await send(run, {
+              bot_id: 'bea',
+              body: 'Unknown attachment',
+              attachments: [{ ...attachment, fileId: `file:${randomUUID()}` }],
+            }),
+          );
+          outcomes.push(await send(run, { body: 'No target' }));
+        });
+        const counts = new Map<string, number>();
+        for (const outcome of outcomes.slice(0, 181)) {
+          const key = JSON.stringify(outcome);
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        expect({
+          burst: [...counts],
+          remaining: outcomes.slice(181),
+          conclusions,
+        }).toEqual({
+          burst: [
+            ['{"status":"committed"}', 3],
+            ['{"status":"refused","reason":"send-streak"}', 178],
+          ],
+          remaining: [
+            { status: 'committed' },
+            { status: 'committed' },
+            { status: 'error', reason: 'attachment-invalid-ref' },
+            { status: 'error', reason: 'destination-required' },
+          ],
+          conclusions: 178,
+        });
+        const channel = f.core.channels.getOrCreateBotDm(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          'bea',
+          'Ada · Bea',
+        );
+        expect(f.core.channels.readMessages(channel!.id)).toMatchObject([
+          ...[1, 2, 3].map((index) => expect.objectContaining({ body: `Short ${index}` })),
+          expect.objectContaining({ body: longBody }),
+          expect.objectContaining({ body: '', attachments: [attachment] }),
+        ]);
+        expect(record).toHaveBeenCalledWith(
+          'bot-send-message',
+          'refused',
+          expect.objectContaining({ reason: 'send-streak', limit: 3 }),
+          { bot: 'ada', level: 'warn' },
+        );
+        for (const reason of ['attachment-invalid-ref', 'destination-required']) {
+          expect(record).toHaveBeenCalledWith(
+            'bot-send-message',
+            'failed',
+            expect.objectContaining({ reason }),
+            { bot: 'ada', level: 'warn' },
+          );
+        }
+        f.core.registry.setPaused('bea', true);
+        let pausedResult: unknown;
+        await f.send('Try the paused Bot', async (run) => {
+          pausedResult = await send(run, { bot_id: 'bea', body: 'Paused recipient' });
+        });
+        expect(pausedResult).toEqual({ status: 'error', reason: 'recipient-paused' });
+        expect(record).toHaveBeenCalledWith(
+          'bot-send-message',
+          'failed',
+          expect.objectContaining({ reason: 'recipient-paused' }),
+          { bot: 'ada', level: 'warn' },
+        );
+      } finally {
+        await f.close();
+      }
+    },
+  );
+
   it('concludes only after committed delivery and explicit Inbox cleanup', async () => {
     const f = await fixture();
     let conclusions = 0;
