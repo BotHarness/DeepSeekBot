@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
-import { BotNetworkDeliveryError, type NetworkBotMessage } from '../runtime/bot-network.js';
+import type { NetworkBotContact, NetworkBotMessage } from './bot-network-port.js';
+import { BotNetworkDeliveryError } from '../kernel/bot-network-error.js';
 import { botNetworkScopes, type BotNetworkMembership } from '../channels/channel.js';
 import { createBotConnectChannel } from './bot-connect-channel.js';
 import { contactSchema, messageSchema, pageSchema } from './bot-network-wire.js';

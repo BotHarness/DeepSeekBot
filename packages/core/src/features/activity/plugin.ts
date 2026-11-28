@@ -1,7 +1,7 @@
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { attachOperationalModule, onOperationalDatabaseClose } from '../../database/owner.js';
 import type { createCoreStartup } from '../../diagnostics/core-startup.js';
-import { coalesce } from '../../runtime/coalesce.js';
+import { coalesce } from '../../kernel/coalesce.js';
 import { createBotAttentionQuery } from '../../runtime/attention.js';
 import { createHumanAttentionDecisions } from './human-attention-decisions.js';
 import { createHumanAttentionQuery } from './human-attention-query.js';

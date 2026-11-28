@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import WebSocket, { WebSocketServer } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { SECRET_ROUTE_METHODS } from '../src/bridge/secret-route.js';
+import { SECRET_ROUTE_METHODS } from '../src/devices/secret-route.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
 import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';

@@ -374,6 +374,8 @@ Host Core 的包边界检查按模块统计向上导入和同层循环。每个 
 
 Runtime 通过组合层传入的 Feature Contribution 调用 Feature 服务。运行时导入仅指向 Runtime 自己或更低层的模块。
 
+Devices 定义 Bot Network 的传输端口与 Connect 路由拒绝规则，Runtime 负责接纳收到的 Bot 消息，Environments 负责组装 Connect 账户。
+
 Operational Database 在 `bot_management_grants` 中保存每个 Bot 的 **App 管理授权**（`manage-app`、`manage-bots`），通过 RBAC 授权解析器读取。Host 创建内置 Tob 时为它打开两项授权。Owner Bridge 在同一事务中修改授权并写入该 Bot 自己 Human DM 的系统提示；Owner 变更时撤销全部授权并为新 Owner 的 Tob 打开两项。Shell broker 在捕获、准入和执行时校验授权，以及根 Orchestrator 已准入的 Owner DM 来源事件。参见 [Tob 决策 §11](../decisions/tob.md#app-management-grant)。
 
 ```mermaid

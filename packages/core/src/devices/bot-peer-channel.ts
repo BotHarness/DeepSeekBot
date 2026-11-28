@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
+import { BotNetworkDeliveryError } from '../kernel/bot-network-error.js';
 import {
   botNetworkHandshake,
   finishBotHandshake,

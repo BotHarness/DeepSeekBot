@@ -11,14 +11,13 @@ import { z } from 'zod';
 import { hostId, pageSchema, messageSchema } from './bot-network-wire.js';
 import { createBotTailnet, type BotTailnet, type TailnetMember } from './bot-tailnet.js';
 import type { TailnetChange } from './bot-tailnet-watch.js';
-import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
 import {
   botNetworkScopes,
   type BotNetworkMembership,
   type TailnetBotMembership,
 } from '../channels/channel.js';
-import type { BotNetworkPort, NetworkBotMessage } from '../runtime/bot-network.js';
-import { BotNetworkDeliveryError as DeliveryError } from '../runtime/bot-network.js';
+import type { BotNetworkPort, NetworkBotContact, NetworkBotMessage } from './bot-network-port.js';
+import { BotNetworkDeliveryError as DeliveryError } from '../kernel/bot-network-error.js';
 import { requestListener } from '../kernel/request-listener.js';
 
 const ROOT = '/botharness-bots/v1';

@@ -1,3 +1,5 @@
+import type { ConnectedHost } from '../../devices/connect-account.js';
+export type { ConnectedHost } from '../../devices/connect-account.js';
 import type { DeviceConnect } from '../../devices/connect.js';
 import type { createConnectBotNetwork } from '../../devices/connect-bot-network.js';
 import type { ActivityProvider } from '../../live-activity/contract.js';
@@ -58,17 +60,6 @@ export type AccountFailureCode =
 export type AccountResult =
   | { ok: true; status: AccountStatus; sessionKnown?: boolean; sessionRevoked?: boolean }
   | { ok: false; code: AccountFailureCode };
-
-export interface ConnectedHost {
-  botNetwork?: { hostId: string; publicKey: string };
-  id: string;
-  name: string;
-  hostname: string;
-  createdAt: string;
-  connected?: boolean;
-  current: boolean;
-  sessionKnown: boolean;
-}
 
 export type ConnectedHostsResult =
   | { ok: true; hosts: ConnectedHost[] }

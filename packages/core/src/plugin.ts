@@ -24,7 +24,7 @@ import { privateInputLog } from './credentials/diagnostics.js';
 import { createBridgeMethodsForHumans } from './bridge/methods.js';
 import { registerBridge } from './bridge/rpc.js';
 import { createCoreTakeoverHandoffs } from './features/takeover/plugin.js';
-import type { ConnectAccount } from './devices/connect-account.js';
+import type { ConnectAccount } from './features/environments/connect-account-types.js';
 import { installedRelease } from './release/service.js';
 import { stampReleaseComponent } from './release/component.js';
 import { createGitService } from './memory/managed-git.js';

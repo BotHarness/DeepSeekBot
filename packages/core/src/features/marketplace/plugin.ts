@@ -10,7 +10,7 @@ import type { Context } from '@deepseek-ai/cordis';
 
 import { createBotZipHttp, type BotZipHttpDeps } from '../../bots/bot-zip-http.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import type { ConnectAccount } from '../../devices/connect-account.js';
+import type { ConnectAccount } from '../../features/environments/connect-account-types.js';
 import { createMarketplaceClient } from '../../marketplace/client.js';
 import { createInstallReceipts } from '../../marketplace/install-receipts.js';
 import { createMarketplaceSkillSource } from '../../marketplace/skill-source.js';

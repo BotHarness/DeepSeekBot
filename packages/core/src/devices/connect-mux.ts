@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
 
-import { secretRouteRefusal } from '../bridge/secret-route.js';
+import { secretRouteRefusal } from './secret-route.js';
 
 const MAX_FRAME = 8 * 1024 * 1024;
 const MAX_STREAMS = 256;

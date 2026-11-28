@@ -3,7 +3,7 @@ import {
   onOperationalDatabaseClose,
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
-import { coalesce } from './coalesce.js';
+import { coalesce } from '../kernel/coalesce.js';
 
 const TOPICS = new Set([
   'source-event',

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { coalesce } from '../src/runtime/coalesce.js';
+import { coalesce } from '../src/kernel/coalesce.js';
 
 afterEach(() => vi.useRealTimers());
 

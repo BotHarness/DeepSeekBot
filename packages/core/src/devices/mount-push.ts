@@ -8,7 +8,7 @@ import {
   type PushSource,
 } from '../push/delivery.js';
 import { createExpoSender } from '../push/expo-sender.js';
-import { coalesce } from '../runtime/coalesce.js';
+import { coalesce } from '../kernel/coalesce.js';
 import { pairedDeviceHuman } from './device-audience.js';
 import type { createDevicePairing } from './pairing.js';
 

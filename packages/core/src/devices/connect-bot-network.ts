@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { ConnectBotMembership } from '../channels/channel.js';
-import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
+import { BotNetworkDeliveryError } from '../kernel/bot-network-error.js';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u);
 const publicKey = z.string().regex(/^[a-f0-9]{64}$/u);

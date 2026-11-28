@@ -14,7 +14,7 @@ import type { TeamService } from '../../team/service.js';
 import type { VoiceCallResult } from '../../voice/call-contract.js';
 import type { createConnectBotBridge } from '../../devices/bot-connect-bridge.js';
 import { BOT_CONNECT_PATH } from '../../devices/bot-connect-channel.js';
-import type { ConnectAccount } from '../../devices/connect-account.js';
+import type { ConnectAccount } from './connect-account-types.js';
 import type { createDevicesHttp } from '../../devices/http.js';
 import { createChannelDiscovery } from '../../devices/channel-discovery.js';
 import type { createDevicePairing } from '../../devices/pairing.js';

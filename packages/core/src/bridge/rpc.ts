@@ -44,7 +44,7 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
   }
 }
 
-export { SECRET_ROUTE_METHODS, secretRouteRefusal } from './secret-route.js';
+export { SECRET_ROUTE_METHODS, secretRouteRefusal } from '../devices/secret-route.js';
 
 export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
 

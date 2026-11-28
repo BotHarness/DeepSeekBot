@@ -6,36 +6,6 @@
     "packages/core/src/credentials/secret-mcp.ts": {
       "credentials -> runtime": 1
     },
-    "packages/core/src/devices/bot-connect-bridge.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/bot-lan-bridge.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/bot-network-routes.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/bot-peer-channel.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/bot-tailnet-bridge.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/connect-account.ts": {
-      "devices -> features/environments": 3
-    },
-    "packages/core/src/devices/connect-bot-network.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/connect-mux.ts": {
-      "devices -> bridge": 1
-    },
-    "packages/core/src/devices/mount-push.ts": {
-      "devices -> runtime": 1
-    },
-    "packages/core/src/devices/rpc-policy.ts": {
-      "devices -> bridge": 1
-    },
     "packages/core/src/engines/engine-log.ts": {
       "engines -> runtime": 1
     },

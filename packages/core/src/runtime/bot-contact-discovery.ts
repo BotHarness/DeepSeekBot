@@ -1,5 +1,7 @@
 import { botOwner } from '../team-policy/bot-access.js';
 import { createHash } from 'node:crypto';
+import type { NetworkBotContact } from '../devices/bot-network-port.js';
+export type { NetworkBotContact } from '../devices/bot-network-port.js';
 
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
@@ -24,17 +26,6 @@ export interface BotContact {
   botSlug?: string;
   device?: { model: string | null; platform: string | null };
   capabilities?: string[];
-}
-
-export interface NetworkBotContact {
-  membership?: import('../channels/channel.js').BotNetworkMembership;
-  hostKey?: string;
-  hostId: string;
-  botSlug: string;
-  displayName: string;
-  description?: string;
-  device: { model: string | null; platform: string | null };
-  capabilities: readonly string[];
 }
 
 export function networkBotId(hostId: string, botSlug: string): string {

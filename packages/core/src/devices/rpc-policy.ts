@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { secretRouteRefusal } from '../bridge/secret-route.js';
+import { secretRouteRefusal } from './secret-route.js';
 import { isConnectRequest } from './route-context.js';
 
 export async function refuseConnectRpc(

@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { describe, expect, it } from 'vitest';
-import { createConnectAccount } from '../src/devices/connect-account.js';
+import { createConnectAccount } from '../src/features/environments/connect-account.js';
 import {
   RELAY,
   CLIENT,

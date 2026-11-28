@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createConnectAccount } from '../src/devices/connect-account.js';
+import { createConnectAccount } from '../src/features/environments/connect-account.js';
 import { CONNECT_ZONES } from '@botharness/host-protocol/connect-zones';
 import { runConnectCommand } from '../src/cli/cli-connect.js';
 import {
