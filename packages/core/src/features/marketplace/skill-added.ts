@@ -5,7 +5,7 @@ import {
   MARKETPLACE_SKILL_ID,
   type MarketplaceSkillAdded,
 } from '@botharness/host-protocol/marketplace-skill';
-import { parseSkillDocument, readSkillDocumentMetadata } from '../skills/skill-document.js';
+import { parseSkillDocument, readSkillDocumentMetadata } from '../../skills/skill-document.js';
 
 export async function addedMarketplaceSkills(
   skillsDir: string,
