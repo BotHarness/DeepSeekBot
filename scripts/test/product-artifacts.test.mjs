@@ -220,8 +220,15 @@ describe('packaged product selection', () => {
     const overrides = parse(packagedWorkspaceSettings('packages: [.]\n', root)).overrides;
     for (const name of platformPackageNames)
       expect(overrides[`${name}@0.0.0-test.823`]).toMatch(/^file:.*\.tgz$/);
+    const previousPlatforms = platformArtifacts.slice(0, cloudflaredPackageNames.length);
+    writeFileSync(
+      join(root, 'artifacts.json'),
+      JSON.stringify({ ...inventory, platformArtifacts: previousPlatforms }),
+    );
+    expect(verifiedProductArtifacts(root).platformArtifacts).toEqual(previousPlatforms);
     for (const invalid of [
       platformArtifacts.slice(1),
+      platformArtifacts.slice(-cloudflaredPackageNames.length),
       [{ ...platformArtifacts[0], version: '9.0.0' }, ...platformArtifacts.slice(1)],
       [{ ...platformArtifacts[0], name: 'deepseekbot' }, ...platformArtifacts.slice(1)],
     ]) {

@@ -116,10 +116,11 @@ export function verifiedProductArtifacts(directory) {
     seen.add(artifact.name);
   }
   const platformArtifacts = manifest.platformArtifacts ?? [];
-  const platformNames = new Set([
-    ...cloudflaredPackageNames,
-    ...directEdgePackages.map(({ name }) => name),
-  ]);
+  const platformNames = new Set(
+    platformArtifacts.length === cloudflaredPackageNames.length
+      ? cloudflaredPackageNames
+      : [...cloudflaredPackageNames, ...directEdgePackages.map(({ name }) => name)],
+  );
   if (
     !Array.isArray(platformArtifacts) ||
     (platformArtifacts.length !== 0 && platformArtifacts.length !== platformNames.size)
