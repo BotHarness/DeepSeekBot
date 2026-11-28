@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { COMPOSIO_EXECUTE_TOOL, composioBatchSlugs } from '../kernel/composio-tool-effects.js';
 import type { ConnectorAccess } from './store.js';
 
 export const CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
@@ -43,8 +44,6 @@ export function remoteMcpToolDenial(
   return 'No App connection with this tool is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
 }
 
-const MULTI_EXECUTE = 'COMPOSIO_MULTI_EXECUTE_TOOL';
-export const COMPOSIO_EXECUTE_TOOL = `${CONNECTOR_TOOL_PREFIX}${MULTI_EXECUTE}`;
 const DISCOVERY = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_GET_TOOL_SCHEMAS']);
 const READ_WORDS = new Set([
   'GET',
@@ -130,47 +129,25 @@ function serviceFor(slug: string, services: readonly string[]): string | undefin
   return match;
 }
 
-function slugs(args: unknown): string[] | undefined {
-  if (typeof args !== 'object' || args === null || !('tools' in args)) return undefined;
-  const { tools } = args;
-  if (!Array.isArray(tools) || tools.length === 0) return undefined;
-  const names: string[] = [];
-  for (const item of tools) {
-    const slug =
-      typeof item === 'object' && item !== null && 'tool_slug' in item ? item.tool_slug : undefined;
-    if (typeof slug !== 'string' || slug === '') return undefined;
-    names.push(slug);
-  }
-  return names;
-}
-
-export function composioBatchSends(args: unknown): boolean {
-  return (
-    slugs(args)?.some((slug) =>
-      slug
-        .split('_')
-        .slice(1)
-        .some((word) =>
-          ['SEND', 'FORWARD', 'INVITE', 'POST', 'PUBLISH', 'REPLY', 'SHARE'].includes(word),
-        ),
-    ) ?? false
-  );
-}
-
 export function composioWriteInput(
   name: string,
   args: unknown,
   access: Readonly<Record<string, ConnectorAccess>>,
 ): unknown {
   const raw = name.slice(CONNECTOR_TOOL_PREFIX.length);
-  const names = raw === MULTI_EXECUTE ? slugs(args) : raw.startsWith('COMPOSIO_') ? [] : [raw];
+  const names =
+    name === COMPOSIO_EXECUTE_TOOL
+      ? composioBatchSlugs(args)
+      : raw.startsWith('COMPOSIO_')
+        ? []
+        : [raw];
   const services = Object.keys(access);
   const writes = names?.some((slug) => {
     const service = serviceFor(slug, services);
     return service !== undefined && !readOnlyTool(slug, service);
   });
   if (!writes) return undefined;
-  return raw === MULTI_EXECUTE ? args : { tools: [{ tool_slug: raw, arguments: args }] };
+  return name === COMPOSIO_EXECUTE_TOOL ? args : { tools: [{ tool_slug: raw, arguments: args }] };
 }
 
 export function connectorToolDenial(
@@ -185,9 +162,13 @@ export function connectorToolDenial(
     return 'No App connection is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
   if (DISCOVERY.has(raw)) return undefined;
   const names =
-    raw === MULTI_EXECUTE ? slugs(args) : raw.startsWith('COMPOSIO_') ? undefined : [raw];
+    name === COMPOSIO_EXECUTE_TOOL
+      ? composioBatchSlugs(args)
+      : raw.startsWith('COMPOSIO_')
+        ? undefined
+        : [raw];
   if (names === undefined)
-    return raw === MULTI_EXECUTE
+    return name === COMPOSIO_EXECUTE_TOOL
       ? 'COMPOSIO_MULTI_EXECUTE_TOOL needs a tools list in which every entry names a tool_slug.'
       : `${raw} is not available to Bots; use COMPOSIO_SEARCH_TOOLS and COMPOSIO_MULTI_EXECUTE_TOOL.`;
   for (const slug of names) {

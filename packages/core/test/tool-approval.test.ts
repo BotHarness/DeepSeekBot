@@ -17,7 +17,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createToolApprovalRuleStore } from '../src/workspaces/tool-approval-rules.js';
 import { createTempRoot } from './helpers.js';
-import { toolEffects } from '../src/workspaces/tool-effects.js';
+import { toolApprovalRequired, toolEffects } from '../src/workspaces/tool-effects.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import { mountConnectors } from '../src/connectors/mount.js';
 import type { ConnectorService } from '../src/connectors/service.js';
@@ -66,6 +66,14 @@ function fixture(
 }
 
 describe('Channel tool approval', () => {
+  it('preserves the existing effects and approval decision for connector_request', () => {
+    const name = 'connector_request';
+    const args = { account_id: 'acc', access: 'read' };
+    expect(JSON.stringify([toolEffects(name, args), toolApprovalRequired(name, args, false)])).toBe(
+      '[{"changes":"reversible","reach":"local","personalData":true,"authority":"management"},true]',
+    );
+  });
+
   it.each([
     ['write', ['GMAIL_LIST_EMAILS', 'GMAIL_SEND_EMAIL'], 'allowed-once', 1, 'irreversible'],
     ['write', ['GOOGLECALENDAR_CREATE_EVENT'], 'rejected', 0, 'reversible'],

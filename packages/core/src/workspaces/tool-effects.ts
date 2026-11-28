@@ -1,7 +1,7 @@
 import { cliEffects, brokerCliEffects } from '../kernel/cli-effects.js';
 import { requiresHumanDecision } from './approval-templates.js';
 import { sourceBlockTokenValid } from './source-block-token.js';
-import { COMPOSIO_EXECUTE_TOOL, composioBatchSends } from '../connectors/policy.js';
+import { COMPOSIO_EXECUTE_TOOL, composioBatchSends } from '../kernel/composio-tool-effects.js';
 
 import type { ToolEffects } from '../kernel/tool-effects-contract.js';
 export type { ToolEffects } from '../kernel/tool-effects-contract.js';

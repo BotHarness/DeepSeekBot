@@ -14,10 +14,10 @@ export interface ConnectorsBridgeContext {
   isHostOwner: Parameters<typeof createConnectorsBridgeMethods>[1];
 }
 
-function connectorTools(
+function mountHostResources(
   ctx: Context,
   core: BotHarnessCore,
-  approval: Parameters<typeof mountConnectors>[4],
+  { toolApproval }: { toolApproval: NonNullable<Parameters<typeof mountConnectors>[4]> },
 ) {
   if (core.operationalDatabase.mode !== 'ready') return;
   const callback = connectorCallback(core.team.publicOrigins);
@@ -28,7 +28,7 @@ function connectorTools(
     redirectUri: callback.url,
   });
   core.connectors = connectors;
-  mountConnectors(ctx, core, connectors, callback, approval);
+  mountConnectors(ctx, core, connectors, callback, toolApproval);
 }
 
 export function createConnectorsContribution() {
@@ -36,10 +36,10 @@ export function createConnectorsContribution() {
     id: 'connectors',
     bridgeMethods: ({ deps, isHostOwner }) => createConnectorsBridgeMethods(deps, isHostOwner),
     rpc: connectorsRpc,
-    host: { connectorTools },
+    host: { mountHostResources },
   } satisfies FeatureContribution<
     ConnectorsBridgeContext,
     never,
-    { connectorTools: typeof connectorTools }
+    { mountHostResources: typeof mountHostResources }
   >;
 }

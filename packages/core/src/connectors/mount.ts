@@ -5,13 +5,13 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
+import { COMPOSIO_EXECUTE_TOOL } from '../kernel/composio-tool-effects.js';
 import type { BotHarnessCore } from '../plugin-types.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
 import { CONNECTOR_CATALOG, matchesCatalog } from './catalog.js';
 import {
   CONNECTOR_MCP_SERVER,
   CONNECTOR_TOOL_PREFIX,
-  COMPOSIO_EXECUTE_TOOL,
   LEGACY_READ_REFUSAL,
   STALE_SIGN_IN_REFUSAL,
   REMOTE_MCP_TOOL_PREFIX,

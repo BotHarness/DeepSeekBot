@@ -462,7 +462,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     diagnosticEvents,
   );
   forEachHostFeature(featureContributions, (hooks) =>
-    hooks.connectorTools?.(ctx, core, () => toolApproval),
+    hooks.mountHostResources?.(ctx, core, { toolApproval: () => toolApproval }),
   );
   forEachHostFeature(featureContributions, (hooks) => hooks.teamConfinement?.(ctx, core, dshHome));
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
