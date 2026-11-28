@@ -8,6 +8,10 @@
 - `packages/client/src/client/connectors-settings.tsx`
 - `packages/client/src/client/bot-connectors-section.tsx`
 - `packages/client/src/client/features/connectors/*.ts`
+- `packages/client/src/client/connector-request-card.tsx`
+- `packages/host-client/src/connectors.ts`
+- `packages/host-client/src/shared/connector-request.ts`
+- `apps/mobile/src/ui/chat/bot-connector-settings.tsx`
 
 ## Terms
 
@@ -19,7 +23,9 @@
 
 - Bot Settings › App connections (应用连接), Owner only: one Composio API key row (Add key / Replace; Remove inside the dialog) and a Connected accounts list with status, Disconnect, Open sign-in, Connect an app and Check status.
 - Saving a key checks it with Composio first; a rejected key is refused with `invalid-input` and nothing is stored.
-- Each Bot's App connections entry: one select per account (No access / Read / Read and write).
+- Each Bot's App connections entry: one select per shared or Bot-own account (No access / Read / Read and write). An unused one-time grant shows as "Just this once (Read)"; No access revokes it. Another Bot's own accounts are hidden.
+- Chat card for `connector_request` (category **App connection**): the account label, identity, Read or Read and write, shared or the Bot's own, and the Bot's reason, then **Turn on for this Bot** / **Just this once** / **No**. Non-Owners see it read-only. When the Bot asks with a `service` and no account fits, the card is a Connect card: **Connect in Settings** opens Settings › App connections; after one account of that service connects, the grant buttons appear on the same card.
+- iOS/Android: the same card is decided in place (`connector-turn-on`, `connector-once`, `approval-deny`); the Bot profile has an App connections section with one switch per account (on grants Read, off revokes). Adding accounts stays on the computer.
 - Bot tools `connector_catalog` (read) and `connector_request` (always a Human approval card). The `mcp__composio__*` guard refuses ungranted services, writes under a Read grant, remote workbench/bash tools and calls after revocation.
 - The connector request decision supports a single tool invocation in the requesting Session. Use `deepseekbot connector request-decide <channel-id> <message-id> --choice once` on a pending connector request. Check that the first account tool call works, a second is refused, and `bot-connectors` shows no new durable grant.
 - Engine-backed Bots find granted App connection tools through `tool_search` and run them through `tool_call`. Revoke the grant between two calls in the same Session and check the second call is refused. Check a second Bot cannot find the tools unless granted the same account.
@@ -30,6 +36,8 @@
 Bot mode → rail gear (**Bot settings** / **Bot 设置**) → **App connections** / **应用连接**. Searching settings for “connect” lists it first. Per Bot: open that Bot's settings and choose its App connections entry.
 
 ## Driving it with verify-app
+
+Grant-card journey (no provider key needed: a remote MCP account or a store-seeded active account is enough): grant nothing, ask the Bot to use the account so it calls `connector_request`, choose **Just this once**, and check the first account tool call works and the next call asks again. Then choose **Turn on for this Bot** and check `bot-connectors` lists the grant; set **No access** in the Tools tab and check the next call is refused.
 
 ```bash
 pnpm build

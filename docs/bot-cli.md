@@ -1518,6 +1518,8 @@ deepseekbot connector-remove <account-id> --confirm
 deepseekbot connector-key-clear --confirm
 ```
 
+`bot-connectors <bot-id>` returns the Bot's lasting grants as `connectors` and any unused one-time grants as `once` (`accountId`, `access`); `connector-grant … --access none` removes both. `connector request-decide` answers a Bot's `connector_request` card: `persistent` turns the account on for the Bot, `once` allows one call in that Session, `deny` refuses. When no account fits, the Bot asks with a `service` instead of an `account_id`; the card points to Settings › App connections, and a later choice uses the service's only active account.
+
 `connector-search [query]` lists the apps you can connect: the featured apps that match come first, then every matching app Composio supports (about 2,000), with `next` as the `--cursor` for the following page. Chinese words match the featured apps only; English words such as `crm` or `email` search all of Composio. Without a key it returns only the featured apps. A Bot's `connector_catalog` uses the same search. `connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
 
 ### App connections (remote MCP)

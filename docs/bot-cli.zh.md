@@ -1445,6 +1445,8 @@ deepseekbot connector-remove <account-id> --confirm
 deepseekbot connector-key-clear --confirm
 ```
 
+`bot-connectors <bot-id>` 在 `connectors` 中返回 Bot 的长期授权，在 `once` 中返回尚未用掉的一次性授权（`accountId`、`access`）；`connector-grant … --access none` 会同时撤销两者。`connector request-decide` 回应 Bot 的 `connector_request` 卡片：`persistent` 为这个 Bot 开启该账号，`once` 只允许该 Session 调用一次，`deny` 拒绝。没有合适账号时，Bot 用 `service` 代替 `account_id` 发起请求；卡片会引导到设置 › 应用连接，之后的选择会使用该服务唯一的已连接账号。
+
 `connector-search [关键词]` 列出可以连接的应用：先列出匹配的常用应用，再列出 Composio 支持的所有匹配应用（约 2000 个），返回的 `next` 可作为 `--cursor` 取下一页。中文关键词只匹配常用应用；英文词（如 `crm`、`email`）会搜索整个 Composio。没有 key 时只返回常用应用。Bot 的 `connector_catalog` 用的是同一个搜索。`connector-reconnect <account-id>` 用于重新登录已过期或失败的账号：断开旧的 Composio 账号、输出新的登录链接，并保留该账号已有的 Bot 授权。`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
 
 ### 应用连接（远程 MCP）
