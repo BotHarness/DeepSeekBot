@@ -125,6 +125,11 @@ export const zh = {
   'privateRelay.connecting': '正在连接…',
   'privateRelay.connected': '已连接，可以配对手机。',
   'privateRelay.pair': '显示手机配对码',
+  'privateRelay.unreachable': '连不上私有中继。检查中继地址、证书和网络。',
+  'privateRelay.busy':
+    '中继仍有这台电脑的另一个连接。等待它断开或退出另一个实例，此电脑会自动重试。',
+  'privateRelay.ownerRefused': '中继不再识别这台电脑的认领。让中继管理员检查认领状态。',
+  'privateRelay.upgradeRefused': '服务器拒绝了中继连接。检查中继地址和代理设置。',
   'privateRelay.failed':
     '连接未完成。请检查公网地址、HTTPS 证书和设置密钥；若服务已被认领，请回到原电脑继续。不会自动使用官方中继。',
   'connections.savedOffline': '已保存「{name}」，暂时无法读取频道。可从侧栏重新打开。',
@@ -290,6 +295,7 @@ export const zh = {
   'connections.log.mismatch': '响应与本机身份不匹配',
   'connections.log.network': '网络请求失败',
   'connections.log.verified': '公网连通性检查通过',
+  'connections.log.relayConnected': '已连接私有中继',
   'connections.log.unreachable': '公网地址暂不可达，将继续检查',
   'connections.log.signIn': '等待浏览器完成登录',
   'connections.log.signedIn': '账号登录完成',
@@ -456,6 +462,14 @@ export const en = {
   'privateRelay.connecting': 'Connecting…',
   'privateRelay.connected': 'Connected. You can now pair your phone.',
   'privateRelay.pair': 'Show phone pairing code',
+  'privateRelay.unreachable':
+    'Cannot reach the private relay. Check its address, certificate, and network access.',
+  'privateRelay.busy':
+    'The relay still has another connection for this computer. Wait for it to close, or quit the other running copy. This computer will retry automatically.',
+  'privateRelay.ownerRefused':
+    'The relay no longer recognizes this computer’s claim. Ask the relay administrator to check it.',
+  'privateRelay.upgradeRefused':
+    'The server refused the relay connection. Check the relay address and proxy settings.',
   'privateRelay.failed':
     'Connection did not complete. Check public reachability, HTTPS and the setup key. If already claimed, continue from the original computer. The official relay will not be used automatically.',
   'connections.savedOffline':
@@ -631,6 +645,7 @@ export const en = {
   'connections.log.mismatch': 'Response did not match this Host',
   'connections.log.network': 'Network request failed',
   'connections.log.verified': 'Public reachability check passed',
+  'connections.log.relayConnected': 'Private relay connected',
   'connections.log.unreachable': 'Public address is not reachable yet; checking again',
   'connections.log.signIn': 'Waiting for browser sign-in',
   'connections.log.signedIn': 'Account signed in',
@@ -652,3 +667,9 @@ export const en = {
   'connections.phoneApp.ready': 'I’ve installed the app, start connecting',
   'connections.host': 'Host: {name}',
 } satisfies Record<keyof typeof zh, string>;
+export const privateRelayIssueLabels = {
+  'private-relay-unreachable': 'privateRelay.unreachable',
+  'private-relay-busy': 'privateRelay.busy',
+  'private-relay-owner-refused': 'privateRelay.ownerRefused',
+  'private-relay-upgrade-refused': 'privateRelay.upgradeRefused',
+} as const;

@@ -44,6 +44,31 @@ export function privateRelayOrigin(value: string): string | undefined {
 }
 const secret = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+
+type ControlIssue =
+  | 'private-relay-unreachable'
+  | 'private-relay-upgrade-refused'
+  | 'private-relay-busy'
+  | 'private-relay-owner-refused';
+
+async function controlRefusal(config: Configuration, signal: AbortSignal): Promise<ControlIssue> {
+  try {
+    const response = await fetch(`${config.origin}/status`, {
+      headers: { Authorization: `Bearer ${config.ownerToken}` },
+      redirect: 'error',
+      signal: AbortSignal.any([signal, AbortSignal.timeout(2000)]),
+    });
+    const body: unknown = await response.json();
+    if (body && typeof body === 'object') {
+      if (response.ok && 'connected' in body && body.connected === true)
+        return 'private-relay-busy';
+      if (response.status === 404 && 'code' in body && body.code === 'not-found')
+        return 'private-relay-owner-refused';
+    }
+  } catch {}
+  return 'private-relay-upgrade-refused';
+}
+
 export function createPrivateConnection(options: {
   credentials():
     | Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>
@@ -55,12 +80,15 @@ export function createPrivateConnection(options: {
   let config: Configuration | undefined;
   let status: PrivateRelayStatus = { state: 'off' };
   let control: WebSocket | undefined;
+  let refusalProbe: AbortController | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
   let busy = false;
   const peers = new Map<string, { socket: WebSocket; queued: string[]; bytes: number }>();
   const stop = () => {
     clearTimeout(retry);
+    refusalProbe?.abort();
+    refusalProbe = undefined;
     const socket = control;
     control = undefined;
     socket?.terminate();
@@ -71,7 +99,7 @@ export function createPrivateConnection(options: {
     if (!config || closed) return;
     stop();
     const current = config;
-    status = { state: 'connecting', origin: current.origin };
+    if (status.state !== 'error') status = { state: 'connecting', origin: current.origin };
     const socket = new WebSocket(`${current.origin.replace(/^http/u, 'ws')}/host`, {
       headers: { Authorization: `Bearer ${current.ownerToken}` },
       handshakeTimeout: 10_000,
@@ -91,15 +119,39 @@ export function createPrivateConnection(options: {
       socket.send(text);
     };
     socket.on('open', () => {
+      if (control !== socket) return;
       status = { state: 'connected', origin: current.origin };
-      options.log('connected');
+      options.log('private-relay-connected');
+    });
+    let upgradeStatus: number | undefined;
+    socket.on('unexpected-response', (_request, response) => {
+      upgradeStatus = response.statusCode;
+      socket.terminate();
     });
     socket.on('error', () => socket.terminate());
     socket.on('close', () => {
       if (control !== socket) return;
       stop();
-      status = { state: 'error', origin: current.origin, issue: 'private-relay-unreachable' };
-      options.log('disconnected');
+      const report = (issue: ControlIssue) => {
+        const changed = status.issue !== issue;
+        status = { state: 'error', origin: current.origin, issue };
+        if (changed) options.log(issue);
+      };
+      if (upgradeStatus === 401 || upgradeStatus === 403 || upgradeStatus === 404) {
+        const probe = new AbortController();
+        refusalProbe = probe;
+        void controlRefusal(current, probe.signal).then((issue) => {
+          if (probe.signal.aborted) return;
+          refusalProbe = undefined;
+          report(issue);
+        });
+      } else {
+        report(
+          upgradeStatus === undefined
+            ? 'private-relay-unreachable'
+            : 'private-relay-upgrade-refused',
+        );
+      }
       if (!closed && config === current) {
         retry = setTimeout(start, 5000);
         retry.unref();

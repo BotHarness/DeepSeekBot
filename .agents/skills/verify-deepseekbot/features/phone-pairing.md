@@ -180,6 +180,8 @@ Record default/intermediate/maximum text in both themes, reachable labels, keybo
 
 ## Docker private connection (#3746)
 
+For relay refusal diagnostics (#5423, #5424), use a disposable relay and Profile. Keep the owner's original control socket open while restoring the same claim on a second Host. The Docker relay panel and activity log show that another control connection is active, and `deepseekbot devices` reports `private-relay-busy`. Close the old socket and observe automatic recovery. Repeat with a disposable released claim for `private-relay-owner-refused`. On the native phone, scan a QR with a refused relay admission token, confirm the Host fingerprint, and check that the pairing notice asks for a fresh code and copied error details say `private-relay-admission-refused`. Scan a fresh valid code in the same screen to complete pairing.
+
 In Settings → Connections → Advanced, select Docker relay. Verify the public-endpoint prerequisite appears before claiming. Deploy on an existing reachable HTTPS endpoint; unreachable endpoints must fail visibly. Enter the initial setup key privately, wait for connected, then show the phone pairing code. Compare the full Host fingerprint, approve the exact phone key, and send a Bot message from the native phone. Require the actual reply and canonical Host facts with official login/discovery/relay unavailable. Retain failed attempts and verify duplicate claim, unauthorized admission, restart persistence and revocation. Local protocol tests do not qualify this native journey.
 
 ## Quick Tunnel entry and recovery (#4072)

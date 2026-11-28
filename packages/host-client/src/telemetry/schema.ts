@@ -23,6 +23,8 @@ export type PairingReason =
   | 'offer-invalid'
   | 'offer-expired'
   | 'unreachable'
+  | 'private-relay-unreachable'
+  | 'private-relay-admission-refused'
   | 'certificate-untrusted'
   | 'storage-failure'
   | 'sign-in-cancelled'
@@ -285,6 +287,8 @@ export const MOBILE_EVENT_FIELDS: Record<
       'offer-invalid',
       'offer-expired',
       'unreachable',
+      'private-relay-unreachable',
+      'private-relay-admission-refused',
       'certificate-untrusted',
       'storage-failure',
       'sign-in-cancelled',

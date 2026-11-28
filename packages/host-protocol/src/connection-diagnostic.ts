@@ -47,6 +47,8 @@ const codes = new Set([
   'cancelled',
   'unknown',
   'unreachable',
+  'private-relay-unreachable',
+  'private-relay-admission-refused',
   'lan-build-required',
   'lan-unreachable',
   'lan-permission-denied',

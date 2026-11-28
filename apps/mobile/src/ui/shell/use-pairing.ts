@@ -223,7 +223,10 @@ export function usePairing(
     connectionName,
     setConnectionName,
     pair,
-    canRetry: error !== undefined && handled.current !== undefined,
+    canRetry:
+      error !== undefined &&
+      error !== 'private-relay-admission-refused' &&
+      handled.current !== undefined,
     retry: () => pair(handled.current!, lastMethod.current, true, accountHostId.current),
     forget: () => {
       handled.current = undefined;

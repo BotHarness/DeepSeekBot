@@ -13,7 +13,7 @@ export const CONNECT_COMMANDS = [
   },
   {
     command: 'private-connect',
-    description: 'claim a Docker relay: --hostname <https-origin> --token-stdin --confirm',
+    description: 'claim a Docker relay: --hostname <https-origin> --token-stdin --confirm [--wait]',
   },
   {
     command: 'private-tunnel-enable',
@@ -251,7 +251,7 @@ export async function runConnectCommand(
     return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
   }
   if (command === 'private-connect') {
-    if (rest.length || !values.hostname || !values['token-stdin'] || !values.confirm || values.wait)
+    if (rest.length || !values.hostname || !values['token-stdin'] || !values.confirm)
       throw new CliLiveError(
         'usage',
         'private-connect requires --hostname <https-origin> --token-stdin --confirm.',
@@ -265,7 +265,20 @@ export async function runConnectCommand(
       bootstrap,
       confirm: true,
     });
-    return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
+    const claimed = JSON.parse(new TextDecoder().decode(response.bytes)) as {
+      ok: boolean;
+      status?: { state: string; origin?: string; issue?: string };
+    };
+    if (!values.wait || !claimed.ok || claimed.status?.state !== 'connecting') return claimed;
+    for (let attempt = 0; attempt < 13; attempt++) {
+      await sleep(1000);
+      const snapshot = JSON.parse(new TextDecoder().decode((await host.http(DEVICES)).bytes)) as {
+        privateRelay?: typeof claimed.status;
+      };
+      const status = snapshot.privateRelay;
+      if (status?.state === 'connected' || status?.state === 'error') return { ...claimed, status };
+    }
+    return claimed;
   }
   const enable = command === 'connect-enable';
   const revoke = command === 'connect-account-revoke';
@@ -277,7 +290,7 @@ export async function runConnectCommand(
   if (revoke && !values.confirm)
     throw new CliLiveError('confirm-required', 'Signing out another computer requires --confirm.');
   if (values.wait && command !== 'connect-sign-in')
-    throw new CliLiveError('usage', '--wait requires connect-sign-in.');
+    throw new CliLiveError('usage', '--wait requires connect-sign-in or private-connect.');
   if (!enable && (values.hostname !== undefined || values['token-stdin']))
     throw new CliLiveError('usage', '--hostname and --token-stdin require connect-enable.');
   let token = '';

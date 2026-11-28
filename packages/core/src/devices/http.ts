@@ -283,7 +283,7 @@ export function createDevicesHttp(options: {
       let routes = offeredRoutes(await options.routes(), origin).map((route) => route.url);
       const privateStatus = options.privateConnection?.status();
       if (privateStatus && privateStatus.state !== 'off' && privateStatus.state !== 'connected')
-        return json({ code: 'private-relay-unreachable' }, 409);
+        return json({ code: privateStatus.issue ?? 'private-relay-connecting' }, 409);
       const tunnelStatus = options.privateTunnel?.status();
       const admissions = options.privateTunnel?.admissions() ?? [];
       const requested = input['routeId'];

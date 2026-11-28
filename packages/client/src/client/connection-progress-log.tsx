@@ -5,6 +5,7 @@ import { DIAGNOSTIC_LOGS_ENDPOINT } from './diagnostic-log.js';
 import type { DiagnosticLogRow } from './diagnostic-logs-dialog.js';
 import { useMountedResource } from './mounted-resource.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { privateRelayIssueLabels } from './features/environments/connections-locale.js';
 
 const styles = stylex.create({
   panel: { width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: space.x2 },
@@ -38,6 +39,8 @@ const phaseLabels = {
   'sign-in-expired': 'connections.log.signInExpired',
   'signed-out': 'connections.log.signedOut',
   connected: 'connections.log.verified',
+  'private-relay-connected': 'connections.log.relayConnected',
+  ...privateRelayIssueLabels,
   enabled: 'connections.log.enabled',
   disabled: 'connections.log.disabled',
   'quick-address': 'connections.log.address',
