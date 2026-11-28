@@ -32,7 +32,7 @@ node scripts/ask-secret-lifecycle-fixture.mjs 31394
 Send in the designated test DM:
 
 ```text
-[IM-PRIVATE-A] Call ask_secret for account im-demo with required fields
+[IM-PRIVATE-A] Call ask_secret with mode collect for account im-demo and these required fields
 endpoint (Private URL), api_key (API key), api_secret (API secret).
 Wait for Owner submission in Web Chat, then call protected_cli using
 http-status-v1 and the returned references. Use bot_send_message to report

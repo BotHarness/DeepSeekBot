@@ -165,6 +165,7 @@ export const INBOX_OPTIONS = {
 } as const;
 
 export const MESSAGING_OPTIONS = {
+  actor: { type: 'string' },
   'input-stdin': { type: 'boolean' },
   'read-mode': { type: 'string' },
   confirm: { type: 'boolean' },
@@ -287,6 +288,7 @@ export const TEAM_OPTIONS = {
   'join-channels': { type: 'string' },
   'speaker-context': { type: 'string' },
   'policy-stdin': { type: 'boolean' },
+  'expected-editable-bots-revision': { type: 'string' },
   'expected-revision': { type: 'string' },
   as: { type: 'string' },
   after: { type: 'string' },

@@ -217,7 +217,7 @@ it('retains only participant metadata after returning private and drops it when 
   });
 });
 
-it('keeps participant history metadata when the principal is deactivated or the Bot is deleted', async () => {
+it('keeps shared DM metadata during owner deactivation and hides the DM after Bot deletion', async () => {
   const f = await fixture(),
     methods = f.bridge(bob);
   const dm = await methods.channelDm({ slug: 'public' });
@@ -245,21 +245,11 @@ it('keeps participant history metadata when the principal is deactivated or the 
   );
   const preview = f.core.deletions.preview('public');
   await f.core.deletions.confirm('public', preview.token, false);
-  expect(methods.list({})).toMatchObject({
-    ok: true,
-    value: {
-      bots: expect.arrayContaining([
-        expect.objectContaining({
-          slug: 'public',
-          readOnly: true,
-          deleted: true,
-          metadataOnly: true,
-        }),
-      ]),
-    },
-  });
+  const roster = methods.list({});
+  if (!roster.ok) throw new Error('list refused');
+  expect(roster.value.bots.some((bot) => bot.slug === 'public')).toBe(false);
   expect(await methods.channelMessages({ channelId: dm.value.channel.id })).toMatchObject({
-    ok: true,
+    ok: false,
   });
 });
 

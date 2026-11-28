@@ -1,7 +1,7 @@
 {
   "upward": {
     "packages/core/src/bots/registry.ts": {
-      "bots -> features": 1
+      "bots -> features/personabots": 1
     },
     "packages/core/src/credentials/secret-mcp.ts": {
       "credentials -> runtime": 1
@@ -22,7 +22,7 @@
       "devices -> runtime": 1
     },
     "packages/core/src/devices/connect-account.ts": {
-      "devices -> features": 3
+      "devices -> features/environments": 3
     },
     "packages/core/src/devices/connect-bot-network.ts": {
       "devices -> runtime": 1
@@ -43,7 +43,7 @@
       "messaging -> runtime": 1
     },
     "packages/core/src/messaging/dsh-im.ts": {
-      "messaging -> features": 2
+      "messaging -> features/messaging": 2
     },
     "packages/core/src/messaging/member-admission.ts": {
       "messaging -> runtime": 1
@@ -57,33 +57,6 @@
     "packages/core/src/push/source.ts": {
       "push -> runtime": 1
     },
-    "packages/core/src/runtime/bot-runtime-features.ts": {
-      "runtime -> features": 1
-    },
-    "packages/core/src/runtime/bot-runtime-lifecycle.ts": {
-      "runtime -> features": 1
-    },
-    "packages/core/src/runtime/bot-runtime-state.ts": {
-      "runtime -> features": 2
-    },
-    "packages/core/src/runtime/bot-runtime-types.ts": {
-      "runtime -> features": 3
-    },
-    "packages/core/src/runtime/bot-runtime.ts": {
-      "runtime -> features": 7
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-engine.ts": {
-      "runtime -> features": 1
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator.ts": {
-      "runtime -> features": 1
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter.ts": {
-      "runtime -> features": 3
-    },
-    "packages/core/src/runtime/human-attention.ts": {
-      "runtime -> features": 2
-    },
     "packages/core/src/state/tool-details.ts": {
       "state -> runtime": 1
     },
@@ -94,10 +67,10 @@
       "telemetry -> runtime": 1
     },
     "packages/core/src/voice/bridge.ts": {
-      "voice -> features": 1
+      "voice -> features/voice": 1
     },
     "packages/core/src/voice/call-http.ts": {
-      "voice -> features": 1
+      "voice -> features/voice": 1
     },
     "packages/core/src/workspaces/approval-reviewer.ts": {
       "workspaces -> runtime": 1
@@ -109,10 +82,89 @@
       "workspaces -> runtime": 1
     },
     "packages/core/src/workspaces/tool-approval.ts": {
-      "workspaces -> features": 3
+      "workspaces -> features/approvals": 3
     }
   },
-  "peerCycles": {
+  "feedbackEdges": {
+    "packages/core/src/attachments/backup.ts": {
+      "attachments -> portability": 1,
+      "attachments -> purge": 1
+    },
+    "packages/core/src/attachments/http.ts": {
+      "attachments -> messaging": 1
+    },
+    "packages/core/src/attachments/lark-audio.ts": {
+      "attachments -> messaging": 1
+    },
+    "packages/core/src/attachments/voice-audio.ts": {
+      "attachments -> messaging": 1
+    },
+    "packages/core/src/attachments/wechat-audio.ts": {
+      "attachments -> messaging": 1
+    },
+    "packages/core/src/bots/creation.ts": {
+      "bots -> channels": 1
+    },
+    "packages/core/src/bots/tool-trace.ts": {
+      "bots -> credentials": 1
+    },
+    "packages/core/src/channels/sqlite-store.message-payload.ts": {
+      "channels -> messaging": 1
+    },
+    "packages/core/src/credentials/private-inputs.ts": {
+      "credentials -> channels": 1
+    },
+    "packages/core/src/marketplace/client.ts": {
+      "marketplace -> bots": 1
+    },
+    "packages/core/src/marketplace/install-review.ts": {
+      "marketplace -> bots": 2,
+      "marketplace -> workspaces": 1
+    },
+    "packages/core/src/marketplace/uploaded-bots.ts": {
+      "marketplace -> bots": 1
+    },
+    "packages/core/src/memory/backup.ts": {
+      "memory -> portability": 1
+    },
+    "packages/core/src/messaging/permissions/senders.ts": {
+      "messaging -> cloud": 1
+    },
+    "packages/core/src/models/group-fallback.ts": {
+      "models -> engines": 1
+    },
+    "packages/core/src/models/presets.ts": {
+      "models -> engines": 1
+    },
+    "packages/core/src/models/provider-bridge.ts": {
+      "models -> engines": 1
+    },
+    "packages/core/src/purge/owner.ts": {
+      "purge -> channels": 1
+    },
+    "packages/core/src/purge/references.ts": {
+      "purge -> messaging": 1
+    },
+    "packages/core/src/purge/scopes.ts": {
+      "purge -> channels": 1
+    },
+    "packages/core/src/usage/telemetry.ts": {
+      "usage -> telemetry": 1
+    },
+    "packages/core/src/voice/calls-command.ts": {
+      "voice -> channels": 1
+    },
+    "packages/core/src/workspaces/approval-reviewer.ts": {
+      "workspaces -> credentials": 1
+    },
+    "packages/core/src/workspaces/tool-approval-actor.ts": {
+      "workspaces -> messaging": 1
+    },
+    "packages/core/src/workspaces/tool-approval.ts": {
+      "workspaces -> channels": 1
+    }
+  },
+  "cyclicImports": {
     "packages/core/src/attachments/backup.ts": {
       "attachments -> portability": 1,
       "attachments -> purge": 1
@@ -130,16 +182,36 @@
       "attachments -> messaging": 1
     },
     "packages/core/src/bots/bot-descriptor-sync.ts": {
-      "bots -> marketplace": 1
+      "bots -> marketplace": 1,
+      "bots -> memory": 1
     },
     "packages/core/src/bots/bot-zip-http.ts": {
+      "bots -> attachments": 1,
       "bots -> marketplace": 1
     },
     "packages/core/src/bots/bot-zip.ts": {
-      "bots -> marketplace": 1
+      "bots -> marketplace": 1,
+      "bots -> memory": 1
     },
     "packages/core/src/bots/creation.ts": {
       "bots -> channels": 1
+    },
+    "packages/core/src/bots/imports.ts": {
+      "bots -> memory": 1
+    },
+    "packages/core/src/bots/memory-move.ts": {
+      "bots -> memory": 1
+    },
+    "packages/core/src/bots/persona-bot.ts": {
+      "bots -> memory": 1,
+      "bots -> models": 2
+    },
+    "packages/core/src/bots/registry-model-links.ts": {
+      "bots -> models": 2
+    },
+    "packages/core/src/bots/registry.ts": {
+      "bots -> memory": 1,
+      "bots -> models": 2
     },
     "packages/core/src/bots/shared-presentation.ts": {
       "bots -> marketplace": 1
@@ -158,13 +230,16 @@
     },
     "packages/core/src/channels/causal-sending.ts": {
       "channels -> bots": 1,
-      "channels -> purge": 1
+      "channels -> purge": 1,
+      "channels -> tob": 2
     },
     "packages/core/src/channels/channel-message-types.ts": {
       "channels -> bots": 1,
+      "channels -> skills": 1,
       "channels -> voice": 1
     },
     "packages/core/src/channels/channel-message-validation.ts": {
+      "channels -> attachments": 1,
       "channels -> bots": 1,
       "channels -> credentials": 2,
       "channels -> workspaces": 1
@@ -172,8 +247,14 @@
     "packages/core/src/channels/channel-record.ts": {
       "channels -> bots": 1
     },
+    "packages/core/src/channels/live.ts": {
+      "channels -> skills": 1
+    },
     "packages/core/src/channels/management.ts": {
       "channels -> bots": 1
+    },
+    "packages/core/src/channels/reply-preview.ts": {
+      "channels -> attachments": 1
     },
     "packages/core/src/channels/send-review.ts": {
       "channels -> purge": 1
@@ -184,16 +265,33 @@
     "packages/core/src/channels/sqlite-store.admissions.ts": {
       "channels -> bots": 1
     },
+    "packages/core/src/channels/sqlite-store.append.ts": {
+      "channels -> attachments": 1,
+      "channels -> skills": 1
+    },
+    "packages/core/src/channels/sqlite-store.attachments.ts": {
+      "channels -> attachments": 4
+    },
     "packages/core/src/channels/sqlite-store.invitations.ts": {
       "channels -> bots": 1
+    },
+    "packages/core/src/channels/sqlite-store.message-metadata.ts": {
+      "channels -> attachments": 1
     },
     "packages/core/src/channels/sqlite-store.message-payload.ts": {
       "channels -> messaging": 1
     },
+    "packages/core/src/channels/sqlite-store.placements.ts": {
+      "channels -> attachments": 1
+    },
     "packages/core/src/channels/sqlite-store.records.ts": {
       "channels -> bots": 1
     },
+    "packages/core/src/channels/sqlite-store.search.ts": {
+      "channels -> attachments": 1
+    },
     "packages/core/src/channels/store.ts": {
+      "channels -> attachments": 3,
       "channels -> bots": 1
     },
     "packages/core/src/channels/voice-call-record.ts": {
@@ -208,29 +306,79 @@
     "packages/core/src/credentials/private-inputs.ts": {
       "credentials -> channels": 1
     },
+    "packages/core/src/credentials/protected-execution.ts": {
+      "credentials -> execution": 1
+    },
+    "packages/core/src/credentials/secret-command.ts": {
+      "credentials -> execution": 1
+    },
+    "packages/core/src/credentials/secret-mcp.ts": {
+      "credentials -> execution": 1
+    },
     "packages/core/src/credentials/web-locator.ts": {
       "credentials -> bots": 1
     },
+    "packages/core/src/devices/bot-connect-bridge.ts": {
+      "devices -> channels": 1
+    },
+    "packages/core/src/devices/bot-lan-bridge.ts": {
+      "devices -> channels": 1
+    },
+    "packages/core/src/devices/bot-tailnet-bridge.ts": {
+      "devices -> channels": 1
+    },
+    "packages/core/src/devices/encrypted-gateway.ts": {
+      "devices -> voice": 1
+    },
+    "packages/core/src/devices/mount-push.ts": {
+      "devices -> push": 2
+    },
     "packages/core/src/engines/engine-account-bridge.ts": {
-      "engines -> models": 1
+      "engines -> models": 1,
+      "engines -> team": 1
+    },
+    "packages/core/src/engines/engine-memory-tools.ts": {
+      "engines -> memory": 1
+    },
+    "packages/core/src/engines/engine-plugin.ts": {
+      "engines -> memory": 1
     },
     "packages/core/src/engines/engine-quota.ts": {
       "engines -> models": 1
     },
     "packages/core/src/engines/engine-selection-bridge.ts": {
-      "engines -> models": 1
+      "engines -> models": 1,
+      "engines -> team": 2
+    },
+    "packages/core/src/engines/engine-tool-gate.ts": {
+      "engines -> workspaces": 1
+    },
+    "packages/core/src/execution/member-confinement.ts": {
+      "execution -> workspaces": 3
+    },
+    "packages/core/src/execution/shell-reach.ts": {
+      "execution -> workspaces": 1
     },
     "packages/core/src/marketplace/client.ts": {
       "marketplace -> bots": 1
     },
+    "packages/core/src/marketplace/descriptor.ts": {
+      "marketplace -> memory": 1
+    },
     "packages/core/src/marketplace/install-review.ts": {
-      "marketplace -> bots": 2
+      "marketplace -> bots": 2,
+      "marketplace -> memory": 2,
+      "marketplace -> workspaces": 1
     },
     "packages/core/src/marketplace/uploaded-bots.ts": {
-      "marketplace -> bots": 1
+      "marketplace -> bots": 1,
+      "marketplace -> memory": 1
     },
     "packages/core/src/memory/backup.ts": {
       "memory -> portability": 1
+    },
+    "packages/core/src/memory/file-http.ts": {
+      "memory -> attachments": 1
     },
     "packages/core/src/messaging/approval-messaging.ts": {
       "messaging -> channels": 1
@@ -257,6 +405,12 @@
     "packages/core/src/messaging/outbound-media.ts": {
       "messaging -> attachments": 4
     },
+    "packages/core/src/messaging/outbound-replies.ts": {
+      "messaging -> credentials": 1
+    },
+    "packages/core/src/messaging/outbound.ts": {
+      "messaging -> telemetry": 1
+    },
     "packages/core/src/messaging/permissions/group-reception.ts": {
       "messaging -> channels": 1
     },
@@ -274,14 +428,19 @@
     },
     "packages/core/src/portability/package.ts": {
       "portability -> attachments": 2,
-      "portability -> memory": 1
+      "portability -> bots": 3,
+      "portability -> memory": 1,
+      "portability -> messaging": 1,
+      "portability -> purge": 2
     },
     "packages/core/src/purge/contracts.ts": {
       "purge -> attachments": 1
     },
     "packages/core/src/purge/owner.ts": {
       "purge -> attachments": 1,
-      "purge -> channels": 1
+      "purge -> bots": 1,
+      "purge -> channels": 1,
+      "purge -> workspaces": 1
     },
     "packages/core/src/purge/references.ts": {
       "purge -> attachments": 1,
@@ -290,14 +449,75 @@
     "packages/core/src/purge/scopes.ts": {
       "purge -> channels": 1
     },
+    "packages/core/src/push/source.ts": {
+      "push -> channels": 1
+    },
+    "packages/core/src/skills/bot-skills.ts": {
+      "skills -> memory": 1
+    },
+    "packages/core/src/skills/entries.ts": {
+      "skills -> bots": 1
+    },
+    "packages/core/src/team/approvals.ts": {
+      "team -> workspaces": 1
+    },
+    "packages/core/src/team/bots.ts": {
+      "team -> bots": 3,
+      "team -> channels": 1
+    },
+    "packages/core/src/team/channel-bots.ts": {
+      "team -> messaging": 1
+    },
+    "packages/core/src/team/member-lifecycle.ts": {
+      "team -> workspaces": 1
+    },
+    "packages/core/src/team/private-content.ts": {
+      "team -> bots": 1
+    },
+    "packages/core/src/team/rate-limit.ts": {
+      "team -> devices": 1
+    },
+    "packages/core/src/team/speaker-policy.ts": {
+      "team -> messaging": 1
+    },
     "packages/core/src/telemetry/bot-turn.ts": {
       "telemetry -> usage": 1
+    },
+    "packages/core/src/telemetry/events.ts": {
+      "telemetry -> marketplace": 1
+    },
+    "packages/core/src/tob/memory-lease.ts": {
+      "tob -> purge": 1
+    },
+    "packages/core/src/tob/service.ts": {
+      "tob -> bots": 1
     },
     "packages/core/src/usage/telemetry.ts": {
       "usage -> telemetry": 1
     },
     "packages/core/src/voice/calls-command.ts": {
       "voice -> channels": 1
+    },
+    "packages/core/src/voice/messages.ts": {
+      "voice -> attachments": 1
+    },
+    "packages/core/src/workspaces/approval-reviewer-settings.ts": {
+      "workspaces -> models": 1
+    },
+    "packages/core/src/workspaces/approval-reviewer.ts": {
+      "workspaces -> credentials": 1
+    },
+    "packages/core/src/workspaces/space-lifecycle.ts": {
+      "workspaces -> bots": 1
+    },
+    "packages/core/src/workspaces/space-memory-copy.ts": {
+      "workspaces -> bots": 1
+    },
+    "packages/core/src/workspaces/space-memory.ts": {
+      "workspaces -> bots": 1
+    },
+    "packages/core/src/workspaces/tool-approval-actor.ts": {
+      "workspaces -> messaging": 1
     },
     "packages/core/src/workspaces/tool-approval.ts": {
       "workspaces -> channels": 1

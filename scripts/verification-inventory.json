@@ -2798,9 +2798,9 @@
       "path": "scripts/e2e-private-input-origin.mjs",
       "category": "mapped",
       "behaviors": ["credentials.private-input-origin"],
-      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
-      "task": 3089,
-      "sha256": "3b9f777c3180e110d19af5ebaa726b6830ec49237e3f8316f17ebce262ff297d"
+      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #5097 re-audit: the setup step explicitly selects collect and supplies purpose text for entering a new value. Existing configured-account reuse still uses lookup. Classification unchanged. This hash does not record a runtime pass.",
+      "task": 5097,
+      "sha256": "8f3a2f5e54fc254314c708fa128496ac9666aa9045336cdd991307fcb72b8b35"
     },
     {
       "path": "scripts/e2e-desktop-zoom-windows.mjs",

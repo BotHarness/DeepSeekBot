@@ -114,6 +114,12 @@ Keep it thin. Repository edits, large Tool output, deep project context, and det
 
 The PersonaBot and Orchestrator Session are durable identities; the live Orchestrator Agent object may be resumed on demand.
 
+When DSH resumes the current Orchestrator on its own, the serial `agent/created`
+event lets the Bot Runtime attach scoped tools and prompt sections before DSH
+takes the first step snapshot. The existing native Inbox admission still
+checks each sender. A Bot Runtime resume installs the same registrations in
+the factory setup callback.
+
 ## Assignment Session
 
 An Assignment Session is an independent root DSH Session for one line of work. Its DSH Session id is the canonical identity; BotHarness does not create a second Assignment id. It may have a PersonaBot-local Continuity Key, bind a Workspace, and use specialized model/dependency configuration.

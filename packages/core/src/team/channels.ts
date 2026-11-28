@@ -1,6 +1,8 @@
+import type { RoleChannelLink, RoleChannelsView } from '@botharness/host-protocol/team-roles';
 import { channelActionRoleIds } from './host-permissions.js';
 import {
   CHANNEL_APPROVAL_ACTIONS,
+  CHANNEL_ACTIONS,
   channelApprovalPolicy,
 } from '@botharness/host-protocol/channel-policy';
 import {
@@ -79,7 +81,8 @@ export class TeamChannels {
     private readonly db: OperationalDatabaseModulePort,
     private readonly channels: ChannelStore,
     private readonly roles: TeamRoles,
-    private readonly changed: (revoke?: boolean) => void,
+    private readonly changed: (revoke?: boolean | ReadonlySet<string>) => void,
+    private readonly connectedMembers: () => ReadonlySet<string>,
   ) {}
 
   private active(human: HumanContext): boolean {
@@ -131,6 +134,52 @@ export class TeamChannels {
         .map((row) => row.channel_id),
     );
   }
+  roleChannels(human: HumanContext, roleId: string): RoleChannelsView {
+    this.roles.botScopeTarget(human, roleId);
+    const rows = this.db.read((db) =>
+      z
+        .array(
+          z.object({
+            channelId: z.string(),
+            name: z.string(),
+            autoJoin: z.coerce.boolean(),
+            override: z.coerce.boolean(),
+          }),
+        )
+        .parse(
+          db
+            .prepare(`
+        SELECT c.channel_id AS channelId, json_extract(c.record_json, '$.name') AS name,
+          (json_extract(c.visibility_json, '$.kind') = 'public' OR (
+            json_extract(c.visibility_json, '$.kind') = 'roles' AND EXISTS (
+              SELECT 1 FROM json_each(c.visibility_json, '$.roleIds') WHERE value = ?
+            )
+          )) AS autoJoin,
+          EXISTS (
+            SELECT 1 FROM json_each(c.permission_table_json, '$.overrides')
+            WHERE json_extract(value, '$.roleId') = ?
+          ) AS override
+        FROM channel_records c
+        WHERE c.channel_id IN (${this.accessQuery(false)})
+          AND json_extract(c.record_json, '$.type') = 'group'
+        ORDER BY c.channel_id
+      `)
+            .all(roleId, roleId, human.humanId),
+        ),
+    );
+    const link = ({ channelId, name }: (typeof rows)[number]): RoleChannelLink => ({
+      channelId,
+      name,
+      tab: 'permissions',
+    });
+    return {
+      roleId,
+      autoJoin: rows.filter((row) => row.autoJoin).map(link),
+      overrides: rows.filter((row) => row.override).map(link),
+      privateChannelsRequireInvitation: true,
+    };
+  }
+
   canKnow(human: HumanContext, channelId: string): boolean {
     return !!this.db.read((db) =>
       db
@@ -287,6 +336,7 @@ export class TeamChannels {
       ['channels', 'team'],
     );
     this.changed(visibility.kind !== 'public');
+    if (visibility.kind === 'public') this.channels.publishRecordChanged?.();
     return null;
   }
   private memberId(reference: string): string {
@@ -348,8 +398,9 @@ export class TeamChannels {
   ): null {
     this.requireManage(human, channelId);
     const outcome = this.db.transaction(
-      (db): 'updated' | 'stale' | 'denied' | 'invalid' => {
-        const previous = this.settings(channelId).policy;
+      (db) => {
+        const settings = this.settings(channelId);
+        const previous = settings.policy;
         if (expectedRevision !== undefined && expectedRevision !== policyRevision(previous))
           return 'stale';
         const policy = hasApprovalRules ? proposed : keepApprovalRules(proposed, previous);
@@ -360,18 +411,36 @@ export class TeamChannels {
         if ((rulesChanged || enabled) && !this.canManageBotSettings(human, channelId))
           return 'denied';
         const approvalMode = rulesChanged || enabled ? 'channel' : previous.approvalMode;
+        const next = { ...settings, policy: { ...policy, approvalMode } };
+        const gatesToolHistory = mode === 'legacy' && approvalMode === 'channel';
+        const affected = new Set<string>();
+        for (const id of this.connectedMembers()) {
+          if (id === human.humanId) continue;
+          const member = humanContext(id);
+          if (!this.canRead(member, channelId, true)) continue;
+          const access = this.accessFacts(member, channelId);
+          if (
+            CHANNEL_ACTIONS.some(
+              (action) =>
+                !allowsGroupAction(action, access, next, true) &&
+                (allowsGroupAction(action, access, settings, true) ||
+                  (action === 'seeApprovals' && gatesToolHistory)),
+            )
+          )
+            affected.add(id);
+        }
         db.prepare('UPDATE channel_records SET permission_table_json = ? WHERE channel_id = ?').run(
-          JSON.stringify({ ...policy, approvalMode }),
+          JSON.stringify(next.policy),
           channelId,
         );
-        return 'updated';
+        return affected;
       },
       ['channels', 'team'],
     );
     if (outcome === 'stale') throw new TeamError('stale-channel-policy');
     if (outcome === 'denied') throw new TeamError('permission-required');
     if (outcome === 'invalid') throw new TeamError('invalid-input');
-    this.changed(true);
+    this.changed(outcome);
     return null;
   }
   addMember(

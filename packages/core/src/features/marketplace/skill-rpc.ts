@@ -1,10 +1,12 @@
 import type {
   MarketplaceSkill,
   MarketplaceSkillAddCandidates,
+  MarketplaceSkillAddedList,
   MarketplaceSkillAddResult,
   MarketplaceSkillConflictChoice,
   MarketplaceSkillDetail,
   MarketplaceSkillPage,
+  MarketplaceSkillSection,
   MarketplaceSkillReview,
 } from '@botharness/host-protocol/marketplace-skill';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
@@ -46,8 +48,16 @@ export const marketplaceSkillRpc = {
     return unwrapAsync(this.methods.marketplaceSkillList({ q, cursor }));
   },
 
+  async marketplaceSkillSections(): Promise<MarketplaceSkillSection[]> {
+    return unwrapAsync(this.methods.marketplaceSkillSections({}));
+  },
+
   async marketplaceSkillDetail(id: string): Promise<MarketplaceSkillDetail> {
     return unwrapAsync(this.methods.marketplaceSkillDetail({ id }));
+  },
+
+  async marketplaceSkillAdded(): Promise<MarketplaceSkillAddedList> {
+    return unwrapAsync(this.methods.marketplaceSkillAdded({}));
   },
 
   marketplaceSkillAddCandidates(): MarketplaceSkillAddCandidates {

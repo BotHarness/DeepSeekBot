@@ -4,6 +4,7 @@
 
 - `packages/core/src/features/models/plugin.ts`
 - `packages/core/test/model-routing-plugin.test.ts`
+- `packages/core/test/native-orchestrator-resume.test.ts`
 - `packages/core/src/runtime/{native-subagent-wake,subagent-compat,subagent-model-tools}.ts`
 - `packages/core/src/models/subagent-route.ts`
 - `packages/client/src/client/session-subagents.tsx`
@@ -44,3 +45,9 @@ Ask a working Assignment to start bot_subagent with run_in_background true, then
 Separately change the Bot model while its Orchestrator is idle, submit a new Human DM, and inspect the first request/header config and assistant/message source for the new model. This is distinct from Assignment child completion. During a separate long foreground CLI child, submit a new Human DM and exercise stop or steering; only the real Human turn is controlled. Check cancellation, pause/archive, and a report arriving during prior-turn cleanup with deterministic regressions. Reports create no new Source Event and cannot implicitly reuse previous Human authority.
 
 Direct Orchestrator-child graphs predate #2968. Retained graph restoration remains a legacy compatibility regression in native-subagent-runtime.test.ts; native-subagent-wake.test.ts checks event ordering. Neither is evidence that current Orchestrators can create children, nor a substitute for the real Assignment journey above.
+
+The cold-resume replay in `native-orchestrator-resume.test.ts` restores a long
+Orchestrator history into a new DSH Agent Loop, then delivers one legacy child
+report. Compare the first resumed model request and SessionEvents with the fresh
+Bot's tool declarations and system prompt. The resumed header must keep the
+tools, and the turn must record no tool removals.

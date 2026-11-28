@@ -6,6 +6,9 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 const history = channelNavigationHarness(true);
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));

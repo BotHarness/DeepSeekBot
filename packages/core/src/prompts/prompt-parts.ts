@@ -161,3 +161,7 @@ export const DEFAULT_PROMPT_TEXT: PromptText = defaultPromptText;
 export function promptTextHash(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 16);
 }
+
+export function replyReminderText(text: PromptText): string {
+  return `[Host reply transport reminder] ${text('reply-reminder')}`;
+}

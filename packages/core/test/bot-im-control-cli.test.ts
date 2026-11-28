@@ -118,6 +118,31 @@ const SNAPSHOT = {
 };
 
 describe('Agent IM commands', () => {
+  it('lists Host-wide bindings with the requested read mode and only inventory fields', async () => {
+    const binding = {
+      id: SNAPSHOT.identities[0]!.id,
+      botSlug: 'ada',
+      botName: 'Ada',
+      canOpenSettings: true,
+      providerId: 'dsh-im/discord',
+      platform: 'discord',
+      accountRef: 'discord_1',
+      name: 'Mascot',
+      enabled: true,
+      availability: 'unavailable',
+      reception: 'connecting',
+    };
+    const live = await host(() => ({
+      ok: true,
+      value: { checks: 'pending', bindings: [{ ...binding, fingerprint: 'private-fingerprint' }] },
+    }));
+    const result = await invoke(['im-connections', '--read-mode', 'saved'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual({ checks: 'pending', bindings: [binding] });
+    expect((await invoke(['im-connections', 'ada'], live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([{ method: 'messagingConnections', args: { mode: 'saved' } }]);
+  });
+
   it('adds a token app from stdin and never echoes the credential', async () => {
     const live = await host((method, args) => ({
       ok: true,

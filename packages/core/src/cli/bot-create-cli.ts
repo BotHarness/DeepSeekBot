@@ -90,6 +90,7 @@ const LOCAL_LOG_COMMANDS = new Set([
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'bots', description: 'bots list|create|show|delete' },
+  { command: 'market', description: 'market skills sections reads the Marketplace Skill rankings' },
   {
     command: 'skills',
     description: 'skills publish|replace|delete|mine: Marketplace Skill uploads',
@@ -220,9 +221,16 @@ export async function runBotCreateCli(
       };
       if (
         action &&
-        ['visibility', 'visibility-set', 'switches', 'reachable', 'proactive-opt-out'].includes(
-          action,
-        )
+        [
+          'visibility',
+          'visibility-set',
+          'switches',
+          'reachable',
+          'proactive-opt-out',
+          'access-directory',
+          'access-roles',
+          'channels',
+        ].includes(action)
       ) {
         command = 'bot-access';
       } else {
@@ -230,18 +238,27 @@ export async function runBotCreateCli(
         command = aliases[action];
         rest = targets;
       }
+    } else if (command === 'market') {
+      const [category, action, ...targets] = rest;
+      if (category === 'skills' && action === 'sections') {
+        command = 'market-skills-sections';
+        rest = targets;
+      } else if (values.help !== true) {
+        throw usageError('market takes skills sections [--section hot|new|rising].');
+      }
     } else if (command === 'skills') {
       const [action, ...targets] = rest;
       if (
         action === 'publish' ||
         action === 'replace' ||
         action === 'delete' ||
-        action === 'mine'
+        action === 'mine' ||
+        action === 'added'
       ) {
         command = `skills-${action}`;
         rest = targets;
       } else if (values.help !== true)
-        throw usageError('skills needs publish, replace, delete or mine.');
+        throw usageError('skills needs publish, replace, delete, mine or added.');
     } else if (command === 'engine') {
       const [action, ...targets] = rest;
       if (

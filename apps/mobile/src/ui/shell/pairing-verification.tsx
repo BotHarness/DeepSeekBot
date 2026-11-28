@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -20,6 +21,7 @@ export function PairingVerification({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
   const [details, setDetails] = useState(false);
   const verification = pairing.verification;
   const fingerprint = verification?.fingerprint ?? pairing.fingerprint;
@@ -38,7 +40,11 @@ export function PairingVerification({
       }
       contentInsetAdjustmentBehavior="automatic"
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
-      contentContainerStyle={{ padding: space.x6, gap: space.x5 }}
+      contentContainerStyle={{
+        padding: space.x6,
+        paddingBottom: (Platform.OS === 'android' ? insets.bottom : 0) + space.x6,
+        gap: space.x5,
+      }}
     >
       <View style={{ alignItems: 'center', gap: space.x3, paddingTop: space.x4 }}>
         {progress ? (

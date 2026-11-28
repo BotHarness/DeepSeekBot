@@ -224,6 +224,8 @@ New attachments implement ADR-0100's real destination semantics: independent equ
 
 ## 3 · Host boot, migration, and recovery
 
+Runtime calls Feature services supplied by composition through Feature Contributions. Its runtime imports point to its own module or to lower layers.
+
 ```mermaid
 flowchart TD
   Start["Host starts"] --> Lease{"Acquire profile writer lease"}
@@ -639,6 +641,8 @@ Bot Zip and Marketplace imports use the optional `standingLimits` pair in `.both
 ### Bot Marketplace (accepted design, not implemented)
 
 The Marketplace Worker enforces one live Skill upload per author and Skill name in D1. The Host reads the signed-in author's live uploads through `GET /v1/me/skills` and exposes them via `marketplaceSkillMine()`. See [Marketplace Skills](../decisions/marketplace.md#marketplace-skills).
+
+The Marketplace Yours section reads added Marketplace Skills through `marketplaceSkillAdded()`. The Host scans `.agents/skills/` in each Bot the Human can edit and, for the Host owner only, the global Host Skill directory, and identifies the source by `metadata.tobs-source` in `SKILL.md`, without calling the Marketplace Worker. The CLI is `deepseekbot skills added`.
 
 Daily Bot and Skill discovery share a D1 request budget. Each phase saves the last repository node ID it visited and resumes after that ID until the next pass starts at the beginning. Skill indexing batches writes per repository and reuses rows whose commit and listing metadata are current. See [Marketplace Skills](../decisions/marketplace.md#marketplace-skills).
 

@@ -7,7 +7,8 @@ import type { MemberLifecycleHost } from './member-lifecycle.js';
 import { credentialPasswordJson, fields, memberSchema, type TeamMember } from './member-auth.js';
 export type { TeamMember } from './member-auth.js';
 import { audienceContains, type BotVisibility } from '../team-policy/bot-contract.js';
-import { TeamBots } from './bots.js';
+import { TeamBots, type ReplaceBotMemory } from './bots.js';
+import { TeamBotRoleAccess } from './bot-role-access.js';
 import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
 import type { ConfinementStatus } from '../execution/linux-confinement.js';
@@ -80,6 +81,7 @@ const credentialSchema = z.object({
 
 export class TeamService {
   readonly bots: TeamBots;
+  readonly botRoleAccess: TeamBotRoleAccess;
   readonly speakerPolicy: SpeakerPolicy;
   readonly privateAccess: TeamPrivateContent;
   readonly roles: TeamRoles;
@@ -104,12 +106,12 @@ export class TeamService {
   accessSettled(): Promise<void> {
     return this.pendingAccess;
   }
-  private accessChanged(revoke = false): void {
+  private accessChanged(revoke: boolean | ReadonlySet<string> = false): void {
     this.invalidate();
     if (!revoke) return;
     this.privateAccess.closeViews();
     for (const listener of this.accessListeners) listener();
-    this.pairing?.closeStreams?.();
+    if (revoke === true) this.pairing?.closeStreams?.();
     this.db.transaction(
       (db) =>
         db
@@ -119,12 +121,11 @@ export class TeamService {
           .run(),
       ['channel'],
     );
-    this.pendingAccess = Promise.allSettled([this.pendingAccess, this.disposePeers()]).then(
-      (settled) => {
-        if (settled.some((result) => result.status === 'rejected'))
-          this.log('access-disposal-failed', { initiator: 'host', reason: 'peer-disposal-failed' });
-      },
-    );
+    const disposal = this.disposePeers(revoke === true ? undefined : revoke);
+    this.pendingAccess = Promise.allSettled([this.pendingAccess, disposal]).then((settled) => {
+      if (settled.some((result) => result.status === 'rejected'))
+        this.log('access-disposal-failed', { initiator: 'host', reason: 'peer-disposal-failed' });
+    });
   }
   private pairing:
     | (Pick<DevicePairing, 'revoke' | 'clearOffers'> & Partial<Pick<DevicePairing, 'closeStreams'>>)
@@ -186,9 +187,7 @@ export class TeamService {
     if (!spaces) throw new TeamError('unavailable');
     return spaces;
   }
-  private readonly replaceBotMemory:
-    | (<T>(slug: string, action: () => T, nextCwd: () => string | undefined) => Promise<T>)
-    | undefined;
+  private readonly replaceBotMemory: ReplaceBotMemory | undefined;
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly settleBotPreparations: ((humanId: string) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
@@ -293,11 +292,7 @@ export class TeamService {
     options: {
       purge?: ContentPurge;
       spaces?: () => WorkspaceSpaces;
-      replaceBotMemory?: <T>(
-        slug: string,
-        action: () => T,
-        nextCwd: () => string | undefined,
-      ) => Promise<T>;
+      replaceBotMemory?: ReplaceBotMemory;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
       settleBotPreparations?: (humanId: string) => Promise<void>;
       now?: () => number;
@@ -312,8 +307,17 @@ export class TeamService {
     this.settleBotPreparations = options.settleBotPreparations;
     this.ensureTob = options.ensureTob;
     this.roles = new TeamRoles(db, (revoke) => this.accessChanged(revoke));
-    this.channelAccess = new TeamChannels(db, channels, this.roles, (revoke) =>
-      this.accessChanged(revoke),
+    this.channelAccess = new TeamChannels(
+      db,
+      channels,
+      this.roles,
+      (revoke) => this.accessChanged(revoke),
+      () =>
+        new Set(
+          [...this.peers.values()].flatMap(({ principal }) =>
+            principal.kind === 'botharness-member' ? [principal.humanId] : [],
+          ),
+        ),
     );
     this.channelBots = new TeamChannelBots(db, channels, this.channelAccess);
     this.bots = new TeamBots(
@@ -322,8 +326,17 @@ export class TeamService {
       this.roles,
       this.channelAccess,
       (revoke) => this.accessChanged(revoke),
-      (human, bot) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet'),
+      (human, bot, sql) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet', sql),
       this.spaceProvider,
+    );
+    this.botRoleAccess = new TeamBotRoleAccess(
+      db,
+      this.roles,
+      this.bots,
+      channels,
+      this.channelAccess,
+      options.now ?? Date.now,
+      this.replaceBotMemory,
     );
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
@@ -874,7 +887,7 @@ export class TeamService {
       ? this.replaceBotMemory(
           slug,
           action,
-          () => this.bots.setVisibility(human, slug, visibility, false).preview.memory?.to,
+          () => this.bots.planVisibilityChanges(human, [{ slug, visibility }])[0]?.memory?.target,
         )
       : action();
   }
@@ -964,7 +977,7 @@ export class TeamService {
     return this.channelAccess.canRead(human, channelId, true);
   }
 
-  disposePeers(humanId?: string, keepGrant?: string): Promise<void> {
-    return memberAuth.disposePeers.call(this.#memberOperations, humanId, keepGrant);
+  disposePeers(target?: string | ReadonlySet<string>, keepGrant?: string): Promise<void> {
+    return memberAuth.disposePeers.call(this.#memberOperations, target, keepGrant);
   }
 }

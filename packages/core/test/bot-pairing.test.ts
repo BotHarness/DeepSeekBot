@@ -7,7 +7,7 @@ import { setImmediate as tick } from 'node:timers/promises';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { pairingDefaults } from '../src/messaging/pairing.js';
 import { createCore } from '../src/plugin.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import { createTempRoot } from './helpers.js';
 import { owners, cores, fingerprint, event, fixture } from './support/bot-pairing.js';

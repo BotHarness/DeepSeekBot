@@ -321,3 +321,14 @@ Each attachment has a content version (first 32 hex of its sha256), dimensions a
 Why: phones re-downloaded every original on every visit. Versioning keeps the Host the source of truth while letting clients cache safely.
 
 Enforced by: `media-versions.test.ts`, `attachment-http.test.ts`.
+
+## 16. One App speaks for one Bot; several Bots share an App's traffic only through a Channel
+
+<a id="one-app-one-bot"></a>
+_New in #5665 (Vain, 2026-11-28)._
+
+An App is bound to at most one PersonaBot. Receiving is per App: each App in an External conversation has its own Conversation entry, Source Events and wake settings, so two Apps in one group are not deduplicated. When several Bots should see what one App receives, the conversation is ingested into a Tobs Channel. Each member Bot gets its own Inbox Admission (context-only by default, the member's Channel wake policy wins) and replies outside only through its own App. One Tobs Channel ingests a given External conversation through at most one App.
+
+Why: a reply must say who is speaking. One App shared by several internal Bots would make every outside reply anonymous between them, and registering one App per Bot on the platform is the price of keeping that identity. Deduplicating across Apps was rejected because different identities really receive different messages, may wake differently, and merging them risks dropping one Bot's message.
+
+Enforced by: the `messaging_binding_principal` unique index (one active Binding per App fingerprint). The one-App-per-Channel ingest rule is not enforced yet (planned in #5665).

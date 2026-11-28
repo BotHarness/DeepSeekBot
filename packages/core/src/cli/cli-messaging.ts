@@ -5,6 +5,19 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const MESSAGING_COMMANDS = [
+  { command: 'external-roles', description: 'list Host external roles and their Bot scopes' },
+  {
+    command: 'external-role-create',
+    description: 'create a Host external role with JSON from stdin',
+  },
+  {
+    command: 'external-role-update',
+    description: 'update a Host external role with JSON from stdin',
+  },
+  {
+    command: 'external-contact-access',
+    description: 'read an external contact’s Bot access and effective pairing capabilities',
+  },
   {
     command: 'messaging-defaults',
     description: 'read IM messaging defaults for one platform',
@@ -142,6 +155,7 @@ export interface MessagingValues {
   source?: string;
   channel?: string;
   pairing?: string;
+  actor?: string;
   delivery?: string;
   'request-id'?: string;
   conversation?: string;
@@ -165,7 +179,7 @@ export function messagingReadMode(
 ): 'saved' | 'status' | undefined {
   if (mode === undefined) return undefined;
   if (
-    !['im-status', 'messaging-grants', 'channel-bridges'].includes(command) ||
+    !['im-status', 'im-connections', 'messaging-grants', 'channel-bridges'].includes(command) ||
     !['saved', 'status'].includes(mode)
   )
     throw new CliLiveError('usage', '--read-mode saved|status is only for IM settings queries.');
@@ -175,6 +189,8 @@ export function messagingReadMode(
 const PLATFORMS: readonly string[] = messagingPlatformIds;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const STDIN_COMMANDS = new Set<MessagingCommand>([
+  'external-role-create',
+  'external-role-update',
   'messaging-defaults-set',
   'messaging-group-policy',
   'messaging-thread-policy',
@@ -245,8 +261,17 @@ export async function prepareMessaging(
         : command.startsWith('channel-')
           ? 'a Channel id'
           : 'a Bot id';
-  if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target: ${what}.`);
-  const target = rest[0].trim();
+  const hostCommand =
+    command === 'external-roles' ||
+    command === 'external-role-create' ||
+    command === 'external-role-update';
+  if (hostCommand ? rest.length !== 0 : rest.length !== 1 || !rest[0]?.trim())
+    usage(
+      hostCommand
+        ? `${command} does not take a positional target.`
+        : `${command} needs exactly one target: ${what}.`,
+    );
+  const target = rest[0]?.trim() ?? '';
   if (what === 'a platform' && !PLATFORMS.includes(target))
     usage(`Choose one of ${PLATFORMS.join(', ')}.`);
   const operation: MessagingOperation = { command, target, values };
@@ -280,6 +305,13 @@ export async function prepareMessaging(
   if (requestId !== undefined && !/^[A-Za-z0-9_:.-]{8,128}$/u.test(requestId))
     usage('--request-id must be 8–128 letters, digits, _ : . or -.');
   switch (command) {
+    case 'external-contact-access':
+      uuid(values.binding, '--binding');
+      required(values.actor, '--actor');
+      break;
+    case 'external-roles':
+    case 'external-role-create':
+    case 'external-role-update':
     case 'messaging-targets':
     case 'messaging-defaults':
     case 'messaging-defaults-set':
@@ -376,6 +408,22 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
   };
   const requestId = values['request-id'] ?? `cli-${randomUUID()}`;
   switch (command) {
+    case 'external-roles':
+      return rpc('externalRoles', {});
+    case 'external-role-create':
+    case 'external-role-update':
+      return rpc('externalRoleChange', {
+        input: {
+          ...input,
+          kind: command === 'external-role-create' ? 'create' : 'update',
+        },
+      });
+    case 'external-contact-access':
+      return rpc('externalContactAccess', {
+        slug: target,
+        bindingId: uuid(values.binding, '--binding'),
+        actorId: required(values.actor, '--actor'),
+      });
     case 'messaging-defaults':
       return rpc('messagingDefaults', { platform: target });
     case 'messaging-defaults-set':

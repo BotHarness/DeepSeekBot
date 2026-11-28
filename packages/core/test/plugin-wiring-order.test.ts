@@ -79,6 +79,7 @@ it('preserves the startup order and Fiber ownership of feature wiring', async ()
     [
       "root | botharness: bot runtime",
       "root | botharness: bot schedules",
+      "root | ctx.on("agent/created")",
       "root | ctx.on("agent/disposed")",
       "root | botharness: live skill catalog",
       "root | ctx.on("skills/change")",
@@ -165,6 +166,7 @@ it('preserves the startup order and Fiber ownership of feature wiring', async ()
       "tools: guard",
       "tools: guard",
       "tools: guard",
+      "root | ctx.on("tools/execute")",
       "root | botharness: engine Memory tools",
       "root | botharness: engine Memory tool names",
       "root | botharness: approval review logs",

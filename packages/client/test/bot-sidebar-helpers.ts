@@ -136,6 +136,8 @@ function stubActions(): BridgeActions {
     marketplaceSkillList: vi.fn(),
     marketplaceSkillDetail: vi.fn(),
     marketplaceSkillAddCandidates: vi.fn(),
+    marketplaceSkillAdded: vi.fn(async () => ({ skills: [] })),
+    marketplaceSkillSections: vi.fn(async () => []),
     marketplaceSkillReview: vi.fn(),
     marketplaceSkillAdd: vi.fn(),
     marketplaceSkillPublish: vi.fn(),
@@ -355,6 +357,7 @@ function stubActions(): BridgeActions {
       applications: [],
     })),
     messageAttachmentOpen: vi.fn(async () => undefined),
+    messageAttachmentOpenDefault: vi.fn(async () => 'opened' as const),
     messageAttachmentDownload: vi.fn(async () => undefined),
     workspaceFileTarget: async () => ({
       path: '/workspace',

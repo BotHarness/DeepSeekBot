@@ -18,6 +18,7 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { MarketAvatarDetail } from './market-avatars.js';
 import { MarketSectionHead } from './market-rankings.js';
 import { MarketSkillDialog } from './market-skill-dialog.js';
+import { MarketYours, type MarketYoursActions } from './market-yours.js';
 import { installsLabel, SkillLogo } from './market-skills.js';
 import { MarketplaceInstalls, marketplaceOwner } from './marketplace-listing.js';
 import {
@@ -91,31 +92,32 @@ const ready = <T,>(items: readonly T[]): Read<T> => ({
 
 const ignoreRead = () => undefined;
 
-export type MarketAllActions = Pick<
-  BridgeActions,
-  | 'marketplaceSections'
-  | 'marketplaceAvatarList'
-  | 'marketplaceAvatarTags'
-  | 'marketplaceAvatarDetail'
-  | 'marketplaceAvatarReport'
-  | 'marketplaceAvatarApplyCandidates'
-  | 'marketplaceAvatarApply'
-  | 'marketplaceSkillList'
-  | 'marketplaceSkillDetail'
-  | 'marketplaceSkillAddCandidates'
-  | 'marketplaceSkillReview'
-  | 'marketplaceSkillAdd'
-  | 'marketplaceSkillReport'
-  | 'marketplaceChallenge'
-  | 'connectors'
-  | 'connectorConnect'
-  | 'connectorSearch'
-  | 'connectorLogos'
-  | 'connectorMcpSearch'
-  | 'connectorMcpAdd'
-  | 'connectorKeySet'
-  | 'connectorKeyClear'
->;
+export type MarketAllActions = MarketYoursActions &
+  Pick<
+    BridgeActions,
+    | 'marketplaceSections'
+    | 'marketplaceAvatarList'
+    | 'marketplaceAvatarTags'
+    | 'marketplaceAvatarDetail'
+    | 'marketplaceAvatarReport'
+    | 'marketplaceAvatarApplyCandidates'
+    | 'marketplaceAvatarApply'
+    | 'marketplaceSkillList'
+    | 'marketplaceSkillDetail'
+    | 'marketplaceSkillAddCandidates'
+    | 'marketplaceSkillReview'
+    | 'marketplaceSkillAdd'
+    | 'marketplaceSkillReport'
+    | 'marketplaceChallenge'
+    | 'connectors'
+    | 'connectorConnect'
+    | 'connectorSearch'
+    | 'connectorLogos'
+    | 'connectorMcpSearch'
+    | 'connectorMcpAdd'
+    | 'connectorKeySet'
+    | 'connectorKeyClear'
+  >;
 
 export function MarketAll({
   actions,
@@ -286,6 +288,16 @@ export function MarketAll({
     );
   };
 
+  const yours = (
+    <MarketYours
+      actions={actions}
+      view={view}
+      t={t}
+      refresh={reload + refresh}
+      onOpenSkill={setSkill}
+      onChanged={() => setReload((value) => value + 1)}
+    />
+  );
   const shown = KINDS.filter((kind) => lists[kind].kind === 'failed' || cards(kind).length > 0);
   const loading = KINDS.some((kind) => lists[kind].kind === 'loading');
 
@@ -293,9 +305,10 @@ export function MarketAll({
     <>
       <div className="bh-market-page" hidden={avatar !== undefined}>
         <div className="bh-market-panel" ref={mount} data-market-all="">
-          {shown.length > 0 ? (
-            <div {...stylex.props(styles.stack)}>
-              {shown.map((kind) => (
+          <div {...stylex.props(styles.stack)}>
+            {yours}
+            {shown.length > 0 ? (
+              shown.map((kind) => (
                 <section
                   key={kind}
                   {...stylex.props(styles.section)}
@@ -312,13 +325,13 @@ export function MarketAll({
                     <CatalogGrid label={t(TITLES[kind])}>{cards(kind)}</CatalogGrid>
                   )}
                 </section>
-              ))}
-            </div>
-          ) : loading ? (
-            <LoadingSkeleton kind="sidebar" label={t('market.all')} />
-          ) : (
-            <Note inset>{t('market.all.empty')}</Note>
-          )}
+              ))
+            ) : loading ? (
+              <LoadingSkeleton kind="sidebar" label={t('market.all')} />
+            ) : (
+              <Note inset>{t('market.all.empty')}</Note>
+            )}
+          </div>
         </div>
       </div>
       {avatar === undefined ? null : (

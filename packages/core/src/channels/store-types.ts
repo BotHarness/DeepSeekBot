@@ -175,6 +175,7 @@ export interface ChannelStore {
   setHumanAvatar(human: HumanContext, avatar: string | null): LocalHumanIdentity;
   finishHumanProfileSetup(human: HumanContext): LocalHumanIdentity;
   humanAvatars(human: HumanContext, humanIds: readonly string[]): HumanAvatar[];
+  publishRecordChanged?(): void;
   list(): ChannelRecord[];
   get(id: string): ChannelRecord | undefined;
   hasHumanMembership?(human: HumanContext, id: string): boolean;
@@ -267,7 +268,9 @@ export interface ChannelStore {
 
   cancelGroupInvite(channelId: string, invitationId: string): ChannelRecord;
   cancelInvitationsForBot(botSlug: string): void;
-  removeBotFromGroups(botSlug: string, commit?: (database: DatabaseSync) => void): void;
+  removeBotFromGroups(botSlug: string): void;
+  acceptBotDeletion(botSlug: string, commit: (database: DatabaseSync) => void): void;
+  archiveBotDms(botSlug: string): void;
   getGroupWakePolicy(channelId: string, botSlug: string): GroupWakePolicyView;
   setGroupWakePolicy(
     channelId: string,
@@ -285,6 +288,12 @@ export interface ChannelStore {
     botSlug: string,
     departureType?: 'left' | 'removed',
   ): ChannelRecord;
+  removeGroupMemberIn(
+    database: DatabaseSync,
+    channelId: string,
+    botSlug: string,
+    departureType?: 'left' | 'removed',
+  ): { record: ChannelRecord; publish: () => void };
 
   deleteGroup(channelId: string): void;
   appendMemoryCommits(input: {

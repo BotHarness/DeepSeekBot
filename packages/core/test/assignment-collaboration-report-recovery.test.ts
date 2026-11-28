@@ -7,10 +7,8 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createBotAttentionQuery } from '../src/runtime/attention.js';
 import { createBotSourcePolicyStore } from '../src/runtime/source-policy.js';
-import {
-  createHumanAttentionDecisions,
-  createHumanAttentionQuery,
-} from '../src/runtime/human-attention.js';
+import { createHumanAttentionDecisions } from '../src/features/activity/human-attention-decisions.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createBotRuntime } from '../src/core.js';
 import { FIXED_NOW } from './helpers.js';
 import { TEST_GRANT_ID } from './workspace-grant-fixture.js';

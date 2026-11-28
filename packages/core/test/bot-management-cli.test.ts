@@ -643,6 +643,33 @@ describe('online CLI management', () => {
     },
   );
 
+  it('uses the reviewed token to archive legacy Bot DMs without changing the Memory choice', async () => {
+    const preview = deletionPreview('legacy');
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'deletionPreview'
+          ? {
+              preview: {
+                ...preview,
+                dependencies: { ...preview.dependencies, dmChannelsToArchive: ['dm-owned'] },
+                deletion: deletionReceipt(false, 'complete'),
+              },
+            }
+          : { deletion: deletionReceipt(false, 'complete') },
+    }));
+    const result = await invoke(
+      ['bot-delete-retry', 'owned', '--confirm', '--confirmation-stdin'],
+      live.url,
+      JSON.stringify({ token: 'legacy' }),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'deletionPreview', args: { slug: 'owned' } },
+      { method: 'deletionRetry', args: { slug: 'owned', archiveDmToken: 'legacy' } },
+    ]);
+  });
+
   it('refuses retry without an accepted deletion and never submits a new scope', async () => {
     const live = await host(() => ({
       ok: true,

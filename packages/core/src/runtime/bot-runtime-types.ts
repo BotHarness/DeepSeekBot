@@ -1,9 +1,6 @@
 import type { FeatureContribution } from '../kernel/feature-contribution.js';
-import {
-  type DirectBotToolCall,
-  type DirectBotToolSpec,
-} from '../features/sessions/direct-tools.js';
-import { type TobCliAuthority } from '../features/tob/cli-runtime.js';
+import type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
+import type { TobCliAuthority } from '../features/tob/cli-runtime.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { type TurnTargetSegment } from './turn-targets.js';
@@ -19,7 +16,7 @@ import {
   type AssignmentApprovalWaitLease,
   type AssignmentExecutionWait,
 } from './assignment-approval-capacity.js';
-import { type CallFrameAccess } from '../features/voice/events.js';
+import type { CallFrameAccess } from '../features/voice/events.js';
 import type { OutboundMessaging } from '../messaging/outbound.js';
 import { type PrivateInputOrigin } from '../credentials/im-origin.js';
 import { type InboxHistoryQuery } from './inbox-history.js';
@@ -61,6 +58,7 @@ import type {
   BotHoldCause,
   BotStopOutcome,
   NativeSessionArchive,
+  OrchestratorAgentRun,
   OrchestratorReplacement,
   SessionStopOutcome,
 } from '../features/sessions/agent-run-types.js';
@@ -138,6 +136,11 @@ export interface BotRuntime {
     human?: HumanContext,
   ): Promise<void>;
   compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
+  attachResumedOrchestrator?(
+    botSlug: string,
+    sessionId: string,
+    attach: (run: OrchestratorAgentRun) => Promise<void>,
+  ): Promise<void>;
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission;
   sendOrchestratorMessage?(
     human: HumanContext,
@@ -164,7 +167,7 @@ export interface BotRuntime {
   sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
   replaceOrchestrator?<T>(
     botSlug: string,
-    body: () => T,
+    body: () => T | Promise<T>,
     nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
@@ -305,3 +308,9 @@ export interface BotRuntimeOptions {
   createMessageId?: () => string;
   createBotId?: () => string;
 }
+
+export const BOT_BUSY = {
+  outcome: 'refused',
+  code: 'bot-busy',
+  message: 'This Bot is working right now; wait for it to finish, then try again.',
+} as const;

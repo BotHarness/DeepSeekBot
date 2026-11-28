@@ -340,20 +340,22 @@ export function MarketSectionHead({
   title: string;
   target: string;
   t: BotHarnessTranslate;
-  onSeeAll: () => void;
+  onSeeAll?: (() => void) | undefined;
 }): ReactElement {
   return (
     <div {...stylex.props(styles.head)}>
       <h3 {...stylex.props(styles.title)}>{title}</h3>
-      <button
-        type="button"
-        {...stylex.props(styles.seeAll)}
-        data-market-see-all={target}
-        onClick={onSeeAll}
-      >
-        {t('market.section.seeAll')}
-        <Icon name="chevron-right" size={12} />
-      </button>
+      {onSeeAll === undefined ? null : (
+        <button
+          type="button"
+          {...stylex.props(styles.seeAll)}
+          data-market-see-all={target}
+          onClick={onSeeAll}
+        >
+          {t('market.section.seeAll')}
+          <Icon name="chevron-right" size={12} />
+        </button>
+      )}
     </div>
   );
 }

@@ -49,6 +49,55 @@ export function createTeamBridge(
     }
   };
   return {
+    botAccessDirectory: (_payload: unknown) =>
+      call((service) => service.botRoleAccess.directory(human)),
+    botAccessRoles: (payload: unknown) =>
+      call((service) => {
+        const { slug } = z
+          .object({ slug: z.string().min(1) })
+          .strict()
+          .parse(payload);
+        return service.botRoleAccess.botRoles(human, slug);
+      }),
+    roleChannels: (payload: unknown) =>
+      call((service) => {
+        const { roleId } = z.strictObject({ roleId: z.string().min(1) }).parse(payload);
+        return service.channelAccess.roleChannels(human, roleId);
+      }),
+    botInternalMembers: (payload: unknown) =>
+      call((service) => {
+        const { slug } = z.strictObject({ slug: z.string().min(1) }).parse(payload);
+        return service.botRoleAccess.internalMembers(human, slug);
+      }),
+    roleBotScope: (payload: unknown) =>
+      call((service) => {
+        const { roleId } = z
+          .object({ roleId: z.string().min(1) })
+          .strict()
+          .parse(payload);
+        return service.botRoleAccess.scope(human, roleId);
+      }),
+    roleBotScopeSet: (payload: unknown) =>
+      call((service) => {
+        const patch = z
+          .object({
+            roleId: z.string().min(1),
+            expectedRevision: roleRevisionSchema,
+            scope: z.discriminatedUnion('kind', [
+              z.object({ kind: z.literal('all') }).strict(),
+              z
+                .object({
+                  kind: z.literal('selected'),
+                  botSlugs: z.string().min(1).array(),
+                  expectedEditableBotsRevision: z.string().regex(/^[a-f0-9]{64}$/u),
+                })
+                .strict(),
+            ]),
+          })
+          .strict()
+          .parse(payload);
+        return service.botRoleAccess.setScope(human, patch);
+      }),
     botVisibility: (payload: unknown) =>
       call((service) =>
         service.bots.view(human, z.object({ slug: z.string() }).parse(payload).slug),

@@ -370,6 +370,10 @@ Memory Service 在 Host 启动、Orchestrator 回合前，以及本地 DM 或群
 
 ## 3 · Host 启动、迁移与 recovery
 
+Host Core 的包边界检查按模块统计向上导入和同层循环。每个 Feature 目录和顶层源文件单独计入，Runtime 仍是一个模块。详见 [同层依赖循环的检测规则](../decisions/core-architecture.md#same-layer-dependency-cycles)。
+
+Runtime 通过组合层传入的 Feature Contribution 调用 Feature 服务。运行时导入仅指向 Runtime 自己或更低层的模块。
+
 Operational Database 在 `bot_management_grants` 中保存每个 Bot 的 **App 管理授权**（`manage-app`、`manage-bots`），通过 RBAC 授权解析器读取。Host 创建内置 Tob 时为它打开两项授权。Owner Bridge 在同一事务中修改授权并写入该 Bot 自己 Human DM 的系统提示；Owner 变更时撤销全部授权并为新 Owner 的 Tob 打开两项。Shell broker 在捕获、准入和执行时校验授权，以及根 Orchestrator 已准入的 Owner DM 来源事件。参见 [Tob 决策 §11](../decisions/tob.md#app-management-grant)。
 
 ```mermaid
@@ -1027,6 +1031,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 Marketplace Worker 在 D1 中为每位作者的每个 Skill 名称保留一条有效上传记录。Host 通过 `GET /v1/me/skills` 读取已登录作者的有效上传，并通过 `marketplaceSkillMine()` 提供给客户端。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
 
+Marketplace 的「你的」区块通过 `marketplaceSkillAdded()` 读取已添加的市场 Skill：Host 扫描当前 Human 可编辑的各 Bot 的 `.agents/skills/` 和（仅 Host owner）全局 Host Skill 目录，按 `SKILL.md` 里的 `metadata.tobs-source` 识别来源，不访问 Marketplace Worker。CLI 是 `deepseekbot skills added`。
+
 每日定时发现 Bot 与 Skill 时，Marketplace Worker 共享 D1 请求预算。两个阶段各自在 D1 保存已处理的仓库节点 ID，下次从该位置继续，到末尾后回到起点。Skill 以仓库为单位批量写入，提交和展示元数据都未变化时复用现有记录。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
 
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。
@@ -1044,6 +1050,8 @@ My Avatars 与 CLI 使用同一组 Host 所有者方法。Worker 按 Connect 账
 Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举报表。举报达到阈值后，Worker 在同一事务内将该条目的 visibility 设为 `hidden_reported`。公开列表、详情、图片和 Apply 均须读取到 `listed` 状态。管理员恢复 Avatar 时同一条语句更新 visibility 并清除该条目的举报，保留 Apply Count。Host 向 Worker 举报时不需要 Connect 账户。已应用的图片由各 Host 的 Registry 存储。
 
 同一个每日任务以应用回执和首次上架时间生成 Avatar 的热门、新上架和上升最快榜单。每次运行以同一 D1 批次写入 `avatar_ranking_runs` 与 `avatar_ranking_snapshots`，空榜也记录当天。`GET /v1/avatars/sections/{hot|new|rising}` 读取最近一次快照，并再次检查条目是否仍在上架。Web 和 CLI 通过 `marketplaceAvatarList` 的 `sort` 参数读取榜单，可保留关键词和标签筛选。
+
+同一个每日任务也将 Skill 的三个榜单写入 `skill_ranking_runs` 和 `skill_ranking_snapshots`。Worker 在 `GET /v1/skills/sections/{section}` 读取最新快照并筛除已下架的 Skill。Host 通过 `marketplaceSkillSections` 汇总三个榜单，供客户端和 CLI 读取。
 
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
@@ -1392,6 +1400,8 @@ Android 表单创建（#2673）为空白 Bot、Git 导入与远程 Host 群频�
 The existing Expo Router tabs and root Stack own contextual creation ([ADR-0235](../decisions/mobile-ui.md#adr-0235)). The iOS app-owned tab island uses SwiftUI buttons, with an adjacent UIKit pull-down button for creation. On Android, the Compose Material 3 navigation bar keeps the three destinations and Chats has a separate FAB menu. Target-bound native forms handle Bot creation and import on both platforms and Computer Group creation on Android. Cloud creation rechecks account scope and Organization ownership through CloudClient, uses the existing idempotent mutation and opens the returned Channel.
 
 ### Mobile presentation (#2028)
+
+Mobile choice sheets keep the search query and result list in React Native. The platform view owns text entry and sends edits to React Native. The iOS Expo `SheetSearch` module pairs each edit with a count so a delayed React update cannot replace newer native text. See [Inline search in choice sheets](../decisions/mobile-ui.md#inline-search-in-choice-sheets).
 
 Phone Chats projects the current Remote Host's canonical `rosterGet` arrangement into section headers and individually virtualized conversation rows, including Pinned (#2571). The shared Host client also reads the DSH-native `settings/describe` response and retains only the `botharness-client` global/per-scope sorting fields used by Web; the existing `deepseekbot settings botharness-client` command reads that same authority. A successful refresh publishes roster and sorting together; a failed read keeps the last confirmed snapshot. Settings-only Web changes become visible after refresh/reconnect. No Host method, write path or second arrangement store is introduced. Pinned display excludes the same Channel from its retained ordinary membership; unpin returns it there. Top-level ordering retains loose rows between section blocks. Per-Host collapse remains device-local. Pinned uses the same conversation row, message preview, timestamp, unread/status indicators and actions as other sections, following Human screenshot feedback. Search temporarily flattens the grouped list, and All keeps Cloud rows outside Host organization. Native row geometry, gestures and accessibility require separate test-center evidence.
 
@@ -1816,6 +1826,8 @@ Desktop and mobile share the pure `host-protocol` contracts and the framework-in
 
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. A disconnected member HTTP open or poll releases its stream slot and iterator. When the peer closes a keep-alive socket, the Host releases all streams still bound to it, including those between polls. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.
 
+On a Channel policy write, Team Channels compares the old and new rules for connected members. Team Service refreshes access views and disposes the Peers of other members who lost a Channel capability. The device gateway can deliver the save reply on the caller's existing connection.
+
 M2 added application-defined private Bot ownership, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal. M13 limits Tob to the current Host Owner. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.
 
 The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, union permissions, target-scoped device management and transferable Owner authority without rewriting Human identity. The Core shares its canonical Team Service with the live hub so delivery gates follow current ownership. Credential issuance provenance restricts transfer targets; suspension removes effective permissions, and transfers invalidate outstanding pairing offers.
@@ -1845,6 +1857,12 @@ Desktop uses one member picker for Group creation and subsequent member manageme
 The Group append transaction places the Source Event before evaluating Bot reception. For a Human message, Team Policy checks the Channel's `wakeBot` action and each candidate Bot's audience. The sender block store supplies the no-response list for that Channel. The message stays in the journal, and each Bot that passes all three checks is eligible for its usual mention or ordinary admission. The desktop Team workbench, mobile Group profile and CLI read and update the same settings through the authenticated Host.
 
 Group Channel actions use the Team permission engine through `TeamChannels`. The Host reads the versioned table from `channel_records`, resolves the caller's current Role overrides and enforces the result at the existing action boundary. The Team workbench and CLI edit the same table through `channelPolicySet` with a revision precondition.
+
+The Team workbench Channel summaries use two read-only Gateway operations.
+`roleChannels` projects live Channel visibility and role overrides through `TeamChannels`.
+`botInternalMembers` applies the Bot access-role management check, then projects the current DM audience, readable Channel memberships and recent participant DM metadata.
+Both operations share contracts with the CLI and Host Client.
+Channel policy changes and revocations reset the existing roster stream. Publishing a Channel sends a roster change.
 
 ### Team mode M7 runtime access
 

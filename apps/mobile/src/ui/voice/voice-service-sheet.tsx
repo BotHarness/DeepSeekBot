@@ -45,6 +45,7 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { CreationField } from '../primitives/creation-field';
 import { SheetHeader } from '../primitives/sheet-header';
+import { dismissSheetSearchKeyboard } from '../primitives/sheet-search-field';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { PreferenceRow } from '../primitives/preference-row';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
@@ -166,7 +167,7 @@ export function VoiceServiceSheet({
   const voiceCatalog = kind === 'tts' ? catalogFor('account') : undefined;
   const close = () => {
     if (pending.current) return;
-    Keyboard.dismiss();
+    dismissSheetSearchKeyboard();
     onClose();
   };
   const fail = (cause: unknown) => {

@@ -1,3 +1,16 @@
+import type { ExternalRoleRule } from '@botharness/host-protocol/external-roles';
+
+type BehaviorEffect = ExternalRoleRule['effect'];
+
+export function behaviorEffect<Effect extends BehaviorEffect>(effects: readonly Effect[]): Effect {
+  const strongest =
+    effects.find((effect) => effect === 'deny') ??
+    effects.find((effect) => effect === 'ask') ??
+    effects[0];
+  if (!strongest) throw new Error('Behavior effect requires a source');
+  return strongest;
+}
+
 export interface BehaviorPermission {
   id: string;
   botSlug: string;
@@ -115,12 +128,12 @@ export function resolveBehaviorPermissions(
         .map((effect) => ({ id: group.id, name: group.name, revision: group.revision, effect })),
     );
     if (!sources.length) return [];
-    const denied = sources.some((source) => source.effect === 'deny');
+    const effect = behaviorEffect(sources.map((source) => source.effect));
     return [
       {
         ...item,
-        effect: denied ? ('deny' as const) : ('allow' as const),
-        conflict: denied && sources.some((source) => source.effect === 'allow'),
+        effect,
+        conflict: effect === 'deny' && sources.some((source) => source.effect === 'allow'),
         sources,
       },
     ];

@@ -1,3 +1,4 @@
+import { HOST_EXTERNAL_ROLES_MIGRATION } from './migrations/external-roles.js';
 import { CHANNEL_BOT_RECEPTION_MIGRATION } from './migrations/channel-bot-reception.js';
 import { CHANNEL_APPROVAL_POLICY_MIGRATION } from './migrations/channel-approval-policy.js';
 import { CHANNEL_PERMISSION_TABLE_MIGRATION } from './migrations/channel-permission-table.js';
@@ -223,6 +224,7 @@ import {
   CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
   ROLE_DENIED_PERMISSIONS_MIGRATION,
   HOST_ROLE_REVISION_MIGRATION,
+  HOST_ROLE_BOT_SCOPE_MIGRATION,
 } from './migrations/team.js';
 import { TOB_IDENTITY_MIGRATION, TOB_MEMORY_LEASE_MIGRATION } from './migrations/tob.js';
 import {
@@ -470,4 +472,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PERSONABOT_PROTECTION_MIGRATION,
   HOST_ROLE_REVISION_MIGRATION,
   CHANNEL_APPROVAL_POLICY_MIGRATION,
+  HOST_EXTERNAL_ROLES_MIGRATION,
+  HOST_ROLE_BOT_SCOPE_MIGRATION,
 ]);

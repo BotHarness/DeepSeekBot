@@ -49,7 +49,7 @@ import {
 } from '../../../core/src/credentials/web-locator.js';
 import { requestCreation } from './create-request.js';
 import { watchFullClientLanding, watchPrivateInputNavigation } from './private-input-navigation.js';
-import { createNativeHostFiles } from './host-file-actions.js';
+import { bindNativeHostFiles } from './host-file-actions.js';
 import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
@@ -252,7 +252,7 @@ export function apply(ctx: ClientContext): void {
   };
   const actions: BridgeActions = createActions(call, store, {
     openModelPresets: () => botSettings.open(BOT_SETTINGS_SECTIONS.modelPresets),
-    ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
+    ...(member ? {} : bindNativeHostFiles(ctx)),
     fileOpenPreferences: createFileOpenPreferences({
       storage,
       context: profileContext,

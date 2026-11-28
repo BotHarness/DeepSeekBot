@@ -1,6 +1,7 @@
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import type { AgentFeatureContribution } from './agent-feature-context.js';
+import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import type { ModelFreeTobCliInvocation } from './tob-cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
@@ -41,6 +42,7 @@ import {
   acceptAssistantStream,
   captureNativeOrchestratorModel,
   loadOrchestrator,
+  orchestratorHandle,
 } from './dsh-bot-agent-adapter-orchestrator.js';
 import { runsOnEngine, engineToolCatalog } from './dsh-bot-agent-adapter-engine.js';
 import {
@@ -52,14 +54,6 @@ import { directTools, runDirectTool } from './dsh-bot-agent-adapter-tools.js';
 import { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 export { TURN_ONLY_BOT_TOOLS } from './dsh-bot-agent-adapter-shared.js';
 export { hostWorkContext } from './dsh-bot-agent-adapter-orchestrator.js';
-
-export { onlyActiveGrant } from '../features/assignments/tools.js';
-export {
-  assignmentLoadoutParameter,
-  type AssignmentModeChoices,
-} from '../features/assignments/loadout-parameter.js';
-
-export { replyReminderText } from '../features/messaging/prompt.js';
 
 export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick | MixedGroupPick>;
@@ -87,6 +81,7 @@ export interface DshAgentHost {
 export interface DshAgentPresetHost {
   mount(agentCtx: Context, id?: string): Promise<unknown>;
   presetForSession?(session: Agent['session']): string | null | undefined;
+  composedPreset?(agentCtx: Context): string | undefined;
   serviceFor?(agent: Agent, name: string): unknown;
 }
 
@@ -149,6 +144,7 @@ export interface DshBotAgentAdapterOptions {
 
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
+  botMessageDiagnostics?: DiagnosticEvents;
   engines?: DshBotEngines;
   engineWorkspaceMode?(
     slug: string,
@@ -269,6 +265,23 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return loadOrchestrator(this.#state, run);
   }
 
+  hasOrchestratorSetup(agent: Agent): boolean {
+    return this.#state.configuredOrchestrators.has(agent);
+  }
+
+  async attachResumedOrchestrator(
+    agent: Agent,
+    run: OrchestratorAgentRun,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#state.assertOpen();
+    await this.#state.prepare(
+      run.sessionId,
+      (preparationSignal) => orchestratorHandle(this.#state, run, preparationSignal, agent),
+      signal,
+    );
+  }
+
   directTools(): DirectBotToolSpec[] {
     return directTools(this.#state);
   }
@@ -293,6 +306,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 }
 
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
+  hasOrchestratorSetup(agent: Agent): boolean;
+  attachResumedOrchestrator(
+    agent: Agent,
+    run: OrchestratorAgentRun,
+    signal?: AbortSignal,
+  ): Promise<void>;
   acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void;
   forgetAgent(agent: Agent): void;
   modelSelection(sessionId: string): ModelSelection | undefined;

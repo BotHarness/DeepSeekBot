@@ -56,6 +56,23 @@ export function parseSkillDocument(raw: string): SkillDocument | undefined {
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)^---\r?$(?:\n|$)/mu;
 
+export function readSkillDocumentMetadata(text: string): Record<string, string> {
+  const match = FRONTMATTER.exec(text.replace(/^﻿/u, ''));
+  if (match?.index !== 0) return {};
+  let data: unknown;
+  try {
+    data = parse(match[1]!);
+  } catch {
+    return {};
+  }
+  const metadata = (data as { metadata?: unknown } | null)?.metadata;
+  if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) return {};
+  const entries: Record<string, string> = {};
+  for (const [key, value] of Object.entries(metadata))
+    if (key.startsWith('tobs-') && typeof value === 'string') entries[key.slice(5)] = value;
+  return entries;
+}
+
 function editFrontmatter(text: string, edit: (document: Document) => void): string {
   const source = text.replace(/^﻿/u, '');
   const match = FRONTMATTER.exec(source);

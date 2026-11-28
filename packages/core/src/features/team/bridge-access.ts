@@ -79,6 +79,13 @@ export function guardHumanBridge(
       if (cached?.operation === operation) return cached.guarded;
       const guarded = (payload: unknown, ...args: unknown[]) => {
         const owner = deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+        if (
+          (property === 'externalRoles' ||
+            property === 'externalRoleChange' ||
+            property === 'externalContactAccess') &&
+          (!owner || human.caller === 'bot')
+        )
+          return refuse('permission-required', { permission: 'owner' });
         if (!owner && !deps.team && botCreationMethods.has(property))
           return refuse('permission-required', { permission: 'bots.createPrivate' });
         if (!owner && deps.team) {
@@ -112,6 +119,8 @@ export function guardHumanBridge(
         if (
           deps.team &&
           [
+            'botAccessRoles',
+            'botInternalMembers',
             'botVisibility',
             'botVisibilitySet',
             'botSwitches',

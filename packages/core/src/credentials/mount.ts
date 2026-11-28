@@ -221,13 +221,19 @@ export function mountPrivateInputs(
             name: 'ask_secret',
             description:
               PRIVATE_SOURCE_GUIDANCE +
-              'Reuse configured private references, or ask the authenticated Owner for private strings in an interactive conversation. Declare account, purpose and dynamic fields. Web and scheduled runs must omit source_event_id; configured accounts can be reused without an IM source or new input. For an accepted IM Source Event the card opens in your Chat and the Host sends the IM conversation an Owner-action notice (with a Web Chat link when the Profile configures one); never collect private values in IM text, attachments, quoted messages or ordinary questions. For a local Channel request the input card appears in the Channel the request came from, a Group or your Human DM; only the Owner can fill it, the values are never shown there, and only you receive the references. When the account purpose needs explanation, briefly explain it in the originating conversation; do not require a separate acknowledgment. Never ask anyone to type a secret into the conversation. Returns opaque references only. Do not send references or private configuration details to IM; report only the authorized nonsecret operation result with bot_send_message using the same source_event_id. Private input does not approve execution. Unattended runs cannot open input cards. A failed handoff may already have sent its notice; report missing private configuration and do not retry.',
+              'Look up a saved credential by exact account name and field IDs. The default reuse mode returns opaque references or not-found with saved account names. It never opens a card. Use collect only when the Human asks to configure a credential or agrees to provide new values. Explain what to enter and why. If the Human cancels, ask in chat and wait for their confirmation before trying again. Unattended runs cannot open cards. In a local conversation the card opens in that Group or your Human DM. For accepted IM work the card opens in Web Chat and the Host sends an Owner-action notice. The Owner enters values in the card. Never request values in chat, IM, attachments or ordinary questions. Keep references and private configuration out of IM. With bot_send_message, report only the authorized nonsecret result using the same source_event_id. Private input does not approve execution. If handoff fails, report missing configuration and do not retry.',
             parameters: {
               account: {
                 type: 'string',
                 required: true,
                 description:
                   'Nonsecret name of the secret the Owner will recognise later, naming the service and credential kind, for example "GitHub personal access token".',
+              },
+              mode: {
+                type: 'string',
+                enum: ['reuse', 'collect'],
+                description:
+                  'reuse (default) only looks up saved credentials. collect explicitly requests new values if there is no match.',
               },
               source_event_id: {
                 type: 'string',
@@ -238,7 +244,7 @@ export function mountPrivateInputs(
                 type: 'string',
                 required: true,
                 description:
-                  'Why the secret is needed in this situation: which credential or API key it is, which service it is for and what the Bot will do with it. Shown to the Owner on the card and later in Channel settings.',
+                  'For collect, say what the Owner should enter and why it is needed, for example "Enter a Cloudflare API token to update DNS records." This text appears on the private input card and in settings.',
               },
               fields: {
                 type: 'array',
@@ -262,11 +268,27 @@ export function mountPrivateInputs(
             },
             execute: (args, call) =>
               observe('ask_secret', async () => {
-                const { source_event_id: sourceEventId, ...declaration } = args;
+                const { source_event_id: sourceEventId, mode = 'reuse', ...declaration } = args;
                 return JSON.stringify(
-                  await owner.ask(agent, declaration, call.signal, sourceEventId),
+                  await owner.ask(agent, declaration, call.signal, sourceEventId, mode),
                 );
               }),
+          }),
+        );
+        agentCtx.tools.register(
+          defineTool({
+            name: 'list_secret_accounts',
+            description:
+              'List exact names of saved credential accounts available to this Bot. Use a name as account in ask_secret. Returns no values or references. Keep the list out of external messages.',
+            parameters: {},
+            output: {
+              schema: { type: 'string' },
+              render: (_args, value) => [{ type: 'text', text: value }],
+            },
+            execute: () =>
+              observe('list_secret_accounts', async () =>
+                JSON.stringify({ accounts: await owner.listSavedAccounts(agent) }),
+              ),
           }),
         );
         agentCtx.tools.register(

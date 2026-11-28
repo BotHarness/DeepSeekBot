@@ -735,6 +735,14 @@ _避免使用_：ordering、sort preference、sorter
 Channel 不属于任何 Channel section 时的 membership state。未分组 Channel 以松散顶层行呈现，可位于 section 之间；它没有 bucket header 或折叠状态。
 _避免使用_：default folder、inbox、fixed bottom bucket
 
+**External conversation**：
+界面名称为「外部会话」，指外部 IM 平台上的一个会话，例如私信、群、Slack 或 Discord 频道；由平台、工作区和会话确定，与有哪些 App 或 PersonaBot 参与无关。它是 Host 级资源；每个接收它的 App 在其中各有一条 Conversation entry，所以同一个群里的两个 App 各自接收、唤醒和回复。
+_避免使用_：external channel、外部频道、IM channel、Channel（指这条记录时）
+
+**External sub-conversation**：
+界面名称为「外部子会话」，指在某个 External conversation 里开出的回复链，例如 Slack 或 Discord 的 thread、Discord 论坛帖、Lark 话题回复。默认沿用父会话的设置，也可以单独设为跟随或排除。
+_避免使用_：Thread（指这条记录时）、topic、外部话题、sub-thread
+
 **Bridge**：
 从 external source（如 IM 会话，未来还有 webhook）到某个显式 Channel 或 PersonaBot Inbox target 的已配置连接；它承载 inbound delivery 并暴露 outbound capability，但不会成为 Actor。对于 IM 会话，它列在「外部连接器 / External connector」中；PersonaBot 自己的外部身份是另一回事。
 _避免使用_：integration、adapter、裸用 connector

@@ -1,4 +1,6 @@
 import type { SessionRemote } from '@deepseek-ai/dsh-api-session-controller/client';
+import type { Context as ClientContext } from '@deepseek-ai/cordis';
+import { createAttachmentOpenRequests } from './attachment-open-requests.js';
 
 export interface HostFileTarget {
   path: string;
@@ -19,8 +21,8 @@ export interface HostFileOptions {
 export type HostFileOpen = { application: string } | { action: 'reveal' };
 export interface NativeHostFiles {
   available?(): Promise<boolean>;
-  applications(target: HostFileTarget): Promise<HostFileOptions>;
-  open(target: HostFileTarget, choice: HostFileOpen): Promise<void>;
+  applications(target: HostFileTarget, signal?: AbortSignal): Promise<HostFileOptions>;
+  open(target: HostFileTarget, choice: HostFileOpen, signal?: AbortSignal): Promise<void>;
 }
 const directoryNames: Readonly<Record<string, string>> = {
   finder: 'Finder',
@@ -59,6 +61,13 @@ const directoryNames: Readonly<Record<string, string>> = {
   konsole: 'Konsole',
 };
 
+export function bindNativeHostFiles(ctx: ClientContext) {
+  const attachmentOpenRequests = createAttachmentOpenRequests();
+  ctx.on('connection/reset', attachmentOpenRequests.reset);
+  ctx.effect(() => attachmentOpenRequests.dispose, 'botharness: attachment open requests');
+  return { nativeFiles: createNativeHostFiles(ctx.remote.session), attachmentOpenRequests };
+}
+
 export function createNativeHostFiles(
   session: Pick<
     SessionRemote,
@@ -72,10 +81,10 @@ export function createNativeHostFiles(
       const capability = await session.canOpenWorkspacePath();
       return capability.ok && capability.value;
     },
-    async applications(target) {
+    async applications(target, signal = AbortSignal.timeout(15_000)) {
       if (target.kind === 'directory') {
         const response = await fetcher(route('./open-in-app/apps'), {
-          signal: AbortSignal.timeout(15_000),
+          signal,
         });
         if (!response.ok) return { available: false, applications: [] };
         const payload = (await response.json()) as { apps?: unknown };
@@ -92,10 +101,8 @@ export function createNativeHostFiles(
       }
       const capability = await session.canOpenWorkspacePath();
       if (!capability.ok || !capability.value) return { available: false, applications: [] };
-      const handlers = await session.workspacePathApplications(
-        { path: target.path },
-        AbortSignal.timeout(15_000),
-      );
+      signal.throwIfAborted();
+      const handlers = await session.workspacePathApplications({ path: target.path }, signal);
       return handlers.ok
         ? { available: true, applications: handlers.value }
         : {
@@ -104,7 +111,7 @@ export function createNativeHostFiles(
             error: handlers.error.message,
           };
     },
-    async open(target, choice) {
+    async open(target, choice, signal = AbortSignal.timeout(15_000)) {
       if (target.kind === 'directory') {
         if (!('application' in choice))
           throw new Error('Directories require an installed application');
@@ -112,15 +119,12 @@ export function createNativeHostFiles(
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ app: choice.application, path: target.path }),
-          signal: AbortSignal.timeout(15_000),
+          signal,
         });
         if (!response.ok) throw new Error('DSH could not open this directory on the Host');
         return;
       }
-      const result = await session.openWorkspacePath(
-        { path: target.path, ...choice },
-        AbortSignal.timeout(15_000),
-      );
+      const result = await session.openWorkspacePath({ path: target.path, ...choice }, signal);
       if (!result.ok) throw new Error(result.error.message);
     },
   };

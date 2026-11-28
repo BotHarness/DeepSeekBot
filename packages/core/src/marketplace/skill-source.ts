@@ -1,9 +1,12 @@
 import {
+  MARKETPLACE_SKILL_SECTIONS,
+  parseMarketplaceSkillSectionView,
   parseMarketplaceSkillDetail,
   parseMarketplaceSkillPage,
   type MarketplaceSkill,
   type MarketplaceSkillDetail,
   type MarketplaceSkillPage,
+  type MarketplaceSkillSection,
 } from '@botharness/host-protocol/marketplace-skill';
 import { MAX_SKILL_BYTES, MAX_SKILL_FILES } from '../../../market/src/skill-scan.js';
 import type { MarketplaceResult } from './client.js';
@@ -13,6 +16,7 @@ const RAW_BASE = 'https://raw.githubusercontent.com';
 
 export interface MarketplaceSkillSource {
   list(query: { q?: string; cursor?: string }): Promise<MarketplaceResult<MarketplaceSkillPage>>;
+  sections(): Promise<MarketplaceResult<MarketplaceSkillSection[]>>;
   detail(id: string): Promise<MarketplaceResult<MarketplaceSkillDetail>>;
   receipt(id: string, targetHash: string): Promise<MarketplaceResult<{ counted: boolean }>>;
   files(
@@ -64,6 +68,26 @@ export function createMarketplaceSkillSource(options: {
         { method: 'GET', headers: { accept: 'application/json' } },
         parseMarketplaceSkillPage,
       );
+    },
+    async sections() {
+      const results = await Promise.all(
+        MARKETPLACE_SKILL_SECTIONS.map((section) =>
+          request(
+            `/v1/skills/sections/${section}`,
+            { method: 'GET', headers: { accept: 'application/json' } },
+            (value) => {
+              const view = parseMarketplaceSkillSectionView(value);
+              return view?.section === section ? { section, entries: view.entries } : undefined;
+            },
+          ),
+        ),
+      );
+      const sections: MarketplaceSkillSection[] = [];
+      for (const result of results) {
+        if (!result.ok) return result;
+        sections.push(result.value);
+      }
+      return { ok: true, value: sections };
     },
     detail: (id) =>
       request(

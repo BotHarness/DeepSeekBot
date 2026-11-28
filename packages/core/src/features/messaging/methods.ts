@@ -1,6 +1,12 @@
+import type {
+  ExternalContactAccess,
+  HostExternalRole,
+} from '@botharness/host-protocol/external-roles';
+import type { MessagingConnectionsView } from '@botharness/host-protocol/messaging-connections';
 import { asSlug, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { pairingReviewInput, type PairingRequest } from '../../messaging/pairing.js';
 import {
+  externalRoleChangeSchema,
   senderAccessInput,
   threadReceptionInput,
   groupReceptionInput,
@@ -97,6 +103,9 @@ export type MessagingBridgeMethods = {
     }>
   >;
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
+  externalRoles(): Promise<BridgeResult<{ roles: HostExternalRole[] }>>;
+  externalRoleChange(payload: unknown): Promise<BridgeResult<{ role: HostExternalRole }>>;
+  externalContactAccess(payload: unknown): Promise<BridgeResult<ExternalContactAccess>>;
   senderAccess(payload: unknown): Promise<BridgeResult<void>>;
   channelBridges(payload: unknown): Promise<BridgeResult<ChannelBridgeSnapshot>>;
   channelIngests(payload: unknown): Promise<BridgeResult<ConversationIngestSnapshot>>;
@@ -115,6 +124,7 @@ export type MessagingBridgeMethods = {
   messagingDefaults(payload: unknown): Promise<BridgeResult<MessagingDefaults>>;
   messagingDefaultsSet(payload: unknown): Promise<BridgeResult<MessagingDefaults>>;
   messagingApps(): Promise<BridgeResult<MessagingAppsView>>;
+  messagingConnections(payload: unknown): Promise<BridgeResult<MessagingConnectionsView>>;
   messagingSnapshot(payload: unknown): Promise<BridgeResult<MessagingSnapshot>>;
   messagingReachable(
     payload: unknown,
@@ -136,6 +146,13 @@ export type MessagingBridgeMethods = {
 export function createMessagingBridgeMethods(
   deps: MessagingBridgeDeps,
   messagingCall: ReturnType<typeof createMessagingCall>,
+  {
+    globalRegistry,
+    canReadConnections,
+  }: {
+    globalRegistry: PersonaBotRegistry;
+    canReadConnections(): boolean;
+  },
 ): MessagingBridgeMethods {
   return {
     channelBridges(payload) {
@@ -311,6 +328,34 @@ export function createMessagingBridgeMethods(
         delivery: await service.failureAlerts.retry(input.data.slug, input.data.id),
       }));
     },
+    externalRoles() {
+      return messagingCall(async (service) => ({ roles: service.externalRoles() }));
+    },
+    externalRoleChange(payload) {
+      const input = externalRoleChangeSchema.safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid external role'));
+      if (
+        input.data.botScope?.kind === 'only' &&
+        input.data.botScope.botSlugs.some((slug) => !deps.registry.get(slug))
+      )
+        return Promise.resolve({
+          ok: false,
+          error: { code: 'bot-unavailable', message: 'bot-unavailable' },
+        });
+      return messagingCall(async (service) => ({ role: service.externalRoleChange(input.data) }));
+    },
+    externalContactAccess(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1).max(200),
+          bindingId: z.string().uuid(),
+          actorId: z.string().min(1).max(512),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid external contact'));
+      return messagingCall(async (service) => service.externalContactAccess(input.data));
+    },
     senderAccess(payload) {
       const input = z
         .object({ slug: z.string().min(1), input: senderAccessInput })
@@ -401,6 +446,34 @@ export function createMessagingBridgeMethods(
       return messagingCall(async (service) => ({
         apps: await service.apps(),
         setups: await service.setups(),
+      }));
+    },
+    async messagingConnections(payload) {
+      if (!canReadConnections())
+        return {
+          ok: false,
+          error: { code: 'permission-required', message: 'permission-required' },
+        };
+      const input = z
+        .object({ mode: z.enum(['saved', 'status']).default('status') })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('Valid messaging connection read mode required');
+      const { mode } = input.data;
+      return messagingCall<MessagingConnectionsView>(async (service) => ({
+        checks: mode === 'saved' ? 'pending' : 'complete',
+        bindings: (await service.connections(mode)).flatMap((binding) => {
+          const bot = globalRegistry.get(binding.botSlug);
+          return bot === undefined
+            ? []
+            : [
+                {
+                  ...binding,
+                  botName: bot.displayName,
+                  canOpenSettings: deps.registry.get(bot.slug) !== undefined,
+                },
+              ];
+        }),
       }));
     },
     messagingSnapshot(payload) {

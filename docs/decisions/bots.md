@@ -72,7 +72,7 @@ Enforced by: [Avatar editor and species behavior](../../packages/client/test/ava
 
 <a id="adr-0130"></a>
 
-PersonaBot deletion closes execution and new effects and retains a tombstone, historical attribution and the Memory Repository by default. The unchecked Memory erasure option binds explicit consent to the reviewed, exclusively owned managed repository. The Host revalidates that scope and reports incomplete cleanup. Ordinary Channel ending retains history. [Group disbanding](#adr-0274) and [Content Purge](persistence.md#adr-0146) have their own scopes.
+PersonaBot deletion closes execution and new effects and retains a tombstone, historical attribution and the Memory Repository by default. The unchecked Memory erasure option binds explicit consent to the reviewed, exclusively owned managed repository. The Host revalidates that scope and reports incomplete cleanup. Ordinary Channel ending retains history. Confirmed PersonaBot deletion archives its DM Channels and their existing history in the same transaction as the Bot tombstone. Those DMs leave ordinary Channel reads. Group history stays available. [Group disbanding](#adr-0274) and [Content Purge](persistence.md#adr-0146) have their own scopes.
 
 Why: Removing an active identity should preserve historical attribution and avoid incidental loss of uncommitted Memory or other people's content. Explicit scope lets the Human independently inspect and erase the directory.
 

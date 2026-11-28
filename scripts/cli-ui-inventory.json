@@ -1310,6 +1310,21 @@
       "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
     },
     {
+      "id": "team-bot-access",
+      "description": "Team workbench Bot access by Host Role. List the Bots in the Bot section with bots access-directory and read the roles and invited members that can use one with bots access-roles <slug>. Read a role's Bots this role can use with roles bot-scope <roleId> and change it with roles bot-scope-set <roleId> --expected-revision <n> --set all or --expected-editable-bots-revision <token> --set selected:<slugs>. Read a role’s Channel links with roles channels <roleId> and a Bot’s internal members, recent DMs and Channels with bots channels <slug>.",
+      "scope": "Host / Human",
+      "surfaces": [
+        "setting:packages/client/src/client/team-workbench/bot-roles-tab.tsx:{member.displayName}",
+        "setting:packages/client/src/client/team-workbench/bot-roles-tab.tsx:{name(role.roleId, role.name)}",
+        "setting:packages/client/src/client/team-workbench/bot-roles-tab.tsx:{t('team.workbench.bots.noInvited')}",
+        "setting:packages/client/src/client/team-workbench/bot-roles-tab.tsx:{t('team.workbench.bots.noRoles')}",
+        "setting:packages/client/src/client/team-workbench/role-bot-scope.tsx:{ bot.availableToMembers ? ( bot.displayName ) : ( <> {bot.displayName}{' '} <Tag tone=\"warning\">{t('team.workbench.botScope.unavailable')}</Tag> </> ) }",
+        "setting:packages/client/src/client/team-workbench/role-bot-scope.tsx:{t('team.workbench.botScope.mode')}",
+        "setting:packages/client/src/client/team-workbench/role-bot-scope.tsx:{t('team.workbench.botScope.none')}"
+      ],
+      "commands": ["access-directory", "access-roles", "bot-scope", "bot-scope-set", "channels"]
+    },
+    {
       "id": "team-members",
       "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. Read the Team workbench role capabilities, holders and a member's effective permissions with roles list, members list and roles effective <username>; change a capability with roles update. Read Channel members with channels. Read Channel permission tables with channels policy <id> and replace them with channels policy <id> --policy-stdin. Set Channel approval rules (the Team workbench 审批 tab and the see/decide rows of the permission table) with --see-approvals, --decide-approvals and --use-channel-approvals. Use channels bots <id> to read the Bot settings, or add <botSlug> and --audience, --block-human or --unblock-human to update them. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
       "scope": "Host / Human",
@@ -1363,6 +1378,27 @@
         "dm",
         "private",
         "audit"
+      ]
+    },
+    {
+      "id": "team-external-roles",
+      "description": "Host-level external roles in the Team workbench. List roles, their Bot scope, pairing capabilities and behavior rules with external-roles; create one with external-role-create --input-stdin and change its name, Bot scope, capabilities or behavior rules with external-role-update --input-stdin. Read a contact's live status and effective capabilities on a Bot with external-contact-access <bot-id> --binding <binding-id> --actor <actor-id>; list a Bot's pairings and their role with pairing-list <bot-id>.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{contact.name}",
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{t('team.error.load')}",
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{t('team.externalRoles.noContacts')}",
+        "setting:packages/client/src/client/team-workbench/external-role-contacts.tsx:{t('team.workbench.loading')}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{bot.name}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{botName(slug)}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{label}",
+        "setting:packages/client/src/client/team-workbench/external-role-tabs.tsx:{t('team.externalRoles.scope.title')}"
+      ],
+      "commands": [
+        "external-roles",
+        "external-role-create",
+        "external-role-update",
+        "external-contact-access"
       ]
     },
     {
@@ -1425,6 +1461,13 @@
       "scope": "Local Host",
       "surfaces": ["setting:packages/client/src/client/group-member-picker.tsx:{row.displayName}"],
       "commands": ["group-member-picker", "group-create", "group-members-add"]
+    },
+    {
+      "id": "marketplace-yours",
+      "description": "Marketplace Yours: the Marketplace Skills added to editable Bots or globally, and the app connections that need reconnecting.",
+      "scope": "Local Host",
+      "surfaces": ["setting:packages/client/src/client/market-yours.tsx:{account.name}"],
+      "commands": ["skills-added", "connectors", "connector-reconnect"]
     },
     {
       "id": "app-connectors",

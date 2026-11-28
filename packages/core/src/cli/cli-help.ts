@@ -117,6 +117,7 @@ Usage:
   tobs skills publish <name> --bot <slug>  Publish a Project Skill / 发布 Bot 的 Project Skill
   tobs skills replace <id> <name> --bot <slug> --confirm  Replace a Marketplace Skill's files / 替换市场 Skill 的文件
   tobs skills delete <id> --confirm  Delete a Marketplace Skill / 删除市场 Skill
+  tobs market skills sections [--section hot|new|rising]  Skill rankings / Skill 榜单
   tobs skills mine  List your Skill uploads / 列出我发布的 Skill
   tobs marketplace-skill-report <id> [--reason <text>]  Report a Marketplace Skill / 举报市场 Skill
   tobs marketplace-blocklist <block|restore> <bot|avatar> <id-or-url>  Moderate a Marketplace entry / 封禁或恢复市场条目
@@ -148,6 +149,10 @@ Usage:
   tobs telemetry-set (--enabled | --disabled)
   tobs git-status
   tobs git-install
+  tobs external-roles
+  tobs external-role-create --input-stdin
+  tobs external-role-update --input-stdin
+  tobs external-contact-access <bot-id> --binding <binding-id> --actor <actor-id>
   tobs pairing-list <id>
   tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ... [--delegable]] [--confirm]
   tobs workspace-options
@@ -178,6 +183,7 @@ Usage:
   tobs im-unbind <id> --app <app-id>
   tobs im-reconnect <id> --app <app-id>
   tobs im-status <id> [--read-mode saved|status]
+  tobs im-connections [--read-mode saved|status]
   tobs channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
   tobs channel-ingests <channel>
   tobs browser-open <id>
@@ -272,7 +278,7 @@ Usage:
   tobs bot-delete-preview <id>
   tobs bot-delete-memory-folder <id>
   tobs bot-delete-confirm <id> --confirmation-stdin --confirm [--erase-memory]
-  tobs bot-delete-retry <id> --confirm
+  tobs bot-delete-retry <id> --confirm [--confirmation-stdin]
   tobs bot-avatar-set|bot-banner-set <id> (--file <image> | --clear)
   tobs bot-banner-set|bot-appearance-set <id> --recipe-stdin
   tobs bot-primary-color-set <id> (--color <#rrggbb> | --automatic)

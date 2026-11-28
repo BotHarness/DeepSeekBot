@@ -1,6 +1,7 @@
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { OriginalAttachmentAccess } from '../attachments/original-access.js';
 import type { AttachmentStore } from '../attachments/store.js';
+import { HarnessError } from '@deepseek-ai/dsh-llm';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -507,6 +508,11 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
       createBot: (input) => ports.createBot(botSlug, sourceEventId, beforeSend, input),
       sendToBot: async (input) => {
         if (input.botSlug.startsWith('remote:')) {
+          if (input.attachments?.length)
+            throw new HarnessError(
+              'Remote Bot DMs support text only. Attachments can be sent to a local Bot.',
+              'unsupported-attachment-send',
+            );
           if (input.replyTo !== undefined)
             throw new Error('Remote Bot DMs currently support text without quoted replies');
           let contact = ports.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
@@ -540,15 +546,18 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
             (target && botOwner(sender) !== botOwner(target)))
         )
           throw new TobError('bot-not-found');
+        if (target?.paused === true)
+          throw new HarnessError('The recipient Bot is paused.', 'recipient-paused');
         if (
           sender === undefined ||
           sender.paused === true ||
           target === undefined ||
-          target.paused === true ||
           target.slug === botSlug
         )
-          throw new Error('Bot DM recipient must be another active PersonaBot');
-        if (!input.body.trim()) throw new Error('Bot DM message requires a body');
+          throw new HarnessError(
+            'Bot DM recipient must be another active PersonaBot.',
+            'bot-dm-unavailable',
+          );
         const dm = ports.channels.getOrCreateBotDm(
           OWNER_HUMAN_CONTEXT,
           botSlug,
@@ -567,6 +576,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
           body: input.body,
           replyTo: input.replyTo,
+          attachments: input.attachments,
           deliveryKey: input.deliveryKey,
           ...turnAttribution(),
         });
@@ -810,7 +820,10 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
               input.attachments?.length ||
               (input.replyTo !== undefined && input.replySourceEventId === undefined)
             )
-              throw new Error('Remote Bot DMs currently support text without quoted replies');
+              throw new HarnessError(
+                'Remote Bot DMs support text without attachments or quoted replies.',
+                input.attachments?.length ? 'unsupported-attachment-send' : 'unsupported-quotes',
+              );
             return (
               await ports.causalSending.sendNetworkBotDm({
                 botSlug,

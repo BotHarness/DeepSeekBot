@@ -152,6 +152,8 @@ const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'bot-channel-join-disabled': 'team.error.botChannelJoinDisabled',
   'bot-channel-access-denied': 'team.error.botChannelAccessDenied',
   'bot-dm-read-only': 'team.error.botDmReadOnly',
+  'bot-not-editable': 'team.error.botNotEditable',
+  'bot-not-found': 'team.error.botNotFound',
   'bot-proactive-denied': 'team.error.botProactiveDenied',
   'bot-private-target-denied': 'team.error.botPrivateTargetDenied',
   'bot-audience-denied': 'team.error.botAudienceDenied',

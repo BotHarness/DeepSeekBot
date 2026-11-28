@@ -36,9 +36,6 @@ import { resolveDshHome } from './im/config-store.js';
 import type { ChannelToolApproval } from './workspaces/tool-approval.js';
 import type { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
-import { connectorCallback, mountConnectors } from './connectors/mount.js';
-import { ConnectorService } from './connectors/service.js';
-import { createConnectorStore } from './connectors/store.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import type { DshSessionStore } from './sessions/source.js';
 import type { PersonaBotActivityEvent } from './state/bot-state.js';
@@ -265,6 +262,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
   });
   const agentAdapter = personabotsFeature.createHostAgentAdapter(ctx, config, {
+    diagnosticEvents,
     engineHost,
     engineToolGate,
     tobCliInvocation,
@@ -464,17 +462,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
-  if (core.operationalDatabase.mode === 'ready') {
-    const callback = connectorCallback(core.team.publicOrigins);
-    const connectors = new ConnectorService({
-      store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
-      credentials: () => ctx.get('credentials'),
-      log: (phase, fields) => ctx.logger.info('connectors %j', { phase, ...fields }),
-      redirectUri: callback.url,
-    });
-    core.connectors = connectors;
-    mountConnectors(ctx, core, connectors, callback);
-  }
+  forEachHostFeature(featureContributions, (hooks) =>
+    hooks.mountHostResources?.(ctx, core, { toolApproval: () => toolApproval }),
+  );
   forEachHostFeature(featureContributions, (hooks) => hooks.teamConfinement?.(ctx, core, dshHome));
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   forEachHostFeature(featureContributions, (hooks) =>
@@ -496,7 +486,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const reviewing = new Set<string>();
   const { idleCompactionSettings, compactionPolicy, applyCompactionPolicy } =
     requireHostFeatureHook(featureContributions, 'sessionCompactionPolicy')(ctx, core, dshHome);
-  installNativeSubagentWake(ctx, core.runtime);
+  installNativeSubagentWake(ctx, core.runtime, async (agent, signal) => {
+    if (agentAdapter.hasOrchestratorSetup(agent)) return;
+    const sessionId = agent.session.id;
+    const owner = core.ownership.resolve(sessionId);
+    if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return;
+    await core.runtime.attachResumedOrchestrator?.(owner.botSlug, sessionId, (run) =>
+      agentAdapter.attachResumedOrchestrator(agent, run, signal),
+    );
+  });
   applyCompactionPolicy();
   requireHostFeatureHook(featureContributions, 'sessionPreStep')(ctx, {
     core,

@@ -1,4 +1,5 @@
 import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
+import type { DiagnosticEvents } from '../../diagnostics/diagnostic-log.js';
 import type { TobAgentHooks } from '../tob/plugin.js';
 import type { ModelFreeTobCliInvocation } from '../../runtime/tob-cli-invocation.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
@@ -141,39 +142,45 @@ export function createDeletions({
   options: Pick<CoreOptions, 'capture' | 'workspaces' | 'erasePrivateAccounts' | 'warn'>;
 }) {
   const deletions = createPersonaBotDeletions({
-    accept: (slug, commit) => channels.removeBotFromGroups(slug, commit),
+    accept: (slug, commit) => channels.acceptBotDeletion(slug, commit),
+    archiveDms: (slug) => channels.archiveBotDms(slug),
     ...(options.capture === undefined ? {} : { capture: options.capture }),
     protectedPaths: [dshHome],
     database: operationalDatabase,
     registry,
-    dependencies: (slug) => ({
-      sessions: ownership
-        .rootsFor(slug)
-        .flatMap((root) => [
-          root.sessionId,
-          ...ownership.descendantsOf(root.sessionId).map((child) => child.sessionId),
-        ])
-        .sort(),
-      workspaces: grants
-        .list(slug)
-        .filter((grant) => grant.revokedAt === undefined)
-        .map((grant) => grant.workspacePath)
-        .sort(),
-      grants: [
-        ...grants
+    dependencies: (slug) => {
+      const affected = channels
+        .list()
+        .filter((channel) => channel.members.includes(slug) || channel.botSlug === slug);
+      return {
+        sessions: ownership
+          .rootsFor(slug)
+          .flatMap((root) => [
+            root.sessionId,
+            ...ownership.descendantsOf(root.sessionId).map((child) => child.sessionId),
+          ])
+          .sort(),
+        workspaces: grants
           .list(slug)
           .filter((grant) => grant.revokedAt === undefined)
-          .map((grant) => grant.id),
-        ...toolRules.list(slug).map((rule) => rule.id),
-        ...externalMessaging.deletionDependencies(slug).grants,
-      ].sort(),
-      identities: externalMessaging.deletionDependencies(slug).identities,
-      channels: channels
-        .list()
-        .filter((channel) => channel.members.includes(slug) || channel.botSlug === slug)
-        .map((channel) => channel.id)
-        .sort(),
-    }),
+          .map((grant) => grant.workspacePath)
+          .sort(),
+        grants: [
+          ...grants
+            .list(slug)
+            .filter((grant) => grant.revokedAt === undefined)
+            .map((grant) => grant.id),
+          ...toolRules.list(slug).map((rule) => rule.id),
+          ...externalMessaging.deletionDependencies(slug).grants,
+        ].sort(),
+        identities: externalMessaging.deletionDependencies(slug).identities,
+        channels: affected.map((channel) => channel.id).sort(),
+        dmChannelsToArchive: affected
+          .filter((channel) => channel.type === 'dm')
+          .map((channel) => channel.id)
+          .sort(),
+      };
+    },
     allWorkspacePaths: () => [
       ...(options.workspaces?.()?.list() ?? []).map((workspace) => workspace.path),
       ...registry
@@ -576,6 +583,7 @@ export function createHostAgentAdapter(
       engineHost: ReturnType<typeof models.mountEngines>['engineHost'];
       engineToolGate: ReturnType<typeof createEngineToolGate>;
       featureContributions: readonly AgentFeatureContribution[];
+      diagnosticEvents: DiagnosticEvents;
       turnRefusals: Map<string, string | TeamError>;
       botModes: ReturnType<typeof appearanceFeature.createBotModes>;
       publishDraft(event: ChannelDraftEvent): void;
@@ -606,6 +614,7 @@ export function createHostAgentAdapter(
     releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => deps.core.prompts.textForSession(sessionId),
     defaultModel,
+    botMessageDiagnostics: deps.diagnosticEvents,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
     observeDirectToolCleanupFailure: ({ sessionId, durationMs }) =>
       ctx.logger.warn(
