@@ -29,7 +29,7 @@ import {
   writeSkill,
   type StagedSkill,
 } from '../../marketplace/skill-install.js';
-import { addedMarketplaceSkills } from '../../marketplace/skill-added.js';
+import { addedMarketplaceSkills } from './skill-added.js';
 import type { MarketplaceSkillSource } from '../../marketplace/skill-source.js';
 import { listBotSkills } from '../../skills/bot-skills.js';
 import { ownsBot } from '../../team-policy/bot-access.js';
