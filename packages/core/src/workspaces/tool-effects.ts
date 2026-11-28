@@ -1,6 +1,7 @@
 import { cliEffects, brokerCliEffects } from '../kernel/cli-effects.js';
 import { requiresHumanDecision } from './approval-templates.js';
 import { sourceBlockTokenValid } from './source-block-token.js';
+import { COMPOSIO_EXECUTE_TOOL, composioBatchSends } from '../kernel/composio-tool-effects.js';
 
 import type { ToolEffects } from '../kernel/tool-effects-contract.js';
 export type { ToolEffects } from '../kernel/tool-effects-contract.js';
@@ -8,6 +9,7 @@ export type { ToolEffects } from '../kernel/tool-effects-contract.js';
 type Declaration = ToolEffects & {
   readonly approval: 'native' | 'existing' | 'always' | 'attachment';
 };
+type DeclarationRow = Declaration | ((args: unknown) => Declaration);
 const read: Declaration = {
   changes: 'none',
   reach: 'local',
@@ -70,6 +72,7 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   cloud_work: send,
   connector_catalog: read,
   connector_request: { ...write, authority: 'management' },
+  [COMPOSIO_EXECUTE_TOOL]: (args: unknown) => (composioBatchSends(args) ? send : write),
   computer_click: computerAct,
   computer_get_desktop_state: computerRead,
   computer_get_window_state: computerRead,
@@ -131,11 +134,12 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   todos_update: { ...write, approval: 'native' },
   unarchive_assignment: write,
   wait_for_assignment: read,
-} satisfies Record<string, Declaration>;
+} satisfies Record<string, DeclarationRow>;
 
-const declarations: Readonly<Partial<Record<string, Declaration>>> = FIRST_PARTY_TOOL_EFFECTS;
-function declaration(name: string): Declaration | undefined {
-  return Object.hasOwn(declarations, name) ? declarations[name] : undefined;
+const declarations: Readonly<Partial<Record<string, DeclarationRow>>> = FIRST_PARTY_TOOL_EFFECTS;
+function declaration(name: string, args: unknown): Declaration | undefined {
+  const row = Object.hasOwn(declarations, name) ? declarations[name] : undefined;
+  return typeof row === 'function' ? row(args) : row;
 }
 function inputText(args: unknown): string {
   try {
@@ -158,7 +162,7 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     return cliEffects(args.argv);
   }
   if (name.startsWith('deepseekbot ')) return brokerCliEffects(name, args);
-  const declared = declaration(name);
+  const declared = declaration(name, args);
   if (!declared) return undefined;
   const { approval: _approval, ...effects } = declared;
   const operation = typeof args === 'object' && args !== null ? args : undefined;
@@ -323,7 +327,7 @@ export function toolApprovalRequired(
   return (
     decideToolApproval(toolEffects(name, args), {
       stage: 'admission',
-      admission: declaration(name)?.approval ?? 'native',
+      admission: declaration(name, args)?.approval ?? 'native',
       legacyProtected: governed && requiresHumanDecision(inputText(args), templateInUse),
     }).path === 'request'
   );

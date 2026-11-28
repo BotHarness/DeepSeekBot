@@ -42,6 +42,8 @@ Team contributes its bridge methods, Typert handlers, startup and confinement ho
 
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
+Connectors contributes Host setup for the account store, OAuth callback and Agent tools. Composio calls use the current Account Grants at dispatch. A write in any part of a batch requires a Human decision on the whole call, with approval bound to the input and current account access.
+
 ## CLI adapters and PersonaBot protection
 
 [#5524](https://github.com/BotHarness/DeepSeekBot/issues/5524) puts command dispatch and adapters in [the CLI module](../../packages/core/src/cli/). Online commands call the existing Host bridge through Host Client. The [offline Profile bridge](../../packages/core/src/bridge/cli-offline.ts) opens the established owners for commands that support offline Profiles. Kernel owns CLI parsing, request schemas, and effect declarations shared with the Tob feature. The Tob feature binds typed commands and exact-argv dispatch to its existing source checks, approvals, and Host owners.
