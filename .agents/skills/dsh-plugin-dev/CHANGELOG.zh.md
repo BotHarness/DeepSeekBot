@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 本地开发指南记录了如何用已安装的 DSH Agent Registry 和原生问题 Service 核验限时问题恢复。重启 Host 后回答原先已持久化的 `continued` 问题，确认所属 Session 能继续运行（[限时问题恢复](../dsh-dev/SKILL.md#timed-question-recovery-registry-trap-4066)、[#4066](https://github.com/BotHarness/DeepSeekBot/issues/4066)）。
+
 - 补充下游无模型 Tob CLI 验证路径及原生审批的真实回合审计边界；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4212](https://github.com/BotHarness/DeepSeekBot/issues/4212)）。
 - 增加下游匿名 Bot Token 统计的验证路径及快照查询约定；稳定 DSH/Cordis Context、Decision Tree 及上游验证来源不变（[#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)）。
 
