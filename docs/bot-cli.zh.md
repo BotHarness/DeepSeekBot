@@ -1452,6 +1452,30 @@ deepseekbot connector-key-clear --confirm
 
 `connector-search [关键词]` 列出可以连接的应用：先列出匹配的常用应用，再列出 Composio 支持的所有匹配应用（约 2000 个），返回的 `next` 可作为 `--cursor` 取下一页。中文关键词只匹配常用应用；英文词（如 `crm`、`email`）会搜索整个 Composio。没有 key 时只返回常用应用。Bot 的 `connector_catalog` 用的是同一个搜索。`connector-reconnect <account-id>` 用于重新登录已过期或失败的账号：断开旧的 Composio 账号、输出新的登录链接，并保留该账号已有的 Bot 授权。`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
 
+### 应用连接（使用自己的 OAuth 客户端接入 Google Workspace）
+
+以 Host Owner 身份运行。先在 Google Cloud 中启用 Gmail API、Google Calendar API 和 People API，再创建类型为 **Web application** 的 OAuth 客户端。将 `connector setup google` 返回的完整 `redirectUri` 加入授权重定向 URI。在运行 DeepSeekBot 的 Host 上用浏览器打开登录链接。
+
+```bash
+deepseekbot connector setup google
+deepseekbot connector add google --client-id <client-id> --client-secret-stdin < google-client-secret.txt
+deepseekbot connector login google --account Work
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+```
+
+登录命令会输出授权链接。用要连接的 Google 账号登录。要连接第二个账号，请使用不同的标签。用已有标签重新登录时，系统会保留原账号及其 Bot 授权。
+
+新账号只申请读取权限。要创建草稿、发送邮件或创建日历事件，先给 Bot 分配 `write` 权限，再运行 `connector-reconnect <account-id>`，在 Google 页面同意新增权限。每次写入都需要工具审批。同一账号的其他 Bot 仍按各自的授权读取邮件、主日历和联系人。
+
+Host 将客户端密钥和刷新令牌保存在 DSH 凭据中。Google 访问令牌约一小时后失效。设置 OAuth 客户端并登录后，Host 才能离线刷新。外部应用处于 **Testing** 时，刷新令牌七天后失效。发布为 **In production** 后，未验证的应用会显示提示，最多允许 100 位用户。Google Workspace 组织可以选择 **Internal**，供组织内的用户使用。[Google OAuth 设置与限制](https://developers.google.com/identity/protocols/oauth2/web-server)
+
+```bash
+printf '%s\n' '{"query":"in:inbox"}' | deepseekbot bot-tool <bot-id> google_gmail_search --args-stdin
+```
+
+还可以直接调用 `google_gmail_read`、`google_gmail_draft`、`google_gmail_send`、`google_calendar_list_events`、`google_calendar_create_event` 和 `google_contacts_search`。多个已授权账号可以调用同一工具时，在参数中传入 `account` 标签。写入结果中断时，先确认邮件或事件的状态，再决定是否重试。
+
 ### 应用连接（远程 MCP）
 
 很多服务提供用账号登录即可连接的远程 MCP 服务器，不需要 Composio key。常用服务器包括 PostHog、Notion、Linear、Sentry、Atlassian、Stripe、HubSpot、Vercel、Supabase、Figma 和 Canva，`connector-mcp-search` 还会搜索公开的 [MCP Registry](https://registry.modelcontextprotocol.io)。Host 通过 OAuth 发现找到服务器的登录方式，把自己注册为客户端，并用 PKCE 打开登录页；登录后页面回到 Host，账号变为 `active`。Host 有公网 https 地址（Tobs Connect、Tailscale HTTPS 地址，或你自己提供的 https 地址）时，登录会回到该地址上的 `/botharness-device/connectors/oauth/callback`，所以可以在手机或任何设备上打开登录链接；没有时回到本机的 `/botharness/connectors/oauth/callback`。登录链接 60 分钟内有效。token 只存放在 Host 的凭据存储里，Host 会在过期前自动续期；续期失败时账号显示为已过期，用 `connector-reconnect` 重新登录。不需要登录的服务器会立即可用。

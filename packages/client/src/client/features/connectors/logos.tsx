@@ -67,6 +67,8 @@ export function useConnectorLogo(
   return useSyncExternalStore(subscribe, read, read);
 }
 
+const ALIASES: Readonly<Record<string, string>> = { google_workspace: 'gmail' };
+
 export function ConnectorLogo({
   service,
   size,
@@ -76,6 +78,6 @@ export function ConnectorLogo({
   size?: number;
   logos: FetchLogos | undefined;
 }): ReactElement {
-  const src = useConnectorLogo(service, logos);
+  const src = useConnectorLogo(ALIASES[service] ?? service, logos);
   return <BrandLogo src={src} {...(size === undefined ? {} : { size })} />;
 }

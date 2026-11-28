@@ -810,5 +810,9 @@
   {
     "id": "host-role-bot-scope",
     "sha256": "bdf981f5ad39f703b055145fa15435f6e105849a039fad07824a55066111f357"
+  },
+  {
+    "id": "connector-google-workspace",
+    "sha256": "78e5673de1abef804fdb925d49f324edc6cc0f51e57e042e39bf0dbfd1c4edf8"
   }
 ]

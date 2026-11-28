@@ -1,12 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis';
 
-import { connectorCallback, mountConnectors } from '../../connectors/mount.js';
 import { ConnectorService } from '../../connectors/service.js';
 import { createConnectorStore } from '../../connectors/store.js';
 import { attachOperationalModule } from '../../database/owner.js';
 import type { FeatureContribution } from '../../kernel/feature-contribution.js';
 import type { BotHarnessCore } from '../../plugin-types.js';
 import { createConnectorsBridgeMethods } from './methods.js';
+import { googleDirectToolDefinitions } from './google-tools.js';
+import { connectorCallback, mountConnectors } from './plugin.js';
 import { connectorsRpc } from './rpc.js';
 
 export interface ConnectorsBridgeContext {
@@ -26,6 +27,7 @@ function mountHostResources(
     credentials: () => ctx.get('credentials'),
     log: (phase, fields) => ctx.logger.info('connectors %j', { phase, ...fields }),
     redirectUri: callback.url,
+    google: { redirectUri: callback.googleUrl },
   });
   core.connectors = connectors;
   mountConnectors(ctx, core, connectors, callback, toolApproval);
@@ -36,6 +38,7 @@ export function createConnectorsContribution() {
     id: 'connectors',
     bridgeMethods: ({ deps, isHostOwner }) => createConnectorsBridgeMethods(deps, isHostOwner),
     rpc: connectorsRpc,
+    directTools: googleDirectToolDefinitions(),
     host: { mountHostResources },
   } satisfies FeatureContribution<
     ConnectorsBridgeContext,
