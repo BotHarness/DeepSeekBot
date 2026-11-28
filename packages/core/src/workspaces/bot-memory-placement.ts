@@ -19,14 +19,20 @@ export class BotMemoryPlacement {
 
   plan(slug: string, owner: string, visibility: BotVisibility) {
     const row = z
-      .object({ memory: z.string().nullable(), kind: z.enum(['private', 'public']) })
+      .object({
+        memory: z.string().nullable(),
+        kind: z.enum(['private', 'public']),
+        audience: z.string().nullable(),
+      })
       .parse(
         this.db.read((db) =>
           db
             .prepare(
-              "SELECT json_extract(body,'$.memoryDir') AS memory,json_extract(visibility_json,'$.kind') AS kind FROM persona_bots WHERE slug=?",
+              `SELECT json_extract(body,'$.memoryDir') AS memory, json_extract(visibility_json,'$.kind') AS kind,
+                (SELECT audience_json FROM workspace_spaces WHERE space_id = ?) AS audience
+                FROM persona_bots WHERE slug = ?`,
             )
-            .get(slug),
+            .get(botMemorySpaceId(slug), slug),
         ),
       );
     const source = canonicalPath(
@@ -46,6 +52,9 @@ export class BotMemoryPlacement {
       spaceId,
       source,
       target,
+      needsPlacement:
+        source !== target ||
+        (visibility.kind === 'public' && row.audience !== JSON.stringify(visibility.audience)),
       preview: {
         from: within(this.home, source)
           ? relative(this.home, source).replaceAll('\\', '/')

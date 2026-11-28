@@ -119,6 +119,7 @@ export function guardHumanBridge(
         if (
           deps.team &&
           [
+            'botAccessRoles',
             'botVisibility',
             'botVisibilitySet',
             'botSwitches',

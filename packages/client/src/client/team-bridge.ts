@@ -97,6 +97,8 @@ export const TEAM_REFUSALS = [
   'bot-channel-join-disabled',
   'bot-channel-access-denied',
   'bot-dm-read-only',
+  'bot-not-editable',
+  'bot-not-found',
   'bot-proactive-denied',
   'bot-private-target-denied',
   'bot-audience-denied',

@@ -517,6 +517,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     getGroupWakePolicy: groupMembership.getGroupWakePolicy,
     setGroupWakePolicy: groupMembership.setGroupWakePolicy,
     removeGroupMember: groupMembership.removeGroupMember,
+    removeGroupMemberIn: groupMembership.removeGroupMemberIn,
     appendMemoryCommits: notices.appendMemoryCommits,
     appendBotCreateAction: notices.appendBotCreateAction,
     appendSystemNotices: notices.appendSystemNotices,

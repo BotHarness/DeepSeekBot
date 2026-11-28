@@ -540,6 +540,9 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     removeGroupMember() {
       throw new Error('Group management requires the operational Channel store');
     },
+    removeGroupMemberIn() {
+      throw new Error('Group management requires the operational Channel store');
+    },
     deleteGroup() {
       throw new Error('Group deletion requires the operational Channel store');
     },

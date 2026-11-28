@@ -458,3 +458,25 @@ export const HOST_ROLE_REVISION_MIGRATION: SchemaMigration = {
     database.exec('ALTER TABLE host_roles ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
   },
 };
+
+export const HOST_ROLE_BOT_SCOPE_MIGRATION: SchemaMigration = {
+  id: 'host-role-bot-scope',
+  module: 'team',
+  description:
+    'Host Roles can grant access to all public Bots, with selected access stored on Bots',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE host_roles ADD COLUMN all_public_bots INTEGER NOT NULL DEFAULT 0
+        CHECK (all_public_bots IN (0, 1));
+      CREATE TRIGGER host_role_bot_scope_changed AFTER UPDATE OF visibility_json ON persona_bots
+      WHEN OLD.visibility_json <> NEW.visibility_json
+      BEGIN
+        UPDATE host_roles SET revision = revision + 1 WHERE
+          EXISTS (SELECT 1 FROM json_each(OLD.visibility_json, '$.audience.roleIds') old_role
+            WHERE old_role.value = host_roles.role_id)
+          <> EXISTS (SELECT 1 FROM json_each(NEW.visibility_json, '$.audience.roleIds') new_role
+            WHERE new_role.value = host_roles.role_id);
+      END;
+    `);
+  },
+};

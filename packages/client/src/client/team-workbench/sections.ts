@@ -4,7 +4,7 @@ import { MANAGE_MEMBERS, MANAGE_ROLES, canManage, type TeamRole } from '../team-
 
 export type TeamSectionGroupId = 'people' | 'resources' | 'permissions';
 
-export type TeamSectionId = 'members' | 'channels' | 'roles' | 'externalRoles';
+export type TeamSectionId = 'members' | 'bots' | 'channels' | 'roles' | 'externalRoles';
 
 export interface TeamSectionContext {
   readonly view: TeamModeView | undefined;
@@ -42,6 +42,15 @@ export const TEAM_SECTIONS: readonly TeamSection[] = [
     priority: 2,
     visible: ({ view }) => view !== undefined && canManage(view.viewer, MANAGE_MEMBERS),
     count: ({ members }) => members.length,
+  },
+  {
+    id: 'bots',
+    group: 'resources',
+    icon: 'bot',
+    label: 'team.workbench.bots.title',
+    priority: 3,
+    visible: ({ view }) => view?.enabled === true,
+    count: () => undefined,
   },
   {
     id: 'channels',
