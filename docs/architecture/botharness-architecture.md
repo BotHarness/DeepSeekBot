@@ -1029,6 +1029,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 Marketplace Worker 在 D1 中为每位作者的每个 Skill 名称保留一条有效上传记录。Host 通过 `GET /v1/me/skills` 读取已登录作者的有效上传，并通过 `marketplaceSkillMine()` 提供给客户端。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
 
+Marketplace 的「你的」区块通过 `marketplaceSkillAdded()` 读取已添加的市场 Skill：Host 扫描当前 Human 可编辑的各 Bot 的 `.agents/skills/` 和（仅 Host owner）全局 Host Skill 目录，按 `SKILL.md` 里的 `metadata.tobs-source` 识别来源，不访问 Marketplace Worker。CLI 是 `deepseekbot skills added`。
+
 每日定时发现 Bot 与 Skill 时，Marketplace Worker 共享 D1 请求预算。两个阶段各自在 D1 保存已处理的仓库节点 ID，下次从该位置继续，到末尾后回到起点。Skill 以仓库为单位批量写入，提交和展示元数据都未变化时复用现有记录。详见 [Marketplace Skills](../decisions/marketplace.md#marketplace-skills)。
 
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。

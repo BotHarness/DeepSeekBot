@@ -1427,6 +1427,13 @@
       "commands": ["group-member-picker", "group-create", "group-members-add"]
     },
     {
+      "id": "marketplace-yours",
+      "description": "Marketplace Yours: the Marketplace Skills added to editable Bots or globally, and the app connections that need reconnecting.",
+      "scope": "Local Host",
+      "surfaces": ["setting:packages/client/src/client/market-yours.tsx:{account.name}"],
+      "commands": ["skills-added", "connectors", "connector-reconnect"]
+    },
+    {
       "id": "app-connectors",
       "description": "App connections through the Owner's Composio key or remote MCP sign-in, with per-Bot read or write access.",
       "scope": "Local Host",
