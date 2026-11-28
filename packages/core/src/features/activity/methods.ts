@@ -27,12 +27,12 @@ import { isValidSlug } from '../../bots/slug.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
 import type { BotAttentionPage, BotAttentionState } from '../../runtime/attention.js';
 import type { BotSourcePolicy } from '../../runtime/source-policy.js';
-import {
-  HUMAN_INBOX_SNOOZE_MAX_MS,
-  type HumanAttentionStatus,
-  type HumanAttentionPage,
-  type HumanAttentionCategory,
-  type HumanAttentionItem,
+import { HUMAN_INBOX_SNOOZE_MAX_MS } from './human-attention-decisions.js';
+import type {
+  HumanAttentionStatus,
+  HumanAttentionPage,
+  HumanAttentionCategory,
+  HumanAttentionItem,
 } from '../../runtime/human-attention.js';
 import type { AggregatedState } from '../../state/bot-state.js';
 import type { ActivityBridgeDeps } from './bridge-deps.js';

@@ -224,6 +224,8 @@ New attachments implement ADR-0100's real destination semantics: independent equ
 
 ## 3 · Host boot, migration, and recovery
 
+Runtime calls Feature services supplied by composition through Feature Contributions. Its runtime imports point to its own module or to lower layers.
+
 ```mermaid
 flowchart TD
   Start["Host starts"] --> Lease{"Acquire profile writer lease"}

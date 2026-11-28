@@ -57,40 +57,6 @@
     "packages/core/src/push/source.ts": {
       "push -> runtime": 1
     },
-    "packages/core/src/runtime/bot-runtime-features.ts": {
-      "runtime -> features/assignments": 1
-    },
-    "packages/core/src/runtime/bot-runtime-lifecycle.ts": {
-      "runtime -> features/tob": 1
-    },
-    "packages/core/src/runtime/bot-runtime-state.ts": {
-      "runtime -> features/sessions": 1,
-      "runtime -> features/tob": 1
-    },
-    "packages/core/src/runtime/bot-runtime-types.ts": {
-      "runtime -> features/sessions": 1,
-      "runtime -> features/tob": 1,
-      "runtime -> features/voice": 1
-    },
-    "packages/core/src/runtime/bot-runtime.ts": {
-      "runtime -> features/assignments": 2,
-      "runtime -> features/sessions": 3,
-      "runtime -> features/tob": 1,
-      "runtime -> features/voice": 1
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-engine.ts": {
-      "runtime -> features/messaging": 1
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator.ts": {
-      "runtime -> features/messaging": 1
-    },
-    "packages/core/src/runtime/dsh-bot-agent-adapter.ts": {
-      "runtime -> features/assignments": 2,
-      "runtime -> features/messaging": 1
-    },
-    "packages/core/src/runtime/human-attention.ts": {
-      "runtime -> features/activity": 2
-    },
     "packages/core/src/state/tool-details.ts": {
       "state -> runtime": 1
     },
@@ -147,9 +113,6 @@
     },
     "packages/core/src/credentials/private-inputs.ts": {
       "credentials -> channels": 1
-    },
-    "packages/core/src/features/voice/plugin.ts": {
-      "features/voice -> features/tob": 1
     },
     "packages/core/src/marketplace/client.ts": {
       "marketplace -> bots": 1
@@ -395,15 +358,6 @@
     },
     "packages/core/src/execution/shell-reach.ts": {
       "execution -> workspaces": 1
-    },
-    "packages/core/src/features/sessions/runtime-orchestrator-services.ts": {
-      "features/sessions -> features/voice": 1
-    },
-    "packages/core/src/features/tob/cli-runtime.ts": {
-      "features/tob -> features/sessions": 1
-    },
-    "packages/core/src/features/voice/plugin.ts": {
-      "features/voice -> features/tob": 1
     },
     "packages/core/src/marketplace/client.ts": {
       "marketplace -> bots": 1

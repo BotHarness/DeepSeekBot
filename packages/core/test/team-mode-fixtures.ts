@@ -16,7 +16,7 @@ import { createAttachmentStore } from '../src/attachments/store.js';
 import { createServer } from 'node:http';
 import { createChannelLiveHub } from '../src/channels/live.js';
 import { createChannelManagement } from '../src/channels/management.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { stampConnectRoute } from '../src/devices/route-context.js';
 import { createTeamHttp, TEAM_PATH } from '../src/features/team/http.js';
 import { join } from 'node:path';

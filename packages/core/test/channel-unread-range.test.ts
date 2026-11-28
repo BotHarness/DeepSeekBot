@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 describe('Channel unread revision ranges', () => {

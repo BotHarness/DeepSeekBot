@@ -5,10 +5,8 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import {
-  createHumanAttentionDecisions,
-  createHumanAttentionQuery,
-} from '../src/runtime/human-attention.js';
+import { createHumanAttentionDecisions } from '../src/features/activity/human-attention-decisions.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTempRoot, createTestOwnership, trackTestOwner } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';

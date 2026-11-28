@@ -17,7 +17,7 @@ import type { ExternalSource } from '../src/messaging/inbound.js';
 import type { MessagingGrant } from '../src/messaging/outbound.js';
 import { relatedReport } from '../src/messaging/report.js';
 import { resolveRetainedQuote } from '../src/messaging/retained-context.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 function fixture() {

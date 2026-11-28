@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { replyReminderText } from '../features/messaging/prompt.js';
+import { replyReminderText } from '../prompts/prompt-parts.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { ToolArgsError, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';

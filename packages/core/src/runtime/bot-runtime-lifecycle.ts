@@ -5,7 +5,7 @@ import type { createActivityEvents } from '../features/activity/events.js';
 import type { createRuntimeAdmissionRecovery } from '../features/activity/runtime-admission-recovery.js';
 import type { createAssignmentEvents } from '../features/assignments/events.js';
 import type { createGroupDigest } from './group-digest.js';
-import { type TobCliRequestLease } from '../features/tob/cli-runtime.js';
+import type { TobCliRequestLease } from '../features/tob/cli-runtime.js';
 import type { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import type { createOrchestratorContinuation } from './orchestrator-continuation.js';
 import { AssignmentApprovalCapacity } from './assignment-approval-capacity.js';
