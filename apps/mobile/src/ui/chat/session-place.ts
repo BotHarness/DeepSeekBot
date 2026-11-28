@@ -1,6 +1,22 @@
-import type { HostIcon } from '@botharness/host-client/ui/design/host-look';
+import {
+  hostColorInk,
+  type HostColorId,
+  type HostIcon,
+} from '@botharness/host-client/ui/design/host-look';
+import {
+  SESSION_HOST_COLOR,
+  sessionFolderColor,
+} from '../../features/sessions/session-query-model';
+import type { DesignTheme } from '../design/theme';
 
-export type SessionPlace = { hostIcon: HostIcon; hostName: string; folder?: string; path?: string };
+export type SessionPlace = {
+  hostIcon: HostIcon;
+  hostName: string;
+  hostColor?: HostColorId;
+  folder?: string;
+  folderColor?: HostColorId;
+  path?: string;
+};
 
 export function folderName(cwd: string): string {
   const trimmed = cwd.replace(/[\\/]+$/u, '');
@@ -10,15 +26,39 @@ export function folderName(cwd: string): string {
 export function sessionPlace({
   hostIcon,
   hostName,
+  hostColor = SESSION_HOST_COLOR,
   cwd,
+  customFolderColor,
+  autoFolderColor,
 }: {
   hostIcon: HostIcon;
   hostName: string;
+  hostColor?: HostColorId | undefined;
   cwd: string | undefined;
+  customFolderColor?: string | undefined;
+  autoFolderColor?: HostColorId | undefined;
 }): SessionPlace {
-  return cwd === undefined || cwd === ''
-    ? { hostIcon, hostName }
-    : { hostIcon, hostName, folder: folderName(cwd), path: cwd };
+  if (!cwd) return { hostIcon, hostName, hostColor };
+  const folder = folderName(cwd);
+  return {
+    hostIcon,
+    hostName,
+    hostColor,
+    folder,
+    folderColor: sessionFolderColor(folder, customFolderColor, autoFolderColor),
+    path: cwd,
+  };
+}
+
+export function sessionPlaceInk(theme: DesignTheme, place: SessionPlace) {
+  return {
+    host: hostColorInk(theme.scheme, theme.color, place.hostColor ?? SESSION_HOST_COLOR),
+    folder: hostColorInk(
+      theme.scheme,
+      theme.color,
+      place.folderColor ?? sessionFolderColor(place.folder, undefined, undefined),
+    ),
+  };
 }
 
 export function sessionPlaceLabel(title: string, place: SessionPlace | undefined): string {

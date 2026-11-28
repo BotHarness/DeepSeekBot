@@ -90,7 +90,7 @@ export function SessionDrawerContent({ active }: { active: boolean }) {
           : { hostId: place.hostId ?? saved.hostId, sessionId: place.sessionId }
       }
       canCreate={scope.canCreate}
-      onOpen={(row) => openDrawerSession(row.hostId, row)}
+      onOpen={(row, color) => openDrawerSession(row.hostId, row, color)}
       onNew={() => openNewSession()}
     />
   );

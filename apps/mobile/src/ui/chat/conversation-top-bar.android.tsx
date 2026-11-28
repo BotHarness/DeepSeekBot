@@ -35,7 +35,7 @@ import { materialIconButton, materialMenu, radius, space } from '../design/token
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { MenuIcon } from '../primitives/menu-icon';
 import { MorphTitle } from './morph-title.android';
-import { sessionMenuHeader, sessionPlaceLabel } from './session-place';
+import { sessionMenuHeader, sessionPlaceInk, sessionPlaceLabel } from './session-place';
 import { FolderIcon } from '../shell/icons';
 import { HostGlyph } from '../shell/host-tile';
 import { useStrings } from '../strings';
@@ -91,6 +91,7 @@ export function ConversationTopBar({
     theme.fontScale,
     theme.type.meta.size * headerLabelScaleCeiling,
   );
+  const placeInk = place === undefined ? undefined : sessionPlaceInk(theme, place);
   const placeRow =
     place === undefined ? null : (
       <Row
@@ -100,14 +101,18 @@ export function ConversationTopBar({
       >
         <RNHostView modifiers={[size(glyph, glyph)]}>
           <View accessible={false} importantForAccessibility="no-hide-descendants">
-            <HostGlyph icon={place.hostIcon} size={glyph} color={theme.color.muted} />
+            <HostGlyph
+              icon={place.hostIcon}
+              size={glyph}
+              color={placeInk?.host ?? theme.color.muted}
+            />
           </View>
         </RNHostView>
         {place.folder === undefined ? null : (
           <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
             <RNHostView modifiers={[size(glyph, glyph)]}>
               <View accessible={false} importantForAccessibility="no-hide-descendants">
-                <FolderIcon color={theme.color.muted} size={glyph} />
+                <FolderIcon color={placeInk?.folder ?? theme.color.muted} size={glyph} />
               </View>
             </RNHostView>
             <Text

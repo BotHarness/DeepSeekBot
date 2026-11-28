@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import type { HostColorId } from '@botharness/host-client/ui/design/host-look';
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import { interfacePreferences } from '../../ui/interface-preferences';
 import { lastSession, type LastSession } from './last-session';
@@ -9,7 +10,7 @@ import {
   type SessionsStackView,
 } from './session-landing';
 
-type SessionTarget = Pick<HostSessionRow, 'sessionId' | 'title'> & {
+type SessionTarget = Pick<HostSessionRow, 'sessionId' | 'title' | 'folderName' | 'folderLook'> & {
   source: HostSessionRow['source'] | { kind: 'bot'; botSlug: string };
 };
 
@@ -19,7 +20,7 @@ function style() {
   return interfacePreferences.getSnapshot().sessionNavigation;
 }
 
-function sessionRoute(hostId: string, row: SessionTarget) {
+function sessionRoute(hostId: string, row: SessionTarget, autoColor?: HostColorId) {
   return {
     pathname: '/session/[id]' as const,
     params: {
@@ -27,19 +28,32 @@ function sessionRoute(hostId: string, row: SessionTarget) {
       hostId,
       ...(row.source.kind === 'native' ? { source: 'native' } : { slug: row.source.botSlug }),
       ...(row.title === undefined ? {} : { title: row.title }),
+      ...(row.folderName === undefined
+        ? {}
+        : {
+            folderColorName: row.folderName,
+            ...(autoColor === undefined ? {} : { folderAutoColor: autoColor }),
+            ...(row.folderLook?.color === undefined
+              ? {}
+              : { folderLookColor: row.folderLook.color }),
+          }),
     },
   };
 }
 
-export function openDrawerSession(hostId: string, row: SessionTarget): void {
+export function openDrawerSession(
+  hostId: string,
+  row: SessionTarget,
+  autoColor?: HostColorId,
+): void {
   entered = true;
   closeSessionDrawer();
   if (style() === 'stacked') {
     router.dismissTo('/sessions');
-    router.push(sessionRoute(hostId, row));
+    router.push(sessionRoute(hostId, row, autoColor));
     return;
   }
-  router.replace(sessionRoute(hostId, row));
+  router.replace(sessionRoute(hostId, row, autoColor));
 }
 
 export function openNewSession(from: 'root' | 'session' | 'anywhere' = 'anywhere'): void {

@@ -59,6 +59,20 @@ export function folderMonogram(name: string | undefined): string {
   return letters.toUpperCase();
 }
 
+export const SESSION_HOST_COLOR = 'blue';
+
+export function sessionColorId(value: string | undefined): HostColorId | undefined {
+  return HOST_COLOR_IDS.find((color) => color === value);
+}
+
+export function sessionFolderColor(
+  folderName: string | undefined,
+  custom: string | undefined,
+  assigned: HostColorId | undefined,
+): HostColorId {
+  return sessionColorId(custom) ?? assigned ?? folderColor(folderName);
+}
+
 export const FOLDER_COLOR_IDS = HOST_COLOR_IDS.filter((id) => id !== 'graphite');
 const FOLDER_COLOR_STEP = 4;
 

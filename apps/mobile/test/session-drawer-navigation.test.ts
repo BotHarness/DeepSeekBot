@@ -52,6 +52,30 @@ it('opens a chosen Session in place of the current Sessions screen', () => {
   });
 });
 
+it('carries the drawer folder palette into the Session route', () => {
+  openDrawerSession(
+    'studio',
+    {
+      sessionId: 'native-1',
+      source: { kind: 'native' },
+      folderName: 'sample',
+      folderLook: { color: 'purple' },
+    },
+    'orange',
+  );
+  expect(routing.replace).toHaveBeenLastCalledWith({
+    pathname: '/session/[id]',
+    params: {
+      id: 'native-1',
+      hostId: 'studio',
+      source: 'native',
+      folderColorName: 'sample',
+      folderAutoColor: 'orange',
+      folderLookColor: 'purple',
+    },
+  });
+});
+
 it('pushes Sessions and New Session over the Session list in Stacked style', () => {
   interfacePreferences.setSessionNavigation('stacked');
   openDrawerSession('studio', { sessionId: 'native-1', source: { kind: 'native' } });

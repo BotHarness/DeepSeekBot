@@ -2,6 +2,8 @@
 import { Fragment, createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 
 await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
@@ -36,8 +38,13 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
-vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
-vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  FolderIcon: ({ color }: { color: string }) => <i data-folder-ink={color} />,
+}));
+vi.mock('../src/ui/shell/host-tile', () => ({
+  HostGlyph: ({ color }: { color: string }) => <i data-host-ink={color} />,
+}));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 vi.mock('../src/ui/chat/header-bot-stack', () => ({ HeaderBotStack: () => null }));
 vi.mock('../src/ui/chat/chat-header-surface.android', () => ({ ChatHeaderSurface: () => null }));
@@ -92,7 +99,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     Host: node('Host'),
     Icon: () => null,
     IconButton: node('IconButton'),
-    RNHostView: () => null,
+    RNHostView: node('RNHostView'),
     Row: node('Row'),
     Spacer: () => null,
     Surface: node('Surface'),
@@ -274,7 +281,9 @@ describe('Android Session header', () => {
         place={{
           hostIcon: { kind: 'symbol', id: 'laptop' },
           hostName: 'Studio Mac',
+          hostColor: 'teal',
           folder: 'app-5187',
+          folderColor: 'purple',
           path: '/srv/worktrees/app-5187',
         }}
         leading="drawer"
@@ -290,6 +299,13 @@ describe('Android Session header', () => {
     );
     const place = view.querySelector('[data-test-id="session-header-place"]');
     expect(place?.textContent).toBe('app-5187');
+    const theme = resolveTheme('light', {}, 'android');
+    expect(place?.querySelector('[data-host-ink]')?.getAttribute('data-host-ink')).toBe(
+      hostColorInk('light', theme.color, 'teal'),
+    );
+    expect(place?.querySelector('[data-folder-ink]')?.getAttribute('data-folder-ink')).toBe(
+      hostColorInk('light', theme.color, 'purple'),
+    );
     expect(view.querySelector('[data-node="MaterialMenuGroup"]')?.getAttribute('data-header')).toBe(
       `${TITLE}\nStudio Mac\n/\u200bsrv/\u200bworktrees/\u200bapp-\u200b5187`,
     );

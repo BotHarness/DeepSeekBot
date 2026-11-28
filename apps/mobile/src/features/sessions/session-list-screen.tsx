@@ -27,7 +27,7 @@ export function SessionListScreen() {
           showHost={scope.showHost}
           active
           canCreate={scope.canCreate}
-          onOpen={(row) => openDrawerSession(row.hostId, row)}
+          onOpen={(row, color) => openDrawerSession(row.hostId, row, color)}
           onNew={() => openNewSession('root')}
         />
       )}

@@ -29,7 +29,12 @@ import { controlCase } from '../platform-copy';
 import { glassHeader } from './header-kind';
 import { headerControlHeight } from './native-header';
 import { titleMorphKey } from './session-header-title';
-import { sessionMenuHeader, sessionPlaceLabel, type SessionPlace } from './session-place';
+import {
+  sessionMenuHeader,
+  sessionPlaceInk,
+  sessionPlaceLabel,
+  type SessionPlace,
+} from './session-place';
 import { radius, space } from '../design/tokens';
 import { titleChipFill } from './header-chrome';
 import type { SessionTitleMenuProps } from './session-title-menu';
@@ -129,22 +134,31 @@ export function SessionTitleMenu({
 
 function PlaceLine({ place }: { place: SessionPlace }) {
   const theme = useDesignTheme();
-  const meta = [
-    font({ textStyle: 'footnote' }),
-    dynamicTypeSize({ max: 'xxxLarge' }),
-    foregroundStyle(theme.color.muted),
-  ];
+  const ink = sessionPlaceInk(theme, place);
+  const meta = [font({ textStyle: 'footnote' }), dynamicTypeSize({ max: 'xxxLarge' })];
   return (
     <HStack spacing={space.x3}>
       {place.hostIcon.kind === 'symbol' ? (
-        <Image systemName={HOST_SYMBOLS[place.hostIcon.id].ios as never} modifiers={meta} />
+        <Image
+          systemName={HOST_SYMBOLS[place.hostIcon.id].ios as never}
+          modifiers={[...meta, foregroundStyle(ink.host)]}
+        />
       ) : (
         <Text modifiers={meta}>{place.hostIcon.emoji}</Text>
       )}
       {place.folder === undefined ? null : (
         <HStack spacing={space.x2}>
-          <Image systemName="folder" modifiers={meta} />
-          <Text modifiers={[...meta, lineLimit(1), truncationMode('middle')]}>{place.folder}</Text>
+          <Image systemName="folder" modifiers={[...meta, foregroundStyle(ink.folder)]} />
+          <Text
+            modifiers={[
+              ...meta,
+              foregroundStyle(theme.color.muted),
+              lineLimit(1),
+              truncationMode('middle'),
+            ]}
+          >
+            {place.folder}
+          </Text>
         </HStack>
       )}
     </HStack>

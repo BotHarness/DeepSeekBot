@@ -47,7 +47,9 @@ import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
 import { ChatHeaderRow } from './chat-header-row';
 import { sessionHeaderTitle } from './session-header-title';
-import { sessionPlace } from './session-place';
+import { folderName, sessionPlace } from './session-place';
+import { sessionColorId } from '../../features/sessions/session-query-model';
+import { useSessionFolderLook } from '../../features/sessions/use-session-folder-look';
 import { SessionTitleMenu } from './session-title-menu';
 import { useChannelViewport } from './channel-viewport';
 import {
@@ -90,14 +92,34 @@ function SessionHeader({
   const router = useRouter();
   const drawer = useSessionDrawerRoot();
   const inSessions = useInSessionsTab();
-  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
-  const { saved } = useHostSession(hostId);
+  const { hostId, folderColorName, folderAutoColor, folderLookColor } = useLocalSearchParams<{
+    hostId?: string;
+    folderColorName?: string;
+    folderAutoColor?: string;
+    folderLookColor?: string;
+  }>();
+  const { saved, client } = useHostSession(hostId);
   const stacked = useSessionNavigationStyle() === 'stacked';
   const look = useHostLook(saved?.hostId);
+  const folderLook = useSessionFolderLook(client, cwd || undefined);
+  const matchesDrawer = cwd !== undefined && folderColorName === folderName(cwd);
+  const customFolderColor =
+    folderLook === undefined || folderLook === 'failed'
+      ? matchesDrawer
+        ? folderLookColor
+        : undefined
+      : folderLook?.color;
   const place =
     saved == null
       ? undefined
-      : sessionPlace({ hostIcon: look.icon, hostName: shownHostName(look, saved.hostName), cwd });
+      : sessionPlace({
+          hostIcon: look.icon,
+          hostName: shownHostName(look, saved.hostName),
+          hostColor: look.color,
+          cwd,
+          customFolderColor,
+          autoFolderColor: matchesDrawer ? sessionColorId(folderAutoColor) : undefined,
+        });
   const compose =
     inSessions && canCreateNativeSession(saved)
       ? () =>
