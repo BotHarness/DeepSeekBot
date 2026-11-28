@@ -7,6 +7,7 @@ import { collectDiagnosticBundle, DiagnosticBundleError, diagnosticBundleZip } f
 import type { DiagnosticBundleHttpOptions } from './bundle-http.js';
 import { createDiagnosticRedactor } from './redaction.js';
 import {
+  FeedbackUploadError,
   feedbackSelectionSchema,
   feedbackRatingSchema,
   type FeedbackRating,
@@ -169,9 +170,12 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
           : error instanceof z.ZodError || error instanceof SyntaxError
             ? 'invalid-input'
             : 'feedback-failed';
-      options.log?.(`message-feedback initiator=human phase=refused reason=${code}`);
+      const failure = error instanceof FeedbackUploadError ? error.failure : undefined;
+      options.log?.(
+        `message-feedback initiator=human phase=refused reason=${failure?.reason ?? code}`,
+      );
       return Response.json(
-        { error: { code } },
+        { error: { code, ...failure } },
         { status: code === 'feedback-failed' ? 502 : 400, headers },
       );
     }

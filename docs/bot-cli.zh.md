@@ -2378,6 +2378,8 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 
 提交沿用现有 PostHog 接入地址，无需额外配置，不部署专用接收服务或私有诊断存储。见[反馈与本地诊断](message-feedback.md)。
 
+上传失败时，`feedback-submit` 返回 `feedback-failed`。`error.details.reason` 为 `network`（连接失败）、`timeout`（超时）、`auth`（拒绝访问）或 `receiver-error`（服务未接收）。当原因为 `auth` 或 `receiver-error` 时，`error.details.status` 是接收服务返回的 HTTP 状态码。预览有效期间，可以用原令牌和评价重试。
+
 ### Failed-turn feedback
 
 `feedback-preview` accepts `failureTurn: true` alongside the canonical failed message's `channelId` and `messageId` in stdin JSON. Its frozen preview includes `uploadEvidence`: only the matching turn input and tool call/result events, redacted and capped at 128 KiB. Ambiguous/missing turn identity and oversized evidence refuse instead of uploading a whole Session. `feedback-submit --confirm` uploads that frozen turn with rating/tags/comment to the existing feedback endpoint. The diagnostic ZIP stays a separate download. Ordinary feedback keeps its existing metadata-only POST.

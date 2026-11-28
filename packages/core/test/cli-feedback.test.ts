@@ -14,6 +14,14 @@ it('previews feedback through the live authenticated Host and refuses submission
       expect(req.headers.cookie).toBe('owner=test');
       seen.push(req.url ?? '');
       res.setHeader('content-type', 'application/json');
+      if (req.url?.endsWith('/submit')) {
+        res.writeHead(502).end(
+          JSON.stringify({
+            error: { code: 'feedback-failed', reason: 'receiver-error', status: 503 },
+          }),
+        );
+        return;
+      }
       res.end(JSON.stringify({ token: 'preview-reference', canSubmit: true }));
     }),
   );
@@ -38,6 +46,17 @@ it('previews feedback through the live authenticated Host and refuses submission
     expect(JSON.parse(output[0] ?? '{}').token).toBe('preview-reference');
     expect(await runBotCreateCli(['feedback-submit'], io)).toBe(2);
     expect(seen).toHaveLength(1);
+    output.length = 0;
+    expect(await runBotCreateCli(['feedback-submit', '--confirm'], io)).toBe(1);
+    expect(seen.at(-1)).toBe('/api/botharness/message-feedback/submit');
+    expect(output).toHaveLength(1);
+    expect(JSON.parse(output[0] ?? '{}')).toEqual({
+      error: {
+        code: 'feedback-failed',
+        message: 'The feedback service could not accept the submission. Try again later.',
+        details: { reason: 'receiver-error', status: 503 },
+      },
+    });
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

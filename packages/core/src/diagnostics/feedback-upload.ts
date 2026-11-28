@@ -1,6 +1,8 @@
-import type { MessageFeedbackOptions } from './message-feedback-http.js';
+import { FEEDBACK_RECEIVER_TIMEOUT_MS } from '@botharness/host-protocol/feedback-failure';
 import { z } from 'zod';
 import { TELEMETRY_API_KEY, TELEMETRY_ENDPOINT } from '../telemetry/service.js';
+import { FeedbackUploadError } from './feedback-contract.js';
+import type { MessageFeedbackOptions } from './message-feedback-http.js';
 
 const acknowledgementSchema = z.object({
   status: z.union([z.literal(1), z.literal('Ok')]),
@@ -12,35 +14,48 @@ export function feedbackUploader(
 ): NonNullable<MessageFeedbackOptions['submit']> {
   if (endpoint !== TELEMETRY_ENDPOINT) throw new Error('feedback-endpoint-not-allowed');
   return async ({ reportId, feedback, version, turn }) => {
-    const response = await fetch(TELEMETRY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        api_key: TELEMETRY_API_KEY,
-        batch: [
-          {
-            event: 'chat:message_feedback_submit',
-            uuid: reportId,
-            distinct_id: reportId,
-            properties: {
-              $process_person_profile: false,
-              $geoip_disable: true,
-              feedback_id: reportId,
-              rating: feedback.rating,
-              tags: feedback.tags,
-              comment: feedback.comment,
-              version,
-              ...(turn ? { failed_turn: turn } : {}),
-            },
+    const body = JSON.stringify({
+      api_key: TELEMETRY_API_KEY,
+      batch: [
+        {
+          event: 'chat:message_feedback_submit',
+          uuid: reportId,
+          distinct_id: reportId,
+          properties: {
+            $process_person_profile: false,
+            $geoip_disable: true,
+            feedback_id: reportId,
+            rating: feedback.rating,
+            tags: feedback.tags,
+            comment: feedback.comment,
+            version,
+            ...(turn ? { failed_turn: turn } : {}),
           },
-        ],
-      }),
-      redirect: 'error',
-      signal: AbortSignal.timeout(15_000),
+        },
+      ],
     });
-    if (!response.ok) throw new Error('feedback-upload-refused');
-    if (!acknowledgementSchema.safeParse(await response.json()).success)
-      throw new Error('feedback-upload-refused');
-    return { reportId };
+    const signal = AbortSignal.timeout(FEEDBACK_RECEIVER_TIMEOUT_MS);
+    try {
+      const response = await fetch(TELEMETRY_ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+        redirect: 'error',
+        signal,
+      });
+      const { status } = response;
+      if (status === 401 || status === 403)
+        throw new FeedbackUploadError({ reason: 'auth', status });
+      if (response.ok) {
+        const acknowledgement: unknown = await response.json().catch((error: unknown) => {
+          if (!(error instanceof SyntaxError)) throw error;
+        });
+        if (acknowledgementSchema.safeParse(acknowledgement).success) return { reportId };
+      }
+      throw new FeedbackUploadError({ reason: 'receiver-error', status });
+    } catch (error) {
+      if (error instanceof FeedbackUploadError) throw error;
+      throw new FeedbackUploadError({ reason: signal.aborted ? 'timeout' : 'network' });
+    }
   };
 }

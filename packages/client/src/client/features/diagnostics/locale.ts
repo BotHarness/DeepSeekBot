@@ -24,6 +24,10 @@ export const zh = {
   'feedback.missing': '未能包含：',
   'feedback.unavailable': '暂时无法提交评价，你仍可下载诊断包。',
   'feedback.failed': '提交失败，材料和评价已保留。请重试；材料过期时请刷新。',
+  'feedback.networkFailed': '无法连接反馈服务，检查网络后重试。材料和评价已保留。',
+  'feedback.timedOut': '反馈服务响应超时，稍后重试。材料和评价已保留。',
+  'feedback.accessDenied': '反馈服务拒绝访问，检查登录状态后重试。材料和评价已保留。',
+  'feedback.serviceFailed': '反馈服务暂时无法接收，稍后重试。材料和评价已保留。',
   'feedback.receipt': '评价已提交。诊断包未上传。编号：{id}',
   'feedback.privacy':
     '提交仅发送评分、标签和评价到 PostHog。聊天与执行记录只保留在诊断包中，由你下载并自行发送。',
@@ -223,6 +227,14 @@ export const en = {
   'feedback.unavailable': 'Feedback is unavailable. You can still download diagnostics.',
   'feedback.failed':
     'Submission failed. Your evidence and rating are retained. Try again, or refresh expired evidence.',
+  'feedback.networkFailed':
+    'Check your connection to the feedback service and retry. Your evidence and rating are kept.',
+  'feedback.timedOut':
+    'The feedback service timed out. Try again later with your saved evidence and rating.',
+  'feedback.accessDenied':
+    'The feedback service denied access. Check your sign-in and retry with your saved evidence and rating.',
+  'feedback.serviceFailed':
+    'The feedback service could not accept your submission. Try again later with your saved evidence and rating.',
   'feedback.receipt': 'Feedback sent. Diagnostics were not uploaded. Reference: {id}',
   'feedback.privacy':
     'Only your rating, tags and comment go to PostHog. Chats and execution records stay in the diagnostic bundle for you to download and share.',
