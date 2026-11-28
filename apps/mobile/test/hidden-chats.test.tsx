@@ -5,6 +5,9 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/host/host-session', () => ({ useHostSessions: () => [] }));
+vi.mock('../src/ui/primitives/loading-indicator', () => ({
+  LoadingIndicator: () => createElement('span', { 'data-testid': 'hidden-chats-loading' }),
+}));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsRow: (props: { title: string; testID?: string; trailing?: ReactNode }) =>
     createElement('div', { 'data-testid': props.testID }, props.title, props.trailing),
@@ -85,4 +88,13 @@ it('unhides one chat through the Host hidden roster', async () => {
   expect(refresh).toHaveBeenCalledOnce();
   act(() => root!.render(<HiddenChats client={client} roster={roster([])} />));
   expect(host.textContent).toContain(t.hiddenChats.empty);
+});
+
+it('waits for the roster instead of claiming there are no hidden chats', () => {
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => root!.render(<HiddenChats client={undefined} roster={undefined} />));
+  expect(host.querySelector('[data-testid="hidden-chats-loading"]')).not.toBeNull();
+  expect(host.textContent).not.toContain(t.hiddenChats.empty);
 });

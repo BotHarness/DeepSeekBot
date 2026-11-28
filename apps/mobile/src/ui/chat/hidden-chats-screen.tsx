@@ -5,6 +5,7 @@ import type { HostClient, RosterView } from '@botharness/host-client/client';
 import { useHostSessions } from '../../host/host-session';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
@@ -50,9 +51,13 @@ export function HiddenChats({
         ) : undefined
       }
       ListEmptyComponent={
-        <Text tone="muted" style={{ padding: space.x6 }}>
-          {t.hiddenChats.empty}
-        </Text>
+        roster === undefined ? (
+          <LoadingIndicator />
+        ) : (
+          <Text tone="muted" style={{ padding: space.x6 }}>
+            {t.hiddenChats.empty}
+          </Text>
+        )
       }
       renderItem={({ item }) => (
         <SettingsRow
