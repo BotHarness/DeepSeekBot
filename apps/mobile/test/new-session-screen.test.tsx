@@ -117,8 +117,43 @@ vi.mock('../src/ui/chat/folder-picker-sheet', () => ({
 }));
 vi.mock('../src/ui/chat/sheet', () => ({
   SHEET_GROUP: 'sheet',
-  Sheet: ({ visible, children }: { visible: boolean; children: ReactNode }) =>
-    visible ? <div role="dialog">{children}</div> : null,
+  Sheet: () => {
+    throw new Error('the Computer picker is a system list sheet');
+  },
+}));
+vi.mock('../src/ui/primitives/system-list-sheet', () => ({
+  SystemListSheet: ({
+    visible,
+    sections,
+  }: {
+    visible: boolean;
+    sections: {
+      rows: {
+        kind: string;
+        testID?: string;
+        label: string;
+        selected?: boolean;
+        onPress?(): void;
+      }[];
+    }[];
+  }) =>
+    visible ? (
+      <div role="dialog">
+        {sections.flatMap((section) =>
+          section.rows.map((row) => (
+            <button
+              key={row.testID}
+              type="button"
+              data-testid={row.testID}
+              aria-pressed={row.selected === true}
+              onClick={row.onPress}
+            >
+              {row.label}
+            </button>
+          )),
+        )}
+      </div>
+    ) : null,
 }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,

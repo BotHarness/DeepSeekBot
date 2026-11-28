@@ -31,7 +31,7 @@ export function KeyboardFormFrame({
               )
             }
           >
-            <EdgeMaterial edge="bottom" />
+            <EdgeMaterial edge="bottom" bar />
             {footer}
           </KeyboardStickyView>
         ) : null}

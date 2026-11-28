@@ -266,6 +266,7 @@ export const edgeFade = {
     { offset: 1, opacity: 0 },
   ],
   blur: ['cc', '59', '14', '00'],
+  bar: ['ff', 'ff', 'ff', '00'],
   reach: 48,
   curve: 1.6,
   samples: 8,
