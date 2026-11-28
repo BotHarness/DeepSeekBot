@@ -25,6 +25,7 @@ export interface TeamSection {
   readonly priority: number;
   visible(context: TeamSectionContext): boolean;
   count(context: TeamSectionContext): number | undefined;
+  status?(context: TeamSectionContext): BotHarnessKey | undefined;
 }
 
 export const TEAM_SECTION_GROUPS: readonly TeamSectionGroup[] = [
@@ -39,9 +40,10 @@ export const TEAM_SECTIONS: readonly TeamSection[] = [
     group: 'people',
     icon: 'users',
     label: 'team.workbench.members',
-    priority: 2,
+    priority: 0,
     visible: ({ view }) => view !== undefined && canManage(view.viewer, MANAGE_MEMBERS),
-    count: ({ members }) => members.length,
+    count: ({ view, members }) => (view?.enabled === true ? members.length : undefined),
+    status: ({ view }) => (view?.enabled === true ? undefined : 'team.workbench.membersOff'),
   },
   {
     id: 'bots',
@@ -66,8 +68,8 @@ export const TEAM_SECTIONS: readonly TeamSection[] = [
     group: 'permissions',
     icon: 'lock',
     label: 'team.workbench.internalRoles',
-    priority: 0,
-    visible: ({ view }) => view === undefined || canManage(view.viewer, MANAGE_ROLES),
+    priority: 2,
+    visible: ({ view }) => view?.enabled === true && canManage(view.viewer, MANAGE_ROLES),
     count: ({ roles }) => roles.length,
   },
   {

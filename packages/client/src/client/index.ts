@@ -836,6 +836,7 @@ export function apply(ctx: ClientContext): void {
     companion,
     releaseNotes,
     updateRuns,
+    dockPanels,
   });
 
   registerNativeSessionModelSwitch(ctx, actions);

@@ -7,7 +7,7 @@ import { MemberInvitationPanel } from './team-invitation.js';
 import type { BridgeCall } from './bridge.js';
 import { Callout } from './ds/callout.js';
 import { FieldStack, TextField } from './ds/field.js';
-import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
+import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { ink, layer, space, style, type as text } from './ds/tobs.stylex.js';
@@ -26,7 +26,6 @@ import {
   loadTeamMode,
   setInsecureHttp,
   setOwnerPassword,
-  setTeamMode,
   signOutMember,
   teamRefusal,
   validUsername,
@@ -105,6 +104,7 @@ const styles = stylex.create({
 export interface TeamSectionProps {
   call: BridgeCall;
   t: BotHarnessTranslate;
+  openTeamWorkbench?: (() => void) | undefined;
 }
 
 const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
@@ -170,16 +170,15 @@ export function teamErrorText(t: BotHarnessTranslate, error: unknown): string {
 }
 
 type Dialog =
-  | { kind: 'owner-password'; thenEnable: boolean }
+  | { kind: 'owner-password' }
   | { kind: 'insecure-http' }
-  | { kind: 'team-off' }
   | { kind: 'add-member' }
   | { kind: 'created'; created: CreatedMember }
   | { kind: 'own-password' }
   | { kind: 'member'; humanId: string }
   | { kind: 'my-devices' };
 
-export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
+export function TeamSection({ call, t, openTeamWorkbench }: TeamSectionProps): ReactElement {
   const [view, setView] = useState<TeamModeView>();
   const [members, setMembers] = useState<readonly TeamMember[]>();
   const [roles, setRoles] = useState<readonly TeamRole[]>([]);
@@ -236,19 +235,6 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
     } finally {
       setBusy(false);
     }
-  };
-
-  const toggleTeamMode = (enabled: boolean): void => {
-    if (view === undefined) return;
-    if (enabled && !view.ownerPasswordSet) {
-      setDialog({ kind: 'owner-password', thenEnable: true });
-      return;
-    }
-    if (!enabled) {
-      setDialog({ kind: 'team-off' });
-      return;
-    }
-    void apply(() => setTeamMode(call, enabled));
   };
 
   const toggleInsecureHttp = (allowed: boolean): void => {
@@ -460,15 +446,14 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
       <SettingsSection>
         <SettingsRow
           title={t('team.mode.title')}
-          description={t('team.mode.description')}
+          description={t(view.enabled ? 'team.mode.on' : 'team.workbench.membersOff')}
           data={{ 'data-team-row': 'mode' }}
           control={
-            <Switch
-              checked={view.enabled}
-              onChange={toggleTeamMode}
-              disabled={busy}
-              label={t('team.mode.title')}
-            />
+            openTeamWorkbench === undefined ? undefined : (
+              <Button variant="outline" data-team-open-workbench="" onClick={openTeamWorkbench}>
+                {t('team.mode.openWorkbench')}
+              </Button>
+            )
           }
         />
         {view.enabled ? (
@@ -486,7 +471,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             <Button
               variant="outline"
               disabled={busy}
-              onClick={() => setDialog({ kind: 'owner-password', thenEnable: false })}
+              onClick={() => setDialog({ kind: 'owner-password' })}
             >
               {t(view.ownerPasswordSet ? 'team.ownerPassword.change' : 'team.ownerPassword.setup')}
             </Button>
@@ -541,7 +526,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
         <TeamOwnerPasswordDialog
           t={t}
           hasPassword={view.ownerPasswordSet}
-          thenEnable={dialog.thenEnable}
+          thenEnable={false}
           onCancel={() => {
             passwordSaved.current = false;
             setDialog(undefined);
@@ -551,25 +536,9 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
               publish(await setOwnerPassword(call, password, current, signOutOthers));
               passwordSaved.current = true;
             }
-            if (dialog.thenEnable) publish(await setTeamMode(call, true));
             passwordSaved.current = false;
             setDialog(undefined);
             await refresh();
-          }}
-        />
-      ) : null}
-      {dialog?.kind === 'team-off' ? (
-        <ConfirmDialog
-          title={t('team.mode.offTitle')}
-          description={t('team.mode.offBody')}
-          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-          confirmLabel={t('team.mode.offConfirm')}
-          danger
-          busy={busy}
-          onCancel={() => setDialog(undefined)}
-          onConfirm={() => {
-            setDialog(undefined);
-            void apply(() => setTeamMode(call, false));
           }}
         />
       ) : null}
@@ -656,7 +625,7 @@ export function TeamOwnerPasswordDialog({
   );
 }
 
-function AddMemberDialog({
+export function AddMemberDialog({
   t,
   onCancel,
   onCreate,
@@ -716,7 +685,7 @@ function AddMemberDialog({
   );
 }
 
-function InitialPasswordDialog({
+export function InitialPasswordDialog({
   call,
   t,
   created,

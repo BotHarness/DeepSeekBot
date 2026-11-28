@@ -2592,6 +2592,7 @@ These commands use `--host <url>` and the existing private Host token input. The
 
 ```sh
 deepseekbot team-mode status
+deepseekbot team-mode member-settings --invite-lifetime-minutes 60 --default-role member
 deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
@@ -2618,6 +2619,8 @@ Owner password input is a password with an optional final newline, or JSON `{ "p
 `--as <username>` creates a short-lived member grant on the authenticated Host, dispatches the command through that member's Peer and Gateway policy, then revokes the grant. It requires an online adapter; unsupported HTTP, streaming and maintenance commands refuse instead of using Owner authority. Team mode off, suspended members and the initial-password gate are enforced. Change the initial password before browsing Channels. The Owner's existing Host token remains required for this local verification feature.
 
 Non-loopback password sign-in requires Host-known TLS or the encrypted device gateway. The explicitly confirmed `insecure-http` exception permits plain HTTP until disabled. Forwarded protocol headers do not establish TLS. Turning Team mode off revokes member grants and closes their streams while retaining identities, passwords and Channel membership. Re-enabling requires fresh sign-in.
+
+`team-mode status` reports `memberSettings` and the shareable Host sign-in addresses in `memberUrls`. Use `team-mode member-settings` with either or both options to update the settings. The lifetime accepts whole minutes from 1 to 43,200 and defaults to 10. It applies to new links from `members invite <username>`. The member’s credentials remain usable after a link expires. The default role starts as `member` and applies to `members create` when `--role-ids` is omitted. Creation checks the caller’s authority to assign the role. Deleting the configured role resets the default to `member`. Updates require `team.settings`. Changing the default role also requires `members.manage` and authority to assign that role.
 
 ```bash
 deepseekbot roles catalog

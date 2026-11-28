@@ -30,7 +30,7 @@ import { BotsSection } from './team-workbench/bots-section.js';
 import { ChannelsSection } from './team-workbench/channels-section.js';
 import { ExternalRolesSection } from './team-workbench/external-roles-section.js';
 import { DetailNotice, EmptyDetail, WorkbenchFrame } from './team-workbench/frame.js';
-import { MembersSection } from './team-workbench/members-section.js';
+import { InternalMembersSection } from './team-workbench/internal-members-section.js';
 import { withChoice, type PermissionChoice } from './team-workbench/permission-model.js';
 import { RoleBotScope } from './team-workbench/role-bot-scope.js';
 import { RoleConflictNote, type RoleConflict } from './team-workbench/role-conflict.js';
@@ -247,18 +247,22 @@ export function TeamWorkbench({
           onInspect={(member) => void inspect(member)}
         />
       ),
-    members: () => (
-      <MembersSection
-        t={t}
-        members={members}
-        roles={roles}
-        catalog={catalog}
-        inspected={inspected}
-        pending={pending}
-        error={inspectError}
-        onInspect={(member) => void inspect(member)}
-      />
-    ),
+    members: () =>
+      view === undefined ? null : (
+        <InternalMembersSection
+          call={call}
+          t={t}
+          view={view}
+          members={members}
+          roles={roles}
+          catalog={catalog}
+          inspected={inspected}
+          pending={pending}
+          inspectError={inspectError}
+          onInspect={(member) => void inspect(member)}
+          onChanged={() => refresh()}
+        />
+      ),
     bots: () =>
       view === undefined ? null : (
         <BotsSection call={call} t={t} view={view} roles={roles} members={members} />

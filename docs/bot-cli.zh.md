@@ -2462,6 +2462,7 @@ Owner CLI 也接受私有局域网 IPv4 的 HTTPS 地址，并正常验证证书
 
 ```sh
 deepseekbot team-mode status
+deepseekbot team-mode member-settings --invite-lifetime-minutes 60 --default-role member
 deepseekbot team-mode owner-password --password-stdin < owner-password.txt
 deepseekbot team-mode on
 deepseekbot members create --username bob --display-name Bob --initial-password-file ./bob-initial.txt
@@ -2488,6 +2489,8 @@ Owner 密码从标准输入读取，可带一个结尾换行；修改已有密�
 `--as <username>` 由已认证的 Owner 创建临时成员授权，通过该成员自己的 Peer 和 Gateway 策略执行命令，随后撤销授权。它要求在线适配器；不支持的 HTTP、流式和维护命令会拒绝，不会改用 Owner 权限。团队模式关闭、账号停用和首次改密限制同样生效；浏览频道前先修改初始密码。此本地验证功能仍要求 Owner 的 Host 令牌。
 
 非回环地址的密码登录要求 Host 已知的 TLS 或加密设备网关。明确确认的 `insecure-http` 例外允许明文 HTTP，直到关闭；客户端转发的协议请求头不能证明 TLS。关闭团队模式会撤销成员授权并关闭其流，但保留身份、密码和频道成员关系；重新开启后需要重新登录。
+
+`team-mode status` 返回 `memberSettings`，以及 `memberUrls` 中可分享的 Host 登录地址。`team-mode member-settings` 可更新任一项或同时更新两项。有效期以整分钟计，范围为 1 至 43,200，默认 10 分钟，只影响 `members invite <username>` 新生成的链接。链接过期后，成员仍可使用现有凭据登录。默认角色初始为 `member`，在 `members create` 省略 `--role-ids` 时生效。创建成员时，Host 会检查操作者能否分配该角色。删除选中的角色后，默认值恢复为 `member`。更新设置需要 `team.settings`。更改默认角色还需要 `members.manage` 和分配该角色的权限。
 
 ```bash
 deepseekbot roles catalog

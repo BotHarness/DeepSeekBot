@@ -320,6 +320,8 @@ export const TEAM_OPTIONS = {
   set: { type: 'string' },
   revoke: { type: 'string' },
   'role-ids': { type: 'string' },
+  'default-role': { type: 'string' },
+  'invite-lifetime-minutes': { type: 'string' },
   username: { type: 'string' },
   'display-name': { type: 'string' },
   'initial-password-file': { type: 'string' },

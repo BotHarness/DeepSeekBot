@@ -13,6 +13,8 @@ import { ChipTabs } from '../ds/chip-tabs.js';
 import { dimension } from '../ds/dimensions.stylex.js';
 import { PanelEmptyState } from '../ds/empty-state.js';
 import { SearchField } from '../ds/field.js';
+import { Icon } from '../ds/icon.js';
+import { IconButton } from '../ds/icon-button.js';
 import { PanelHeader } from '../ds/panel-header.js';
 import { ink, layer, space, type } from '../ds/tobs.stylex.js';
 import { useMountedResource } from '../mounted-resource.js';
@@ -83,6 +85,7 @@ const styles = stylex.create({
   },
   tabs: { paddingBlockEnd: space.x3, paddingInline: space.x5 },
   chips: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
+  toolbar: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   status: { display: 'flex', flexDirection: 'column', paddingInline: space.x3 },
   body: {
     display: 'flex',
@@ -195,6 +198,7 @@ export function ListColumn<Filter extends string = never>({
   title,
   count,
   action,
+  toolbar,
   search,
   filter,
   status,
@@ -203,6 +207,7 @@ export function ListColumn<Filter extends string = never>({
   title: string;
   count?: number | undefined;
   action?: ReactNode;
+  toolbar?: ReactNode;
   search?: { label: string; value: string; onChange(value: string): void } | undefined;
   filter?: ListFilter<Filter> | undefined;
   status?: ReactNode;
@@ -218,8 +223,9 @@ export function ListColumn<Filter extends string = never>({
         }
         action={action}
       />
-      {search === undefined && filter === undefined ? null : (
+      {search === undefined && filter === undefined && toolbar === undefined ? null : (
         <div {...stylex.props(styles.tools)}>
+          {toolbar === undefined ? null : <div {...stylex.props(styles.toolbar)}>{toolbar}</div>}
           {search === undefined ? null : (
             <SearchField label={search.label} value={search.value} onChange={search.onChange} />
           )}
@@ -244,6 +250,7 @@ export interface DetailTab<Id extends string> {
 export function DetailColumn<Tab extends string = never>({
   icon,
   title,
+  back,
   meta,
   action,
   tabs,
@@ -254,6 +261,7 @@ export function DetailColumn<Tab extends string = never>({
 }: {
   icon?: ReactNode;
   title: string;
+  back?: { readonly label: string; onBack(): void } | undefined;
   meta?: ReactNode;
   action?: ReactNode;
   tabs?: readonly DetailTab<Tab>[] | undefined;
@@ -268,7 +276,18 @@ export function DetailColumn<Tab extends string = never>({
     <section aria-label={title} {...stylex.props(styles.detail)} {...data}>
       <PanelHeader
         icon={icon}
-        label={title}
+        label={
+          back === undefined ? (
+            title
+          ) : (
+            <span {...stylex.props(styles.meta)}>
+              <IconButton aria-label={back.label} data-team-back="" onClick={back.onBack}>
+                <Icon name="chevron-left" />
+              </IconButton>
+              {title}
+            </span>
+          )
+        }
         badge={meta === undefined ? undefined : <span {...stylex.props(styles.meta)}>{meta}</span>}
         action={action}
       />
@@ -303,14 +322,20 @@ export function DetailColumn<Tab extends string = never>({
 
 export function EmptyDetail({
   icon,
+  action,
+  data,
   children,
 }: {
   icon: string;
+  action?: ReactNode;
+  data?: Readonly<Record<`data-${string}`, string | undefined>>;
   children: ReactNode;
 }): ReactElement {
   return (
-    <section {...stylex.props(styles.detail)}>
-      <PanelEmptyState icon={icon}>{children}</PanelEmptyState>
+    <section {...stylex.props(styles.detail)} {...data}>
+      <PanelEmptyState icon={icon} action={action}>
+        {children}
+      </PanelEmptyState>
     </section>
   );
 }

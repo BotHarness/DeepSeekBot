@@ -53,6 +53,12 @@ function role(overrides: Partial<TeamRole> = {}): TeamRole {
   };
 }
 
+async function showRoles(): Promise<void> {
+  const nav = host.querySelector<HTMLButtonElement>('[data-team-nav="roles"]');
+  if (!nav) throw new Error('Missing roles nav');
+  await act(async () => nav.click());
+}
+
 function capability(id: string): HTMLElement {
   const node = host.querySelector<HTMLElement>(`[data-team-capability="${id}"]`);
   if (!node) throw new Error(`Missing capability ${id}`);
@@ -98,7 +104,7 @@ it('moves a permission between allow, unset and deny without keeping it on both 
 it('denies a capability for a role and shows where a member gets each permission', async () => {
   let current = role();
   const call = vi.fn<BridgeCall>(async (method, args) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles') return { ok: true, value: [current] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
     if (method === 'members')
@@ -144,6 +150,7 @@ it('denies a capability for a role and shows where a member gets each permission
     throw new Error(method);
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await showRoles();
 
   expect(host.querySelector('[data-team-role-detail="leads"]')).not.toBeNull();
   expect(segment('channels.create', '允许').getAttribute('aria-selected')).toBe('true');
@@ -172,17 +179,21 @@ it('keeps Owner-only permissions locked for a delegated role manager', async () 
     if (method === 'teamMode')
       return {
         ok: true,
-        value: fakeTeamMode({
-          kind: 'member',
-          humanId: 'ann',
-          permissions: ['roles.manage', 'channels.create'],
-        }),
+        value: {
+          ...fakeTeamMode({
+            kind: 'member',
+            humanId: 'ann',
+            permissions: ['roles.manage', 'channels.create'],
+          }),
+          enabled: true,
+        },
       };
     if (method === 'roles') return { ok: true, value: [role()] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
     return { ok: true, value: [] };
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await showRoles();
   expect(segment('privateContent.view', '允许').disabled).toBe(true);
   expect(capability('privateContent.view').textContent).toContain('只有所有者能授予');
   expect(segment('bots.createPrivate', '允许').disabled).toBe(true);
@@ -192,7 +203,7 @@ it('keeps Owner-only permissions locked for a delegated role manager', async () 
 it('retries loading the workbench after a failed load', async () => {
   let failing = true;
   const call = vi.fn<BridgeCall>(async (method) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles') {
       if (failing) throw new Error('offline');
       return { ok: true, value: [role()] };
@@ -206,6 +217,7 @@ it('retries loading the workbench after a failed load', async () => {
   failing = false;
   await act(async () => retry!.click());
   expect(host.querySelector('[data-team-retry]')).toBeNull();
+  await showRoles();
   expect(host.querySelector('[data-team-role-detail="leads"]')).not.toBeNull();
 });
 
@@ -213,7 +225,7 @@ it('keeps a member inspection closed when the role changes during a save', async
   let current = role();
   let release: () => void = () => undefined;
   const call = vi.fn<BridgeCall>(async (method, args) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles')
       return { ok: true, value: [current, role({ roleId: 'interns', name: 'Interns' })] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
@@ -244,6 +256,7 @@ it('keeps a member inspection closed when the role changes during a save', async
     throw new Error(method);
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await showRoles();
   await act(async () => host.querySelector<HTMLButtonElement>('[data-team-holder="bob"]')!.click());
   expect(host.querySelector('[data-team-effective="bob"]')).not.toBeNull();
 
@@ -267,7 +280,7 @@ it('reloads the member being selected when a save lands during their load', asyn
     roleIds: ['member', 'leads'],
   });
   const call = vi.fn<BridgeCall>(async (method, args) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles') return { ok: true, value: [current] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
     if (method === 'members') return { ok: true, value: [holder('bob'), holder('alice')] };
@@ -289,6 +302,7 @@ it('reloads the member being selected when a save lands during their load', asyn
     throw new Error(method);
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await showRoles();
   await act(async () => host.querySelector<HTMLButtonElement>('[data-team-holder="bob"]')!.click());
   expect(host.querySelector('[data-team-effective="bob"]')).not.toBeNull();
 
@@ -308,7 +322,7 @@ it('reloads a member picked while a save is pending once the save lands', async 
   let releaseSave: () => void = () => undefined;
   let loads = 0;
   const call = vi.fn<BridgeCall>(async (method, args) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles') return { ok: true, value: [current] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
     if (method === 'members')
@@ -354,6 +368,7 @@ it('reloads a member picked while a save is pending once the save lands', async 
     throw new Error(method);
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await showRoles();
   await act(async () => {
     segment('channels.create', '拒绝').click();
   });
@@ -368,7 +383,7 @@ it('reloads a member picked while a save is pending once the save lands', async 
   expect(effective()?.dataset['state']).toBe('denied');
 });
 
-it('derives visible sections from the viewer and defaults to the roles section', () => {
+it('derives visible sections from the viewer and defaults to the internal members section', () => {
   const owner = { ...fakeTeamMode(), enabled: true } as never;
   const context = { view: owner, roles: [role()], members: [] };
   expect(visibleSections(context).map((section) => section.id)).toEqual([
@@ -378,7 +393,7 @@ it('derives visible sections from the viewer and defaults to the roles section',
     'roles',
     'externalRoles',
   ]);
-  expect(resolveSection(context, undefined)?.id).toBe('roles');
+  expect(resolveSection(context, undefined)?.id).toBe('members');
   expect(resolveSection(context, 'channels')?.id).toBe('channels');
   const member = {
     ...fakeTeamMode({ kind: 'member', humanId: 'ann', permissions: [] }),
@@ -392,7 +407,7 @@ it('derives visible sections from the viewer and defaults to the roles section',
 
 it('opens a member from the members section and shows their effective permissions', async () => {
   const call = vi.fn<BridgeCall>(async (method, args) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles') return { ok: true, value: [role()] };
     if (method === 'permissionCatalog') return { ok: true, value: catalog };
     if (method === 'members')
@@ -511,7 +526,7 @@ it('keeps a stale role save unsaved, says so and reloads the latest role', async
   let current = role();
   let rolesReads = 0;
   const call = vi.fn<BridgeCall>(async (method) => {
-    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
     if (method === 'roles') {
       rolesReads++;
       return { ok: true, value: [current] };
@@ -525,6 +540,7 @@ it('keeps a stale role save unsaved, says so and reloads the latest role', async
     throw new Error(method);
   });
   await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await showRoles();
   await act(async () => segment('channels.create', '拒绝').click());
   const note = () => host.querySelector<HTMLElement>('[data-team-role-conflict]');
   expect(note()?.dataset['teamRoleConflict']).toBe('stale');

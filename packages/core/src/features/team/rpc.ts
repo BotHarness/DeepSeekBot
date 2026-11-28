@@ -130,6 +130,14 @@ export function teamModeSet(methods: TeamBridgeMethods, enabled: boolean) {
   return unwrapAsync(methods.teamModeSet({ enabled }));
 }
 
+export function teamMemberSettingsSet(
+  methods: TeamBridgeMethods,
+  inviteLifetimeMinutes?: number,
+  defaultRoleId?: string,
+) {
+  return unwrapAsync(methods.teamMemberSettingsSet({ inviteLifetimeMinutes, defaultRoleId }));
+}
+
 export function ownerPasswordSignIn(methods: TeamBridgeMethods) {
   return unwrapAsync(methods.ownerPasswordSignIn({}));
 }
@@ -485,6 +493,10 @@ export const teamServiceRpc = {
 
   teamModeSet(enabled: boolean) {
     return teamModeSet(this.methods, enabled);
+  },
+
+  teamMemberSettingsSet(inviteLifetimeMinutes?: number, defaultRoleId?: string) {
+    return teamMemberSettingsSet(this.methods, inviteLifetimeMinutes, defaultRoleId);
   },
 
   ownerPasswordSignIn() {

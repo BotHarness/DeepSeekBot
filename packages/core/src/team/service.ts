@@ -33,6 +33,11 @@ import { hashPassword, passwordHashSchema, verifyPassword } from './password.js'
 import { SignInRateLimit } from './rate-limit.js';
 import { memberUrls } from '../team-policy/member-urls.js';
 import type { MemberInvitation, MemberPairingOffer } from './device-contract.js';
+import { readTeamSettings, writeTeamMemberSettings } from './settings.js';
+import type {
+  TeamMemberSettings,
+  TeamMemberSettingsPatch,
+} from '@botharness/host-protocol/team-member-settings';
 
 export interface MemberPrincipal {
   readonly kind: 'botharness-member';
@@ -56,6 +61,7 @@ export interface TeamModeView {
   ownerPasswordSet: boolean;
   insecureHttpAllowed: boolean;
   memberUrls: string[];
+  memberSettings: TeamMemberSettings;
   viewer: {
     humanId: string;
     kind: 'owner' | 'member';
@@ -420,15 +426,20 @@ export class TeamService {
   }
 
   private settings() {
-    return z
-      .object({ enabled: z.coerce.boolean(), insecure_http_allowed: z.coerce.boolean() })
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare('SELECT enabled, insecure_http_allowed FROM team_settings WHERE singleton = 1')
-            .get(),
-        ),
-      );
+    return readTeamSettings(this.db);
+  }
+
+  memberSettings(): TeamMemberSettings {
+    return this.settings().memberSettings;
+  }
+
+  setMemberSettings(human: HumanContext, patch: TeamMemberSettingsPatch): TeamMemberSettings {
+    this.roles.require(human, 'team.settings');
+    if (patch.defaultRoleId !== undefined) {
+      this.roles.require(human, 'members.manage');
+      this.roles.validateAssignments(human, [patch.defaultRoleId]);
+    }
+    return writeTeamMemberSettings(this.db, patch);
   }
 
   member(humanId: string): TeamMember | undefined {
@@ -524,9 +535,10 @@ export class TeamService {
             .get()?.n ?? 0,
         ),
       ),
-      insecureHttpAllowed: settings.insecure_http_allowed,
+      insecureHttpAllowed: settings.insecureHttpAllowed,
       ownerPasswordSet: this.hasCredential(this.ownerContext().humanId),
       memberUrls: memberUrls(this.urls()),
+      memberSettings: settings.memberSettings,
       viewer: {
         humanId: member.humanId,
         kind: member.owner ? 'owner' : 'member',
@@ -632,11 +644,13 @@ export class TeamService {
     human: HumanContext,
     username: string,
     displayName: string,
-    roleIds: string[] = ['member'],
+    roleIds?: string[],
   ): Promise<{ member: TeamMember; initialPassword: string; isolation: 'trial' | 'enforced' }> {
     this.roles.require(human, 'members.manage');
-    this.roles.validateAssignments(human, roleIds);
-    if (!this.settings().enabled) throw new TeamError('team-mode-off');
+    const settings = this.settings();
+    const requestedRoles = roleIds ?? [settings.memberSettings.defaultRoleId];
+    this.roles.validateAssignments(human, requestedRoles);
+    if (!settings.enabled) throw new TeamError('team-mode-off');
     if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
     if (displayName.trim().length === 0 || displayName.length > 128)
       throw new TeamError('invalid-input');
@@ -644,10 +658,10 @@ export class TeamService {
     const initialPassword = randomBytes(18).toString('base64url');
     const hash = await hashPassword(initialPassword);
     const humanId = randomUUID();
-    if (!this.settings().enabled) throw new TeamError('team-mode-off');
+    if (!this.enabled()) throw new TeamError('team-mode-off');
     if (this.byUsername(username)) throw new TeamError('username-taken');
     this.roles.require(human, 'members.manage');
-    const ids = this.roles.validateAssignments(human, roleIds);
+    const ids = this.roles.validateAssignments(human, requestedRoles);
     const ownerIssuerHumanId = this.isOwner(human) ? human.humanId : undefined;
     this.db.transaction(
       (db) => {

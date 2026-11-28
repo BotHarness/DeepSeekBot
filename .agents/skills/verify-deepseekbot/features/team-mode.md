@@ -5,6 +5,7 @@
 - `packages/core/src/features/team/**`
 - `packages/core/src/team/**`
 - `packages/core/src/team-policy/**`
+- `packages/host-protocol/src/team-member-settings.ts`
 - `packages/client/src/client/team-*`
 - `packages/client/src/client/team-workbench/**`
 - `packages/client/src/client/role-policy-field.tsx`
@@ -32,7 +33,8 @@
 
 ## Sub-features
 
-- S1: Owner turns on Team mode in Bot settings › Team; with no Owner password the switch first asks for one ("Save and turn on"). The Owner can allow plain HTTP only through a warned confirmation.
+- S1: Owner turns on internal member mode (formerly Team mode) in the Team workbench › People › Internal members; with no Owner password the switch first asks for one ("Save and turn on"). Bot settings › Team keeps only a "Manage in Team workbench" link. The Owner can allow plain HTTP only through a warned confirmation in Internal member settings.
+- S14 (#5489): Off, the Internal members nav item reads "Off", the page is an empty state with the switch, and Internal roles and Channels are hidden. On, the list shows "Copy invite link" (copies the first `memberUrls` entry) and "Invite member" (the add-member dialog). The gear opens Internal member settings in the detail column (back arrow returns): HTTP sign-in, invite link expiry, default role for new members, execution isolation and Turn off. Opening the page never writes settings; unset values show 10 minutes and `member`. Canonical state: `team-mode status` → `memberSettings`, `team-mode member-settings --invite-lifetime-minutes <m> --default-role <roleId>`; after Turn off, `members list` shows members `suspended`.
 - S2: Owner adds a member (name + username); the one-time password is shown once with a Copy button and is never shown again. A group's settings show a "Public channel" switch to the Owner.
 - S3: A member opens `/botharness-device/team/` over Host-known HTTPS in another browser, signs in, and must replace the one-time password before anything else (the dialog cannot be dismissed; the Host refuses other calls with `password-change-required`).
 - S4: A member sees only Tobs: the page enters Bot mode with no exit to the native shell; Bot settings lists Profile, General, Appearance, Notifications, Keyboard shortcuts and Team; the New menu offers channel and channel section, with no Browse channels entry. DSH-native calls are refused (`remote-access/denied`). Team › Account offers Sign out, which ends only that grant.
@@ -56,7 +58,7 @@
 
 ## How to get to it (user POV)
 
-Owner: Bot settings › Team. Member: open the address under Team › Sign-in › Address in a browser on another machine, sign in, choose a new password, then open the public channel from the list.
+Owner: Team workbench › People › Internal members (Bot settings › Team links there). Member: open the address under Team › Sign-in › Address in a browser on another machine, sign in, choose a new password, then open the public channel from the list.
 
 ## Driving it with verify-app
 
@@ -92,6 +94,8 @@ M10 Host/CLI: `usage members --period week`, `models allowed`, and `roles update
 M14 canonical verification: launch `m14-logic` and run `doctor`; enable Team mode, create two members and change their initial passwords through `--as`. Create private and roles Channels as Owner. Use Owner and member `channels member-candidates <id> --query <name>` and `channels add-member <id> <username>`; verify `channels`, `channel-messages`, `channel-timeline` and `message-search --query <marker>` as the invited member. Open `followChannel` through the authenticated member carrier. The person whose role matches a roles Channel is in it automatically; invite the other person by name. Revoke both people's matching role with `members roles <username> --set member`: the role-joined person's list/search and stream lose access, the invited person's retain it. Set `--add-members deny` and prove both candidate search and invitation refuse a regular member with `permission-required` / `details.permission: 'addMembers'`. Exercise `--as` for both successes and refusals. Upgrade/restart classification is covered by `packages/core/test/team-channel-membership-migration.test.ts`; see [M14 runtime notes](../../../../docs/architecture/team-mode.md#m14-runtime-invitations-and-membership-basis). Stop the verified task Host and check its process/port release. This logic journey does not qualify rendered Web, installed Desktop, native mobile or Human acceptance.
 
 #5486 Group Channel permission table: turn Team mode on and open Team → Channels. Filter by each visibility and open a Group's Members and Permissions tabs. Add a Member Role row, deny posting, and read the saved table using `channels policy <id>`. Try `channels send <id> --body-stdin --as <username>` as a joined Human who holds the Member Role and check for `channel-post-restricted`. Promote that member to Channel admin and repeat the send successfully. Capture the workbench in light and dark.
+
+#5489 Internal member settings: use `team-mode status` on a fresh Host and read `memberSettings`. Save the Owner password and enable Team mode. Run `team-mode member-settings --invite-lifetime-minutes 60 --default-role <roleId>` with a Host Role from `roles list`. Create a member without `--role-ids` and verify its role. Run `members invite <username>` and check `expiresAt` is an hour after issue. After the member replaces the initial password, try the settings update with `--as <username>` and check it refuses a role without `team.settings`. Turn Team mode off and confirm members are suspended and their grants revoked. Capture the workbench in light and dark after the Client wiring lands.
 
 #5488 Host external roles: seed two Bots, bind a synthetic IM app to each and approve pairings with a Bot-scoped role and an all-Bots role, then block one paired contact. Open Team → 外部角色. A migrated role shows only its original Bot switched on, and the all-Bots role shows 全部 Bot. Turn on a second Bot, deny a pairing capability, save a behavior rule and create a role from the dialog. Read each change back with `external-roles`. Check that the Contacts tab shows each holder's status as `external-contact-access <bot-id> --binding <binding-id> --actor <actor-id>` reports it. Capture simple and advanced layouts in light and dark. The verify-app `--bot-mode` pointer click may not enter Bot mode in headless Chromium; dispatch a DOM click on the Bot mode row instead.
 

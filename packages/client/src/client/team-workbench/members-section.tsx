@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { Icon } from '../ds/icon.js';
 import { NavItem } from '../ds/nav-item.js';
@@ -30,6 +30,9 @@ export function MembersSection({
   inspected,
   pending,
   error,
+  action,
+  toolbar,
+  aside,
   onInspect,
 }: {
   t: BotHarnessTranslate;
@@ -39,6 +42,9 @@ export function MembersSection({
   inspected: Inspection | undefined;
   pending?: string | undefined;
   error: string | undefined;
+  action?: ReactNode;
+  toolbar?: ReactNode;
+  aside?: ReactNode;
   onInspect(member: TeamMember): void;
 }): ReactElement {
   const [query, setQuery] = useState('');
@@ -50,7 +56,7 @@ export function MembersSection({
       member.displayName.toLocaleLowerCase().includes(needle) ||
       member.username.toLocaleLowerCase().includes(needle),
   );
-  const member = members.find((item) => item.humanId === picked);
+  const member = aside === undefined ? members.find((item) => item.humanId === picked) : undefined;
   const select = (next: TeamMember): void => {
     setPicked(next.humanId);
     onInspect(next);
@@ -60,6 +66,8 @@ export function MembersSection({
       <ListColumn
         title={t('team.workbench.members')}
         count={members.length}
+        action={action}
+        toolbar={toolbar}
         search={{ label: t('team.workbench.searchMembers'), value: query, onChange: setQuery }}
         status={
           members.length === 0 ? (
@@ -84,7 +92,9 @@ export function MembersSection({
         ))}
       </ListColumn>
       <PanelGap />
-      {member === undefined ? (
+      {aside !== undefined ? (
+        aside
+      ) : member === undefined ? (
         <EmptyDetail icon="user">{t('team.workbench.pickMember')}</EmptyDetail>
       ) : (
         <DetailColumn

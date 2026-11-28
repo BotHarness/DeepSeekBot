@@ -480,3 +480,17 @@ export const HOST_ROLE_BOT_SCOPE_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const TEAM_MEMBER_SETTINGS_MIGRATION: SchemaMigration = {
+  id: 'team-member-settings',
+  module: 'team',
+  description: 'Invite link lifetime and the default role for new Host members',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE team_settings ADD COLUMN invite_lifetime_minutes INTEGER
+        CHECK (invite_lifetime_minutes BETWEEN 1 AND 43200);
+      ALTER TABLE team_settings ADD COLUMN default_member_role_id TEXT
+        REFERENCES host_roles(role_id) ON DELETE SET NULL;
+    `);
+  },
+};

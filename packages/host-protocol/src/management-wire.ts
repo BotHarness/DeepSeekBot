@@ -201,6 +201,7 @@ export interface WireTeamMode {
   ownerPasswordSet: boolean;
   insecureHttpAllowed: boolean;
   memberUrls: string[];
+  memberSettings?: import('./team-member-settings.js').TeamMemberSettings;
   viewer: {
     humanId: string;
     kind: 'owner' | 'member';

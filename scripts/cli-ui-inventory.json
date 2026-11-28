@@ -1326,7 +1326,7 @@
     },
     {
       "id": "team-members",
-      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. Read the Team workbench role capabilities, holders and a member's effective permissions with roles list, members list and roles effective <username>; change a capability with roles update. Read Channel members with channels. Read Channel permission tables with channels policy <id> and replace them with channels policy <id> --policy-stdin. Set Channel approval rules (the Team workbench 审批 tab and the see/decide rows of the permission table) with --see-approvals, --decide-approvals and --use-channel-approvals. Use channels bots <id> to read the Bot settings, or add <botSlug> and --audience, --block-human or --unblock-human to update them. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
+      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. The Team workbench 内部成员 page turns internal member mode on and off with team-mode on|off, toggles HTTP sign-in with team-mode insecure-http on|off --confirm, and sets invite link expiry and the default role for new members with team-mode member-settings --invite-lifetime-minutes <minutes> --default-role <roleId>; team-mode status reads them back. Read the Team workbench role capabilities, holders and a member's effective permissions with roles list, members list and roles effective <username>; change a capability with roles update. Read Channel members with channels. Read Channel permission tables with channels policy <id> and replace them with channels policy <id> --policy-stdin. Set Channel approval rules (the Team workbench 审批 tab and the see/decide rows of the permission table) with --see-approvals, --decide-approvals and --use-channel-approvals. Use channels bots <id> to read the Bot settings, or add <botSlug> and --audience, --block-human or --unblock-human to update them. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
       "scope": "Host / Human",
       "surfaces": [
         "route:packages/core/src/features/team/mount.ts:'/api/botharness/team-as'",
@@ -1336,6 +1336,11 @@
         "setting:packages/client/src/client/team-settings.tsx:{t('team.insecureHttp.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.members.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
+        "setting:packages/client/src/client/team-workbench/internal-members-section.tsx:{t('team.mode.title')}",
+        "setting:packages/client/src/client/team-workbench/member-settings-page.tsx:{t('team.insecureHttp.title')}",
+        "setting:packages/client/src/client/team-workbench/member-settings-page.tsx:{t('team.memberSettings.defaultRole')}",
+        "setting:packages/client/src/client/team-workbench/member-settings-page.tsx:{t('team.memberSettings.lifetime')}",
+        "setting:packages/client/src/client/team-workbench/member-settings-page.tsx:{t('team.memberSettings.turnOff')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
         "setting:packages/client/src/client/settings-environment.tsx:{t('team.ownerPassword.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}",
