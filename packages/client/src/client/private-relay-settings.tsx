@@ -132,17 +132,7 @@ export function PrivateRelaySettings({
             icon="info"
             tone="warning"
             title={t('privateTunnel.panel.errorTitle')}
-            body={
-              failure.host && failure.code === 'private-relay-code-expired'
-                ? t('privateRelay.codeExpired', { host: failure.host })
-                : failure.host && failure.code === 'private-relay-code-used'
-                  ? t('privateRelay.codeUsed', { host: failure.host })
-                  : failure.host && failure.code === 'private-relay-code-refused'
-                    ? t('privateRelay.codeRefused', { host: failure.host })
-                    : !legacy && failure.code === 'private-relay-input-invalid'
-                      ? t('privateRelay.codeInvalid')
-                      : t('privateRelay.failed')
-            }
+            body={t('privateRelay.failed')}
             data={{ 'data-private-relay': 'error' }}
           >
             {address}

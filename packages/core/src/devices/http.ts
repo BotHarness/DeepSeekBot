@@ -157,7 +157,10 @@ export function createDevicesHttp(options: {
       const code = input['code'];
       const origin = input['origin'];
       const bootstrap = input['bootstrap'];
-      const claim =
+      const claim:
+        | { kind: 'code'; code: string }
+        | { kind: 'legacy'; origin: string; bootstrap: string }
+        | undefined =
         typeof code === 'string' && origin === undefined && bootstrap === undefined
           ? { kind: 'code', code }
           : code === undefined && typeof origin === 'string' && typeof bootstrap === 'string'
