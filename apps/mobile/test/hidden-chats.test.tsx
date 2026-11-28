@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -9,27 +9,27 @@ vi.mock('../src/ui/primitives/loading-indicator', () => ({
   LoadingIndicator: () => createElement('span', { 'data-testid': 'hidden-chats-loading' }),
 }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
-  SettingsRow: (props: { title: string; testID?: string; trailing?: ReactNode }) =>
-    createElement('div', { 'data-testid': props.testID }, props.title, props.trailing),
-}));
-vi.mock('../src/ui/primitives/button', () => ({
-  Button: (props: {
-    label: string;
+  SettingsRow: (props: {
+    title: string;
     testID?: string;
-    disabled?: boolean;
-    fit?: boolean;
-    onPress(): void;
+    accessibilityLabel?: string;
+    trailing?: unknown;
+    control?: { kind: string; text?: string };
+    onPress?: () => void;
   }) =>
     createElement(
       'button',
       {
         type: 'button',
         'data-testid': props.testID,
-        'data-fit': String(props.fit === true),
-        disabled: props.disabled === true,
+        'aria-label': props.accessibilityLabel,
+        'data-trailing': String(props.trailing !== undefined),
+        'data-control': props.control?.kind,
+        disabled: props.onPress === undefined,
         onClick: props.onPress,
       },
-      props.label,
+      props.title,
+      props.control?.kind === 'value' ? ` ${props.control.text}` : '',
     ),
 }));
 
@@ -79,10 +79,12 @@ it('unhides one chat through the Host hidden roster', async () => {
   root = createRoot(host);
   act(() => root!.render(<HiddenChats client={client} roster={roster(hidden)} />));
   const unhide = host.querySelector<HTMLButtonElement>(
-    '[data-testid="hidden-chat-unhide-channel:studio"]',
+    '[data-testid="hidden-chat-channel:studio"]',
   )!;
-  expect(unhide.textContent).toBe(t.hiddenChats.unhide);
-  expect(unhide.getAttribute('data-fit')).toBe('true');
+  expect(unhide.getAttribute('data-trailing')).toBe('false');
+  expect(unhide.getAttribute('data-control')).toBe('value');
+  expect(unhide.textContent).toBe(`Studio ${t.hiddenChats.unhide}`);
+  expect(unhide.getAttribute('aria-label')).toBe(t.hiddenChats.unhideLabel('Studio'));
   await act(async () => unhide.click());
   expect(call).toHaveBeenCalledWith('hiddenSet', { hidden: ['dm-ada'] });
   expect(refresh).toHaveBeenCalledOnce();

@@ -4,7 +4,6 @@ import { FlatList } from 'react-native';
 import type { HostClient, RosterView } from '@botharness/host-client/client';
 import { useHostSessions } from '../../host/host-session';
 import { space } from '../design/tokens';
-import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
@@ -64,17 +63,11 @@ export function HiddenChats({
           on="canvas"
           testID={`hidden-chat-${item.key}`}
           title={titleOf(item)}
-          trailing={
-            <Button
-              testID={`hidden-chat-unhide-${item.key}`}
-              label={t.hiddenChats.unhide}
-              on="canvas"
-              fit
-              busy={busy === item.key}
-              disabled={client === undefined || (busy !== undefined && busy !== item.key)}
-              onPress={() => unhide(item)}
-            />
+          accessibilityLabel={t.hiddenChats.unhideLabel(titleOf(item))}
+          control={
+            busy === item.key ? { kind: 'busy' } : { kind: 'value', text: t.hiddenChats.unhide }
           }
+          onPress={client === undefined || busy !== undefined ? undefined : () => unhide(item)}
         />
       )}
     />
