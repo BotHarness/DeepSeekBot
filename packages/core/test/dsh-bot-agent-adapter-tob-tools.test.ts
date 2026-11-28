@@ -77,6 +77,41 @@ describe('DSH Bot Agent adapter', () => {
       await adapter.close();
     }
   });
+
+  it('uses the first active turn grant after attaching a dormant native Orchestrator', async () => {
+    let role: string | undefined;
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async () => {
+          role = host.scopes
+            .get(reportRun.sessionId)
+            ?.sections.find((section) => section.name === 'botharness:orchestrator-role')?.text;
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+    });
+    const native = await host.create({
+      sessionId: SessionId(reportRun.sessionId),
+      meta: { cwd: '/memory/ada' },
+    });
+    try {
+      await adapter.attachResumedOrchestrator(native.agent, { ...reportRun, resume: true });
+      await adapter.runOrchestrator({
+        ...reportRun,
+        resume: true,
+        holdsManagementGrant: () => true,
+      });
+      expect(role).toContain('run deepseekbot capabilities and doctor first');
+    } finally {
+      await adapter.close();
+      await native.dispose();
+    }
+  });
 });
 
 describe('model-free Tob preparation cancellation', () => {
@@ -153,3 +188,4 @@ describe('model-free Tob preparation cancellation', () => {
     },
   );
 });
+import { SessionId } from '@deepseek-ai/dsh-session';

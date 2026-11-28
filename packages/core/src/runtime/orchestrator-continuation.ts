@@ -424,15 +424,12 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     });
   }
 
-  async function loadOrchestrator(botSlug: string, sessionId: string): Promise<void> {
-    const bot = ports.registry.get(botSlug);
-    if (!bot || bot.paused || !ports.agents.loadOrchestrator)
-      throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
-    ports.requireExecution?.(botSlug);
+  function maintenanceRun(bot: PersonaBotRecord, sessionId: string): OrchestratorAgentRun {
+    ports.requireExecution?.(bot.slug);
     const refuseSideEffect = () => {
       throw new Error('Maintenance cannot perform Bot actions');
     };
-    const loading = ports.agents.loadOrchestrator({
+    return {
       sessionId,
       resume: true,
       bot,
@@ -451,7 +448,25 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         observeMemory: false,
         observeReads: false,
       }),
-    });
+    };
+  }
+
+  async function attachResumedOrchestrator(
+    botSlug: string,
+    sessionId: string,
+    attach: (run: OrchestratorAgentRun) => Promise<void>,
+  ): Promise<void> {
+    if (ports.closed() || ports.currentOrchestratorSessionId(botSlug) !== sessionId) return;
+    const bot = ports.registry.get(botSlug);
+    if (bot === undefined || bot.paused) return;
+    await attach(maintenanceRun(bot, sessionId));
+  }
+
+  async function loadOrchestrator(botSlug: string, sessionId: string): Promise<void> {
+    const bot = ports.registry.get(botSlug);
+    if (!bot || bot.paused || !ports.agents.loadOrchestrator)
+      throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
+    const loading = ports.agents.loadOrchestrator(maintenanceRun(bot, sessionId));
     await loading.catch((error: unknown) => {
       if (error instanceof Error && error.name === 'SessionUnavailableError')
         throw new SessionRecoveryError(
@@ -729,6 +744,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     retryDmMessage,
     recoverDmMessage,
     compactOrchestrator,
+    attachResumedOrchestrator,
     cancelAutoContinue,
     restsOf,
     fallBack,

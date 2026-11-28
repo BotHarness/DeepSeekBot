@@ -4,7 +4,6 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { describe, expect, it, vi } from 'vitest';
 import { installNativeSubagentWake } from '../src/runtime/native-subagent-wake.js';
-import type { BotRuntime } from '../src/runtime/bot-runtime.js';
 
 describe('legacy Orchestrator child wake model-capture ordering', () => {
   it('captures the model at Inbox claim before asynchronous prompt preparation', async () => {
@@ -33,7 +32,7 @@ describe('legacy Orchestrator child wake model-capture ordering', () => {
     installNativeSubagentWake(ctx, {
       prepareNativeOrchestratorStep: prepare,
       captureNativeOrchestratorModel: capture,
-    } as unknown as BotRuntime);
+    });
     try {
       ctx.emit('agent/inbox/claimed', {
         agent,
@@ -76,7 +75,7 @@ describe('legacy Orchestrator child wake model-capture ordering', () => {
     const prepare = vi.fn(async () => false);
     installNativeSubagentWake(ctx, {
       prepareNativeOrchestratorStep: prepare,
-    } as unknown as BotRuntime);
+    });
     const claim = () =>
       ctx.emit('agent/inbox/claimed', {
         agent,

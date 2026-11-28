@@ -99,6 +99,7 @@ export class DshBotAgentAdapterState {
   readonly engineToolGate: EngineToolGate | undefined;
   readonly engineStops = new Map<string, AbortController>();
   readonly borrowedOrchestrators = new WeakSet<AgentHandle>();
+  readonly configuredOrchestrators = new WeakSet<Agent>();
   readonly releaseNativeAgent: DshBotAgentAdapterOptions['releaseNativeAgent'];
   readonly engineChannels = new Map<string, string>();
   readonly preparationVisibleMs: number;
@@ -345,9 +346,15 @@ export class DshBotAgentAdapterState {
     agentCtx: Context,
     agent: Agent,
     run: OrchestratorAgentRun | AssignmentAgentRun,
+    requireUnbound = false,
   ): Promise<void> {
     const presets = this.#resolveAgentPresets?.();
     if (presets === undefined) return;
+    if (
+      requireUnbound &&
+      (presets.composedPreset === undefined || presets.composedPreset(agentCtx) !== undefined)
+    )
+      return;
     let recorded: string | undefined;
     try {
       recorded = presets.presetForSession?.(agent.session) ?? undefined;

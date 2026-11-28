@@ -164,7 +164,11 @@ export class AssignmentReplay extends NativeReplay {
   }
 }
 
-export async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () => Promise<void>) {
+export async function nativeRuntime(
+  model: LlmAdapter,
+  beforeWriterClose?: () => Promise<void>,
+  promptConfig: ConstructorParameters<typeof SystemPrompt>[1] = {},
+) {
   const ctx = new Context();
   cleanups.push(() => ctx.fiber.dispose());
   await ctx.plugin(LlmRuntime).await();
@@ -195,7 +199,7 @@ export async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () 
     },
     { global: true },
   );
-  await ctx.plugin(SystemPrompt, {}).await();
+  await ctx.plugin(SystemPrompt, promptConfig).await();
   new SessionProjectionRegistry(ctx);
   await ctx.plugin(AgentRegistry).await();
   await ctx.plugin(ToolRuntime, {}).await();
