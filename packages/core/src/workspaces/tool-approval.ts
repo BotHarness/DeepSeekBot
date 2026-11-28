@@ -144,6 +144,7 @@ export class ChannelToolApproval {
       requireExplicitApproval?: boolean;
       authorizationScope?: () => string;
       origin?: ToolApprovalOrigin;
+      connectorRequest?: TrackedCall['connectorRequest'];
     },
   ): (() => void) | undefined {
     const agent = execution.agent;
@@ -182,6 +183,7 @@ export class ChannelToolApproval {
       ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
       ...(device === undefined ? {} : { device }),
       ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
+      ...(options?.connectorRequest && { connectorRequest: options.connectorRequest }),
     };
     tracked.scopeKey = this.#currentScope(tracked, owner)!;
     this.#tracked.set(key, tracked);
@@ -385,9 +387,8 @@ export class ChannelToolApproval {
         ...(tracked.approvalReview === undefined ? {} : { approvalReview: tracked.approvalReview }),
         externalDecision: tracked.externalDecision ?? 'operation',
         allowAlways: policy.rememberable,
-        ...(tracked.botCreatePreview === undefined
-          ? {}
-          : { botCreatePreview: tracked.botCreatePreview }),
+        ...(tracked.botCreatePreview && { botCreatePreview: tracked.botCreatePreview }),
+        ...(tracked.connectorRequest && { connectorRequest: tracked.connectorRequest }),
       },
     };
     let resolve!: (outcome: ApprovalOutcome) => void;

@@ -11,9 +11,22 @@ export interface ConnectorValues {
   confirm?: boolean;
   cursor?: string;
   name?: string;
+  bot?: string;
+  search?: string;
+  explain?: boolean;
+  choice?: string;
 }
 
 export const CONNECTOR_COMMANDS = [
+  { command: 'connector', description: 'inspect Connector Accounts and decide access requests' },
+  {
+    command: 'connector-catalog',
+    description: 'show a Bot’s Connector Account catalog (--bot <slug>, optional --search)',
+  },
+  {
+    command: 'connector-request-decide',
+    description: 'decide a Connector Account request from its card (--choice once|persistent|deny)',
+  },
   {
     command: 'connectors',
     description:
@@ -64,7 +77,7 @@ export const CONNECTOR_COMMANDS = [
   {
     command: 'connector-grant',
     description:
-      'let a Bot use an App connection account (--access read|write) or take it away (--access none)',
+      'let a Bot use an App connection account (--access read|write) or take it away (--access none). Add --explain to show effective permissions and their sources.',
   },
   {
     command: 'connector-remove',
@@ -164,16 +177,41 @@ export async function runConnectorCommand(
     const [url] = positionals(command, rest, 1, 'the whole address the sign-in page opened');
     return (await connect())('connectorMcpFinish', { url });
   }
+  if (command === 'connector') usage('connector needs catalog, grant or request-decide.');
+  if (command === 'connector-catalog') {
+    positionals(command, rest, 0, '');
+    const slug = values.bot?.trim();
+    if (!slug) usage('connector catalog needs --bot <slug>.');
+    return (await connect())('connectorCatalog', { slug, query: values.search ?? '' });
+  }
+  if (command === 'connector-request-decide') {
+    const [channelId, messageId] = positionals(
+      command,
+      rest,
+      2,
+      'a Channel ID and card message ID',
+    );
+    const choice = values.choice;
+    if (choice !== 'once' && choice !== 'persistent' && choice !== 'deny')
+      usage('connector request-decide needs --choice once, persistent or deny.');
+    return (await connect())('connectorRequestDecide', { channelId, messageId, choice });
+  }
   if (command === 'connector-grant') {
     const [slug, accountId] = positionals(command, rest, 2, 'a bot id and an account id');
     const access = values.access;
+    if (access === undefined && values.explain === true)
+      return (await connect())('connectorGrantExplain', { slug, accountId });
     if (access !== 'read' && access !== 'write' && access !== 'none')
-      usage('connector-grant needs --access read, write or none.');
-    return (await connect())('connectorGrantSet', {
+      usage('connector grant needs --access read, write or none, or --explain.');
+    const rpc = await connect();
+    const result = await rpc('connectorGrantSet', {
       slug,
       accountId,
       access: access === 'none' ? null : access,
     });
+    return values.explain === true
+      ? { result, explanation: await rpc('connectorGrantExplain', { slug, accountId }) }
+      : result;
   }
   if (command === 'connector-remove') {
     const [accountId] = positionals(command, rest, 1, 'exactly one account id');

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { runConnectorCommand } from '../src/cli/cli-connectors.js';
 import { createConnectorsBridgeMethods } from '../src/features/connectors/methods.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createConnectorStore } from '../src/connectors/store.js';
@@ -663,8 +664,13 @@ describe('remote MCP App connections', () => {
     try {
       let isOwner = false;
       const methods = createConnectorsBridgeMethods(
-        { connectors: service, registry: { get: () => undefined } },
+        {
+          connectors: service,
+          registry: { get: () => undefined },
+          channels: { message: () => undefined },
+        },
         () => isOwner,
+        OWNER_HUMAN_CONTEXT,
       );
       expect(await methods.connectorMcpSearch({ query: '' })).toMatchObject({
         ok: false,

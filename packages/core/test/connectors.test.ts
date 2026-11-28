@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { Context } from '@deepseek-ai/cordis';
+import type { Agent } from '@deepseek-ai/dsh-agent';
+import type { BotAgentSetup } from '../src/plugin-types.js';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -10,7 +13,12 @@ import {
   type ComposioClient,
 } from '../src/connectors/composio.js';
 import { connectorToolDenial, readOnlyTool } from '../src/connectors/policy.js';
-import { connectorAccessMap, connectorCatalogFor } from '../src/connectors/mount.js';
+import {
+  connectorAccessMap,
+  connectorCatalogFor,
+  mountConnectors,
+} from '../src/connectors/mount.js';
+import { connectorCapabilities } from '../src/connectors/catalog.js';
 import { runConnectorCommand } from '../src/cli/cli-connectors.js';
 import { createTempRoot } from './helpers.js';
 
@@ -107,6 +115,153 @@ function setup(client: ComposioClient) {
 }
 
 describe('connector accounts and grants', () => {
+  it('limits a one-time Account Grant to its Session and consumes it without persisting it', async () => {
+    const { client } = fakeClient();
+    const { owner, store, service } = setup(client);
+    try {
+      const account = store.createAccount({
+        service: 'gmail',
+        label: 'Work',
+        externalId: 'ca_work',
+      });
+      store.updateAccount(account.accountId, { status: 'active' });
+      expect(await service.decideOnce('origin', 'call-1', async () => true)).toBe(true);
+      expect(await service.takeOnceDecision('different', 'call-1')).toBe(false);
+      expect(await service.takeOnceDecision('origin', 'call-1')).toBe(true);
+      expect(await service.takeOnceDecision('origin', 'call-1')).toBe(false);
+      service.grantOnce('ada', 'origin', account.accountId, 'write');
+      expect(service.forBot('ada')).toEqual([]);
+      expect(service.forBot('another', { sessionId: 'origin' })).toEqual([]);
+      expect(service.forBot('ada', { sessionId: 'different' })).toEqual([]);
+      const ceiling = [connectorCapabilities(account.accountId).read];
+      expect(service.forBot('ada', { sessionId: 'origin', ceiling })).toMatchObject([
+        { access: 'read' },
+      ]);
+      expect(service.forBot('ada', { sessionId: 'origin' })).toMatchObject([{ access: 'write' }]);
+      const complete = service.consumeOnce('ada', 'origin', new Set([account.accountId]));
+      expect(service.forBot('ada', { sessionId: 'origin' })).toEqual([]);
+      complete();
+      expect(store.grants('ada')).toEqual([]);
+      service.grant('ada', account.accountId, 'read');
+      expect(
+        service.forBot('ada', {
+          sessionId: 'origin',
+          ceiling: [
+            connectorCapabilities(account.accountId).read,
+            connectorCapabilities(account.accountId).write,
+          ],
+        }),
+      ).toMatchObject([{ access: 'read' }]);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('previews a connector request for the card and lists one-time grants until revoked', () => {
+    const { client } = fakeClient();
+    const { owner, store, service } = setup(client);
+    try {
+      const own = store.createAccount({
+        service: 'gmail',
+        label: 'Ada mail',
+        externalId: 'ca_ada',
+        holderSlug: 'ada',
+      });
+      store.updateAccount(own.accountId, { status: 'active', identity: 'ada@example.com' });
+      expect(
+        service.requestPreview('ada', {
+          account_id: own.accountId,
+          access: 'read',
+          reason: 'Find the invoice',
+        }),
+      ).toEqual({
+        service: 'gmail',
+        name: 'Gmail',
+        access: 'read',
+        reason: 'Find the invoice',
+        account: {
+          accountId: own.accountId,
+          label: 'Ada mail',
+          identity: 'ada@example.com',
+          holder: 'bot',
+        },
+      });
+      expect(
+        service.requestPreview('ada', { service: 'notion', access: 'write', reason: 'Draft' }),
+      ).toEqual({ service: 'notion', name: 'Notion', access: 'write', reason: 'Draft' });
+      expect(service.requestedAccount({ service: 'gmail' })?.accountId).toBe(own.accountId);
+      const second = store.createAccount({
+        service: 'gmail',
+        label: 'Shared',
+        externalId: 'ca_shared',
+      });
+      store.updateAccount(second.accountId, { status: 'active' });
+      expect(service.requestedAccount({ service: 'gmail' })).toBeUndefined();
+      expect(
+        service.requestPreview('ada', { service: 'gmail', access: 'read', reason: '' }),
+      ).toEqual({ service: 'gmail', name: 'Gmail', access: 'read', reason: '' });
+      service.grantOnce('ada', 'session-1', second.accountId, 'read');
+      expect(service.onceGrants('ada')).toEqual([{ accountId: second.accountId, access: 'read' }]);
+      expect(service.onceGrants('grace')).toEqual([]);
+      service.grant('ada', second.accountId, undefined);
+      expect(service.onceGrants('ada')).toEqual([]);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('refuses the next tool call in a running Session after revoking one of two pinned accounts', async () => {
+    const { client } = fakeClient();
+    const { owner, store, service } = setup(client);
+    const effects: Array<() => void> = [];
+    try {
+      await service.setKey('ak_test_key_1234');
+      const accounts = ['work', 'personal'].map((label) => {
+        const entry = store.createAccount({ service: 'gmail', label, externalId: `ca_${label}` });
+        store.updateAccount(entry.accountId, { status: 'active' });
+        service.grant('ada', entry.accountId, 'read');
+        return entry;
+      });
+      const collect = (effect: () => () => void) => {
+        effects.push(effect());
+      };
+      const guard = vi.fn<Context['tools']['guard']>();
+      const ctx = { effect: collect, on: vi.fn(), tools: { guard } } as unknown as Context;
+      const setupAgent = vi.fn<(setup: BotAgentSetup) => () => void>(() => () => undefined);
+      const agent = { session: { id: 'assignment-ada' } } as Agent;
+      const plugin = vi.fn(() => ({ dispose: vi.fn() }));
+      const agentCtx = {
+        effect: collect,
+        plugin,
+        tools: { register: vi.fn() },
+      } as unknown as Context;
+      mountConnectors(
+        ctx,
+        { contributeBotAgentSetup: setupAgent, ownership: { resolve: vi.fn() } as never },
+        service,
+      );
+      setupAgent.mock.calls[0]?.[0](agentCtx, agent, { botSlug: 'ada', rootRole: 'assignment' });
+      await vi.waitFor(() => expect(plugin).toHaveBeenCalledOnce());
+      const input = {
+        agent,
+        name: 'mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL',
+        arguments: {
+          tools: [{ tool_slug: 'GMAIL_LIST_EMAILS' }],
+        },
+      } as Parameters<Parameters<Context['tools']['guard']>[0]>[0];
+      const dispatchGuard = guard.mock.calls[1]?.[0];
+      expect(dispatchGuard?.(input)).toBeUndefined();
+      service.grant('ada', accounts[1]!.accountId, undefined);
+      expect(dispatchGuard?.(input)).toContain('changed');
+      expect(plugin).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(plugin).toHaveBeenCalledTimes(2));
+      expect(dispatchGuard?.(input)).toBeUndefined();
+    } finally {
+      for (const dispose of effects.reverse()) dispose();
+      owner.close();
+    }
+  });
+
   it('stores the key, links an account, syncs it, grants it and pins the Bot session', async () => {
     const { client, calls } = fakeClient();
     const { owner, service, vault, changes } = setup(client);
@@ -673,6 +828,17 @@ describe('deepseekbot connector commands', () => {
       ['connectorSearch', { query: 'crm', cursor: 'c2' }],
     ]);
     expect(await run('connector-search', [])).toEqual([['connectorSearch', { query: '' }]]);
+    expect(await run('connector-catalog', [], { bot: 'ada', search: 'Gmail' })).toEqual([
+      ['connectorCatalog', { slug: 'ada', query: 'Gmail' }],
+    ]);
+    expect(await run('connector-grant', ['ada', 'acc'], { explain: true })).toEqual([
+      ['connectorGrantExplain', { slug: 'ada', accountId: 'acc' }],
+    ]);
+    expect(
+      await run('connector-request-decide', ['dm-ada', 'message-1'], { choice: 'once' }),
+    ).toEqual([
+      ['connectorRequestDecide', { channelId: 'dm-ada', messageId: 'message-1', choice: 'once' }],
+    ]);
   });
 
   it('refuses a key on the command line, a missing access and an unconfirmed removal', async () => {

@@ -40,6 +40,22 @@ export const connectorsRpc = {
     );
   },
 
+  connectorCatalog(slug: string, query?: string) {
+    return unwrapAsync(this.methods.connectorCatalog({ slug, query }));
+  },
+
+  connectorGrantExplain(slug: string, accountId: string) {
+    return unwrapAsync(this.methods.connectorGrantExplain({ slug, accountId }));
+  },
+
+  connectorRequestDecide(
+    channelId: string,
+    messageId: string,
+    choice: 'once' | 'persistent' | 'deny',
+  ) {
+    return unwrapAsync(this.methods.connectorRequestDecide({ channelId, messageId, choice }));
+  },
+
   connectorLogos(services: string[]): Promise<{ logos: Record<string, string> }> {
     return unwrapAsync(this.methods.connectorLogos({ services }));
   },

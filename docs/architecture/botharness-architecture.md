@@ -1953,3 +1953,9 @@ Codex 账号支持在其他设备上登录（ADR-0353）。Host 在所选账号�
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
 - **订阅额度**：EngineHost 按账号在 `engines.json` 记录会话与每周额度窗口。主动刷新在该账号的目录中通过 Codex App Server 的 `account/rateLimits/read` 或 Claude Agent SDK 的结构化 `/usage` 查询。邮箱来自同一引擎的账号信息。只有具有 `modelSources.manage` 权限的 Human 可以刷新或读取邮箱，成员只能读取已授权账号的缓存额度。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。
+
+## 连接器工具
+
+Connectors Feature 注册目录、授权卡片操作、原生 Agent 挂载和引擎工具来源。Connector 服务解析 Bot 的账号授权，把外部服务连接绑定到选定的账号。引擎 Session 用 `tool_search` 查找工具，用 `tool_call` 调用。Host 持有凭据，并在每次调用前核验当前账号授权。Assignment 使用派发它的 Bot 的授权。
+
+在 `connector_request` 卡片上选择一次性授权后，当前 Session 可以使用该账号调用一次工具。Host 在发出调用前消耗授权，Composio 的工具搜索和参数查询不消耗授权。撤销授权或重新登录账号会使此前的挂载授权失效。

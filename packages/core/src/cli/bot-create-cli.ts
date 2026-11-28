@@ -243,6 +243,13 @@ export async function runBotCreateCli(
         rest = targets;
       } else if (values.help !== true)
         throw usageError('skills needs publish, replace, delete, mine or added.');
+    } else if (command === 'connector') {
+      const [action, ...targets] = rest;
+      if (action === 'catalog' || action === 'grant' || action === 'request-decide') {
+        command = `connector-${action}`;
+        rest = targets;
+      } else if (values.help !== true)
+        throw usageError('connector needs catalog, grant or request-decide.');
     } else if (command === 'engine') {
       const [action, ...targets] = rest;
       if (

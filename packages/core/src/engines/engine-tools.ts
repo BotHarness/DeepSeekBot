@@ -6,12 +6,18 @@ export interface EngineBotTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  run(args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+  assignment?: true;
+  run(
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+    context?: EngineToolContext,
+  ): Promise<unknown>;
 }
 
 export interface EngineToolInfo {
   botSlug: string;
   sessionId: string;
+  signal?: AbortSignal;
 }
 
 export type EngineToolSource = (
@@ -46,7 +52,7 @@ const SEARCH_LIMIT = 20;
 export const TOOL_SEARCH: EngineTool = {
   name: 'tool_search',
   description:
-    'Find more DeepSeekBot Bot tools: memory, Channel actions and history, Assignments, Groups, schedules, Todo, GenUI cards, the Bot Computer and Browser. Pass keywords, or "select:name1,name2" for exact names. Returns each match with its input_schema; run one with tool_call. An empty query lists every tool name.',
+    'Find tools for this Session, including granted App connections. Pass keywords, or "select:name1,name2" for exact names. Returns each match with its input_schema; run one with tool_call. An empty query lists every tool name.',
   parameters: {
     type: 'object',
     properties: {

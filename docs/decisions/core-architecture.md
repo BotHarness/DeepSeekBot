@@ -44,6 +44,8 @@ Release contributes installer and restarter registration. Profile Storage applie
 
 Connectors contributes Host setup for the account store, OAuth callback and Agent tools. Composio calls use the current Account Grants at dispatch. A write in any part of a batch requires a Human decision on the whole call, with approval bound to the input and current account access.
 
+Connectors projects the same grants into the native Agent registration and the engine tool catalog. Both bind calls to the requesting Session and recheck account access before provider dispatch. An Assignment uses its Bot’s grants. The Kernel grant ceiling can subtract capabilities when a caller supplies a narrower scope. The Connector service owns the temporary access for a one-time decision on a `connector_request` card. The Channel Tool Approval broker continues to own card delivery and decisions.
+
 ## CLI adapters and PersonaBot protection
 
 [#5524](https://github.com/BotHarness/DeepSeekBot/issues/5524) puts command dispatch and adapters in [the CLI module](../../packages/core/src/cli/). Online commands call the existing Host bridge through Host Client. The [offline Profile bridge](../../packages/core/src/bridge/cli-offline.ts) opens the established owners for commands that support offline Profiles. Kernel owns CLI parsing, request schemas, and effect declarations shared with the Tob feature. The Tob feature binds typed commands and exact-argv dispatch to its existing source checks, approvals, and Host owners.

@@ -144,3 +144,12 @@ export function matchesCatalog(entry: ConnectorCatalogEntry, query: string | und
 export function isConnectorService(service: unknown): service is string {
   return typeof service === 'string' && /^[a-z0-9_]{2,40}$/.test(service);
 }
+export type ConnectorCapability = `connector.${string}.${'read' | 'write' | 'grant'}`;
+
+export function connectorCapabilities(accountId: string) {
+  return {
+    read: `connector.${accountId}.read`,
+    write: `connector.${accountId}.write`,
+    grant: `connector.${accountId}.grant`,
+  } as const satisfies Record<string, ConnectorCapability>;
+}

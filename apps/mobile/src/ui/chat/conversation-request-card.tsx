@@ -9,6 +9,7 @@ import type { Inbox } from '@botharness/host-client/inbox';
 import {
   answerQuestion,
   decideApproval,
+  decideConnectorRequest,
   handledHere,
   grantRequestPort,
   loadApproval,
@@ -69,6 +70,11 @@ export const RequestCard = memo(function RequestCard({
         rule?: Parameters<typeof decideApproval>[4],
       ) => {
         const result = await decideApproval(client, ref, outcome, 'app', rule);
+        void inbox?.refresh();
+        return result;
+      },
+      decideConnector: async (choice: Parameters<typeof decideConnectorRequest>[2]) => {
+        const result = await decideConnectorRequest(client, ref, choice);
         void inbox?.refresh();
         return result;
       },

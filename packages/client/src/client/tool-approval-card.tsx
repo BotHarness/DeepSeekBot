@@ -33,6 +33,10 @@ import type {
   ShellPrefixApproval,
   WireShellApprovalSuggestions,
 } from '@botharness/host-protocol/wire';
+import type { ConnectorRequestChoice } from '@botharness/host-client/shared/connector-request';
+import type { ConnectorActions } from './features/connectors/bridge.js';
+import { ConnectorRequestSubject, connectorRequestOf } from './connector-request-card.js';
+import { openSettingsSection } from './environment-settings-source.js';
 
 function sourceBlockSentence(
   toolName: string,
@@ -91,7 +95,8 @@ export function ToolApprovalCard({
     | 'toolApprovalExecutionState'
     | 'decideToolApproval'
   > &
-    TemplateActions;
+    TemplateActions &
+    Pick<ConnectorActions, 'connectorRequestDecide' | 'connectors' | 'connectorLogos'>;
   hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
@@ -115,6 +120,10 @@ export function ToolApprovalCard({
       : state.bots.find((bot) => bot.slug === memoryEdit.target)?.displayName,
   );
   const secretCli = request.toolName === 'secret_cli';
+  const connector = connectorRequestOf(request);
+  const [connectorChoice, setConnectorChoice] = useState<ConnectorRequestChoice>();
+  const [busyConnector, setBusyConnector] = useState<ConnectorRequestChoice>();
+  const [connectorReady, setConnectorReady] = useState(connector?.account !== undefined);
   const canAlwaysAllow = request.allowAlways ?? false;
   const [acceptedDecision, setAcceptedDecision] = useState<typeof decision>();
   const effectiveDecision = decision ?? acceptedDecision;
@@ -272,11 +281,14 @@ export function ToolApprovalCard({
       | 'rejected',
     rule?: ShellPrefixApproval,
     report?: (cause: unknown) => void,
+    choice?: ConnectorRequestChoice,
   ): void => {
     if (botSlug === undefined || submitting.current || !actionable) return;
+    if (connector !== undefined && choice === undefined) return;
     if (companionTarget && !qualified()) return;
     setBusy(true);
     setBusyChoice(outcome);
+    setBusyConnector(choice);
     setError(undefined);
     const channelId = cardChannelId;
     if (
@@ -300,10 +312,14 @@ export function ToolApprovalCard({
           return;
         }
       }
-      await (rule === undefined
-        ? actions.decideToolApproval(channelId, message.id, outcome)
-        : actions.decideToolApproval(channelId, message.id, outcome, rule));
+      if (choice !== undefined)
+        await actions.connectorRequestDecide!(channelId, message.id, choice);
+      else
+        await (rule === undefined
+          ? actions.decideToolApproval(channelId, message.id, outcome)
+          : actions.decideToolApproval(channelId, message.id, outcome, rule));
       if (mounted.current) {
+        if (choice !== undefined) setConnectorChoice(choice);
         setAcceptedDecision(outcome);
         setStatus('decided');
       }
@@ -342,6 +358,8 @@ export function ToolApprovalCard({
       });
   };
   const disabled = busy || !actionable || (companionTarget !== undefined && !qualified());
+  const decideConnector = (choice: ConnectorRequestChoice): void =>
+    decide(choice === 'deny' ? 'rejected' : 'allowed-once', undefined, undefined, choice);
   const scopeMenu = useShellScopeMenu({
     suggestions: shellSuggestions,
     toolName: request.toolName,
@@ -376,6 +394,16 @@ export function ToolApprovalCard({
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (disabled) return;
     const onCard = target === event.currentTarget;
+    if (connector !== undefined) {
+      if (key === 'n' || key === 'Escape') decideConnector('deny');
+      else if (connectorReady && (key === 'y' || (key === 'Enter' && onCard)))
+        decideConnector('once');
+      else if (connectorReady && key === 'a') decideConnector('persistent');
+      else return;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (key === 'y' || (key === 'Enter' && onCard)) decide('allowed-once');
     else if (key === 'n' || key === 'Escape') decide('rejected');
     else if (key === 'a' && canAlwaysAllow) decide('allowed-always-tool');
@@ -391,17 +419,19 @@ export function ToolApprovalCard({
       ? botCreateArgs(request.input)
       : undefined;
   const category = t(
-    memoryEdit !== undefined
-      ? 'approval.category.memory'
-      : botCreate !== undefined
-        ? 'approval.category.bot'
-        : request.toolName === 'bash' || request.toolName === 'shell'
-          ? 'approval.category.terminal'
-          : summary.file !== undefined
-            ? 'approval.category.file'
-            : request.toolName.startsWith('browser')
-              ? 'approval.category.browser'
-              : 'approval.category.tool',
+    connector !== undefined
+      ? 'approval.category.connector'
+      : memoryEdit !== undefined
+        ? 'approval.category.memory'
+        : botCreate !== undefined
+          ? 'approval.category.bot'
+          : request.toolName === 'bash' || request.toolName === 'shell'
+            ? 'approval.category.terminal'
+            : summary.file !== undefined
+              ? 'approval.category.file'
+              : request.toolName.startsWith('browser')
+                ? 'approval.category.browser'
+                : 'approval.category.tool',
   );
   const sentence =
     (memoryEdit === undefined
@@ -477,23 +507,25 @@ export function ToolApprovalCard({
       ? t('approval.opaqueWarning')
       : undefined;
   const info = (
-    memoryEdit === undefined
-      ? [
-          origin,
-          t('approval.cwd', { path: request.cwd }),
-          effects,
-          review,
-          secretRisk === undefined ? scope : undefined,
-          hostAccess,
-        ]
-      : [
-          `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
-          effects,
-          origin,
-          review,
-          scope !== undefined && canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
-          hostAccess,
-        ]
+    connector !== undefined
+      ? [origin, review, hostAccess]
+      : memoryEdit === undefined
+        ? [
+            origin,
+            t('approval.cwd', { path: request.cwd }),
+            effects,
+            review,
+            secretRisk === undefined ? scope : undefined,
+            hostAccess,
+          ]
+        : [
+            `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
+            effects,
+            origin,
+            review,
+            scope !== undefined && canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
+            hostAccess,
+          ]
   )
     .filter((line) => line !== undefined && line !== '')
     .join('\n');
@@ -559,9 +591,13 @@ export function ToolApprovalCard({
       aria-label={actionable ? t('approval.requestTitle') : undefined}
       aria-keyshortcuts={
         actionable && surface !== 'activity'
-          ? canAlwaysAllow
-            ? 'Y Enter N Escape A'
-            : 'Y Enter N Escape'
+          ? connector !== undefined
+            ? connectorReady
+              ? 'Y Enter N Escape A'
+              : 'N Escape'
+            : canAlwaysAllow
+              ? 'Y Enter N Escape A'
+              : 'Y Enter N Escape'
           : undefined
       }
       data-open={open || undefined}
@@ -588,39 +624,49 @@ export function ToolApprovalCard({
       >
         {category}
       </RequestHeading>
-      <>
-        {memoryEdit !== undefined ? (
-          <div {...hooked('bh-request-summary', styles.group)}>
-            <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
-            {preview}
-          </div>
-        ) : (
-          <Button
-            type="button"
-            className="bh-request-summary"
-            xstyle={styles.summary}
-            aria-expanded={open}
-            aria-controls={open ? detailsId : undefined}
-            title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
-            onClick={() => setOpen((current) => !current)}
-          >
-            <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
-            {preview}
-          </Button>
-        )}
-        {botCreate === undefined ? null : (
-          <BotCreateApprovalPreview
-            args={botCreate}
-            preview={request.botCreatePreview}
-            compact={!open}
-            t={t}
-          />
-        )}
-        {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
-          <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
-        )}
-        {details}
-      </>
+      {connector !== undefined ? (
+        <ConnectorRequestSubject
+          request={connector}
+          live={actionable}
+          actions={actions}
+          onReady={setConnectorReady}
+          t={t}
+        />
+      ) : (
+        <>
+          {memoryEdit !== undefined ? (
+            <div {...hooked('bh-request-summary', styles.group)}>
+              <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
+              {preview}
+            </div>
+          ) : (
+            <Button
+              type="button"
+              className="bh-request-summary"
+              xstyle={styles.summary}
+              aria-expanded={open}
+              aria-controls={open ? detailsId : undefined}
+              title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
+              onClick={() => setOpen((current) => !current)}
+            >
+              <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
+              {preview}
+            </Button>
+          )}
+          {botCreate === undefined ? null : (
+            <BotCreateApprovalPreview
+              args={botCreate}
+              preview={request.botCreatePreview}
+              compact={!open}
+              t={t}
+            />
+          )}
+          {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
+            <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
+          )}
+          {details}
+        </>
+      )}
       {executionState === 'waiting-human' ||
       executionState === 'waiting-capacity' ||
       executionState === 'needs-repair' ? (
@@ -637,7 +683,21 @@ export function ToolApprovalCard({
       {secretRisk === undefined ? null : (
         <div {...hooked('bh-tool-approval-scope', styles.caption)}>{secretRisk}</div>
       )}
-      {settled !== undefined ? (
+      {settled !== undefined && connector !== undefined ? (
+        <RequestOutcome outcome={settled}>
+          {t(
+            settled === 'denied'
+              ? 'approval.connector.declined'
+              : settled === 'expired' || settled === 'stopped'
+                ? `approval.outcome.${settled}`
+                : connectorChoice === 'persistent'
+                  ? 'approval.connector.turnedOn'
+                  : connectorChoice === 'once'
+                    ? 'approval.connector.allowedOnce'
+                    : 'approval.connector.allowed',
+          )}
+        </RequestOutcome>
+      ) : settled !== undefined ? (
         <RequestOutcome
           outcome={settled}
           title={t(
@@ -657,7 +717,64 @@ export function ToolApprovalCard({
           {category + ' · ' + t(`approval.outcome.${settled}`)}
         </RequestOutcome>
       ) : null}
-      {effectiveDecision !== undefined || actionable ? (
+      {connector !== undefined && actionable ? (
+        <ActionGroup groupRef={focusMount} className="bh-tool-approval-actions" stack>
+          {connectorReady ? (
+            <>
+              <ActionButton
+                pill
+                tone="primary"
+                size={size}
+                disabled={disabled}
+                busy={busy && busyConnector === 'persistent'}
+                onClick={() => decideConnector('persistent')}
+              >
+                {t('approval.connector.turnOn')}
+              </ActionButton>
+              <ActionButton
+                pill
+                size={size}
+                disabled={disabled}
+                busy={busy && busyConnector === 'once'}
+                onClick={() => decideConnector('once')}
+              >
+                {t('approval.connector.once')}
+              </ActionButton>
+            </>
+          ) : (
+            <ActionButton
+              pill
+              tone="primary"
+              icon="settings"
+              size={size}
+              disabled={disabled}
+              onClick={() => openSettingsSection('connectors')}
+            >
+              {t('approval.connector.openSettings')}
+            </ActionButton>
+          )}
+          <ActionButton
+            pill
+            size={size}
+            tone="danger"
+            disabled={disabled}
+            busy={busy && busyConnector === 'deny'}
+            onClick={() => decideConnector('deny')}
+          >
+            {t('approval.connector.no')}
+          </ActionButton>
+        </ActionGroup>
+      ) : connector !== undefined ? (
+        viewOnly && status === 'pending' && effectiveDecision === undefined ? (
+          <div role="status" data-approval-view-only="" {...stylex.props(styles.caption)}>
+            {t('approval.viewOnly')}
+          </div>
+        ) : status === 'loading' || status === 'unavailable' ? (
+          <div role="status" {...stylex.props(styles.caption)}>
+            {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
+          </div>
+        ) : null
+      ) : effectiveDecision !== undefined || actionable ? (
         <ActionGroup groupRef={focusMount} className="bh-tool-approval-actions" stack>
           <ActionButton
             pill
@@ -707,7 +824,7 @@ export function ToolApprovalCard({
         </div>
       ) : null}
       {scopeMenu.overlay}
-      {actionable && botSlug !== undefined ? (
+      {actionable && botSlug !== undefined && connector === undefined ? (
         <ApprovalPresetPicker botSlug={botSlug} actions={actions} manage={!hostScoped} t={t} />
       ) : null}
       {status === 'unavailable' ? (

@@ -7,6 +7,8 @@ import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createEngineGateway, engineGatewayResult } from '../src/engines/engine-gateway.js';
+import { engineConnectorTools } from '../src/features/connectors/engine-tools.js';
+import type { ConnectorService } from '../src/connectors/service.js';
 import {
   type EngineToolApproval,
   type EngineToolContext,
@@ -16,7 +18,11 @@ import { createEngineToolGate } from '../src/engines/engine-tool-gate.js';
 import { requiresHumanToolApproval } from '../src/workspaces/grant-execution.js';
 import { createEngineMemoryTools } from '../src/engines/engine-memory-tools.js';
 import { engineRouteFetch, type EngineRouteDeps } from '../src/engines/engine-route.js';
-import type { EngineBotTool, EngineToolGate } from '../src/engines/engine-tools.js';
+import type {
+  EngineBotTool,
+  EngineToolGate,
+  EngineToolSource,
+} from '../src/engines/engine-tools.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
@@ -60,7 +66,12 @@ type Call = (
 
 async function overHttp(
   scenario: (client: Client, call: Call) => Promise<void>,
-  options: { asked?: string[]; gate?: EngineToolGate; extra?: EngineBotTool[] } = {},
+  options: {
+    asked?: string[];
+    gate?: EngineToolGate;
+    extra?: EngineBotTool[];
+    source?: EngineToolSource;
+  } = {},
 ): Promise<string> {
   const memory = mkdtempSync(join(tmpdir(), 'engine-memory-'));
   dirs.push(memory);
@@ -75,7 +86,11 @@ async function overHttp(
     orchestratorCwd: () => memory,
     ensureWorkspace: () => {},
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
-    engineTools: () => [...createEngineMemoryTools(() => memory), ...(options.extra ?? [])],
+    engineTools: async (info) => [
+      ...createEngineMemoryTools(() => memory),
+      ...(options.extra ?? []),
+      ...((await options.source?.(info)) ?? []),
+    ],
     ...(options.gate === undefined ? {} : { engineToolGate: options.gate }),
     engines: {
       engineFor: () => 'codex',
@@ -188,6 +203,71 @@ it('finds tools through tool_search with their input schema', async () => {
     },
     { extra: [todoTool()] },
   );
+});
+
+it('calls a granted Composio tool through the engine gateway and fences the next call after revocation', async () => {
+  const provider = createEngineGateway();
+  await provider.start();
+  const rawName = 'COMPOSIO_MULTI_EXECUTE_TOOL';
+  const execute = vi.fn(async () => ({ isError: false, text: 'provider read' }));
+  const upstream = provider.grant({
+    botSlug: 'provider',
+    sessionId: 'gmail',
+    channelless: true,
+    channelId: () => undefined,
+    tools: [
+      { name: rawName, description: 'Read and write Gmail', inputSchema: { type: 'object' } },
+    ],
+    call: execute,
+  });
+  let granted = true;
+  const service = {
+    forBot: (slug: string) =>
+      slug === BOT.slug && granted
+        ? [
+            {
+              provider: 'composio',
+              status: 'active',
+              accountId: 'gmail',
+              service: 'gmail',
+              access: 'read',
+            },
+          ]
+        : [],
+    account: () => ({ revision: 1 }),
+    session: async () => ({
+      url: upstream.url,
+      headers: { authorization: `Bearer ${upstream.token}` },
+    }),
+    consumeOnce: () => () => undefined,
+  } as unknown as ConnectorService;
+  const name = `mcp__composio__${rawName}`;
+  const args = { name, arguments: { tools: [{ tool_slug: 'GMAIL_LIST_EMAILS' }] } };
+  try {
+    const source = engineConnectorTools(service, () => undefined);
+    await expect(source({ botSlug: 'another-bot', sessionId: 'another-session' })).resolves.toEqual(
+      [],
+    );
+    await overHttp(
+      async (_client, call) => {
+        const search = await call('tool_search', { query: `select:${name}` });
+        expect(JSON.parse(search.text)).toMatchObject({ tools: [{ name }] });
+        expect(await call('tool_call', args)).toMatchObject({
+          text: 'provider read',
+          isError: false,
+        });
+        granted = false;
+        expect(await call('tool_call', args)).toMatchObject({
+          isError: true,
+          text: expect.stringContaining('No App connection'),
+        });
+        expect(execute).toHaveBeenCalledOnce();
+      },
+      { source },
+    );
+  } finally {
+    await provider.close();
+  }
 });
 
 it('runs a searched tool through tool_call inside the Bot Memory folder', async () => {

@@ -231,6 +231,9 @@ export const CLI_EFFECTS = {
   'connection-host': { effects: write, brokerRead: false },
   'connection-hosts': { effects: write, brokerRead: false },
   'connector-connect': { effects: externalManagement, brokerRead: false },
+  connector: { effects: undefined, brokerRead: false },
+  'connector-catalog': { effects: read, brokerRead: true },
+  'connector-request-decide': { effects: management, brokerRead: false },
   'connector-grant': { effects: management, brokerRead: false },
   'connector-key-clear': { effects: destructiveSecretManagement, brokerRead: false },
   'connector-key-set': { effects: externalSecretManagement, brokerRead: false },
@@ -662,6 +665,16 @@ function familyEffects(
   fallback: ToolEffects | undefined,
 ): ToolEffects | undefined {
   switch (command) {
+    case 'connector':
+      if (action === 'catalog') return read;
+      if (action === 'request-decide') return management;
+      return action === 'grant'
+        ? values.explain && values.access === undefined
+          ? read
+          : management
+        : undefined;
+    case 'connector-grant':
+      return values.explain && values.access === undefined ? read : management;
     case 'bots': {
       switch (action) {
         case 'list':

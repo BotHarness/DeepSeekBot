@@ -106,6 +106,8 @@ export const zh = {
   'connectors.catalog.mcpOffline': '暂时连不上 MCP Registry，只显示常用服务器。',
   'connectors.connect.connected': '已连接，这个服务器不需要登录。',
   'connectors.bot.use': '可用',
+  'connectors.bot.onceAccess': '仅这一次（{access}）',
+  'connectors.bot.own': '这个 Bot 自己的账号',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -223,5 +225,7 @@ export const en = {
     'The MCP Registry is unreachable; showing featured servers only.',
   'connectors.connect.connected': 'Connected. This server needs no sign-in.',
   'connectors.bot.use': 'Can use',
+  'connectors.bot.onceAccess': 'Just this once ({access})',
+  'connectors.bot.own': 'This Bot’s own',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;

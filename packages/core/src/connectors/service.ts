@@ -1,11 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
-import { resolveGrants } from '../kernel/grants.js';
+import { narrow, resolveGrants } from '../kernel/grants.js';
 import {
   CONNECTOR_CATALOG,
   catalogEntry,
+  connectorCapabilities,
   matchesCatalog,
+  type ConnectorCapability,
   type ConnectorCatalogEntry,
 } from './catalog.js';
 import { ComposioError, createComposioClient, type ComposioClient } from './composio.js';
@@ -59,11 +61,30 @@ export interface BotConnector {
   access: ConnectorAccess;
 }
 
+export interface ConnectorRequestPreview {
+  service: string;
+  name: string;
+  access: ConnectorAccess;
+  reason: string;
+  account?: { accountId: string; label: string; identity?: string; holder: 'shared' | 'bot' };
+}
+
 export interface BotConnectorSession {
   url: string;
   headers: Record<string, string>;
   signature: string;
 }
+
+export interface ConnectorSessionScope {
+  sessionId: string;
+  ceiling?: readonly ConnectorCapability[];
+}
+
+interface OneTimeGrant extends ConnectorGrantRecord {
+  revision: number;
+}
+
+const REQUEST_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 interface Config {
   apiKey: string;
@@ -84,21 +105,25 @@ function defaultLabel(name: string): string {
   return LABEL.test(cleaned) ? cleaned : 'Account';
 }
 
-type Capability = `connector.${string}.${'read' | 'write'}`;
-
-function capabilities(grant: ConnectorGrantRecord): Capability[] {
-  const read: Capability = `connector.${grant.accountId}.read`;
-  return grant.access === 'write' ? [read, `connector.${grant.accountId}.write`] : [read];
-}
-
 export function connectorAccess(
   grants: readonly ConnectorGrantRecord[],
   accountId: string,
+  ceiling?: readonly ConnectorCapability[],
 ): ConnectorAccess | undefined {
-  const resolved = resolveGrants(grants.map((grant) => ({ allow: capabilities(grant), deny: [] })));
-  if (resolved.granted.includes(`connector.${accountId}.write`)) return 'write';
-  if (resolved.granted.includes(`connector.${accountId}.read`)) return 'read';
-  return undefined;
+  const { read, write } = connectorCapabilities(accountId);
+  const assigned = grants.filter((grant) => grant.accountId === accountId);
+  const permissions = resolveGrants<
+    ConnectorCapability,
+    { allow: ConnectorCapability[]; deny: never[] }
+  >(
+    assigned.map((grant) => ({
+      allow: grant.access === 'write' ? [read, write] : [read],
+      deny: [],
+    })),
+  );
+  const { granted } = ceiling === undefined ? permissions : narrow(permissions, ceiling);
+  if (!granted.includes(read)) return undefined;
+  return granted.includes(write) ? 'write' : 'read';
 }
 
 export class ConnectorService {
@@ -111,6 +136,8 @@ export class ConnectorService {
     string,
     { signature: string; session: Promise<BotConnectorSession | undefined> }
   >();
+  readonly #once = new Map<string, Map<string, OneTimeGrant>>();
+  readonly #requestChoices = new Map<string, Promise<boolean>>();
   #config: Promise<Config | undefined> | undefined;
   readonly #names = new Map<string, string>();
   readonly #logos = new Map<string, Promise<string | null>>();
@@ -426,9 +453,16 @@ export class ConnectorService {
   }
 
   grant(botSlug: string, accountId: string, access: ConnectorAccess | undefined): boolean {
-    const changed = this.#store.setGrant(botSlug, accountId, access);
+    let changed = this.#store.setGrant(botSlug, accountId, access);
     if (!changed && access !== undefined)
       throw new ConnectorError('not-found', 'The App connection does not exist.');
+    if (access === undefined) {
+      for (const [sessionId, grants] of this.#once) {
+        if (grants.get(accountId)?.botSlug !== botSlug) continue;
+        changed = grants.delete(accountId) || changed;
+        if (grants.size === 0) this.#once.delete(sessionId);
+      }
+    }
     if (changed) {
       this.#log(access === undefined ? 'grant-removed' : 'grant-set', {
         access: access ?? 'none',
@@ -436,6 +470,71 @@ export class ConnectorService {
       this.#changed();
     }
     return changed;
+  }
+
+  async decideOnce(
+    sessionId: string,
+    callId: string,
+    decide: () => Promise<boolean>,
+  ): Promise<boolean> {
+    const key = JSON.stringify([sessionId, callId]);
+    if (this.#requestChoices.has(key)) return false;
+    const result = Promise.resolve().then(decide);
+    this.#requestChoices.set(key, result);
+    const forget = () => {
+      if (this.#requestChoices.get(key) === result) this.#requestChoices.delete(key);
+    };
+    try {
+      const accepted = await result;
+      if (accepted) setTimeout(forget, REQUEST_LIFETIME_MS).unref();
+      else forget();
+      return accepted;
+    } catch (error) {
+      forget();
+      throw error;
+    }
+  }
+
+  async takeOnceDecision(sessionId: string, callId: string): Promise<boolean> {
+    const key = JSON.stringify([sessionId, callId]);
+    const result = this.#requestChoices.get(key);
+    if (result === undefined) return false;
+    this.#requestChoices.delete(key);
+    return result.catch(() => false);
+  }
+
+  grantOnce(botSlug: string, sessionId: string, accountId: string, access: ConnectorAccess): void {
+    const account = this.account(accountId);
+    if (account?.status !== 'active')
+      throw new ConnectorError('not-found', 'The App connection is unavailable.');
+    const grant: OneTimeGrant = {
+      botSlug,
+      accountId,
+      access,
+      revision: account.revision,
+      grantedAt: new Date().toISOString(),
+    };
+    const grants = this.#once.get(sessionId) ?? new Map<string, OneTimeGrant>();
+    grants.set(accountId, grant);
+    this.#once.set(sessionId, grants);
+    setTimeout(() => {
+      if (this.#once.get(sessionId)?.get(accountId) !== grant) return;
+      grants.delete(accountId);
+      if (grants.size === 0) this.#once.delete(sessionId);
+      this.#changed();
+    }, REQUEST_LIFETIME_MS).unref();
+    this.#changed();
+  }
+
+  consumeOnce(botSlug: string, sessionId: string, accounts: ReadonlySet<string>): () => void {
+    const grants = this.#once.get(sessionId);
+    if (grants === undefined) return () => undefined;
+    let consumed = false;
+    for (const id of accounts) {
+      if (grants.get(id)?.botSlug === botSlug) consumed = grants.delete(id) || consumed;
+    }
+    if (grants.size === 0) this.#once.delete(sessionId);
+    return consumed ? () => this.#changed() : () => undefined;
   }
 
   async remove(accountId: string): Promise<boolean> {
@@ -469,12 +568,34 @@ export class ConnectorService {
     if (held.length > 0 || before > 0) this.#changed();
   }
 
-  forBot(botSlug: string): BotConnector[] {
+  forBot(botSlug: string, scope?: ConnectorSessionScope): BotConnector[] {
     const grants = this.#store.grants(botSlug);
+    const temporary = scope === undefined ? undefined : this.#once.get(scope.sessionId);
     return this.#store.accounts().flatMap((account) => {
-      const granted = connectorAccess(grants, account.accountId);
+      const once = temporary?.get(account.accountId);
+      const assigned =
+        once?.botSlug === botSlug && once.revision === account.revision
+          ? [...grants, once]
+          : grants;
+      const granted = connectorAccess(assigned, account.accountId);
       if (granted === undefined) return [];
-      const access = account.provider === 'mcp' ? (account.access ?? granted) : granted;
+      const signedIn = account.provider === 'mcp' ? (account.access ?? granted) : granted;
+      const access =
+        scope?.ceiling === undefined
+          ? signedIn
+          : connectorAccess(
+              [
+                {
+                  botSlug,
+                  accountId: account.accountId,
+                  access: signedIn,
+                  grantedAt: account.createdAt,
+                },
+              ],
+              account.accountId,
+              scope.ceiling,
+            );
+      if (access === undefined) return [];
       return [
         {
           accountId: account.accountId,
@@ -489,6 +610,41 @@ export class ConnectorService {
     });
   }
 
+  explainGrant(botSlug: string, accountId: string) {
+    const account = this.account(accountId);
+    if (account === undefined)
+      throw new ConnectorError('not-found', 'The App connection does not exist.');
+    const grant = this.#store.grants(botSlug).find((record) => record.accountId === accountId);
+    const effective = this.forBot(botSlug).find(
+      (connector) => connector.accountId === accountId && connector.status === 'active',
+    );
+    const source =
+      account.provider === 'mcp' && account.access !== undefined ? 'account-sign-in' : 'bot-grant';
+    const permissionsSource =
+      grant === undefined ? 'no-bot-grant' : effective === undefined ? 'account-inactive' : source;
+    const { read, write, grant: manage } = connectorCapabilities(accountId);
+    return {
+      botSlug,
+      accountId,
+      accountStatus: account.status,
+      storedAccess: grant?.access ?? null,
+      effectiveAccess: effective?.access ?? null,
+      permissions: [
+        {
+          capability: read,
+          allowed: effective !== undefined,
+          source: permissionsSource,
+        },
+        {
+          capability: write,
+          allowed: effective?.access === 'write',
+          source: permissionsSource,
+        },
+        { capability: manage, allowed: false, source: 'host-owner-only' },
+      ],
+    };
+  }
+
   available(): ConnectorAccountRecord[] {
     return this.#store.accounts();
   }
@@ -497,9 +653,60 @@ export class ConnectorService {
     return this.#store.account(accountId);
   }
 
-  async session(botSlug: string): Promise<BotConnectorSession | undefined> {
+  requestedAccount(args: unknown): ConnectorAccountRecord | undefined {
+    if (typeof args !== 'object' || args === null) return undefined;
+    const { account_id: accountId, service } = args as Record<string, unknown>;
+    if (typeof accountId === 'string' && accountId !== '') return this.account(accountId);
+    if (typeof service !== 'string') return undefined;
+    const active = this.#store
+      .accounts()
+      .filter((account) => account.service === service && account.status === 'active');
+    return active.length === 1 ? active[0] : undefined;
+  }
+
+  requestPreview(botSlug: string, args: unknown): ConnectorRequestPreview | undefined {
+    if (typeof args !== 'object' || args === null) return undefined;
+    const source = args as Record<string, unknown>;
+    const account = this.requestedAccount(args);
+    const service = account?.service ?? source['service'];
+    if (typeof service !== 'string' || service === '') return undefined;
+    const reason = typeof source['reason'] === 'string' ? source['reason'].slice(0, 500) : '';
+    const asked = source['access'] === 'write' ? 'write' : 'read';
+    return {
+      service,
+      name: this.appName(service),
+      access: account?.provider === 'mcp' ? (account.access ?? asked) : asked,
+      reason,
+      ...(account === undefined
+        ? {}
+        : {
+            account: {
+              accountId: account.accountId,
+              label: account.label,
+              ...(account.identity === undefined ? {} : { identity: account.identity }),
+              holder: account.holderSlug === botSlug ? ('bot' as const) : ('shared' as const),
+            },
+          }),
+    };
+  }
+
+  onceGrants(botSlug: string): Array<{ accountId: string; access: ConnectorAccess }> {
+    const found = new Map<string, ConnectorAccess>();
+    for (const grants of this.#once.values())
+      for (const grant of grants.values()) {
+        if (grant.botSlug !== botSlug) continue;
+        if (this.account(grant.accountId)?.revision !== grant.revision) continue;
+        if (found.get(grant.accountId) !== 'write') found.set(grant.accountId, grant.access);
+      }
+    return [...found].map(([accountId, access]) => ({ accountId, access }));
+  }
+
+  async session(
+    botSlug: string,
+    scope?: ConnectorSessionScope,
+  ): Promise<BotConnectorSession | undefined> {
     const pinned: Record<string, string[]> = {};
-    for (const connector of this.forBot(botSlug)) {
+    for (const connector of this.forBot(botSlug, scope)) {
       if (connector.status !== 'active' || connector.provider !== 'composio') continue;
       const externalId = this.#store.account(connector.accountId)?.externalId;
       if (externalId === undefined) continue;
@@ -508,7 +715,11 @@ export class ConnectorService {
     if (Object.keys(pinned).length === 0) return undefined;
     for (const ids of Object.values(pinned)) ids.sort();
     const signature = JSON.stringify(Object.entries(pinned).sort(([a], [b]) => a.localeCompare(b)));
-    const cached = this.#sessions.get(botSlug);
+    const sessionKey =
+      scope !== undefined && (this.#once.has(scope.sessionId) || scope.ceiling !== undefined)
+        ? JSON.stringify([botSlug, scope.sessionId])
+        : botSlug;
+    const cached = this.#sessions.get(sessionKey);
     if (cached?.signature === signature) return cached.session;
     const session = (async () => {
       const config = await this.#readConfig().catch(() => undefined);
@@ -522,9 +733,9 @@ export class ConnectorService {
         signature: `${signature}#${createHash('sha256').update(config.apiKey).digest('hex').slice(0, 16)}`,
       };
     })();
-    this.#sessions.set(botSlug, { signature, session });
+    this.#sessions.set(sessionKey, { signature, session });
     session.catch(() => {
-      if (this.#sessions.get(botSlug)?.session === session) this.#sessions.delete(botSlug);
+      if (this.#sessions.get(sessionKey)?.session === session) this.#sessions.delete(sessionKey);
     });
     return session;
   }

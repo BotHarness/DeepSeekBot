@@ -9,6 +9,7 @@ import { channelDestination, navigateChannel } from '../../src/ui/shell/channel-
 import {
   answerQuestion,
   decideApproval,
+  decideConnectorRequest,
   grantRequestPort,
   loadApproval,
   loadQuestion,
@@ -72,6 +73,11 @@ export default function InboxItemScreen() {
             load: () => loadApproval(client, ref),
             decide: async (outcome: ApprovalChoice) => {
               const result = await decideApproval(client, ref, outcome);
+              void inbox?.refresh();
+              return result;
+            },
+            decideConnector: async (choice: Parameters<typeof decideConnectorRequest>[2]) => {
+              const result = await decideConnectorRequest(client, ref, choice);
               void inbox?.refresh();
               return result;
             },

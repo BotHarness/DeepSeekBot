@@ -12,6 +12,9 @@ import type {
 } from '../../workspaces/approval-reviewer.js';
 import type { ToolApprovalActor } from '../../workspaces/tool-approval-actor.js';
 import type { ToolEffects } from '../../workspaces/tool-effects.js';
+import type { ConnectorRequestPreview } from '../../connectors/service.js';
+
+export type { ConnectorRequestPreview };
 
 export type ToolApprovalOriginQuery = {
   sessionId: Agent['session']['id'];
@@ -47,6 +50,7 @@ export interface ToolApprovalRequestCard {
   input: string;
   externalDecision?: 'operation' | 'web-only' | 'each-use';
   botCreatePreview?: BotCreatePreview;
+  connectorRequest?: ConnectorRequestPreview;
   allowAlways?: boolean;
 }
 

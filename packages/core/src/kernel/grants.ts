@@ -47,3 +47,15 @@ export function resolveGrants<Capability extends string, Source extends GrantSou
     sources: [...sources],
   };
 }
+
+export function narrow<Capability extends string, Source>(
+  resolved: ResolvedGrants<Capability, Source>,
+  ceiling: readonly NoInfer<Capability>[],
+): ResolvedGrants<Capability, Source> {
+  const allowed = new Set(ceiling);
+  return {
+    ...resolved,
+    granted: resolved.granted.filter((capability) => allowed.has(capability)),
+    delegable: resolved.delegable.filter((capability) => allowed.has(capability)),
+  };
+}

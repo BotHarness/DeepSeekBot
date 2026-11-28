@@ -279,6 +279,15 @@ _Avoid_: project, multi-root folder, group
 A durable, revocable, application-defined authorization for one PersonaBot and one resolved Workspace. Its Orchestrator may read that Workspace and may write it only when the Human explicitly enables Orchestrator write access; an Assignment selected under the Grant may read and write it. The Grant is neither a DSH Workspace nor a per-Assignment prompt.
 _Avoid_: Service Grant, Workspace, one-time approval, cwd inference
 
+**Connector**:
+A Host-level source of tools for an external service. A Connector can have multiple signed-in accounts.
+
+**Connector Account**:
+One signed-in identity on a Connector, with its own label, holder, and reference to credentials. Each Bot receives access to specific accounts.
+
+**Account Grant**:
+A revocable authorization for one PersonaBot to use one Connector Account. Read and Write permissions govern use, and the account’s grant capability governs who can authorize it.
+
 **Tool Approval Rule**:
 A revocable instruction, explicitly saved by the Web Human or a currently authorized external reviewer, to answer future DSH approval requests automatically for one PersonaBot role and Workspace Grant scope. An exact rule matches the native tool name and complete input; an all-opaque rule covers every opaque native tool in that scope. An external reviewer's rule depends on that original pairing and current approval/rule-saving authority; loss disables it rather than transferring it to a later pairing. Each matching call still receives its own DSH approval decision and audit event.
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity

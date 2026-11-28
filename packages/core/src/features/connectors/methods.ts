@@ -1,4 +1,8 @@
 import { asObject, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
+import type { ChannelStore } from '../../channels/store.js';
+import type { HumanContext } from '../../humans/context.js';
+import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
+import { connectorCatalogFor } from '../../connectors/mount.js';
 import {
   ConnectorError,
   type BotConnector,
@@ -11,6 +15,8 @@ import type { ConnectorAccountRecord } from '../../connectors/store.js';
 
 export interface ConnectorsBridgeDeps {
   connectors?: ConnectorService;
+  channels: Pick<ChannelStore, 'message'>;
+  toolApproval?: Pick<ChannelToolApproval, 'decide'>;
   registry: { get(slug: string): { displayName: string } | undefined };
 }
 
@@ -26,6 +32,11 @@ export type ConnectorsBridgeMethods = {
   ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url?: string }>>;
   connectorRefresh(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorSearch(payload: unknown): Promise<BridgeResult<ConnectorAppSearch>>;
+  connectorCatalog(payload: unknown): Promise<BridgeResult<ReturnType<typeof connectorCatalogFor>>>;
+  connectorGrantExplain(
+    payload: unknown,
+  ): Promise<BridgeResult<ReturnType<ConnectorService['explainGrant']>>>;
+  connectorRequestDecide(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
   connectorLogos(payload: unknown): Promise<BridgeResult<{ logos: Record<string, string> }>>;
   connectorMcpSearch(payload: unknown): Promise<BridgeResult<McpAppSearch>>;
   connectorMcpAdd(
@@ -34,10 +45,12 @@ export type ConnectorsBridgeMethods = {
   connectorMcpFinish(payload: unknown): Promise<BridgeResult<{ account: ConnectorAccountRecord }>>;
   connectorGrantSet(
     payload: unknown,
-  ): BridgeResult<{ changed: boolean; connectors: BotConnector[] }>;
+  ): BridgeResult<{ changed: boolean; connectors: BotConnector[]; once: OnceGrant[] }>;
   connectorAccountRemove(payload: unknown): Promise<BridgeResult<{ removed: boolean }>>;
-  botConnectors(payload: unknown): BridgeResult<{ connectors: BotConnector[] }>;
+  botConnectors(payload: unknown): BridgeResult<{ connectors: BotConnector[]; once: OnceGrant[] }>;
 };
+
+type OnceGrant = ReturnType<ConnectorService['onceGrants']>[number];
 
 function failure(error: unknown): BridgeResult<never> {
   if (!(error instanceof ConnectorError)) throw error;
@@ -77,6 +90,7 @@ const missing: BridgeResult<never> = {
 export function createConnectorsBridgeMethods(
   deps: ConnectorsBridgeDeps,
   isHostOwner: () => boolean,
+  human: HumanContext,
 ): ConnectorsBridgeMethods {
   const guarded = async <T>(
     run: (service: ConnectorService) => Promise<T>,
@@ -134,6 +148,62 @@ export function createConnectorsBridgeMethods(
       if (typeof query !== 'string' || (cursor !== undefined && typeof cursor !== 'string'))
         return Promise.resolve(invalidInput('query and an optional cursor must be strings'));
       return guarded((service) => service.searchApps(query, cursor));
+    },
+    async connectorCatalog(payload) {
+      const { slug, query = '' } = asObject(payload);
+      if (typeof slug !== 'string' || typeof query !== 'string')
+        return invalidInput('slug and an optional query are required');
+      return guarded(async (service) => {
+        if (deps.registry.get(slug) === undefined)
+          throw new ConnectorError('not-found', `Unknown PersonaBot: ${slug}`);
+        const [view, found] = await Promise.all([
+          service.view(),
+          service.searchApps(query).catch(() => undefined),
+        ]);
+        return connectorCatalogFor(service, slug, view.configured, query, found?.apps);
+      });
+    },
+    async connectorGrantExplain(payload) {
+      const { slug, accountId } = asObject(payload);
+      if (typeof slug !== 'string' || typeof accountId !== 'string')
+        return invalidInput('slug and accountId are required');
+      return guarded(async (service) => {
+        if (deps.registry.get(slug) === undefined)
+          throw new ConnectorError('not-found', `Unknown PersonaBot: ${slug}`);
+        return service.explainGrant(slug, accountId);
+      });
+    },
+    async connectorRequestDecide(payload) {
+      if (!isHostOwner()) return forbidden;
+      const { channelId, messageId, choice } = asObject(payload);
+      if (
+        typeof channelId !== 'string' ||
+        typeof messageId !== 'string' ||
+        (choice !== 'once' && choice !== 'persistent' && choice !== 'deny')
+      )
+        return invalidInput(
+          'channelId, messageId and choice (once, persistent or deny) are required',
+        );
+      const message = deps.channels.message(channelId, messageId);
+      const request = message?.toolApprovalRequest;
+      const broker = deps.toolApproval;
+      const service = deps.connectors;
+      if (
+        message?.author.kind !== 'bot' ||
+        request?.toolName !== 'connector_request' ||
+        broker === undefined ||
+        service === undefined
+      )
+        return invalidInput('The connector request is not available.');
+      const slug = message.author.slug;
+      const decide = () =>
+        broker.decide(human, slug, messageId, choice === 'deny' ? 'rejected' : 'allowed-once');
+      const accepted = await (choice === 'once'
+        ? service.decideOnce(request.sessionId, request.callId, decide)
+        : decide());
+      return accepted
+        ? { ok: true, value: { accepted: true } }
+        : invalidInput('The connector request is no longer pending.');
     },
     connectorLogos(payload) {
       const services = asObject(payload)['services'];
@@ -207,7 +277,11 @@ export function createConnectorsBridgeMethods(
         const changed = deps.connectors.grant(slug, accountId, access ?? undefined);
         return {
           ok: true,
-          value: { changed, connectors: deps.connectors.forBot(slug) },
+          value: {
+            changed,
+            connectors: deps.connectors.forBot(slug),
+            once: deps.connectors.onceGrants(slug),
+          },
         };
       } catch (error) {
         return failure(error);
@@ -231,7 +305,10 @@ export function createConnectorsBridgeMethods(
           ok: false,
           error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` },
         };
-      return { ok: true, value: { connectors: deps.connectors.forBot(slug) } };
+      return {
+        ok: true,
+        value: { connectors: deps.connectors.forBot(slug), once: deps.connectors.onceGrants(slug) },
+      };
     },
   };
 }
