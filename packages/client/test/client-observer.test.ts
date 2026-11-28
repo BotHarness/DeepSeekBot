@@ -130,6 +130,23 @@ describe('early real Client diagnostic observer', () => {
     });
   });
 
+  it('installs the serialized observer on HTTP without the native UUID method', () => {
+    const original = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+    Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+    try {
+      window.eval(clientObserverScript());
+      expect(observer().snapshot()).toMatchObject({
+        attempt: expect.stringMatching(
+          /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/,
+        ),
+        events: [{ code: 'observer-installed' }],
+      });
+    } finally {
+      if (original === undefined) Reflect.deleteProperty(crypto, 'randomUUID');
+      else Object.defineProperty(crypto, 'randomUUID', original);
+    }
+  });
+
   it('requires the real visible committed navigation and keeps failure sticky', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import * as stylex from '@stylexjs/stylex';
 import { rosterStyles } from './ds/roster-styles.js';
 import { Icon } from './ds/icon.js';
@@ -414,7 +415,7 @@ export function CreateChannelModal({
         previous?.name === trimmed && previous.selection === selection ? previous : undefined;
       const plan = retry?.plan ?? splitInitialMembers(members ? selected : []);
       if (!created.current) {
-        const operationKey = retry?.key ?? crypto.randomUUID();
+        const operationKey = retry?.key ?? createBrowserUuid();
         created.current =
           (await onCreate(
             trimmed,

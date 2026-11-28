@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 export const CLIENT_LOG_ENDPOINT = './api/botharness/client-log';
 export const DIAGNOSTIC_LOGS_ENDPOINT = './api/botharness/diagnostic-logs';
 
@@ -207,7 +208,7 @@ export interface ClientLogRecorderOptions {
 
 function uuid(win: (Window & typeof globalThis) | undefined): string {
   try {
-    if (win?.crypto?.randomUUID) return win.crypto.randomUUID();
+    return createBrowserUuid(win?.crypto);
   } catch {}
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }

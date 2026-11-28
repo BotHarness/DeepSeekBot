@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { PointerMenu } from './ds/pointer-menu.js';
@@ -223,7 +224,7 @@ function MemoryEntryForScope({
         channelId,
         sha: restoreForm.sha,
         expectedHead: graph.head,
-        restoreId: crypto.randomUUID(),
+        restoreId: createBrowserUuid(),
         ...(restoreForm.name.trim() === '' ? {} : { name: restoreForm.name.trim() }),
       });
       setRestored({
@@ -251,7 +252,7 @@ function MemoryEntryForScope({
         path: file.path,
         body: draft,
         expectedHead: file.head,
-        editId: crypto.randomUUID(),
+        editId: createBrowserUuid(),
       });
       memoryRequestGeneration.current += 1;
       const savedFile = { ...file, body: draft, head: commit.sha };
@@ -280,7 +281,7 @@ function MemoryEntryForScope({
       const result = await actions.memoryRepair({
         channelId,
         expectedHead: snapshot.head,
-        repairId: crypto.randomUUID(),
+        repairId: createBrowserUuid(),
       });
       memoryRequestGeneration.current += 1;
       invalidateMemory(cache);

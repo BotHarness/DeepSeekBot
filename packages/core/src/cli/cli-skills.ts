@@ -81,6 +81,11 @@ export const SKILL_COMMANDS = [
       'read one Marketplace Skill with its SKILL.md, files, scripts and scan findings / 查看市场 Skill 详情: <id>',
   },
   {
+    command: 'skills-added',
+    description:
+      'list the Marketplace Skills already added to Bots you can edit, and globally for the Host owner, as the Marketplace Yours section shows them / 列出已添加的市场 Skill',
+  },
+  {
     command: 'skills-add',
     description:
       "add a Marketplace Skill to Bots' Memory Repositories or globally as a Host Skill / 把市场 Skill 添加到 Bot 或全局: skills-add <id> (--bot <slug>[,<slug>...] | --global) [--on-conflict replace|rename]; without --confirm it prints the review (scripts, scan findings, name conflicts) and changes nothing",
@@ -148,6 +153,10 @@ export async function runSkillCommand(
     return (await connect())('marketplaceSkillDetail', { id: rest[0] });
   }
   if (command === 'skills-add') return addSkill(rest, values, connect);
+  if (command === 'skills-added') {
+    if (rest.length !== 0) usage('skills-added takes no arguments.');
+    return (await connect())('marketplaceSkillAdded', {});
+  }
   if (command === 'skills-memory') {
     if (rest.length !== 0 || !bot)
       usage('skills-memory takes --bot <slug> and no positional arguments.');

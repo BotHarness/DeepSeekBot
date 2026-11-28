@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 export const WINDOW_ZOOM_KEY = 'botharness:window-zoom:v1';
 export const ZOOM_LEVELS = Array.from({ length: 17 }, (_, index) => index - 8);
 export const zoomPercent = (level: number): string => `${Math.round(100 * 1.2 ** level)}%`;
@@ -86,7 +87,7 @@ export class WindowZoom {
   constructor(
     private storage: ZoomStorage | undefined,
     private apply: (level: number) => void,
-    private revision: () => string = () => crypto.randomUUID(),
+    private revision: () => string = () => createBrowserUuid(),
   ) {
     this.refresh();
   }

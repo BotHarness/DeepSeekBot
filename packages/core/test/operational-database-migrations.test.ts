@@ -74,7 +74,10 @@ describe('operational database owner', () => {
       ).run('pair', 'ada', 'binding', 'ou_alice', 'management', 'approved', pairing);
     });
     prior.close();
-    const upgraded = mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const groupPlan = defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 79),
+    );
+    const upgraded = mountOperationalDatabase({ dshHome, schemaPlan: groupPlan });
     expect(upgraded.mode).toBe('ready');
     const read = attachOperationalModule(upgraded, 'messaging');
     expect(
@@ -136,6 +139,7 @@ describe('operational database owner', () => {
       expect(readBindings(upgraded)).toEqual(
         before.map((row) => ({
           ...row,
+          contact_workspace_id: null,
           post_limit: 60,
           post_limit_revision: 1,
           group_interactions: null,
@@ -160,6 +164,7 @@ describe('operational database owner', () => {
       expect(readBindings(reopened)).toEqual(
         before.map((row) => ({
           ...row,
+          contact_workspace_id: null,
           post_limit: 60,
           post_limit_revision: 1,
           group_interactions: null,

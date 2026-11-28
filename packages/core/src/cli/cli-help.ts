@@ -149,6 +149,10 @@ Usage:
   tobs telemetry-set (--enabled | --disabled)
   tobs git-status
   tobs git-install
+  tobs external-roles
+  tobs external-role-create --input-stdin
+  tobs external-role-update --input-stdin
+  tobs external-contact-access <bot-id> --binding <binding-id> --actor <actor-id>
   tobs pairing-list <id>
   tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ... [--delegable]] [--confirm]
   tobs workspace-options

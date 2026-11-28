@@ -1,7 +1,7 @@
 import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   SecretCommandRefusal,
@@ -133,11 +133,42 @@ describe('Host-run secret command consumer', () => {
         tmpdir(),
         [],
         signal,
-        300,
+        { timeoutMs: 300 },
       ),
     ).rejects.toThrow('did not finish within 0.3 seconds');
+    const log = vi.fn();
     await expect(
-      runSecretCommand(['bh-no-such-program-1572'], secretCommandBaseEnv(), tmpdir(), [], signal),
+      runSecretCommand(['bh-no-such-program-1572'], secretCommandBaseEnv(), tmpdir(), [], signal, {
+        log,
+      }),
     ).rejects.toThrow(SecretCommandRefusal);
+    expect(log).toHaveBeenCalledWith('execution-spawn-failed', {
+      consumer: 'command-v1',
+      program: 'bh-no-such-program-1572',
+      errorCode: 'ENOENT',
+    });
+  });
+
+  it('starts an Electron-backed sandbox runner as Node with the explicit environment', async () => {
+    const versions = { ...process.versions, electron: '42.4.0' };
+    const original = Object.getOwnPropertyDescriptor(process, 'versions');
+    if (original === undefined) throw new Error('missing process.versions');
+    Object.defineProperty(process, 'versions', { ...original, value: versions });
+    try {
+      const result = await runSecretCommand(
+        [
+          process.execPath,
+          '-e',
+          'process.stdout.write([process.env.ELECTRON_RUN_AS_NODE, process.env.TOOL_MARKER].join(":"))',
+        ],
+        { SystemRoot: process.env.SystemRoot, TOOL_MARKER: 'fixture' },
+        tmpdir(),
+        [],
+        new AbortController().signal,
+      );
+      expect(result).toMatchObject({ successful: true, stdout: '1:fixture' });
+    } finally {
+      Object.defineProperty(process, 'versions', original);
+    }
   });
 });

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { validMaterials, type AppearanceMaterialOverrides } from './appearance-materials.js';
 import {
   applyPanelPatch,
@@ -169,7 +170,7 @@ export class Appearance {
   constructor(
     private storage: AppearanceStorage | undefined,
     private system: () => AppearanceMode,
-    private revision: () => string = () => crypto.randomUUID(),
+    private revision: () => string = () => createBrowserUuid(),
   ) {
     this.#snapshot = { config: parseAppearance(null), mode: system() };
     this.refresh();

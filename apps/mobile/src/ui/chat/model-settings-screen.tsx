@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Keyboard, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import {
@@ -60,7 +60,7 @@ import { subChoiceKey } from './sub-choice-text';
 import type { SubChoice } from '@botharness/host-client/preset-sub';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
-import { SearchField } from '../primitives/search-field';
+import { dismissSheetSearchKeyboard, SheetSearchField } from '../primitives/sheet-search-field';
 import { SettingsGroupItem, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { SheetPage } from '../primitives/sheet-page';
 import { TextField } from '../primitives/text-field';
@@ -256,7 +256,7 @@ export function ModelsView({
         () => setModelRoute(client, scope, value, route),
         () => {
           if (stay) return;
-          Keyboard.dismiss();
+          dismissSheetSearchKeyboard();
           router.back();
         },
       );
@@ -277,7 +277,7 @@ export function ModelsView({
         () => setModelGroup(client, scope, value, group.id, effort),
         () => {
           if (stay) return;
-          Keyboard.dismiss();
+          dismissSheetSearchKeyboard();
           router.back();
         },
       );
@@ -428,7 +428,7 @@ export function ModelsView({
     };
     return frame(
       <>
-        <SearchField
+        <SheetSearchField
           value={query}
           inset={space.x5}
           placeholder={t.modelSettings.search}
@@ -548,7 +548,7 @@ export function ModelsView({
                                 await applyModelPreset(client, scope.slug, preset.id);
                               },
                               () => {
-                                Keyboard.dismiss();
+                                dismissSheetSearchKeyboard();
                                 router.back();
                               },
                             )

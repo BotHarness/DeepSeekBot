@@ -39,6 +39,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'marketplaceSkillAddCandidates',
   'marketplaceSkillReview',
   'marketplaceSkillAdd',
+  'marketplaceSkillAdded',
   ...MODEL_CONFIGURATION_METHODS,
   'botVisibility',
   'botVisibilitySet',

@@ -1,6 +1,7 @@
 import type {
   MarketplaceSkill,
   MarketplaceSkillAddCandidates,
+  MarketplaceSkillAddedList,
   MarketplaceSkillAddResult,
   MarketplaceSkillConflictChoice,
   MarketplaceSkillDetail,
@@ -53,6 +54,10 @@ export const marketplaceSkillRpc = {
 
   async marketplaceSkillDetail(id: string): Promise<MarketplaceSkillDetail> {
     return unwrapAsync(this.methods.marketplaceSkillDetail({ id }));
+  },
+
+  async marketplaceSkillAdded(): Promise<MarketplaceSkillAddedList> {
+    return unwrapAsync(this.methods.marketplaceSkillAdded({}));
   },
 
   marketplaceSkillAddCandidates(): MarketplaceSkillAddCandidates {

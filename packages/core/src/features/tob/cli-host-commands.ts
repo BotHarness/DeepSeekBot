@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { hostNodeEnv } from '../../execution/host-node-env.js';
 import type { PrepareTobOperation, TobCliCapability } from '../../kernel/tob-cli-operations.js';
 import { TobError } from '../../tob/service.js';
 
@@ -339,7 +340,7 @@ export function spawnHostCli(options: {
         pathToFileURL(modulePath).href,
       )};\nprocess.exitCode = await runBotCreateCli(process.argv.slice(1), { env: process.env, stdout: (text) => process.stdout.write(text + '\\n'), stderr: () => {}, readStdin: async () => { const chunks = []; for await (const chunk of process.stdin) chunks.push(chunk); return Buffer.concat(chunks).toString('utf8'); } });\n`;
       const child = spawn(process.execPath, ['--input-type=module', '-e', code, '--', ...argv], {
-        env,
+        env: hostNodeEnv(env),
         ...(cwd === undefined ? {} : { cwd }),
         stdio: ['pipe', 'pipe', 'ignore'],
         ...(signal === undefined ? {} : { signal }),

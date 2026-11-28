@@ -3,6 +3,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { hostNodeEnv } from '../execution/host-node-env.js';
 
 import {
   SecretCommandRefusal,
@@ -28,7 +29,9 @@ export const SECRET_MCP_LAUNCHER = [
   'const argv = process.argv.slice(1);',
   "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit', shell: false, windowsHide: true });",
   "for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => child.kill(signal));",
-  "child.on('error', () => process.exit(127));",
+  "child.on('error', (error) => {",
+  "  process.stderr.write('private-input ' + JSON.stringify({ phase: 'execution-spawn-failed', consumer: 'mcp-v1', program: argv[0], errorCode: error.code ?? error.name }) + '\\n', () => process.exit(127));",
+  '});',
   "child.on('exit', (code, signal) => process.exit(code === null ? (signal ? 1 : 0) : code));",
 ].join('\n');
 
@@ -198,12 +201,13 @@ export class SecretMcpServers {
     const tools = ctx.get('tools') as unknown as ToolRegistry | undefined;
     if (tools === undefined || plan.argv[0] === undefined)
       throw new Error('Native Tool Registry is unavailable');
+    const serverEnv = hostNodeEnv(env, plan.argv[0]);
     const fiber = ctx.plugin(mcpClient, {
       transport: 'stdio',
       serverName: plan.serverName,
       command: process.execPath,
       args: ['-e', SECRET_MCP_LAUNCHER, '--', ...plan.argv],
-      env: { ...env, [SECRET_MCP_KEEP]: Object.keys(env).join(',') },
+      env: hostNodeEnv({ ...serverEnv, [SECRET_MCP_KEEP]: Object.keys(serverEnv).join(',') }),
       cwd: plan.cwd,
       toolCallTimeoutMs: 60_000,
       failOnStartupError: true,

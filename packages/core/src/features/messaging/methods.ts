@@ -1,6 +1,11 @@
+import type {
+  ExternalContactAccess,
+  HostExternalRole,
+} from '@botharness/host-protocol/external-roles';
 import { asSlug, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { pairingReviewInput, type PairingRequest } from '../../messaging/pairing.js';
 import {
+  externalRoleChangeSchema,
   senderAccessInput,
   threadReceptionInput,
   groupReceptionInput,
@@ -97,6 +102,9 @@ export type MessagingBridgeMethods = {
     }>
   >;
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
+  externalRoles(): Promise<BridgeResult<{ roles: HostExternalRole[] }>>;
+  externalRoleChange(payload: unknown): Promise<BridgeResult<{ role: HostExternalRole }>>;
+  externalContactAccess(payload: unknown): Promise<BridgeResult<ExternalContactAccess>>;
   senderAccess(payload: unknown): Promise<BridgeResult<void>>;
   channelBridges(payload: unknown): Promise<BridgeResult<ChannelBridgeSnapshot>>;
   channelIngests(payload: unknown): Promise<BridgeResult<ConversationIngestSnapshot>>;
@@ -310,6 +318,34 @@ export function createMessagingBridgeMethods(
       return messagingCall(async (service) => ({
         delivery: await service.failureAlerts.retry(input.data.slug, input.data.id),
       }));
+    },
+    externalRoles() {
+      return messagingCall(async (service) => ({ roles: service.externalRoles() }));
+    },
+    externalRoleChange(payload) {
+      const input = externalRoleChangeSchema.safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid external role'));
+      if (
+        input.data.botScope?.kind === 'only' &&
+        input.data.botScope.botSlugs.some((slug) => !deps.registry.get(slug))
+      )
+        return Promise.resolve({
+          ok: false,
+          error: { code: 'bot-unavailable', message: 'bot-unavailable' },
+        });
+      return messagingCall(async (service) => ({ role: service.externalRoleChange(input.data) }));
+    },
+    externalContactAccess(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1).max(200),
+          bindingId: z.string().uuid(),
+          actorId: z.string().min(1).max(512),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid external contact'));
+      return messagingCall(async (service) => service.externalContactAccess(input.data));
     },
     senderAccess(payload) {
       const input = z

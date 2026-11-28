@@ -7,7 +7,7 @@
 - `packages/core/src/features/marketplace/**`
 - `packages/host-client/src/marketplace-avatars.ts`
 - `packages/client/src/client/marketplace-report.tsx`
-- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,market-skills,market-skill-dialog,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-all,market-yours,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,market-skills,market-skill-dialog,personabot-avatar-crop}.tsx`
 - `packages/host-protocol/src/marketplace-skill.ts`
 - `packages/core/src/cli/cli-skills.ts`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
@@ -92,6 +92,13 @@ The Worker indexes public repositories tagged `tobs-skill`; each folder with a `
 ### Read Skill rankings from the CLI
 
 With the Host pointed at a task-local Worker, run `deepseekbot market skills sections` before the daily job and expect three sections with empty entries. Seed listed Skills and receipts in both seven-day windows, then run the daily job. Compare each section's ordered Skills and scores with the corresponding `GET /v1/skills/sections/{section}` response. Run `deepseekbot market skills sections --section rising` and expect only Rising in the JSON array.
+
+## All tab, Yours and the wide view
+
+1. Point the Host at a task-local Marketplace (Worker or a stub serving `/v1/sections/hot`, `/v1/skills`, `/v1/skills/<id>` with uploaded files, and `/v1/avatars/sections/hot`). Add one Skill to a Bot and globally, and a second Skill to the Bot only, with `marketplaceSkillReview` and `marketplaceSkillAdd`. Seed one `connector_accounts` row with status `expired` and one `active`.
+2. Open the Marketplace. **全部 / All** is selected and **你的 / Yours** sits above the type sections: the expired connection with **Reconnect**, then each added Skill once with its targets (`Skill · Helper、全局`). The active connection is absent. Compare the Skills with `deepseekbot skills added`. Clicking a Skill row opens its detail dialog; a Host with nothing added and no broken connection shows no Yours section.
+3. In the narrow Side column each grid is one column and the scrolling page's `scrollWidth` equals its `clientWidth`. Drag the Side column sash to about 900px: the type grids lay out three columns and Yours spans the width.
+4. The Skills tab shows **Hot**, **New** and **Rising** above **All Skills** only when the Host's `marketplaceSkillSections` returns entries; an older Host without it, or empty rankings, shows the plain list. Searching hides the rankings.
 
 ## Gotchas
 

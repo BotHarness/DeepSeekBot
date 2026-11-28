@@ -9,9 +9,7 @@ export type AppearanceMaterials = Record<'header' | 'body', AppearanceMaterial>;
 export type AppearanceMaterialOverrides = Partial<
   Record<'header' | 'body', Partial<AppearanceMaterial>>
 >;
-export type MaterialLayers = Readonly<
-  Record<'--tobs-layer-raised' | '--tobs-layer-canvas', string>
->;
+export type MaterialLayers = Readonly<Record<'--tobs-layer-canvas', string>>;
 
 export function appearanceMaterials(
   config: AppearanceModeConfig,
@@ -20,7 +18,7 @@ export function appearanceMaterials(
 ): AppearanceMaterials {
   return {
     header: {
-      color: layers['--tobs-layer-raised'],
+      color: layers['--tobs-layer-canvas'],
       opacity: 100,
       blur: 0,
       ...config.materials?.header,

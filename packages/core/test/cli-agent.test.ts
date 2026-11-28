@@ -76,6 +76,7 @@ describe('scoped Tob CLI', () => {
     ],
     ['skills', 'delete', 'skills-delete', ['listing', '--confirm']],
     ['skills', 'mine', 'skills-mine', []],
+    ['skills', 'added', 'skills-added', []],
     ['engine', 'list', 'engine-list', []],
     ['engine', 'status', 'engine-status', []],
     ['engine', 'accounts', 'engine-accounts', []],

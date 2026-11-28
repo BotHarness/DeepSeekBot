@@ -69,6 +69,7 @@ export function qqMention(id: string): MessagingInboundEvent {
 export async function fixture(
   platform: Platform = 'feishu',
   targets: Awaited<ReturnType<DshImOutboundService['listTargets']>> = [],
+  slackTeamId?: string,
 ) {
   const home = createTempRoot('botharness-default-traffic-');
   const runs: OrchestratorAgentRun[] = [];
@@ -102,7 +103,11 @@ export async function fixture(
       version: 1,
       channel: platform,
       botId,
-      account: { fingerprint, name: 'Support Lark app' },
+      account: {
+        fingerprint,
+        name: 'Support Lark app',
+        ...(slackTeamId ? { teamId: slackTeamId } : {}),
+      },
       connected: true,
       capabilities: [
         ...(platform === 'qq' ? [] : ['proactive-text-checked', 'ordinary-text-consumer']),

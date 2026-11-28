@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import type { HostClient } from '@botharness/host-client/client';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
 import {
@@ -28,7 +29,7 @@ export function localCreationOwner(
     'createBot' | 'openCreatedBot' | 'createGroup' | 'previewBotImport' | 'teamCall'
   >,
   lifecycle: { submitted(): void; committed(): void },
-  key: () => string = () => crypto.randomUUID(),
+  key: () => string = () => createBrowserUuid(),
 ) {
   let botInput: CreatePersonaBotInput | undefined;
   let botReceipt: CreatedBot | undefined;
@@ -90,7 +91,7 @@ export function remoteCreationOwner({
   open,
   committed = () => {},
   submitted = () => {},
-  key = () => crypto.randomUUID(),
+  key = () => createBrowserUuid(),
 }: {
   hostId: string;
   client: Pick<HostClient, 'refresh'> & {
