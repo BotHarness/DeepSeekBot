@@ -42,9 +42,8 @@ For Discord and Lark message and reaction tests, use the signed-in Codex in-app 
 ## Pull requests
 
 - Follow [issue trace](docs/agents/agent-work-trace.md) for claims, commit trailers and handoffs. Record every contributing harness and served model in provenance labels.
-- Use the [`visual-pr` skill](.agents/skills/visual-pr/SKILL.md), record [merge risk](docs/agents/pr-merge-risk.md), and use [issue closing and stack rules](docs/agents/pr-merge-risk.md#issue-closing-and-stacked-prs). Use `Closes #N` for completed scope and `Refs #N` for partial work.
-- After the merge queue is enabled, queue eligible PRs for `main` with `gh pr merge <n> --merge --match-head-commit <sha>` using the verified PR head. Confirm the PR state is `MERGED` before reporting completion.
-- Follow the [merge gate](docs/agents/model-tiers.md#merge-gate-by-task-tier). Leave `needs-human` PRs for Vain to approve and queue. GitHub's merge queue does not enforce labels.
+- Use [visual-pr](.agents/skills/visual-pr/SKILL.md) and [merge risk](docs/agents/pr-merge-risk.md). Use `Closes #N` for done, `Refs #N` for partial work. Follow the linked stack rules.
+- [Merge gate](docs/agents/model-tiers.md#merge-gate-by-task-tier). Queue via `gh pr merge <n> --merge --match-head-commit <sha>`. Confirm `MERGED`. Vain approves and queues `needs-human` PRs.
 - [CI plan](docs/agents/development-scripts.md#ci-test-plan). PRs default to affected tests. Add `ci:full` only for known gaps. Classify new inputs in `scripts/ci-plan.mjs`.
 - For a visible UI change, follow [PR visual evidence](docs/agents/pr-ui-visual-evidence.md) and publish new review artifacts through `pnpm evidence:publish` to R2.
 - For Team mode authority changes, run the [head-bound security suite](docs/agents/development-scripts.md#team-mode-security-suite).
