@@ -2,9 +2,13 @@
 
 ## Sources
 
+- `packages/computer/src/desktop-http.ts`
+- `packages/computer/src/desktop-view.ts`
+- `packages/computer/src/tool/driver.ts`
 - `packages/computer/src/providers/docker.ts`
 - `packages/computer/src/client/index.tsx`
 - `scripts/computer-lifecycle-report.mjs`
+- `scripts/e2e-computer-lifecycle.mjs`
 
 ## Terms
 
@@ -67,10 +71,11 @@ Profile Patch selecting Container, a unique container/volume, a free loopback po
 Local Computer. Use a fresh name for every independent lifecycle attempt; the path expects
 its container to be absent initially. Keep failed attempts and their first failure files.
 
-The first `computer-frame` reads after Start can refuse with `capture-failed` /
-`Connection closed` while the Cua driver is installed into the new container (about
-10–20 s). The runner retries only that refusal for up to 120 s and keeps every attempt in
-`frame-attempts.json`; any other refusal fails immediately.
+The Host checks the upstream Selkies status before the panel mounts the viewer.
+A `computer-frame` read made while the Cua driver installs or connects must return
+`preparing`. The runner tries the frame immediately and retries only that code for up
+to 120 seconds. Check `frame-attempts.json` for the actual refusals. If the first frame
+succeeds, that run did not exercise the preparation refusal.
 
 After the Web actions, existing `computer-status`, `computer-frame`,
 `computer-diagnostics` and `computer-logs --plugin computer` record the same Host capability.
@@ -118,11 +123,9 @@ recipe; agent visual inspection, CI, model, native-device and IM results remain 
   capture. Save status before and after the refused read to prove it did not start anything.
 - A test window without readable panel/frame evidence is not pass. Review the task marker,
   not only matching screenshot dimensions. Retain failed fixture preparation too.
-- The desktop web client inside the viewer iframe polls `viewer/api/status` and reconnects
-  `viewer/api/websockets` while the container boots and after Stop, producing 404/503 and
-  `[websockets] Error` console lines; after Stop the viewer document itself can reload into a 503 (#5274). The report tolerates only those viewer-path
-  entries during start, picture, frame and stop stages and records #5274 in `run.json`;
-  any Client page error or non-viewer failure still fails the row.
+- The panel removes the viewer before it issues Stop. The stopped observation must
+  contain no viewer iframe. Any Client console error or HTTP failure, including a
+  viewer status or websocket 404, fails the row.
 - The Tob welcome and four coach marks can appear late and switch the selected channel back
   to Tob. The runner waits for 3 s without coach marks and asserts the created Bot is selected
   before Access, Start, Authorize and Stop.

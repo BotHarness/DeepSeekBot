@@ -103,7 +103,9 @@ export function createComputerTargetRuntime(options: {
       await sync();
       running = false;
       try {
-        await active.provider.stop();
+        const stopping = active.provider.stop();
+        if (target === 'container') await Promise.all([stopping, active.driver.close()]);
+        else await stopping;
       } finally {
         options.onStop?.();
       }
@@ -138,6 +140,12 @@ export function createComputerTargetRuntime(options: {
     },
   };
   const driver: CuaDriver = {
+    prepareDesktop: () => {
+      requireCurrent();
+      return active.driver.prepareDesktop?.() ?? true;
+    },
+    desktopPreparation: () =>
+      isCurrent(revision) ? active.driver.desktopPreparation?.() : undefined,
     ensure: async (signal) => {
       requireCurrent();
       return active.driver.ensure(signal);

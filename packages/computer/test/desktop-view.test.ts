@@ -9,6 +9,8 @@ import {
   jpegEncoder,
   parseDesktopInput,
 } from '../src/desktop-view.js';
+import { createDesktopHandlers } from '../src/desktop-http.js';
+import { createComputerDiagnostics } from '../src/diagnostics.js';
 import { deferred } from './local-video-owner-fixture.js';
 
 const shot = (data: string) => ({
@@ -30,6 +32,62 @@ function fakeDriver(screens: string[]) {
     },
   };
 }
+
+it('refuses frame and paused input while the desktop driver prepares', async () => {
+  const driver = fakeDriver(['c2hvdA==']);
+  let ready = false;
+  const view = createDesktopView({
+    driver: { ...driver, prepareDesktop: () => ready },
+    isRunning: () => true,
+    encode: async () => undefined,
+  });
+  view.setPaused(true);
+  const input = { kind: 'key', key: 'Return', modifiers: [] } as const;
+  await expect(view.next(undefined)).rejects.toMatchObject({ code: 'preparing' });
+  await expect(view.input(input)).rejects.toMatchObject({ code: 'preparing' });
+  expect(driver.calls).toEqual([]);
+
+  ready = true;
+  await expect(view.next(undefined)).resolves.toMatchObject({ seq: 1 });
+  await expect(view.input(input)).resolves.toBeUndefined();
+});
+
+it('maps preparing frame and input refusals to HTTP 503 with Retry-After', async () => {
+  const driver = fakeDriver(['c2hvdA==']);
+  const desktopView = createDesktopView({
+    driver: { ...driver, prepareDesktop: () => false },
+    isRunning: () => true,
+  });
+  desktopView.setPaused(true);
+  const handlers = createDesktopHandlers({
+    json: (body, status = 200) => Response.json(body, { status }),
+    migratedLocal: () => false,
+    legacyLocalRefusal: () => new Response(null, { status: 409 }),
+    desktopView,
+    activity: { touch: () => undefined },
+    target: () => 'container',
+    parseBody: (request) => request.json(),
+    runtime: { isRunning: () => true },
+    toolProvider: { drain: async () => undefined },
+    diagnostics: createComputerDiagnostics(4),
+  });
+  const base = 'http://127.0.0.1/api/computer';
+  const responses = await Promise.all([
+    handlers.frame(new Request(base + '/frame')),
+    handlers.input(
+      new Request(base + '/input', {
+        method: 'POST',
+        body: JSON.stringify({ kind: 'key', key: 'Return' }),
+      }),
+    ),
+  ]);
+  for (const response of responses) {
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('1');
+    await expect(response.json()).resolves.toMatchObject({ ok: false, code: 'preparing' });
+  }
+  expect(driver.calls).toEqual([]);
+});
 
 describe('desktop view input', () => {
   it('accepts horizontal wheel input and carries it to the desktop driver', () => {

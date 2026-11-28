@@ -10,8 +10,6 @@ import {
   redactComputerEvidence,
   digest,
   computerProblems,
-  knownIssues,
-  knownViewerTransient,
   coverageRow,
   markdownRow,
 } from './computer-lifecycle-report.mjs';
@@ -464,7 +462,6 @@ try {
   const frameDeadline = Date.now() + 120_000;
   let frame;
   while (!frame) {
-    await new Promise((done) => setTimeout(done, 3000));
     if (Date.now() >= frameDeadline) {
       save('frame-attempts.json', frameAttempts);
       throw new Error('cli-computer-frame-driver-not-ready');
@@ -479,13 +476,13 @@ try {
       exitCode: read.exitCode,
       value: read.value,
     });
-    const driverInstalling =
-      read.value?.error?.code === 'capture-failed' &&
-      /Connection closed/u.test(read.value.error.message ?? '');
+    const driverPreparing = read.value?.error?.code === 'preparing';
     if (read.exitCode === 0 && Date.now() <= frameDeadline) frame = read.value;
-    else if (read.exitCode === 0 || !driverInstalling) {
+    else if (read.exitCode === 0 || !driverPreparing) {
       save('frame-attempts.json', frameAttempts);
       throw new Error(`cli-computer-frame-${read.value?.error?.code ?? 'failed'}`);
+    } else {
+      await new Promise((done) => setTimeout(done, 1000));
     }
   }
   save('frame-attempts.json', frameAttempts);
@@ -592,7 +589,6 @@ try {
       reason: run.reason,
       botId: run.botId ?? null,
     });
-  run.knownIssues = [...errors, ...httpErrors].some(knownViewerTransient) ? knownIssues : [];
   run.finishedAt = new Date().toISOString();
   writeFileSync(
     resolve(directory, 'run.json'),

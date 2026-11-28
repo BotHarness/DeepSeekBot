@@ -31,7 +31,12 @@ export type DesktopInput =
       modifiers: readonly ('alt' | 'ctrl' | 'meta' | 'shift')[];
     };
 
-export type DesktopViewRefusal = 'not-running' | 'not-paused' | 'capture-failed' | 'input-failed';
+export type DesktopViewRefusal =
+  | 'not-running'
+  | 'not-paused'
+  | 'preparing'
+  | 'capture-failed'
+  | 'input-failed';
 
 export class DesktopViewError extends Error {
   constructor(
@@ -250,7 +255,7 @@ function untilAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T | un
 }
 
 interface DesktopFrameStreamOptions {
-  driver: Pick<CuaDriver, 'call'>;
+  driver: Pick<CuaDriver, 'call' | 'prepareDesktop'>;
   isRunning: () => boolean;
   scales?: () => boolean;
   intervalMs?: number;
@@ -282,6 +287,8 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
       const gap = lastStarted + intervalMs - now();
       if (gap > 0) await wait(gap);
       if (attempt !== revision) return undefined;
+      requireRunning();
+      requirePrepared();
       const capturedAt = now();
       lastStarted = capturedAt;
       captures += 1;
@@ -328,9 +335,18 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
       throw new DesktopViewError('not-running', 'The Computer is not running.');
   };
 
+  const requirePrepared = (): void => {
+    if (options.driver.prepareDesktop?.() === false)
+      throw new DesktopViewError(
+        'preparing',
+        'The desktop driver is preparing. Try again shortly.',
+      );
+  };
+
   return {
     async next(after: number | undefined, signal?: AbortSignal) {
       requireRunning();
+      requirePrepared();
       const attempt = revision;
       if (latest !== undefined && after !== undefined && latest.seq > after) return latest;
       const deadline = now() + waitMs;
@@ -345,6 +361,7 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
       return undefined;
     },
     requireRunning,
+    requirePrepared,
     requestFreshCapture() {
       lastStarted = 0;
     },
@@ -380,6 +397,7 @@ export function createDesktopView(
       frames.requireRunning();
       if (!isPaused())
         throw new DesktopViewError('not-paused', 'Pause the Bot before using the desktop.');
+      frames.requirePrepared();
       renewPause();
       if (input.kind === 'click') pointer = { x: input.x, y: input.y };
       const call = desktopInputCall(input, pointer);

@@ -8,6 +8,7 @@ export const cancelled = (signal: AbortSignal | undefined): boolean =>
 export function watchComputerStatus(
   observe: ObserveResource | undefined,
   refresh: (signal: AbortSignal) => Promise<void>,
+  waitingForViewer = false,
 ): () => void {
   const controller = new AbortController();
   let reading = false;
@@ -20,10 +21,15 @@ export function watchComputerStatus(
       reading = false;
     }
   };
-  const stop = observe?.('computer', read) ?? visibleInterval(() => void read(), 15_000);
-  if (observe === undefined) void read();
+  const stop = observe?.('computer', read);
+  const stopPoll =
+    waitingForViewer || stop === undefined
+      ? visibleInterval(() => void read(), waitingForViewer ? 1_000 : 15_000)
+      : undefined;
+  if (stop === undefined) void read();
   return () => {
     controller.abort();
-    stop();
+    stop?.();
+    stopPoll?.();
   };
 }

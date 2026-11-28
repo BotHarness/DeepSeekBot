@@ -6,6 +6,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { deferred } from './local-video-owner-fixture.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement } = await import('react');
@@ -630,6 +631,72 @@ describe('Computer entry Access Power control', () => {
       expect(running.container.querySelector('iframe')).not.toBeNull();
     } finally {
       await running.dispose();
+    }
+  });
+});
+
+describe('Computer viewer lifecycle', () => {
+  it('mounts the viewer only when the Host reports startup complete', async () => {
+    vi.useFakeTimers();
+    const entry = mountEntry(async () => ({ ok: true, value: {} }), 'ada');
+    let starting = true;
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        provider: 'docker',
+        probe: { available: true },
+        driverPreparation: 'preparing',
+        status: { state: 'running', phase: starting ? 'starting' : undefined },
+      }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      await entry.render();
+      expect(entry.container.querySelector('iframe')).toBeNull();
+      starting = false;
+      await act(async () => vi.advanceTimersByTimeAsync(1_000));
+      expect(entry.container.querySelector('iframe')).not.toBeNull();
+      const reads = fetcher.mock.calls.length;
+      await act(async () => vi.advanceTimersByTimeAsync(5_000));
+      expect(fetcher).toHaveBeenCalledTimes(reads);
+    } finally {
+      await entry.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('unmounts the iframe before issuing the Stop request', async () => {
+    const entry = mountEntry(async () => ({ ok: true, value: {} }), 'ada');
+    const stopping = deferred<Response>();
+    let frameAtStop: HTMLIFrameElement | null | undefined;
+    let state = 'running';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (url === './api/computer/stop') {
+          frameAtStop = entry.container.querySelector('iframe');
+          return stopping.promise;
+        }
+        return Response.json({
+          provider: 'docker',
+          probe: { available: true },
+          status: { state },
+        });
+      }),
+    );
+    try {
+      await entry.render();
+      expect(entry.container.querySelector('iframe')).not.toBeNull();
+      const stop = [...entry.container.querySelectorAll('button')].find((button) =>
+        button.textContent?.includes(t('entry.stop')),
+      );
+      expect(stop).toBeDefined();
+      await act(async () => stop?.click());
+      expect(frameAtStop).toBeNull();
+      expect(entry.container.querySelector('iframe')).toBeNull();
+    } finally {
+      state = 'stopped';
+      await act(async () => stopping.resolve(Response.json({ ok: true })));
+      await entry.dispose();
     }
   });
 });

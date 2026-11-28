@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { deferred } from './local-video-owner-fixture.js';
 
 import type { ComputerRuntimeRunner } from '../src/provider.js';
 import { createDockerComputerProvider } from '../src/providers/docker.js';
@@ -44,6 +45,33 @@ describe('Docker desktop readiness gate', () => {
     expect(attempts).toBeGreaterThanOrEqual(3);
     expect(provider.upstream()).toBeDefined();
     await expect(provider.status()).resolves.toMatchObject({ state: 'running' });
+  });
+
+  it('keeps the desktop unready while the viewer status returns 404', async () => {
+    const attempted = deferred<void>();
+    const retry = deferred<void>();
+    let statusRequests = 0;
+    const provider = createDockerComputerProvider({
+      runner: stoppedRunner(),
+      async fetchImpl(input) {
+        if (!String(input).endsWith('/api/status')) return new Response(null, { status: 200 });
+        statusRequests += 1;
+        attempted.resolve();
+        return new Response(null, { status: statusRequests === 1 ? 404 : 200 });
+      },
+      sleepImpl: () => retry.promise,
+    });
+    const starting = provider.start();
+    try {
+      await Promise.race([starting, attempted.promise]);
+      expect(statusRequests).toBe(1);
+      expect(provider.upstream()).toBeUndefined();
+      await expect(provider.status()).resolves.toMatchObject({ phase: 'starting' });
+    } finally {
+      retry.resolve();
+      await starting;
+    }
+    expect(statusRequests).toBe(2);
   });
 
   it('gates a freshly created container the same way', async () => {

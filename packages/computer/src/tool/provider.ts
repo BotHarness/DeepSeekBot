@@ -235,7 +235,7 @@ export function createComputerToolProvider(
     const epoch = catalogEpoch;
     warming = (async () => {
       try {
-        await driver.ensure();
+        if (driver.desktopPreparation?.() === undefined) await driver.ensure();
         const descriptors = await driver.tools();
         if (disposed || epoch !== catalogEpoch) return;
         cachedTools = descriptors;
