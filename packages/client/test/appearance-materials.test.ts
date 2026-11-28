@@ -99,7 +99,7 @@ describe('global Header/Body appearance', () => {
         owner.update({ preference: mode, mode, preset });
         const resolved = appearanceMaterials(owner.getSnapshot().config.modes[mode], mode);
         expect(resolved).toEqual({
-          header: { color: TOBS_TOKENS[mode]['--tobs-layer-raised'], opacity: 100, blur: 0 },
+          header: { color: TOBS_TOKENS[mode]['--tobs-layer-canvas'], opacity: 100, blur: 0 },
           body: { color: TOBS_TOKENS[mode]['--tobs-layer-canvas'], opacity: 100, blur: 0 },
         });
         const css = appearanceCss(owner.getSnapshot());
@@ -110,6 +110,25 @@ describe('global Header/Body appearance', () => {
         );
       }
   });
+  it.each(['light', 'dark'] as const)(
+    'paints an unset %s Header with the Body fill in every style',
+    (mode) => {
+      const { owner } = fixture();
+      for (const style of ['a', 'c'] as const) {
+        owner.update({ preference: mode, mode, style, preset: 'mist-purple' });
+        const snapshot = owner.getSnapshot();
+        const canvas = tobsTokens(mode, 'mist-purple', undefined, style)['--tobs-layer-canvas'];
+        const fill = `color-mix(in srgb, ${canvas} 100%, transparent)`;
+        const css = appearanceCss(snapshot);
+        expect(css).toContain(`--bh-global-header-fill:${fill}`);
+        expect(css).toContain(`--bh-global-body-fill:${fill}`);
+      }
+      owner.update({ mode, materials: { header: { color: '#123456' } } });
+      expect(appearanceMaterials(owner.getSnapshot().config.modes[mode], mode).header.color).toBe(
+        '#123456',
+      );
+    },
+  );
   it('uses resolved Material style layers under saved overrides in the same paint scope', () => {
     const { owner } = fixture();
     owner.setTargetSource(() => [{ id: 'dock:messages', label: 'Messages' }]);
