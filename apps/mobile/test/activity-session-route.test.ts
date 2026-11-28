@@ -26,6 +26,8 @@ const routes = getRoutes(context as never, { platform: 'android', ignoreEntryPoi
 const linking = getLinkingConfig(routes!, context as never, {
   metaOnly: true,
   skipGenerated: true,
+  sitemap: false,
+  notFound: false,
 });
 
 type Nested = { routes: { name: string; state?: Nested }[]; index?: number };
