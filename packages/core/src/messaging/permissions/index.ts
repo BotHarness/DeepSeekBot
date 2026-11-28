@@ -2,6 +2,7 @@ export {
   bumpSenderPolicy,
   changeSenderAccess,
   externalUserRoles,
+  externalContactAccess,
   readSenderPermissions,
   readSenderPolicy,
   readSourceSenderPermissions,
@@ -76,3 +77,13 @@ export {
   chatSenderNamespace,
   platformPeople,
 } from './people.js';
+export { externalContactRoles } from './contact-roles.js';
+export {
+  canDelegateExternalRole,
+  changeHostExternalRole,
+  externalRoleChangeSchema,
+  hostExternalRoles,
+  readExternalRole,
+  readExternalRoleForBot,
+} from './roles.js';
+export { coversBot } from '../../team-policy/external-contact.js';

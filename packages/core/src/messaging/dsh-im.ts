@@ -82,6 +82,11 @@ export function createDshImProvider(
       platform: info.channel,
       name: info.account.name ?? ref,
       fingerprint: info.account.fingerprint,
+      ...(info.channel === 'slack' &&
+      typeof info.account.teamId === 'string' &&
+      /^T[A-Z0-9]{4,30}$/u.test(info.account.teamId)
+        ? { contactWorkspaceId: info.account.teamId }
+        : {}),
       connected: info.connected,
       ...(features.postSupportFlag
         ? {

@@ -141,7 +141,7 @@ export function createOutboundBinding(context: {
             if (prior) throw new MessagingError('binding-conflict');
             const id = randomUUID();
             db.prepare(
-              'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name, enabled_inherited, typing_inherited) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name, enabled_inherited, typing_inherited, contact_workspace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             ).run(
               id,
               botSlug,
@@ -153,6 +153,7 @@ export function createOutboundBinding(context: {
               account.name,
               messagingDefaultsPlatform.safeParse(account.platform).success ? 1 : 0,
               account.platform === 'weixin' ? 1 : 0,
+              account.platform === 'slack' ? (account.contactWorkspaceId ?? null) : null,
             );
             return readMessagingIdentity(db, id);
           },

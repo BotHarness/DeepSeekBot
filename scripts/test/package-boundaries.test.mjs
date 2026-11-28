@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { checkPackageBoundaries, packageBoundaryErrors } from '../check-package-boundaries.mjs';
+import { coreLayerInventory } from '../core-layer-order.mjs';
 
 const workspaces = new Map([
   ['@botharness/mobile', 'apps/mobile'],
@@ -13,7 +14,7 @@ const workspaces = new Map([
 ]);
 const clientHostBaseline = 'scripts/client-host-import-baseline.json';
 const coreLayerBaseline = 'scripts/core-layer-baseline.json';
-const emptyCoreLayerBaseline = { upward: {}, peerCycles: {} };
+const emptyCoreLayerBaseline = { upward: {}, feedbackEdges: {}, cyclicImports: {} };
 
 describe('workspace dependency boundaries', () => {
   it.each([
@@ -292,10 +293,14 @@ describe('Host core internal layers', () => {
 
       write(team, teamToBots);
       const errors = checkPackageBoundaries(root);
-      const cycle = 'mutual peer cycle (domain tier 3, bots <-> team)';
+      const cycle = 'Host core cycle (domain tier 3)';
       expect(errors).toEqual([
-        expect.stringContaining(`${cycle}: bots -> team total grew from 0 to 1`),
-        expect.stringContaining(`${cycle}: team -> bots total grew from 0 to 1`),
+        expect.stringContaining(
+          `${cycle}: team -> bots total grew from 0 to 1; counts rose in ${team}`,
+        ),
+        expect.stringContaining(
+          `${cycle}: bots -> team total grew from 0 to 1; counts rose in ${bots}`,
+        ),
       ]);
     });
   });
@@ -311,14 +316,61 @@ describe('Host core internal layers', () => {
     });
   });
 
-  it('allows a longer same-tier cycle without a mutual pair', () => {
+  it('rejects an import that closes a three-feature cycle', () => {
+    const sessions = `${core}/features/sessions/owner.ts`;
+    const voice = `${core}/features/voice.ts`;
+    const tob = `${core}/features/tob/owner.ts`;
+    withCoreFixture(
+      {
+        [sessions]: "import '../voice.js';",
+        [voice]: "import './tob/owner.js';",
+        [tob]: '',
+      },
+      (root, write) => {
+        expect(checkPackageBoundaries(root)).toEqual([]);
+        write(tob, "import '../sessions/owner.js';");
+        const error = `features/tob -> features/sessions total grew from 0 to 1; counts rose in ${tob}`;
+        expect(checkPackageBoundaries(root)).toContainEqual(expect.stringContaining(error));
+        expect(checkPackageBoundaries(root, { update: true })).toContainEqual(
+          expect.stringContaining(error),
+        );
+      },
+    );
+  });
+
+  it('measures a stable cut independently of order and unrelated imports', () => {
+    const cycle = {
+      [bots]: { 'bots -> channels': 2 },
+      [team]: { 'team -> bots': 1 },
+      [`${core}/channels/owner.ts`]: { 'channels -> team': 2 },
+    };
+    const feedback = { [team]: { 'team -> bots': 1 } };
+    expect(coreLayerInventory(cycle).feedbackEdges).toEqual(feedback);
+    const reversed = Object.fromEntries(Object.entries(cycle).reverse());
+    reversed[`${core}/memory/owner.ts`] = { 'memory -> channels': 1 };
+    expect(coreLayerInventory(reversed)).toEqual(coreLayerInventory(cycle));
+    delete reversed[team];
+    expect(coreLayerInventory(reversed)).toEqual(emptyCoreLayerBaseline);
+  });
+
+  it('rejects a second path around an existing feedback edge', () => {
     const channels = `${core}/channels/owner.ts`;
-    withCoreFixture({ [bots]: '', [team]: '', [channels]: '' }, (root, write) => {
-      write(bots, botsToTeam);
-      write(team, "import '../channels/owner.js';");
-      write(channels, teamToBots);
-      expect(checkPackageBoundaries(root)).toEqual([]);
-    });
+    withCoreFixture(
+      { [bots]: botsToTeam, [team]: teamToBots, [channels]: "import '../team/owner.js';" },
+      (root, write) => {
+        expect(checkPackageBoundaries(root)).toEqual([
+          expect.stringContaining('missing or outdated'),
+        ]);
+        expect(checkPackageBoundaries(root, { update: true })).toEqual([]);
+        write(bots, `${botsToTeam} import '../channels/owner.js';`);
+        expect(checkPackageBoundaries(root)).toContainEqual(
+          expect.stringContaining(
+            `bots -> channels total grew from 0 to 1; counts rose in ${bots}`,
+          ),
+        );
+      },
+      { upward: {}, peerCycles: {} },
+    );
   });
 
   it('requires an explicit layer assignment for new directories and top-level runtime files', () => {
@@ -359,7 +411,8 @@ describe('Host core internal layers', () => {
         expect(checkPackageBoundaries(root, { update: true })).toEqual([]);
         expect(JSON.parse(readFileSync(join(root, coreLayerBaseline), 'utf8'))).toEqual({
           upward: { [database]: { 'database -> runtime': 1 } },
-          peerCycles: {},
+          feedbackEdges: {},
+          cyclicImports: {},
         });
         expect(checkPackageBoundaries(root)).toEqual([]);
       },
@@ -370,7 +423,8 @@ describe('Host core internal layers', () => {
   it('ratchets each direction and drops a cycle after one direction disappears', () => {
     const baseline = {
       upward: { [database]: { 'database -> runtime': 1 } },
-      peerCycles: {
+      feedbackEdges: { [team]: { 'team -> bots': 1 } },
+      cyclicImports: {
         [bots]: { 'bots -> team': 1 },
         [team]: { 'team -> bots': 1 },
       },
@@ -388,11 +442,12 @@ describe('Host core internal layers', () => {
           coreLayerBaseline,
           JSON.stringify({
             ...baseline,
-            peerCycles: { ...baseline.peerCycles, [team]: { 'team -> bots': 2 } },
+            feedbackEdges: { [team]: { 'team -> bots': 2 } },
+            cyclicImports: { ...baseline.cyclicImports, [team]: { 'team -> bots': 2 } },
           }),
         );
         expect(checkPackageBoundaries(root)).toEqual([
-          expect.stringContaining(`${coreLayerBaseline}: Host core mutual peer cycle`),
+          expect.stringContaining(`${coreLayerBaseline}: Host core cycle`),
         ]);
         write(coreLayerBaseline, JSON.stringify(baseline));
 
@@ -401,8 +456,8 @@ describe('Host core internal layers', () => {
         const hint = `total dropped from 1 to 0; shrink ${coreLayerBaseline} with node scripts/check-package-boundaries.mjs --update`;
         expect(checkPackageBoundaries(root)).toEqual([
           `database -> runtime ${hint}`,
-          `bots -> team ${hint}`,
           `team -> bots ${hint}`,
+          `bots -> team ${hint}`,
         ]);
         expect(checkPackageBoundaries(root, { update: true })).toEqual([]);
         expect(JSON.parse(readFileSync(join(root, coreLayerBaseline), 'utf8'))).toEqual(
