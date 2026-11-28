@@ -736,6 +736,14 @@ _Avoid_: ordering, sort preference, sorter
 The membership state of a Channel that belongs to no Channel section. Ungrouped Channels render as loose top-level rows, may sit between sections, and have no bucket header or collapse state.
 _Avoid_: default folder, inbox, fixed bottom bucket
 
+**External conversation**:
+The UI name (外部会话) for one conversation on an external IM platform, such as a direct message, a group, or a Slack or Discord channel, identified by its platform, workspace and conversation, independent of which Apps or PersonaBots take part in it. It is a Host-level resource; each App that receives it has its own Conversation entry there, so two Apps in one group receive, wake and reply independently.
+_Avoid_: external channel, 外部频道, IM channel, Channel (for this record)
+
+**External sub-conversation**:
+The UI name (外部子会话) for a reply chain opened inside an External conversation, such as a Slack or Discord thread, a Discord forum post or a Lark topic reply. It follows its parent's settings unless it is set to follow or exclude on its own.
+_Avoid_: Thread (for this record), topic, 外部话题, sub-thread
+
 **Bridge**:
 A configured connection from an external source, such as an IM conversation or later a webhook, to an explicit Channel or PersonaBot Inbox target; it carries inbound delivery and exposes outbound capabilities without becoming the Actor. For an IM conversation it is listed under External connectors (外部连接器); the PersonaBot's own external identity is a separate thing.
 _Avoid_: integration, adapter, connector (bare)
