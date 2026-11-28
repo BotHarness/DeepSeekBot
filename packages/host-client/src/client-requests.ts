@@ -198,8 +198,19 @@ export function createHostRequests(
           method: init.body === undefined ? 'GET' : 'POST',
           ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
           headers: init.body === undefined ? authorization : jsonAuthorization,
+          ...(init.response === 'file' ? { redirect: 'error' } : {}),
           signal: controller.signal,
         });
+        if (init.response === 'file') {
+          if (response.status !== 200) return { status: response.status, body: null };
+          if (response.bytes === undefined)
+            throw new Unreachable('The connection cannot download files.');
+          return {
+            status: response.status,
+            body: await response.bytes(),
+            contentType: response.contentType,
+          };
+        }
         if (init.response === 'bytes' && response.status < 400) {
           if (response.bytes === undefined)
             throw new Unreachable('The connection cannot download files.');

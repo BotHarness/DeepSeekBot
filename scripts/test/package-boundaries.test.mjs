@@ -414,3 +414,19 @@ describe('Host core internal layers', () => {
     );
   });
 });
+
+it('keeps Renderer imports independent of BotHarness and DSH', () => {
+  const file = 'packages/artifact-renderers/src/index.ts';
+  for (const source of [
+    "import type { Host } from '@botharness/host-client/client';",
+    "type Host = import('@botharness/host-client/client').HostClient;",
+    "export { dsh } from '@deepseek-ai/dsh-client-ui';",
+    'const host = import(`@deepseek-ai/dsh`);',
+    "const host = require('../../core/src/plugin.js');",
+  ])
+    expect(packageBoundaryErrors(file, source)).toEqual([
+      expect.stringContaining('Artifact Renderers must be independent of BotHarness and DSH'),
+    ]);
+  expect(packageBoundaryErrors(file, "export { markdown } from './markdown';")).toEqual([]);
+  expect(packageBoundaryErrors(file, "import { expect } from 'vitest';")).toEqual([]);
+});

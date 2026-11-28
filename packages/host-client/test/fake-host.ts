@@ -211,6 +211,10 @@ export class FakeHost {
   readonly absent = new Set<string>();
   lastHeaders: Record<string, string> | undefined;
   readonly uploads: Array<{ name: string; type: string; text: string }> = [];
+  readonly attachments = new Map<
+    string,
+    { status: 200; contentType: string; bytes: Uint8Array } | { status: 404 | 410 }
+  >();
 
   channel(id: string): FakeChannel {
     let channel = this.channels.get(id);
@@ -247,6 +251,28 @@ export class FakeHost {
       if (refusal !== undefined) return response(401, JSON.stringify({ code: refusal }));
       if (parsed.pathname === '/botharness-device/feed-read')
         return response(200, JSON.stringify({ feedReadAt: '2026-11-13T00:00:00Z' }));
+      if (parsed.pathname === '/botharness-device/api/botharness/attachment') {
+        const { searchParams } = parsed;
+        const attachment = this.attachments.get(
+          JSON.stringify([
+            searchParams.get('channelId'),
+            searchParams.get('messageId'),
+            searchParams.get('fileId') ?? searchParams.get('hash'),
+          ]),
+        );
+        if (attachment?.status !== 200) return response(attachment?.status ?? 404, '{}');
+        if (
+          searchParams.has('maxBytes') &&
+          attachment.bytes.byteLength > Number(searchParams.get('maxBytes'))
+        )
+          return response(413, '{}');
+        return {
+          status: attachment.status,
+          contentType: attachment.contentType,
+          bytes: async () => attachment.bytes,
+          text: async () => new TextDecoder().decode(attachment.bytes),
+        };
+      }
       if (parsed.pathname === '/botharness-device/api/botharness/attachment/upload') {
         if (this.failing.has('upload')) throw new TypeError('Network request failed');
         const name = parsed.searchParams.get('name') ?? '';

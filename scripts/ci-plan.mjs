@@ -238,6 +238,7 @@ export const RULES = [
     'packages/client/appearance-palette.LICENSE',
     'License notice for the scoped upstream palette',
   ),
+  none('packages/artifact-renderers/LICENSE', 'MIT license for the independent Renderer package'),
   related('packages/*/scripts/*deploy*', 'Package deployment scripts', false, RELEASE),
   related('packages/*/scripts/**', 'Package scripts'),
   related(

@@ -166,6 +166,7 @@ export const CLI_EFFECTS = {
   'channel-activity-today': { effects: read, brokerRead: true },
   'channel-assign': { effects: external, brokerRead: false },
   'channel-assignments': { effects: read, brokerRead: true },
+  'channel-attachment-download': { effects: write, brokerRead: false },
   'channel-bot-stop': { effects: destructive, brokerRead: false },
   'channel-bridge': { effects: external, brokerRead: false },
   'channel-bridges': { effects: read, brokerRead: true },

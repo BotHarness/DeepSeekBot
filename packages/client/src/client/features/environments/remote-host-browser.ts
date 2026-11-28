@@ -41,7 +41,12 @@ export function browserCarrier(options: { teamViaHost?: boolean } = {}): HostCar
         },
         ...(init.body === undefined ? {} : { body: init.body }),
       });
-      return { status: response.status, text: () => response.text() };
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+        text: () => response.text(),
+        bytes: async () => new Uint8Array(await response.arrayBuffer()),
+      };
     },
     openSocket(url, events, headers = {}) {
       if (new URL(url).pathname === '/botharness-device/channel') {

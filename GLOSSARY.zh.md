@@ -486,6 +486,14 @@ _避免使用_：accepted commit、auto-save、Git author、普通 Inbox 观察
 随 Source Event 接收、由 Host 管理的真实文件，其身份独立于当前字节内容和发送者最初上传的源文件。引用它的消息展示外部编辑后的当前内容；独立上传的文件彼此独立，只有 PersonaBot 显式保存在自己的 Memory 或 Workspace 中时才拥有单独副本。
 _避免使用_：upload、provider URL、per-Bot inbox copy、database blob
 
+**Artifact**：
+用于查看或审阅的现有 Attachment、Memory 文件或 Workspace 文件。Artifact 沿用底层文件的身份，预览读取文件的当前内容。
+_避免使用_：单独上传、文件版本
+
+**Renderer**：
+可替换的组件，按 Client 的显示选项展示支持格式的 Artifact 字节。Renderer 注册表根据媒体类型和文件名选择组件。
+_避免使用_：Bot 文档解析器
+
 ### 分享
 
 **SoulSnapshot**：

@@ -1106,6 +1106,8 @@ Memory 文件事件通过兼容层持有的 DSH-native Provider registration con
 
 ## 附件文件操作切片
 
+[#4886](https://github.com/BotHarness/DeepSeekBot/issues/4886) 的 Artifact 预览逻辑从来源消息取得发送者、时间与跳转目标。共享 Host Client 在打开或重试时通过现有认证 Attachment 路径读取当前字节。Channel Files 继续注册原路由，Host 根据精确的 Channel、消息和文件身份校验归属，并在传输之前检查预览大小。独立 Renderer 注册表选择组件或返回外部打开和下载选项。
+
 [ADR-0105](../decisions/im-providers.md#adr-0105) 沿用现有 Attachment owner 管理原件当前内容。`channel_attachment_save` 校验当前 Channel 成员权限与准确的消息／fileId 归属，再将原始字节流另存到明确允许 Orchestrator 写入的 Grant；已有目的文件不覆盖。原生文件工具处理另存文件，Shell 使用该 Grant 的 `workdir` 并保留 Human 审批。Agent Scope 中复用原生 Tool 注册，通过隔离的 application-defined Policy Provider 在每次 `tools/execute` 选择单一获准根目录，不改 Memory cwd 或全局 Provider。写入权限变更使旧审批规则范围失效；已开始的 Shell 可能完成。
 
 `channel_attachment_import` 明确选择当前 Memory／Grant 读取权限内的 canonical 普通文件，交给既有 owner 创建独立可下载 Attachment，再经 `bot_send_message` 当前发送权限回发。另存与导入不解析文件，不授予 Shell 权限。#632 交付本地 ZIP/CSV 链路。#633 的 `channel_attachment_open` 从精确来源消息与文件生成仅当前回合有效的原生访问选择：`read` 只允许指定原件路径；`edit-original` 另需既有 Human 工具审批或匹配的已保存规则。原生 guard 每次复查当前来源权限与文件可用性，拒绝其他路径，包括同目录兄弟文件。隔离 Policy Provider 为原生修改选用该附件已有的 data 目录，不授权整个附件仓库或元数据目录；不透明 Shell 保留审批。该选择在回合结束时清除，不是持久授权。原生写回修改既有文件，共享身份在刷新／重启后读取当前字节，独立上传仍然独立。不增加 Source Revision、文件变化 Inbox Admission、唤醒、应用锁或版本档案。仅 Inbox 的 Lark 文件链路由 #657／ADR-0107 集成；Slack 仍是后续 provider 切片。

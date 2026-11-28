@@ -181,7 +181,7 @@ export interface HostClient {
 }
 
 export interface HostApiInit {
-  response?: 'bytes';
+  response?: 'bytes' | 'file';
   body?: Record<string, unknown>;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -190,6 +190,7 @@ export interface HostApiInit {
 export interface HostApiAnswer {
   status: number;
   body: unknown;
+  contentType?: string | undefined;
 }
 
 export interface HostClientOptions {

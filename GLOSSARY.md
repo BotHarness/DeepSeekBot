@@ -487,6 +487,14 @@ _Avoid_: accepted commit, auto-save, Git author, ordinary Inbox observation
 A Host-managed real file received with a Source Event, with identity independent of its current bytes and the sender's upload-source file. Referencing messages show its current contents after external edits; independent uploads remain independent, and a PersonaBot owns a Memory or Workspace copy only after explicitly preserving it.
 _Avoid_: upload, provider URL, per-Bot inbox copy, database blob
 
+**Artifact**:
+An existing Attachment, Memory file, or Workspace file presented for viewing or review. It keeps the identity of the underlying file. A preview reads its current contents.
+_Avoid_: separate upload, file version
+
+**Renderer**:
+A replaceable component that displays Artifact bytes in a supported format with the Client's display options. The Renderer registry selects it by media type and file name.
+_Avoid_: Bot document parser
+
 ### Sharing
 
 **SoulSnapshot**:

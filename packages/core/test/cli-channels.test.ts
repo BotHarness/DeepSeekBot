@@ -467,6 +467,43 @@ describe('Channel and group CLI commands', () => {
       expect((await invoke(invalid, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(1);
   });
+
+  it('downloads one message Attachment through the authenticated bounded read', async () => {
+    const bytes = Buffer.from('# Report');
+    const live = await host(ok, { status: 200, body: bytes });
+    const path = join(mkdtempSync(join(tmpdir(), 'cli-message-attachment-')), 'report.md');
+    const args = [
+      'channel-attachment-download',
+      'group',
+      '--message-id',
+      'msg',
+      '--attachment',
+      'file:owned',
+      '--max-bytes',
+      '8',
+      '--out',
+      path,
+    ];
+    const result = await invoke(args, live.url);
+    expect(result.code, JSON.stringify(result.json)).toBe(0);
+    expect(readFileSync(path)).toEqual(bytes);
+    expect(live.downloads).toEqual([
+      {
+        url: '/api/botharness/attachment?channelId=group&messageId=msg&fileId=file%3Aowned&maxBytes=8',
+        authorized: true,
+      },
+    ]);
+    for (const [status, code] of [
+      [404, 'not-found'],
+      [413, 'too-large'],
+    ] as const) {
+      const refused = await host(ok, {
+        status,
+        body: JSON.stringify({ error: { code, message: 'Attachment read refused' } }),
+      });
+      expect((await invoke(args, refused.url)).json.error.code).toBe(code);
+    }
+  });
   it('maps each command to the bridge method and arguments the Web UI uses', async () => {
     const live = await host(ok);
     const png = join(mkdtempSync(join(tmpdir(), 'cli-channels-')), 'avatar.png');
