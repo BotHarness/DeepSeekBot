@@ -1,9 +1,5 @@
 import { canExternalContactSpeak, coversBot } from '../../team-policy/external-contact.js';
-import {
-  approvedConversationPairing,
-  contactRoleAppliesToEvent,
-  externalContactRoles,
-} from './contact-roles.js';
+import { approvedConversationPairing, externalContactRoles } from './contact-roles.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { cloudMessageAllowed } from '../../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -706,9 +702,11 @@ export function currentSenderRole(
   const identity = readMessagingIdentity(db, sender.bindingId);
   if (!identity.enabled) return undefined;
   const local = approvedConversationPairing(db, botSlug, sender.bindingId, sender.actorId);
-  const match = externalContactRoles(db, identity, sender.actorId, local).find((item) =>
-    contactRoleAppliesToEvent(item, { ...event, bindingId: sender.bindingId }),
-  );
+  const [match] = externalContactRoles(db, identity, sender.actorId, local, {
+    at: event.at,
+    messageId: event.messageId,
+    bindingId: sender.bindingId,
+  });
   if (!match) return undefined;
   const { pairing, role } = match;
   return {

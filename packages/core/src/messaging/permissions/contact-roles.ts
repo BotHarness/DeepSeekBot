@@ -3,7 +3,10 @@ import type { DatabaseSync } from 'node:sqlite';
 import { readMessagingIdentity, type MessagingIdentity } from '../identity.js';
 import type { PairingRequest } from '../pairing.js';
 import { platformPeople } from './people.js';
+import { coversBot } from '../../team-policy/external-contact.js';
 import { readExternalRoleForBot } from './roles.js';
+
+type ContactEvent = { at: string; messageId: string; bindingId: string };
 
 type ContactRole = { pairing: PairingRequest; role: HostExternalRole };
 
@@ -12,13 +15,17 @@ export function externalContactRoles(
   target: MessagingIdentity,
   actorId: string,
   local: PairingRequest | undefined,
+  event?: ContactEvent,
 ): ContactRole[] {
   if (!target.enabled || target.revokedAt || !platformPeople(target.platform)?.roles) return [];
   const localRole = readExternalRoleForBot(db, target.botSlug, local?.roleId);
-  const roles = local && localRole ? [{ pairing: local, role: localRole }] : [];
+  const roles =
+    local && localRole && (!event || contactRoleAppliesToEvent(local, event))
+      ? [{ pairing: local, role: localRole }]
+      : [];
   if (target.platform !== 'slack' || !target.contactWorkspaceId) return roles;
   const rows = db
-    .prepare(`SELECT p.body FROM messaging_pairings p
+    .prepare(`SELECT p.body, p.bot_slug FROM messaging_pairings p
     JOIN messaging_bindings b ON b.id = p.binding_id AND b.bot_slug = p.bot_slug
     WHERE p.actor_id = ? AND p.purpose = 'conversation' AND p.status = 'approved'
       AND b.provider_id = ? AND b.platform = ? AND b.contact_workspace_id = ?
@@ -30,12 +37,18 @@ export function externalContactRoles(
       target.platform,
       target.contactWorkspaceId,
       target.botSlug,
-    ) as { body: string }[];
+    ) as { body: string; bot_slug: string }[];
   const seen = new Set(roles.map(({ role }) => role.id));
   for (const row of rows) {
     const pairing = JSON.parse(row.body) as PairingRequest;
     const role = readExternalRoleForBot(db, target.botSlug, pairing.roleId);
-    if (!role || seen.has(role.id) || !readMessagingIdentity(db, pairing.bindingId).enabled)
+    if (
+      !role ||
+      !coversBot(role.botScope, row.bot_slug) ||
+      (event && !contactRoleAppliesToEvent(pairing, event)) ||
+      seen.has(role.id) ||
+      !readMessagingIdentity(db, pairing.bindingId).enabled
+    )
       continue;
     seen.add(role.id);
     roles.push({ pairing, role });
@@ -56,10 +69,7 @@ export function approvedConversationPairing(
   return row ? (JSON.parse(row.body) as PairingRequest) : undefined;
 }
 
-export function contactRoleAppliesToEvent(
-  { pairing }: ContactRole,
-  event: { at: string; messageId: string; bindingId: string },
-): boolean {
+function contactRoleAppliesToEvent(pairing: PairingRequest, event: ContactEvent): boolean {
   return (
     !!pairing.reviewedAt &&
     Date.parse(event.at) >= Date.parse(pairing.reviewedAt) &&

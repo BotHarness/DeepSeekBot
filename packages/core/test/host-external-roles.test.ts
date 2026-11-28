@@ -2,6 +2,8 @@ import { afterEach, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { createOutboundMessaging } from '../src/messaging/outbound.js';
+import { createBotPairing } from '../src/messaging/pairing.js';
 import { readSenderPermissions, senderAdmission } from '../src/messaging/permissions/index.js';
 import { cleanup, fixture } from './messaging-default-traffic-fixtures.js';
 import { directMessage } from './messaging-pairing-text-fixtures.js';
@@ -251,7 +253,7 @@ it('merges explicitly scoped roles for the same verified Slack contact and fence
 });
 
 it('updates selected scope, revokes inherited authority immediately and lets only the Owner assign a multi-Bot role', async () => {
-  const { methods, messaging, identity, addBot, access, restrict } = await setup();
+  const { methods, messaging, identity, addBot, access, restrict, database } = await setup();
   const bea = addBot('bea');
   await restrict(bea.slug);
   const created = await methods.externalRoleChange({
@@ -309,4 +311,135 @@ it('updates selected scope, revokes inherited authority immediately and lets onl
   expect(() => messaging.pairing.assert(bea.slug, bea.bindingId, actor, 'answer')).toThrow(
     'pairing-unauthorized',
   );
+  const before = await methods.externalRoleChange({
+    kind: 'update',
+    id: role.id,
+    expectedRevision: 2,
+    botScope: { kind: 'only', botSlugs: ['ada', bea.slug] },
+  });
+  if (!before.ok) throw new Error(before.error.code);
+  const local = messaging.pairing.request(bea.bindingId, bea.event(peer), 'conversation');
+  messaging.pairing.review(bea.slug, {
+    kind: 'approve',
+    id: local.id,
+    expectedRevision: local.revision,
+    roleId: role.id,
+    expectedRoleRevision: before.value.role.revision,
+  });
+
+  const narrowed = await methods.externalRoleChange({
+    kind: 'update',
+    id: role.id,
+    expectedRevision: before.value.role.revision,
+    botScope: { kind: 'only', botSlugs: [bea.slug] },
+  });
+  if (!narrowed.ok) throw new Error(narrowed.error.code);
+  expect(await access(bea.slug, bea.bindingId)).toMatchObject({
+    ok: true,
+    value: { status: 'unpaired', canSpeak: false, capabilities: [], roleIds: [] },
+  });
+  expect(database.read((db) => senderAdmission(db, bea.slug, bea.event()))).toBe('refused');
+  expect(() => messaging.pairing.assert(bea.slug, bea.bindingId, actor, 'answer')).toThrow(
+    'pairing-unauthorized',
+  );
+  expect(await access(bea.slug, bea.bindingId, peer)).toMatchObject({
+    ok: true,
+    value: { status: 'paired', canSpeak: true, capabilities: ['answer'], roleIds: [role.id] },
+  });
+  expect(messaging.pairing.assert(bea.slug, bea.bindingId, peer, 'answer').id).toBe(local.id);
+
+  await methods.externalRoleChange({
+    kind: 'update',
+    id: role.id,
+    expectedRevision: narrowed.value.role.revision,
+    botScope: { kind: 'only', botSlugs: ['ada', bea.slug] },
+  });
+  expect(await access(bea.slug, bea.bindingId)).toMatchObject({
+    ok: true,
+    value: { status: 'paired', canSpeak: true, capabilities: ['answer'], roleIds: [role.id] },
+  });
+  expect(database.read((db) => senderAdmission(db, bea.slug, bea.event()))).toBe('wake');
+});
+
+it('keeps an older eligible remote approval when a later local approval shares its role', async () => {
+  const { methods, identity, addBot, restrict, database } = await setup();
+  const bea = addBot('bea');
+  await restrict(bea.slug);
+  const created = await methods.externalRoleChange({
+    kind: 'create',
+    name: 'Support',
+    botScope: { kind: 'only', botSlugs: ['ada', bea.slug] },
+  });
+  if (!created.ok) throw new Error(created.error.code);
+  const role = created.value.role;
+  const start = Date.now();
+  let time = start;
+  const pairing = createBotPairing(
+    database,
+    () => true,
+    () => new Date(time),
+  );
+  const approve = (slug: string, request: ReturnType<typeof pairing.request>) =>
+    pairing.review(slug, {
+      kind: 'approve',
+      id: request.id,
+      expectedRevision: request.revision,
+      roleId: role.id,
+      expectedRoleRevision: role.revision,
+    });
+  approve(
+    'ada',
+    pairing.request(identity.id, directMessage('slack', 'remote', actor), 'conversation'),
+  );
+  time += 2 * 60_000;
+  approve(bea.slug, pairing.request(bea.bindingId, bea.event(), 'conversation'));
+
+  const admissionAt = (at: number) =>
+    database.read((db) =>
+      senderAdmission(db, bea.slug, {
+        ...bea.event(),
+        messageId: 'message-between-approvals',
+        reply: { ...bea.event().reply, messageId: 'message-between-approvals' },
+        at: new Date(at).toISOString(),
+      }),
+    );
+  expect(admissionAt(start - 1)).toBe('refused');
+  expect(admissionAt(start + 60_000)).toBe('wake');
+  expect(admissionAt(time + 1)).toBe('wake');
+});
+
+it('notifies later Bots and logs failure after committing an external role change', async () => {
+  const { addBot, database } = await setup();
+  addBot('bea');
+  addBot('cy');
+  const notified: string[] = [];
+  const warnings: string[] = [];
+  const messaging = createOutboundMessaging({
+    database,
+    isBotActive: () => true,
+    recover: false,
+    onAuthorizationChanged(slug) {
+      notified.push(slug);
+      if (notified.length === 1) throw new Error('Reconciliation failed');
+    },
+    warn(message) {
+      warnings.push(message);
+    },
+  });
+  try {
+    const role = messaging.externalRoleChange({
+      kind: 'create',
+      name: 'Support',
+      botScope: { kind: 'all' },
+    });
+    expect([...notified].sort()).toEqual(['ada', 'bea', 'cy']);
+    expect(warnings.map((message) => JSON.parse(message))).toContainEqual({
+      event: 'external-role-notification-failed',
+      roleId: role.id,
+      failures: [{ botSlug: notified[0], operation: 'authorization-change' }],
+    });
+    expect(messaging.externalRoles()).toEqual([role]);
+  } finally {
+    messaging.close();
+  }
 });

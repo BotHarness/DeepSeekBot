@@ -101,10 +101,23 @@ export function createOutboundConversations({
         },
         ['pairing', 'bot-inbox'],
       );
+      const failures = [];
       for (const slug of affected) {
-        options.onAuthorizationChanged?.(slug);
-        pairingCards.refresh(slug);
+        try {
+          options.onAuthorizationChanged?.(slug);
+        } catch {
+          failures.push({ botSlug: slug, operation: 'authorization-change' });
+        }
+        try {
+          pairingCards.refresh(slug);
+        } catch {
+          failures.push({ botSlug: slug, operation: 'pairing-card-refresh' });
+        }
       }
+      if (failures.length)
+        options.warn?.(
+          JSON.stringify({ event: 'external-role-notification-failed', roleId: role.id, failures }),
+        );
       return role;
     },
     externalContactAccess({ slug, bindingId, actorId }) {
