@@ -78,3 +78,33 @@ export const CONNECTOR_SIGN_IN_ACCESS_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const CONNECTOR_GOOGLE_WORKSPACE_MIGRATION: SchemaMigration = {
+  id: 'connector-google-workspace',
+  module: 'connectors',
+  description: 'Google Workspace OAuth Connector Accounts (#5334)',
+  rebuildsReferencedTables: true,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE connector_accounts_next (
+        account_id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL CHECK (provider IN ('composio', 'mcp', 'google')),
+        service TEXT NOT NULL,
+        label TEXT NOT NULL,
+        identity TEXT,
+        holder_slug TEXT,
+        external_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'expired', 'failed')),
+        revision INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        access TEXT CHECK (access IN ('read', 'write')),
+        UNIQUE (service, label),
+        UNIQUE (provider, external_id)
+      );
+      INSERT INTO connector_accounts_next SELECT * FROM connector_accounts;
+      DROP TABLE connector_accounts;
+      ALTER TABLE connector_accounts_next RENAME TO connector_accounts;
+    `);
+  },
+};

@@ -14,7 +14,7 @@ import { useAnchoredPanel } from '../anchored-panel.js';
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
 import { useMountedResource } from '../mounted-resource.js';
 import { Input } from './input.js';
-import { elevation } from './tobs.stylex.js';
+import { elevation, size } from './tobs.stylex.js';
 import { color, radius, space, text } from './tokens.stylex.js';
 
 export interface FilterPickerOption {
@@ -70,6 +70,8 @@ export interface FilterPickerSide {
   onSelect(value: string): void;
 }
 
+const pickerMaxHeight = 'min(70vh, 440px)';
+
 const styles = stylex.create({
   panel: {
     position: 'fixed',
@@ -78,12 +80,18 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     width: 'min(640px, calc(100vw - 24px))',
-    maxHeight: 'min(70vh, 440px)',
+    maxHeight: pickerMaxHeight,
     overflow: 'hidden',
     borderRadius: radius.md,
     backgroundColor: color.elevated,
     boxShadow: elevation.x2,
     color: color.fg,
+  },
+  anchoredPanel: {
+    maxHeight: stylex.firstThatWorks(
+      `calc-size(stretch, min(${pickerMaxHeight}, max(size, ${size.controlLarge} * 4)))`,
+      pickerMaxHeight,
+    ),
   },
   body: { display: 'flex', flexGrow: 1, minHeight: 0 },
   rail: {
@@ -446,7 +454,7 @@ export function FilterPicker({
         close();
       }}
       data-bh-appearance-owned=""
-      {...stylex.props(styles.panel)}
+      {...stylex.props(styles.panel, position.positionAnchor !== undefined && styles.anchoredPanel)}
       style={position}
     >
       <div {...stylex.props(styles.body)}>

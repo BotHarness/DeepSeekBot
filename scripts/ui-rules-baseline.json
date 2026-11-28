@@ -157,7 +157,6 @@
     "packages/client/src/client/ds/filter-picker.tsx": [
       "height: 28px",
       "height: 32px",
-      "maxHeight: 440px",
       "minHeight: 34px",
       "width: 168px",
       "width: 24px",

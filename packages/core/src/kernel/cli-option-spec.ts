@@ -247,6 +247,8 @@ export const PROMPT_PRESET_OPTIONS = {
 } as const;
 
 export const CONNECTOR_OPTIONS = {
+  'client-id': { type: 'string' },
+  'client-secret-stdin': { type: 'boolean' },
   'key-stdin': { type: 'boolean' },
   label: { type: 'string' },
   access: { type: 'string' },

@@ -33,6 +33,12 @@ Open a Bot DM. Type `/model ` to show available models and scope. Filter, choose
 
 ## Driving it with verify-app
 
+For model picker alignment, use a fresh DSH 0.2.2-rc.3 isolated Host with the default Tob and a catalog
+with at least 16 models. Run
+`node scripts/e2e-model-picker-alignment.mjs --name <n>`. The Channel row's Model action opens the
+Main model picker at 1024 × 768. The script checks the gap on either side of the trigger, the viewport
+margins and scrolling inside the picker. It does not send a model request.
+
 Launch an isolated Host and run doctor. Create one globally inheriting Bot and one Bot with a complete Model Plan. Drive the composer and sidebar entry points, then inspect `botharness/modelPlan`. Check that only `orchestrator`, revision and customization metadata changed; Assignment fields remain either identical or absent. Repeat after a page reload and Host restart. Run `deepseekbot model-plan-customize` against the same Host with a stale expected revision and verify refusal.
 
 Capture the inline menu, direct model dialog and preset list at desktop and narrow widths. Confirm only one dialog is open and that selecting a preset shows both routes without persisting until Save. Verify task-only edits preserve the main route, cancellation makes no writes, and reopening defaults to “Specific models”. Send a real DM after selecting an available route, and check the reply plus actual Session request route. Unit tests separately gate the current-turn and inherited Assignment continuation boundaries.

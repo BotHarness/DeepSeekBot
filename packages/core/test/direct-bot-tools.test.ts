@@ -12,6 +12,7 @@ import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools
 import { PRIVATE_INPUT_TOOLS } from '../src/credentials/tool-contract.js';
 import { TAKEOVER_TOOLS } from '../src/takeover/contracts.js';
 import { CONNECTOR_TOOLS } from '../src/connectors/policy.js';
+import { createConnectorsContribution } from '../src/features/connectors/contribution.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -237,7 +238,11 @@ describe('direct Bot tool runner', () => {
         )
         .sort(),
     );
-    expect(listed.every((name) => botTools.includes(name))).toBe(true);
+    const contributed = createConnectorsContribution().directTools.map((tool) => tool.name);
+    expect(listed.filter((name) => contributed.includes(name))).toEqual(contributed);
+    expect(listed.every((name) => botTools.includes(name) || contributed.includes(name))).toBe(
+      true,
+    );
     expect(listed).not.toContain('deepseekbot_cli');
     await expect(
       runtime.runDirectBotTool!(

@@ -1,3 +1,4 @@
+import { GOOGLE_ACCESS_TOKEN_REFUSAL } from '../../connectors/google-oauth.js';
 import { asObject, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import {
   ConnectorError,
@@ -16,6 +17,15 @@ export interface ConnectorsBridgeDeps {
 
 export type ConnectorsBridgeMethods = {
   connectors(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
+  connectorGoogleSetup(
+    payload: unknown,
+  ): Promise<BridgeResult<Awaited<ReturnType<ConnectorService['google']['setup']>>>>;
+  connectorGoogleAdd(
+    payload: unknown,
+  ): Promise<BridgeResult<Awaited<ReturnType<ConnectorService['google']['setup']>>>>;
+  connectorGoogleLogin(
+    payload: unknown,
+  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url: string }>>;
   connectorKeySet(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorKeyClear(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorConnect(
@@ -101,6 +111,29 @@ export function createConnectorsBridgeMethods(
   });
   return {
     connectors: () => guarded(async (service) => named(await service.view())),
+    connectorGoogleSetup: () => guarded((service) => service.google.setup()),
+    connectorGoogleAdd(payload) {
+      return guarded((service) => {
+        const source = asObject(payload);
+        const clientId = source['clientId'];
+        const clientSecret = source['clientSecret'];
+        if (
+          'accessToken' in source ||
+          typeof clientId !== 'string' ||
+          typeof clientSecret !== 'string'
+        )
+          throw new ConnectorError('invalid', GOOGLE_ACCESS_TOKEN_REFUSAL);
+        return service.google.setClient({ clientId, clientSecret });
+      });
+    },
+    connectorGoogleLogin(payload) {
+      return guarded((service) => {
+        const label = asObject(payload)['label'];
+        if (typeof label !== 'string')
+          throw new ConnectorError('invalid', 'A Google Workspace account label is required.');
+        return service.google.login(label);
+      });
+    },
     connectorKeySet(payload) {
       const apiKey = asObject(payload)['apiKey'];
       if (typeof apiKey !== 'string') return Promise.resolve(invalidInput('apiKey is required'));
