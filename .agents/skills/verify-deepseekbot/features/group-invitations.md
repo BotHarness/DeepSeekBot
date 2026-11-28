@@ -33,6 +33,8 @@
 - `retry`: a target that becomes unavailable before submission has an individual failure result. Retry that result in the same Group. Replaying a submission with the original operation keys after an unconfirmed response produces no duplicate Group or invitation.
 - `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history. Group reads omit references that became invalid after startup. The existing member-removal command can remove a legacy missing reference.
 
+- `deleted-bot-dms`: a Bot deletion confirmation shows the number of DMs and explains that their history is archived. After confirmation, the Channel list omits them and direct history reads refuse them. Legacy DMs are previewed with `bot-delete-preview` and archived with `bot-delete-retry --confirm --confirmation-stdin` using the fresh token. Run the focused reproduction in `packages/core/test/personabot-deletion.test.ts`.
+
 ## How to get to it (user POV)
 
 Enter Bot mode. Choose Create channel from the roster menu. For an existing Group, open its Members panel in the subpanel column and choose Add members. On mobile, use Invite member from the existing Group Info flow.

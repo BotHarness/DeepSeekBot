@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import { defaultGroupWakePolicy, type ChannelSourcePolicy } from './source-policy.js';
 import type {
   ChannelMessage,
@@ -47,7 +48,10 @@ export function createGroupMembership({
   };
 }) {
   return {
-    removeBotFromGroups(botSlug, commit) {
+    removeBotFromGroups(
+      botSlug: string,
+      commit?: (db: DatabaseSync, timestamp: string) => boolean,
+    ) {
       const changed = database.transaction(
         (db) => {
           const rows = db
@@ -102,8 +106,7 @@ export function createGroupMembership({
             db.prepare(sql.markRetiredBotAdmissionsForRepair).run(timestamp, botSlug, channel.id);
             changed = true;
           }
-          commit?.(db);
-          return changed;
+          return commit?.(db, timestamp) === true || changed;
         },
         ['channel', 'bot-inbox', 'bot-registry'],
       );

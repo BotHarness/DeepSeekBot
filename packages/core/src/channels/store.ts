@@ -525,6 +525,12 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     removeBotFromGroups() {
       throw new Error('Bot membership cleanup requires the operational Channel store');
     },
+    acceptBotDeletion() {
+      throw new Error('Bot deletion requires the operational Channel store');
+    },
+    archiveBotDms() {
+      throw new Error('Bot DM archival requires the operational Channel store');
+    },
     getGroupWakePolicy() {
       throw new Error('Group wake policy requires the operational Channel store');
     },
