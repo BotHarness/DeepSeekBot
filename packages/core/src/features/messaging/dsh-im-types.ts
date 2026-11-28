@@ -104,7 +104,7 @@ export interface DshImOutboundService {
     version: 1;
     channel: string;
     botId: string;
-    account: { fingerprint: string; name?: string };
+    account: { fingerprint: string; name?: string; teamId?: string };
     connected: boolean;
     capabilities: string[];
   }>;

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MarketplaceSkill } from '@botharness/host-protocol/marketplace-skill';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { groupAddedSkills, targetLabels } from '../src/client/market-yours.js';
 
 const skill: MarketplaceSkill = {
   id: 'a'.repeat(24),
@@ -187,6 +188,126 @@ describe('Marketplace All tab (#5441)', () => {
         expect(cards('bots')).toHaveLength(4);
       },
       sources(),
+    );
+  });
+
+  it('pins the added Skills and the connections that need reconnecting under Yours', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const reconnect = vi.fn(async () => ({
+      account: { accountId: 'acc-1' },
+      url: 'https://connect.test/sign-in',
+    }));
+    const detail = vi.fn(async () => ({ skill, content: '# Tidy', files: [] }));
+    const extra = sources({
+      marketplaceSkillAdded: vi.fn(async () => ({
+        skills: [
+          { id: skill.id, name: 'tidy-notes', description: '', target: 'helper', hash: 'h' },
+          { id: skill.id, name: 'tidy-notes', description: '', target: 'global', hash: 'h' },
+        ],
+      })),
+      marketplaceSkillAddCandidates: vi.fn(async () => ({
+        bots: [{ slug: 'helper', displayName: 'Helper' }],
+        global: true,
+      })),
+      marketplaceSkillDetail: detail,
+      connectorReconnect: reconnect,
+      connectors: vi.fn(async () => ({
+        configured: true,
+        accounts: [
+          { accountId: 'acc-1', service: 'gmail', name: 'Gmail', status: 'expired', grants: [] },
+          { accountId: 'acc-2', service: 'notion', name: 'Notion', status: 'active', grants: [] },
+        ],
+        catalog: [],
+      })),
+    });
+    try {
+      await withPanel(
+        async () => ({ bots: [] }),
+        async () => {
+          const yours = document.body.querySelector('[data-market-yours=""]')!;
+          const rows = [...yours.querySelectorAll('li')].map((row) => row.textContent);
+          expect(rows).toEqual([
+            expect.stringContaining('应用连接 · 已过期'),
+            expect.stringContaining('Skill · Helper、全局'),
+          ]);
+          expect(rows.join()).not.toContain('Notion');
+          expect(
+            document.body
+              .querySelector('[data-market-all-section]')
+              ?.compareDocumentPosition(yours),
+          ).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+
+          await act(async () =>
+            yours
+              .querySelector<HTMLButtonElement>(
+                `[aria-label="${zhTranslate('connectors.accounts.reconnect')} Gmail"]`,
+              )!
+              .click(),
+          );
+          expect(reconnect).toHaveBeenCalledWith('acc-1');
+          expect(open).toHaveBeenCalledWith(
+            'https://connect.test/sign-in',
+            '_blank',
+            'noopener,noreferrer',
+          );
+
+          await act(async () =>
+            yours.querySelector<HTMLButtonElement>('[data-market-yours="skill"] button')!.click(),
+          );
+          expect(detail).toHaveBeenCalledWith(skill.id);
+          expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
+            'tidy-notes',
+          );
+        },
+        extra,
+        'all',
+      );
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  it('leaves Yours out when nothing is added and every connection works', async () => {
+    await withPanel(
+      async () => ({ bots: [] }),
+      async () => {
+        expect(document.body.querySelector('[data-market-all-section="bots"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-yours=""]')).toBeNull();
+      },
+      sources(),
+      'all',
+    );
+  });
+
+  it('keeps every Bot an added Skill lives in, even when two Bots share a name', () => {
+    const added = (target: string) => ({
+      id: skill.id,
+      name: 'tidy-notes',
+      description: '',
+      target,
+      hash: 'h',
+    });
+    const grouped = groupAddedSkills([
+      added('helper-a'),
+      added('helper-b'),
+      added('helper-a'),
+      added('global'),
+    ]);
+    expect(grouped).toEqual([
+      { id: skill.id, name: 'tidy-notes', targets: ['helper-a', 'helper-b', 'global'] },
+    ]);
+    const names = new Map([
+      ['helper-a', 'Helper'],
+      ['helper-b', 'Helper'],
+      ['solo', 'Solo'],
+    ]);
+    expect(
+      grouped[0]!.targets.map(targetLabels(names, zhTranslate('market.skills.globalShort'))),
+    ).toEqual(['Helper (helper-a)', 'Helper (helper-b)', zhTranslate('market.skills.globalShort')]);
+    expect(targetLabels(names, 'Global')('solo')).toBe('Solo');
+    expect(targetLabels(names, 'Global')('global')).toBe('Global');
+    expect(targetLabels(new Map([['global-bot', 'Global']]), 'Global')('global-bot')).toBe(
+      'Global (global-bot)',
     );
   });
 });

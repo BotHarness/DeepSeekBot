@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { PairingCapability, PairingRequest } from '../pairing.js';
-import type { ExternalUserRole } from './senders.js';
+import type { ExternalRoleRule } from '@botharness/host-protocol/external-roles';
+import { externalContactRoles } from './contact-roles.js';
+import { readExternalRoleForBot } from './roles.js';
+import { behaviorEffect } from './behavior-policy.js';
 import { platformPeople } from './people.js';
 import { resolveGrants } from '../../kernel/grants.js';
 import { readMessagingIdentity } from '../identity.js';
@@ -97,6 +100,7 @@ export interface PermissionSource extends PermissionChoices {
   revision: number;
 }
 export interface EffectivePermissions {
+  roleRules?: ExternalRoleRule[];
   behaviorPermissions?: EffectiveBehaviorPermission[];
   capabilities: PairingCapability[];
   deniedCapabilities: PairingCapability[];
@@ -142,9 +146,7 @@ function ordinaryPairing(
   if (!row) throw new MessagingError('pairing-stale');
   const pairing = JSON.parse(row.body) as PairingRequest;
   const binding = readMessagingIdentity(db, pairing.bindingId);
-  const role = db
-    .prepare('SELECT id FROM messaging_external_roles WHERE bot_slug = ? AND id = ?')
-    .get(botSlug, pairing.roleId ?? '');
+  const role = readExternalRoleForBot(db, botSlug, pairing.roleId);
   if (
     !binding.enabled ||
     binding.revokedAt ||
@@ -294,53 +296,65 @@ export function effectivePairingPermissions(
   const person = platformPeople(binding.platform)?.roles
     ? pairings.find((p) => p.purpose === 'conversation')
     : undefined;
-  let currentBehavior: EffectiveBehaviorPermission[] = [];
-  if (person) {
-    const row = db
-      .prepare('SELECT body FROM messaging_external_roles WHERE bot_slug = ? AND id = ?')
-      .get(botSlug, person.roleId ?? '') as { body: string } | undefined;
-    if (row) {
-      const role = JSON.parse(row.body) as ExternalUserRole;
-      currentBehavior = resolveBehaviorPermissions(
-        behaviorPermissions(db, botSlug),
-        groups(db, botSlug).filter(
-          (group) => group.bindingId === bindingId && group.memberIds.includes(person.id),
-        ),
-      );
-      permissionSources.push({
-        kind: 'role',
-        id: role.id,
-        name: role.name,
-        revision: role.revision,
-        allow: role.capabilities,
-        deny: [],
-        delegateAllow: role.delegableCapabilities ?? [],
-      });
-      for (const group of groups(db, botSlug).filter(
-        (g) => g.bindingId === bindingId && g.memberIds.includes(person.id),
-      ))
-        permissionSources.push({
-          kind: 'group',
-          id: group.id,
-          name: group.name,
-          revision: group.revision,
-          allow: group.allow,
-          deny: group.deny,
-          delegateAllow: group.delegateAllow ?? [],
-          delegateDeny: group.delegateDeny ?? [],
-        });
-      if (person.permissionExceptions)
-        permissionSources.push({
-          kind: 'person',
-          id: person.id,
-          name: person.actorName ?? person.actorId,
-          revision: person.revision,
-          ...person.permissionExceptions,
-        });
-    }
+  const roles = externalContactRoles(db, binding, actorId, person);
+  for (const { pairing, role } of roles) {
+    const local = pairing.bindingId === bindingId;
+    permissionSources.push({
+      kind: 'role',
+      id: role.id,
+      name: role.name,
+      revision: role.revision,
+      allow: local
+        ? role.capabilities
+        : role.capabilities.filter((cap) => cap !== 'review-pairing'),
+      deny: role.deniedCapabilities,
+      delegateAllow: local ? (role.delegableCapabilities ?? []) : [],
+    });
   }
+  const localPerson =
+    person && roles.some(({ pairing }) => pairing.id === person.id) ? person : undefined;
+  const personGroups = localPerson
+    ? groups(db, botSlug).filter(
+        (group) => group.bindingId === bindingId && group.memberIds.includes(localPerson.id),
+      )
+    : [];
+  const currentBehavior = personGroups.length
+    ? resolveBehaviorPermissions(behaviorPermissions(db, botSlug), personGroups)
+    : [];
+  for (const group of personGroups)
+    permissionSources.push({
+      kind: 'group',
+      id: group.id,
+      name: group.name,
+      revision: group.revision,
+      allow: group.allow,
+      deny: group.deny,
+      delegateAllow: group.delegateAllow ?? [],
+      delegateDeny: group.delegateDeny ?? [],
+    });
+  if (localPerson?.permissionExceptions)
+    permissionSources.push({
+      kind: 'person',
+      id: localPerson.id,
+      name: localPerson.actorName ?? localPerson.actorId,
+      revision: localPerson.revision,
+      ...localPerson.permissionExceptions,
+    });
+  const byTopic = new Map<string, ExternalRoleRule[]>();
+  for (const { role } of roles)
+    for (const rule of role.policy) {
+      const rules = byTopic.get(rule.topic);
+      if (rules) rules.push(rule);
+      else byTopic.set(rule.topic, [rule]);
+    }
+  const roleRules = [...byTopic].map(([topic, rules]) => ({
+    topic,
+    text: [...new Set(rules.map(({ text }) => text))].join('\n'),
+    effect: behaviorEffect(rules.map(({ effect }) => effect)),
+  }));
   const resolved = resolveGrants<PairingCapability, PermissionSource>(permissionSources);
   return {
+    ...(roleRules.length ? { roleRules } : {}),
     ...(currentBehavior.length ? { behaviorPermissions: currentBehavior } : {}),
     capabilities: resolved.granted,
     deniedCapabilities: resolved.denied,

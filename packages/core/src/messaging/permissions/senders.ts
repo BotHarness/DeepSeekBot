@@ -1,5 +1,6 @@
+import { canExternalContactSpeak, coversBot } from '../../team-policy/external-contact.js';
+import { approvedConversationPairing, externalContactRoles } from './contact-roles.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
-import { randomUUID } from 'node:crypto';
 import { cloudMessageAllowed } from '../../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
@@ -16,6 +17,7 @@ import {
   blockConversationSource,
   blockSender,
   sourceBlocked,
+  senderBlocked,
   unblockConversationSource,
   unblockSender,
 } from './sender-blocks.js';
@@ -37,17 +39,26 @@ import {
   type EffectivePermissions,
 } from './groups.js';
 
-export interface ExternalUserRole {
-  id: string;
-  botSlug: string;
-  name: string;
-  behavior: string;
-  capabilities: PairingCapability[];
-  delegableCapabilities?: PairingCapability[];
-  revision: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
+import type {
+  ExternalContactAccess,
+  HostExternalRole,
+} from '@botharness/host-protocol/external-roles';
+import {
+  canDelegateExternalRole,
+  changeHostExternalRole,
+  deleteExternalRole,
+  hostExternalRoles,
+  isSingleBotRole,
+  readExternalRoleForBot,
+} from './roles.js';
+
+export type ExternalUserRole = Omit<
+  HostExternalRole,
+  'botScope' | 'policy' | 'deniedCapabilities'
+> &
+  Partial<Pick<HostExternalRole, 'botScope' | 'policy' | 'deniedCapabilities'>> & {
+    botSlug: string;
+  };
 export interface SenderPolicy {
   restricted: boolean;
   revision: number;
@@ -179,6 +190,7 @@ export interface SenderPermissions {
   sender?: TrustedSenderReference;
   policyRevision?: number;
   role?: ExternalUserRole;
+  roles?: ExternalUserRole[];
   reason?: string;
   effectivePermissions?: EffectivePermissions;
 }
@@ -293,8 +305,10 @@ export function readSenderPermissions(
   if (!sender) return { queriedAt, status: 'unavailable', reason: 'no-current-scoped-identity' };
   const policy = readSenderPolicy(db, botSlug);
   const base = { queriedAt, sender, policyRevision: policy.revision };
-  if (!readMessagingIdentity(db, sender.bindingId).enabled)
-    return { ...base, status: 'unavailable', reason: 'identity-disabled' };
+  const identity = readMessagingIdentity(db, sender.bindingId);
+  if (!identity.enabled) return { ...base, status: 'unavailable', reason: 'identity-disabled' };
+  if (sourceBlocked(db, botSlug, event))
+    return { ...base, status: 'unavailable', reason: 'sender-blocked' };
   const rows = db
     .prepare(
       "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND purpose = 'conversation' ORDER BY rowid DESC",
@@ -302,32 +316,33 @@ export function readSenderPermissions(
     .all(botSlug, sender.bindingId, sender.actorId) as { body: string }[];
   const pairings = rows.map((row) => JSON.parse(row.body) as PairingRequest);
   const approved = pairings.find((pairing) => pairing.status === 'approved');
-  if (approved) {
-    const role = externalUserRoles(db, botSlug).find((role) => role.id === approved.roleId);
+  const roles = externalContactRoles(db, identity, sender.actorId, approved);
+  const [first] = roles;
+  if (first) {
     const effectivePermissions = effectivePairingPermissions(
       db,
       botSlug,
       sender.bindingId,
       sender.actorId,
     );
-    return role
-      ? {
-          ...base,
-          status: 'paired',
-          role,
-          effectivePermissions: {
-            ...effectivePermissions,
-            ...(effectivePermissions.behaviorPermissions
-              ? {
-                  behaviorPermissions: effectivePermissions.behaviorPermissions.map(
-                    ({ excludes: _excludes, ...behavior }) => behavior,
-                  ),
-                }
-              : {}),
-          },
-        }
-      : { ...base, status: 'unavailable', reason: 'role-unavailable' };
+    return {
+      ...base,
+      status: 'paired',
+      role: { ...first.role, botSlug },
+      ...(roles.length > 1 ? { roles: roles.map(({ role }) => ({ ...role, botSlug })) } : {}),
+      effectivePermissions: {
+        ...effectivePermissions,
+        ...(effectivePermissions.behaviorPermissions
+          ? {
+              behaviorPermissions: effectivePermissions.behaviorPermissions.map(
+                ({ excludes: _excludes, ...behavior }) => behavior,
+              ),
+            }
+          : {}),
+      },
+    };
   }
+  if (approved) return { ...base, status: 'unavailable', reason: 'role-unavailable' };
   const latest = pairings[0];
   if (openGroupAllows(db, botSlug, event))
     return { ...base, status: 'visitor', reason: 'explicit-open-group' };
@@ -352,25 +367,19 @@ export function readSenderPolicy(db: DatabaseSync, botSlug: string): SenderPolic
     | { restricted: number; revision: number; default_role_id: string | null }
     | undefined;
   if (!row) return { restricted: false, revision: 0 };
-  const defaultRoleId =
-    row.default_role_id &&
-    db
-      .prepare('SELECT 1 FROM messaging_external_roles WHERE bot_slug = ? AND id = ?')
-      .get(botSlug, row.default_role_id)
-      ? row.default_role_id
-      : undefined;
+  const defaultRole = readExternalRoleForBot(db, botSlug, row.default_role_id ?? undefined);
   return {
     restricted: row.restricted === 1,
     revision: row.revision,
-    ...(defaultRoleId ? { defaultRoleId } : {}),
+    ...(defaultRole ? { defaultRoleId: defaultRole.id } : {}),
   };
 }
-export function externalUserRoles(db: DatabaseSync, botSlug: string): ExternalUserRole[] {
-  return (
-    db
-      .prepare('SELECT body FROM messaging_external_roles WHERE bot_slug = ? ORDER BY rowid')
-      .all(botSlug) as { body: string }[]
-  ).map((row) => JSON.parse(row.body) as ExternalUserRole);
+type ScopedExternalRole = HostExternalRole & { botSlug: string };
+
+export function externalUserRoles(db: DatabaseSync, botSlug: string): ScopedExternalRole[] {
+  return hostExternalRoles(db)
+    .filter((role) => coversBot(role.botScope, botSlug))
+    .map((role) => ({ ...role, botSlug }));
 }
 export interface SenderAccessReviewer {
   bindingId: string;
@@ -551,66 +560,44 @@ export function changeSenderAccess(
     bumpSenderPolicy(db, botSlug);
     return;
   }
-  if (input.kind === 'create-role') {
-    if (externalUserRoles(db, botSlug).length >= 50) throw new MessagingError('role-capacity');
-    const at = new Date().toISOString();
-    const role: ExternalUserRole = {
-      id: randomUUID(),
-      botSlug,
-      name: input.name,
-      behavior: input.behavior,
-      capabilities: [],
-      revision: 1,
-      createdAt: at,
-      updatedAt: at,
-    };
-    db.prepare('INSERT INTO messaging_external_roles (id, bot_slug, body) VALUES (?, ?, ?)').run(
-      role.id,
-      botSlug,
-      JSON.stringify(role),
-    );
-    return;
-  }
-  if (input.kind === 'edit-role') {
-    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.id);
+  if (input.kind === 'create-role' || input.kind === 'edit-role' || input.kind === 'delete-role') {
+    if (reviewer) throw new MessagingError('pairing-unauthorized');
+    if (input.kind === 'create-role') {
+      if (externalUserRoles(db, botSlug).length >= 50) throw new MessagingError('role-capacity');
+      changeHostExternalRole(db, {
+        kind: 'create',
+        botScope: { kind: 'only', botSlugs: [botSlug] },
+        name: input.name,
+        behavior: input.behavior,
+      });
+      return;
+    }
+    const role = readExternalRoleForBot(db, botSlug, input.id);
     if (!role || role.revision !== input.expectedRevision) throw new MessagingError('role-stale');
-    const next: ExternalUserRole = {
-      ...role,
-      name: input.name,
-      behavior: input.behavior,
-      capabilities: [...new Set(input.capabilities)],
-      delegableCapabilities: [
-        ...new Set(input.delegableCapabilities ?? role.delegableCapabilities ?? []),
-      ],
-      revision: role.revision + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    db.prepare('UPDATE messaging_external_roles SET body = ? WHERE id = ? AND bot_slug = ?').run(
-      JSON.stringify(next),
-      next.id,
-      botSlug,
-    );
-    bumpSenderPolicy(db, botSlug);
-    return;
-  }
-  if (input.kind === 'delete-role') {
-    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.id);
-    if (!role || role.revision !== input.expectedRevision) throw new MessagingError('role-stale');
-    if (
-      db
-        .prepare(
-          "SELECT 1 FROM messaging_pairings WHERE bot_slug = ? AND status IN ('pending', 'approved') AND json_extract(body, '$.roleId') = ? LIMIT 1",
-        )
-        .get(botSlug, role.id)
-    )
-      throw new MessagingError('role-in-use');
-    db.prepare('DELETE FROM messaging_external_roles WHERE id = ? AND bot_slug = ?').run(
-      role.id,
-      botSlug,
-    );
-    db.prepare(
-      'UPDATE messaging_sender_policies SET default_role_id = NULL WHERE bot_slug = ? AND default_role_id = ?',
-    ).run(botSlug, role.id);
+    if (!isSingleBotRole(role, botSlug)) throw new MessagingError('role-host-managed');
+    if (input.kind === 'delete-role') {
+      deleteExternalRole(db, role.id);
+    } else {
+      changeHostExternalRole(db, {
+        kind: 'update',
+        id: role.id,
+        expectedRevision: input.expectedRevision,
+        name: input.name,
+        behavior: input.behavior,
+        capabilities: [
+          ...input.capabilities,
+          ...role.capabilities.filter((cap) => cap === 'answer'),
+        ],
+        ...(input.delegableCapabilities
+          ? {
+              delegableCapabilities: [
+                ...input.delegableCapabilities,
+                ...(role.delegableCapabilities ?? []).filter((cap) => cap === 'answer'),
+              ],
+            }
+          : {}),
+      });
+    }
     bumpSenderPolicy(db, botSlug);
     return;
   }
@@ -630,7 +617,7 @@ export function changeSenderAccess(
       !binding.enabled
     )
       throw new MessagingError('pairing-stale');
-    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.roleId);
+    const role = readExternalRoleForBot(db, botSlug, input.roleId);
     if (!role || role.revision !== input.expectedRoleRevision)
       throw new MessagingError('role-stale');
     if (reviewer) {
@@ -647,12 +634,10 @@ export function changeSenderAccess(
       )
         throw new MessagingError('pairing-unauthorized');
       const delegable = permissions.delegableCapabilities ?? [];
-      const current = externalUserRoles(db, botSlug).find((item) => item.id === pairing.roleId);
+      const current = readExternalRoleForBot(db, botSlug, pairing.roleId);
       if (
-        [role, ...(current ? [current] : [])].some((item) =>
-          [...item.capabilities, ...(item.delegableCapabilities ?? [])].some(
-            (cap) => !delegable.includes(cap),
-          ),
+        [role, ...(current ? [current] : [])].some(
+          (item) => !canDelegateExternalRole(item, botSlug, delegable),
         )
       )
         throw new MessagingError('pairing-delegation-denied');
@@ -679,7 +664,7 @@ export function changeSenderAccess(
   const policy = readSenderPolicy(db, botSlug);
   if (policy.revision !== input.expectedRevision) throw new MessagingError('sender-policy-stale');
   if (input.kind === 'default-role') {
-    if (input.roleId && !externalUserRoles(db, botSlug).some((role) => role.id === input.roleId))
+    if (input.roleId && !readExternalRoleForBot(db, botSlug, input.roleId))
       throw new MessagingError('role-stale');
     db.prepare(
       'INSERT INTO messaging_sender_policies (bot_slug, restricted, revision, default_role_id) VALUES (?, ?, ?, ?) ON CONFLICT(bot_slug) DO UPDATE SET revision = excluded.revision, default_role_id = excluded.default_role_id',
@@ -716,22 +701,14 @@ export function currentSenderRole(
   if (!sender) return undefined;
   const identity = readMessagingIdentity(db, sender.bindingId);
   if (!identity.enabled) return undefined;
-  const row = db
-    .prepare(
-      "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND purpose = 'conversation' AND status = 'approved'",
-    )
-    .get(botSlug, sender.bindingId, event.actor.id) as { body: string } | undefined;
-  if (!row) return undefined;
-  const pairing = JSON.parse(row.body) as PairingRequest;
-  const role = externalUserRoles(db, botSlug).find((role) => role.id === pairing.roleId);
-  if (
-    !role ||
-    !pairing.reviewedAt ||
-    !Number.isFinite(Date.parse(event.at)) ||
-    Date.parse(event.at) < Date.parse(pairing.reviewedAt) ||
-    pairing.messageIds?.includes(event.messageId)
-  )
-    return undefined;
+  const local = approvedConversationPairing(db, botSlug, sender.bindingId, sender.actorId);
+  const [match] = externalContactRoles(db, identity, sender.actorId, local, {
+    at: event.at,
+    messageId: event.messageId,
+    bindingId: sender.bindingId,
+  });
+  if (!match) return undefined;
+  const { pairing, role } = match;
   return {
     bindingId: sender.bindingId,
     providerId: identity.providerId,
@@ -741,9 +718,53 @@ export function currentSenderRole(
     pairingId: pairing.id,
     pairingRevision: pairing.revision,
     policyRevision: readSenderPolicy(db, botSlug).revision,
-    role,
+    role: { ...role, botSlug },
   };
 }
+export function externalContactAccess(
+  db: DatabaseSync,
+  botSlug: string,
+  bindingId: string,
+  actorId: string,
+): ExternalContactAccess {
+  const identity = readMessagingIdentity(db, bindingId);
+  const empty = {
+    canSpeak: false,
+    roleIds: [],
+    capabilities: [],
+    deniedCapabilities: [],
+  };
+  if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
+  if (identity.revokedAt || !identity.enabled || !platformPeople(identity.platform))
+    return { ...empty, status: 'unavailable' };
+  if (
+    senderBlocked(db, botSlug, {
+      fingerprint: identity.fingerprint,
+      actor: { kind: 'user', id: actorId },
+    })
+  )
+    return { ...empty, status: 'blocked' };
+  const local = approvedConversationPairing(db, botSlug, bindingId, actorId);
+  const roles = externalContactRoles(db, identity, actorId, local);
+  const { capabilities, deniedCapabilities } = effectivePairingPermissions(
+    db,
+    botSlug,
+    bindingId,
+    actorId,
+  );
+  const canSpeak = canExternalContactSpeak(
+    readSenderPolicy(db, botSlug).restricted,
+    () => roles.length > 0,
+  );
+  return {
+    status: roles.length ? 'paired' : canSpeak ? 'visitor' : 'unpaired',
+    canSpeak,
+    roleIds: roles.map(({ role }) => role.id),
+    capabilities,
+    deniedCapabilities,
+  };
+}
+
 function senderAdmissionAllowed(
   db: DatabaseSync,
   botSlug: string,
@@ -753,8 +774,10 @@ function senderAdmissionAllowed(
   if (externalBotTurnsExhausted(db, botSlug, event)) return false;
   return (
     !chatPairingApplies(event) ||
-    !readSenderPolicy(db, botSlug).restricted ||
-    currentSenderRole(db, botSlug, event) !== undefined ||
+    canExternalContactSpeak(
+      readSenderPolicy(db, botSlug).restricted,
+      () => currentSenderRole(db, botSlug, event) !== undefined,
+    ) ||
     ((event.conversation.kind === 'dm' || event.mentionedAccount) &&
       openGroupAllows(db, botSlug, event))
   );

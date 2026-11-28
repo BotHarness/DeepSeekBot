@@ -236,12 +236,13 @@ export async function runBotCreateCli(
         action === 'publish' ||
         action === 'replace' ||
         action === 'delete' ||
-        action === 'mine'
+        action === 'mine' ||
+        action === 'added'
       ) {
         command = `skills-${action}`;
         rest = targets;
       } else if (values.help !== true)
-        throw usageError('skills needs publish, replace, delete or mine.');
+        throw usageError('skills needs publish, replace, delete, mine or added.');
     } else if (command === 'connector') {
       const [action, ...targets] = rest;
       if (action === 'catalog' || action === 'grant' || action === 'request-decide') {
