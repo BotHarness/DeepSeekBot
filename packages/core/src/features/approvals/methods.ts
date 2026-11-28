@@ -768,8 +768,20 @@ export function createApprovalsBridgeMethods(
         answer as unknown as AskUserQuestionAnswer,
         human,
       );
-      if (accepted !== true)
+      if (accepted !== true) {
+        if (
+          (deps.userQuestions?.status(channel.botSlug, messageId, channelId) ?? 'expired') ===
+          'expired'
+        )
+          return {
+            ok: false,
+            error: {
+              code: 'question-expired',
+              message: 'This question has expired. Ask the Bot again.',
+            },
+          };
         return invalidInput('Question is no longer pending or answer is invalid');
+      }
       return { ok: true, value: { accepted: true } };
     },
   };

@@ -87,7 +87,8 @@ export function nativeTimedQuestions(
         typeof query?.['readSession'] !== 'function' ||
         typeof projections?.['restore'] !== 'function'
       )
-        return;
+        return new Set(sessionIds);
+      const unavailable = new Set<string>();
       for (const sessionId of sessionIds) {
         if (liveRoot(sessionId) !== undefined || sessions.get(sessionId) !== undefined) continue;
         try {
@@ -106,9 +107,11 @@ export function nativeTimedQuestions(
           );
           if (questions !== undefined) views.set(sessionId, questions);
         } catch {
+          unavailable.add(sessionId);
           ctx.logger.warn(`botharness.channel_question.native_read_failed session=${sessionId}`);
         }
       }
+      return unavailable;
     },
     read(sessionId, callId) {
       const questions = questionsOf(sessionId);

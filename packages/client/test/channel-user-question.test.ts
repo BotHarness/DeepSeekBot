@@ -674,4 +674,29 @@ describe('native question card interaction', () => {
     expect(button('回答并继续')).toBeUndefined();
     expect(button('main')).toBeUndefined();
   });
+
+  it('shows a timed question as expired when the Host refuses a stale click and when reopening it', async () => {
+    const card = {
+      ...message,
+      userQuestionRequest: { ...message.userQuestionRequest!, callId: 'timed-call' },
+    };
+    const actions = {
+      userQuestionStatus: vi.fn().mockResolvedValue('pending'),
+      answerUserQuestion: vi
+        .fn()
+        .mockRejectedValue(new BridgeCallError('question-expired', 'This question has expired.')),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    expect(button('main')).toBeDefined();
+    await act(async () => button('main')?.click());
+    expect(container.querySelector('[data-settled=expired]')?.textContent).toContain('已过期');
+    expect(container.querySelector('.bh-question-card [role=alert]')).toBeNull();
+    expect(button('main')).toBeUndefined();
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => render(actions, 'cancelled', card));
+    expect(container.querySelector('[data-settled=expired]')?.textContent).toContain('已过期');
+    expect(button('main')).toBeUndefined();
+  });
 });

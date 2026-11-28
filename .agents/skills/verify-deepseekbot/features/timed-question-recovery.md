@@ -19,6 +19,8 @@
 - Web and `user-question-answer` use the same native answer owner; invalid and duplicate answers refuse.
 - Cold recovery preserves Memory without turning the question's Bot Source Event into a new Memory admission.
 - A follow-up question created by a recovered continuation retains that mode and validates its own new card.
+- A timed question whose continuation refuses delivery is shown as expired. The original card stays
+  closed after restart. The CLI reports `expired` and a late answer returns `question-expired`.
 
 ## How to get to it (user POV)
 
@@ -40,6 +42,11 @@ first call to be durably `continued` and the turn idle, restart once and answer 
 The Bot then asks the second question. Wait for durable continuation and idle again, but do not
 restart or send another prompt before answering the second card. Require native Memory write
 and readback plus the final reply, with one settlement for each original call.
+
+For an orphan, use a disposable Profile with a timed question whose native continuation cannot
+run. Submit a valid offered choice. Check that the original card shows Expired without answer
+controls and disappears from the actionable Inbox. Restart and check the same card and CLI
+status again.
 
 ## Gotchas
 

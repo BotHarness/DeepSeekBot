@@ -44,11 +44,13 @@ export function UserQuestionCard({
   const host = useMessageHost()?.client;
   const developerMode = useContext(MessageDeveloperMode);
   const request = message.userQuestionRequest!;
+  const resolved =
+    resolution === 'cancelled' && request.callId !== undefined ? 'expired' : resolution;
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
   const cardChannelId = sourceChannelId ?? 'dm-' + botSlug;
   const [status, setStatus] = useState<
     'loading' | 'pending' | 'submitted' | 'expired' | 'answered' | 'cancelled'
-  >(resolution ?? 'loading');
+  >(resolved ?? 'loading');
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -76,8 +78,8 @@ export function UserQuestionCard({
     mounted.current = true;
     let active = true;
     let stop: (() => void) | undefined;
-    if (resolution !== undefined) {
-      setStatus(resolution);
+    if (resolved !== undefined) {
+      setStatus(resolved);
     } else if (botSlug !== undefined) {
       if (companionTarget && statusRetry === 0) setStatus('loading');
       setStatusError(false);
@@ -111,7 +113,7 @@ export function UserQuestionCard({
     cardChannelId,
     host,
     message.id,
-    resolution,
+    resolved,
     statusRetry,
     companionTarget?.live,
   ]);
@@ -181,6 +183,15 @@ export function UserQuestionCard({
         () => undefined,
         (cause: unknown) => {
           if (!mounted.current) return;
+          if (
+            typeof cause === 'object' &&
+            cause !== null &&
+            'code' in cause &&
+            cause.code === 'question-expired'
+          ) {
+            setStatus('expired');
+            return;
+          }
           setError(errorMessage(cause));
           setStatus('loading');
           setStatusRetry((current) => current + 1);

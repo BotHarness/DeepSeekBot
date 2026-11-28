@@ -1,4 +1,5 @@
 import { questionAnswerHash } from '../src/channels/question-answer-receipts.js';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -9,6 +10,12 @@ import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-r
 import { ChannelUserQuestions, type TimedQuestionPort } from '../src/channels/user-questions.js';
 import { nativeTimedQuestions } from '../src/channels/native-timed-questions.js';
 import { createTempRoot } from './helpers.js';
+import {
+  channelId as fixtureChannelId,
+  fixture as questionFixture,
+  questions as fixtureQuestions,
+  sessionId as fixtureSessionId,
+} from './fixtures/user-questions.js';
 
 const questions = [
   {
@@ -47,6 +54,56 @@ function port(
 }
 
 describe('a timed question card across a Host restart', () => {
+  it('expires a timed card whose continuation cannot accept an answer', async () => {
+    const native = nativeLog();
+    const deliver = vi.fn(async () => false);
+    const timed: TimedQuestionPort = {
+      bind: () => deliver,
+      recover: () => deliver,
+      read: () => native.current,
+      answer: vi.fn(() => true),
+    };
+    const state = questionFixture('orchestrator', timed);
+    const controller = new AbortController();
+    const wait = state.answerer.ask({
+      agent: state.agent,
+      questions: fixtureQuestions,
+      signal: controller.signal,
+      wait: { callId: ToolCallId('original'), timed: true },
+    });
+    const timeout = Object.assign(new Error('native deadline'), { code: 'ASK_TIMED_OUT' });
+    const timedOut = expect(wait).rejects.toBe(timeout);
+    await vi.waitFor(() => expect(state.channels.readMessages(fixtureChannelId)).toHaveLength(1));
+    const card = state.channels.readMessages(fixtureChannelId)[0]!;
+    controller.abort(timeout);
+    await timedOut;
+    native.current = { state: 'continued' };
+    await state.answerer.reconcileSession(fixtureSessionId);
+    expect(state.answerer.status('ada', card.id, fixtureChannelId)).toBe('pending');
+    const valid = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
+    expect(await state.answerer.answer('ada', card.id, valid, OWNER_HUMAN_CONTEXT)).toBe(false);
+    expect(deliver).toHaveBeenCalledOnce();
+    expect(state.answerer.status('ada', card.id, fixtureChannelId)).toBe('expired');
+    expect(state.channels.readMessages(fixtureChannelId)).toContainEqual(
+      expect.objectContaining({
+        userQuestionResolution: { requestMessageId: card.id, state: 'cancelled' },
+      }),
+    );
+    state.answerer.close();
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      undefined,
+      undefined,
+      timed,
+    );
+    expect(restarted.status('ada', card.id, fixtureChannelId)).toBe('expired');
+    expect(await restarted.answer('ada', card.id, valid, OWNER_HUMAN_CONTEXT)).toBe(false);
+    expect(deliver).toHaveBeenCalledOnce();
+    restarted.close();
+  });
+
   it('stays answerable and resumes its own Orchestrator Session with the late answer', async () => {
     const home = createTempRoot('bh-timed-question-recovery-');
     const native = nativeLog();

@@ -711,7 +711,7 @@ describe('timed question cards outlive their asking Agent', () => {
       const state = fixture('orchestrator', timed);
       const { id, controller } = await askTimed(state);
       if (mode === 'continued') {
-        controller.abort();
+        controller.abort(Object.assign(new Error('native deadline'), { code: 'ASK_TIMED_OUT' }));
         state.setLive(false);
         native = { state: 'continued' };
       }
@@ -762,13 +762,9 @@ describe('timed question cards outlive their asking Agent', () => {
     expect(resolution?.userQuestionResolution?.decidedBy).toBeUndefined();
   });
 
-  it('recovers nothing for a missing native question, another owner, an unavailable Session or a blocking card', async () => {
-    for (const setup of [
-      (port: ReturnType<typeof recoveringPort>['port']) => port.read.mockReturnValue(undefined),
-      (port: ReturnType<typeof recoveringPort>['port']) => port.available.mockReturnValue(false),
-      (_port: unknown, state: ReturnType<typeof fixture>) =>
-        vi.spyOn(state.ownership, 'resolve').mockReturnValue(undefined),
-    ]) {
+  it.each(['missing', 'unavailable', 'foreign'] as const)(
+    'does not recover a timed question for a %s Session',
+    async (status) => {
       const { port } = recoveringPort(() => ({ state: 'continued' }));
       const state = fixture('orchestrator', port);
       await state.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
@@ -778,12 +774,22 @@ describe('timed question cards outlive their asking Agent', () => {
         body: 'card',
         userQuestionRequest: { sessionId, callId: 'original', questions },
       });
-      setup(port, state);
+      if (status === 'missing') port.read.mockReturnValue(undefined);
+      if (status === 'unavailable') port.available.mockReturnValue(false);
+      if (status === 'foreign') vi.spyOn(state.ownership, 'resolve').mockReturnValue(undefined);
       await state.answerer.recover([{ channelId, messageId: 'card' }]);
       expect(state.answerer.activeMessageIds()).toEqual([]);
-      expect(state.channels.readMessages(channelId)).toHaveLength(1);
+      expect(
+        state.channels.readMessages(channelId).find((message) => message.userQuestionResolution)
+          ?.userQuestionResolution,
+      ).toEqual(
+        status === 'foreign' ? undefined : { requestMessageId: 'card', state: 'cancelled' },
+      );
       expect(state.states.snapshot('ada').attention).toBeUndefined();
-    }
+    },
+  );
+
+  it('does not recover a blocking question after restart', async () => {
     const { port } = recoveringPort(() => ({ state: 'continued' }));
     const state = fixture('orchestrator', port);
     await state.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
@@ -818,16 +824,13 @@ describe('timed question cards outlive their asking Agent', () => {
     }
   });
 
-  it('cancels the card when a stopped turn drops the native question', async () => {
-    let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
-    const { port } = recoveringPort(() => native);
+  it('expires a cancelled timed card before the native result commits', async () => {
+    const { port } = recoveringPort(() => ({ state: 'open' }));
     const state = fixture('orchestrator', port);
     const { controller, id } = await askTimed(state);
     controller.abort(new Error('turn stopped'));
-    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(state.answerer.status('ada', id)).toBe('expired');
     expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(false);
-    native = undefined;
-    await state.answerer.reconcileSession(sessionId);
     await vi.waitFor(() =>
       expect(
         state.channels.readMessages(channelId).find((item) => item.userQuestionResolution)

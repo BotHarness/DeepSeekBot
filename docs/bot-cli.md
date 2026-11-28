@@ -284,6 +284,9 @@ For a pending Shell card, `tool-approval-status` also returns `shellSuggestions`
 question can be answered after restarting the Host; keep its original Channel and card IDs.
 Cold recovery resumes the original native call and preserves Memory, but does not create a new
 Inbox Admission or passive Memory observation. Missing, archived or revoked owners still refuse.
+A timed question whose native continuation can no longer accept an answer is closed.
+`user-question-status` returns `expired` and `user-question-answer` returns `question-expired`.
+Ask the Bot again for a new question.
 Read `diagnostic-logs` or export them to inspect `native-question-input-refused` with a stable
 `phase` and `reason`; these records omit prompts, answers and exception messages.
 
