@@ -2500,6 +2500,8 @@ same report ID. To edit it, explicitly refresh the preview. Receipt returns `rep
 
 Submission uses the existing PostHog ingest path without extra configuration. No dedicated receiver or private archive storage is deployed. See [feedback and local diagnostics](message-feedback.md).
 
+When upload fails, `feedback-submit` returns `feedback-failed`. Read `error.details.reason` for `network`, `timeout`, `auth`, or `receiver-error`. For `auth` and `receiver-error`, `error.details.status` is the receiver's HTTP status. The same preview token and rating can be retried while the preview is valid.
+
 ### Failed-turn feedback
 
 `feedback-preview` accepts `failureTurn: true` alongside the canonical failed message's `channelId` and `messageId` in stdin JSON. Its frozen preview includes `uploadEvidence`: only the matching turn input and tool call/result events, redacted and capped at 128 KiB. Ambiguous/missing turn identity and oversized evidence refuse instead of uploading a whole Session. `feedback-submit --confirm` uploads that frozen turn with rating/tags/comment to the existing feedback endpoint. The diagnostic ZIP stays a separate download. Ordinary feedback keeps its existing metadata-only POST.

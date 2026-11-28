@@ -15,7 +15,13 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('requires a rating, previews evidence and keeps a failed submission available for retry', async () => {
+it.each([
+  [undefined, '提交失败'],
+  [{ reason: 'network' }, '检查网络后重试'],
+  [{ reason: 'timeout' }, '响应超时'],
+  [{ reason: 'auth', status: 401 }, '检查登录状态后重试'],
+  [{ reason: 'receiver-error', status: 503 }, '暂时无法接收'],
+])('requires a rating and keeps feedback available to retry after %j', async (failure, copy) => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const requests: string[] = [];
   let submits = 0;
@@ -39,7 +45,7 @@ it('requires a rating, previews evidence and keeps a failed submission available
       };
     submits += 1;
     return submits === 1
-      ? { ok: false, json: async () => ({ error: { code: 'feedback-failed' } }) }
+      ? { ok: false, json: async () => ({ error: { code: 'feedback-failed', ...failure } }) }
       : {
           ok: true,
           json: async () => ({ reportId: 'accepted-report', expiresAt: '2026-11-25T00:00:00Z' }),
@@ -67,7 +73,8 @@ it('requires a rating, previews evidence and keeps a failed submission available
   expect(buttonNamed('提交反馈').disabled).toBe(false);
   expect(document.body.textContent).toContain('41');
   await act(async () => buttonNamed('提交反馈').click());
-  expect(document.body.textContent).toContain('提交失败');
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(copy);
+  expect(buttonNamed('下载诊断包').disabled).toBe(false);
   await act(async () => buttonNamed('提交反馈').click());
   expect(document.body.textContent).toContain('accepted-report');
   expect(requests[1]).toBe(requests[2]);

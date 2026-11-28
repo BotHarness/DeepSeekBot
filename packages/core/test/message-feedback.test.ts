@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMessageFeedbackHttp } from '../src/diagnostics/message-feedback-http.js';
 import { queryChannelMessages } from '../src/channels/store.js';
 import { pageChannelTimeline } from '../src/channels/timeline.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
 import { readZip } from '../src/bots/zip-archive.js';
 import { feedbackRatingSchema } from '../src/diagnostics/feedback-contract.js';
+import { feedbackUploader } from '../src/diagnostics/feedback-upload.js';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const base = 'http://localhost/api/botharness/message-feedback';
 function fixture(
@@ -157,6 +160,49 @@ function fixture(
 }
 
 describe('message feedback through the Host HTTP interface', () => {
+  it.each([
+    ['503', { reason: 'receiver-error', status: 503 }],
+    ['401', { reason: 'auth', status: 401 }],
+    ['403', { reason: 'auth', status: 403 }],
+    ['invalid-ack', { reason: 'receiver-error', status: 200 }],
+    ['network', { reason: 'network' }],
+    ['timeout', { reason: 'timeout' }],
+  ])('preserves a retry and reports a bounded reason for %s', async (mode, failure) => {
+    let attempts = 0;
+    const requests: unknown[] = [];
+    const deadline = new AbortController();
+    vi.stubGlobal('fetch', async (_path: string, init: RequestInit) => {
+      requests.push(JSON.parse(String(init.body)));
+      if (++attempts === 2) return Response.json({ status: 1 });
+      if (mode === 'network') throw new TypeError('private receiver connection detail');
+      if (mode === 'timeout') {
+        deadline.abort(new DOMException('deadline', 'TimeoutError'));
+        throw deadline.signal.reason;
+      }
+      if (mode === 'invalid-ack') return new Response('private receiver body');
+      return new Response('private receiver body', { status: Number(mode) });
+    });
+    const timeout =
+      mode === 'timeout'
+        ? vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal)
+        : undefined;
+    try {
+      const f = fixture(feedbackUploader());
+      const preview = await (await f.post('preview', { channelId: 'dm', messageId: 'm30' })).json();
+      const input = { token: preview.token, feedback: { rating: 'good', comment: 'kept' } };
+      const refused = await f.post('submit', input);
+      expect(refused.status).toBe(502);
+      expect(await refused.json()).toEqual({ error: { code: 'feedback-failed', ...failure } });
+      expect((await f.post('download', { token: preview.token })).status).toBe(200);
+      const retry = await f.post('submit', input);
+      expect(retry.status).toBe(200);
+      expect(await retry.json()).toEqual({ reportId: preview.token });
+      expect(requests).toHaveLength(2);
+      expect(requests[0]).toEqual(requests[1]);
+    } finally {
+      timeout?.mockRestore();
+    }
+  });
   it('includes a reused Assignment addressed through serialized native tool arguments', async () => {
     const f = fixture(undefined, true);
     const preview = await (
