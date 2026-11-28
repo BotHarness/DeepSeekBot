@@ -65,6 +65,12 @@ Why: shared roles keep content legible across schemes and preserve product ident
 
 Enforced by: [design-tokens.test.ts](../../apps/mobile/test/design-tokens.test.ts), [platform-tokens.test.ts](../../apps/mobile/test/platform-tokens.test.ts), [style-guard.test.ts](../../apps/mobile/test/style-guard.test.ts) and [session-maintenance.test.ts](../../packages/client/test/session-maintenance.test.ts).
 
+### Inline search in choice sheets
+
+`SheetSearchField` keeps the search field beside the sheet's filters and virtualized results. UIKit's `UISearchBar` keeps the search field in that body position on iOS. Android uses the existing Material 3 docked search. Both send text changes to the sheet's query state.
+
+Enforced by [the iOS query test](../../apps/mobile/test/sheet-search-field-ios.test.tsx) and the [Phone Voice verification journey](../../.agents/skills/verify-deepseekbot/features/phone-voice-settings.md).
+
 ## 4. Motion roles use platform springs
 
 <a id="adr-0264"></a>
