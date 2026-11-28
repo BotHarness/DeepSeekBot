@@ -411,6 +411,60 @@ it('reproduces a credential reuse miss and refuses repeat collection after cance
   }
 }, 60_000);
 
+it('keeps the cancellation cooldown when saving the cancelled resolution fails', async () => {
+  const f = await fixture(true, 'qq');
+  let mounted: ReturnType<typeof f.mount> | undefined;
+  try {
+    await f.local();
+    const run = await f.started();
+    const agent = {
+      id: run.sessionId,
+      session: { id: run.sessionId, header: { cwd: f.home } },
+    } as Agent;
+    mounted = f.mount(agent);
+    await f.configure(agent);
+    await f.nextTurn();
+    const source = await f.im();
+    await f.started();
+    const collection = {
+      ...declaration,
+      account: 'new-cloudflare-account',
+      purpose: '请填写新的 Cloudflare API 令牌以更新 DNS 记录。',
+      source_event_id: source,
+      mode: 'collect',
+    };
+    const cards = () =>
+      f.core.channels
+        .readMessages('dm-ada')
+        .filter((message) => message.privateInputRequest?.account === collection.account);
+    const ask = mounted.call('ask_secret', collection);
+    await vi.waitFor(() => expect(cards()).toHaveLength(1), { timeout: 45_000 });
+    const append = f.core.channels.appendMessageOnce.bind(f.core.channels);
+    const save = vi
+      .spyOn(f.core.channels, 'appendMessageOnce')
+      .mockImplementation((...args: Parameters<typeof append>) =>
+        args[2].privateInputResolution === undefined
+          ? append(...args)
+          : Promise.reject(new Error('disk full')),
+      );
+    try {
+      await f.privateInputs.cancel(true, 'dm-ada', cards()[0]!.id);
+      expect(JSON.parse((await ask) as string).status).toBe('expired');
+    } finally {
+      save.mockRestore();
+    }
+    const repeat = await mounted.call('ask_secret', collection).then(
+      () => 'opened',
+      (error: unknown) => (error instanceof PrivateInputRefusal ? error.code : String(error)),
+    );
+    expect(repeat).toBe('private-input-declined');
+    expect(cards()).toHaveLength(1);
+  } finally {
+    await mounted?.close();
+    await f.close();
+  }
+}, 60_000);
+
 it('opens an IM-started card in Web Chat and accepts the Owner key without a configured Web URL', async () => {
   const f = await fixture(true);
   let mounted: ReturnType<typeof f.mount> | undefined;

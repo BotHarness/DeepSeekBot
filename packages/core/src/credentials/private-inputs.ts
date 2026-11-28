@@ -632,7 +632,10 @@ export class PrivateInputs {
     pending.signal.removeEventListener('abort', pending.abort);
     pending.origin?.signal.removeEventListener('abort', pending.abort);
     this.#pending.delete(id);
-    if (result.status === 'cancelled' && pending.declineKey !== undefined)
+    if (
+      (result.status === 'cancelled' || pending.terminal === 'cancelled') &&
+      pending.declineKey !== undefined
+    )
       this.#declined.remember(pending.declineKey);
     pending.resolve(result);
     this.#publish(pending.botSlug);
