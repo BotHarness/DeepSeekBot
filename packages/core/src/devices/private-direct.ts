@@ -59,9 +59,7 @@ export function directEdgeStarter(data: string, anchors: readonly string[]): Sta
         try {
           const event = edgeEvent.safeParse(JSON.parse(line));
           if (event.success) onEvent(event.data);
-        } catch {
-          // Child output is diagnostic input and never goes into the Host logs.
-        }
+        } catch {}
       }
       if (pending.length > 1024) pending = '';
     });
