@@ -375,6 +375,22 @@ export function diagnoseStartupExit(options: {
   );
 }
 
+export function windowsBrowserHandoffFailure(
+  code: 0 | 21,
+  profileLocked: boolean,
+): BrowserProvisionError {
+  const detail = profileLocked
+    ? 'Another browser still holds the Bot Browser profile and has no reachable DevTools endpoint.'
+    : 'No browser with a reachable DevTools endpoint took over the Bot Browser profile.';
+  return new BrowserProvisionError(
+    'startup-crashed',
+    profileLocked
+      ? `${detail} Close the other browser using this Bot Browser profile, then try again.`
+      : `${detail} Open the Bot Browser again to retry.`,
+    `${detail} Windows launcher exit code: ${code}.`,
+  );
+}
+
 export function redactBrowserStartupText(text: string): string {
   return text
     .replace(/\p{Cc}\[[0-?]*[ -/]*[@-~]/gu, '')
