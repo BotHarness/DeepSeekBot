@@ -22,20 +22,38 @@ export function selectedBotRoleIdsSql(visibility: string): string {
       AND json_extract(${visibility}, '$.audience.kind') = 'roles'`;
 }
 
-export function publicBotRoleSourceSql(visibility: string, all: string, selected: string): string {
+export function publicBotRoleSourceSql({
+  visibility,
+  allPublic,
+  selected,
+}: {
+  visibility: string;
+  allPublic: string;
+  selected: string;
+}): string {
   return `CASE WHEN json_extract(${visibility}, '$.audience.kind') = 'everyone' THEN 'everyone'
-    WHEN ${all} THEN 'all' WHEN ${selected} THEN 'selected' ELSE 'none' END`;
+    WHEN ${allPublic} THEN 'all' WHEN ${selected} THEN 'selected' ELSE 'none' END`;
 }
 
-export function activeBotHumanSql(human: string, settings: string): string {
+export function activeBotHumanSql({
+  human,
+  settings,
+}: {
+  human: string;
+  settings: string;
+}): string {
   return `(${human}.status = 'active' AND (${settings}.enabled = 1 OR ${settings}.owner_human_id = ${human}.human_id))`;
 }
 
-export function botAudienceAccessSql(
-  visibility: string,
-  viewer: string,
-  principal: string,
-): string {
+export function botAudienceAccessSql({
+  visibility,
+  viewer,
+  principal,
+}: {
+  visibility: string;
+  viewer: string;
+  principal: string;
+}): string {
   return `(${viewer} = ${principal} OR (json_extract(${visibility}, '$.kind') = 'public' AND (
     json_extract(${visibility}, '$.audience.kind') = 'everyone'
     OR (json_extract(${visibility}, '$.audience.kind') = 'members' AND ${viewer} IN (

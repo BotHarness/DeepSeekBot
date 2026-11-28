@@ -159,6 +159,74 @@ describe('M7 public Bot Memory placement', () => {
     });
   });
 
+  it.each(['selected', 'all'] as const)(
+    'can retry %s scope revocation after the second Group departure fails',
+    async (kind) => {
+      const { core, db } = fixture();
+      const bridge = createBridgeMethodsForHumans(core)(owner);
+      const { roleId } = core.team.roles.create(owner, 'Public Bot readers', []).role;
+      core.team.roles.set(owner, bob.humanId, [roleId]);
+      const audience = { kind: 'roles', roleIds: kind === 'selected' ? [roleId] : [] };
+      expect(
+        await bridge.botVisibilitySet({ slug: 'helper', visibility: { kind: 'public', audience } }),
+      ).toMatchObject({ ok: true, value: { applied: true } });
+      const scope = () => core.team.botRoleAccess.scope(owner, roleId);
+      if (kind === 'all')
+        expect(
+          await bridge.roleBotScopeSet({
+            roleId,
+            expectedRevision: scope().revision,
+            scope: { kind: 'all' },
+          }),
+        ).toMatchObject({ ok: true });
+
+      const groups = ['First', 'Second'].map((name) => {
+        const group = core.channels.createGroup(bob, { name, members: ['helper'] });
+        core.team.channelAccess.addMember(bob, group.id, alice.humanId);
+        core.team.bots.recordAdder(bob, 'helper', group.id);
+        return group.id;
+      });
+      db.transaction((sql) =>
+        sql.exec(`CREATE TRIGGER fail_second_departure
+        BEFORE UPDATE OF record_json ON channel_records
+        WHEN json_extract(NEW.record_json, '$.type') = 'group'
+          AND json_extract(NEW.record_json, '$.name') IN ('First', 'Second')
+          AND json_array_length(NEW.record_json, '$.members') = 0
+          AND EXISTS (SELECT 1 FROM channel_records
+            WHERE channel_id <> NEW.channel_id
+              AND json_extract(record_json, '$.type') = 'group'
+              AND json_extract(record_json, '$.name') IN ('First', 'Second')
+              AND json_array_length(record_json, '$.members') = 0)
+        BEGIN SELECT RAISE(ABORT, 'interrupted second departure'); END`),
+      );
+
+      const before = scope();
+      const save = (expectedRevision: number) =>
+        bridge.roleBotScopeSet({
+          roleId,
+          expectedRevision,
+          scope: { kind: 'selected', botSlugs: [] },
+        });
+      const departures = (id: string) =>
+        core.channels
+          .readMessages(id)
+          .filter((message) => message.memberDeparture?.memberId === 'helper');
+      expect(await save(before.revision)).toMatchObject({ ok: false });
+      expect(groups.map((id) => core.channels.get(id)?.members)).toEqual([['helper'], ['helper']]);
+      expect(groups.flatMap(departures)).toEqual([]);
+      expect(scope()).toEqual(before);
+      expect(core.team.bots.canReach(bob, 'helper')).toBe(true);
+
+      db.transaction((sql) => sql.exec('DROP TRIGGER fail_second_departure'));
+      expect(await save(before.revision)).toMatchObject({ ok: true });
+      expect(core.team.bots.canReach(bob, 'helper')).toBe(false);
+      expect(groups.map((id) => core.channels.get(id)?.members)).toEqual([[], []]);
+      const revision = scope().revision;
+      expect(await save(revision)).toMatchObject({ ok: true, value: { revision } });
+      expect(groups.map((id) => departures(id).length)).toEqual([1, 1]);
+    },
+  );
+
   it('recreates a missing public Memory space when saving an unchanged selected Bot', async () => {
     const f = fixture();
     const bridge = createBridgeMethodsForHumans(f.core)(owner);

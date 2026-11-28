@@ -34,7 +34,7 @@ const liveBotSql = `json_extract(b.body, '$.deletedAt') IS NULL
 const visibleBotFrom = `FROM persona_bots b
   JOIN humans principal ON principal.human_id = b.owner_human_id
   CROSS JOIN team_settings s
-  JOIN humans viewer ON viewer.human_id = ? AND ${activeBotHumanSql('viewer', 's')}`;
+  JOIN humans viewer ON viewer.human_id = ? AND ${activeBotHumanSql({ human: 'viewer', settings: 's' })}`;
 
 export class TeamBotRoleAccess {
   constructor(
@@ -87,7 +87,11 @@ export class TeamBotRoleAccess {
         .parse(
           db
             .prepare(`SELECT roleId, name, source FROM (
-          SELECT r.role_id AS roleId, r.name, ${publicBotRoleSourceSql('input.visibility', 'r.all_public_bots', `r.role_id IN (${selectedBotRoleIdsSql('input.visibility')})`)} AS source
+          SELECT r.role_id AS roleId, r.name, ${publicBotRoleSourceSql({
+            visibility: 'input.visibility',
+            allPublic: 'r.all_public_bots',
+            selected: `r.role_id IN (${selectedBotRoleIdsSql('input.visibility')})`,
+          })} AS source
           FROM host_roles r CROSS JOIN (SELECT ? AS visibility) input
           ) WHERE source <> 'none' ORDER BY roleId`)
             .all(visibility),
@@ -130,7 +134,11 @@ export class TeamBotRoleAccess {
           .array()
           .parse(
             db
-              .prepare(`SELECT candidate.*, ${publicBotRoleSourceSql('candidate.visibility', '?', 'candidate.selected')} AS source FROM (
+              .prepare(`SELECT candidate.*, ${publicBotRoleSourceSql({
+                visibility: 'candidate.visibility',
+                allPublic: '?',
+                selected: 'candidate.selected',
+              })} AS source FROM (
         SELECT b.slug, json_extract(b.body,'$.displayName') AS displayName,
         b.owner_human_id AS ownerHumanId, b.visibility_json AS visibility,
         s.enabled = 1 AND principal.status = 'active' AS availableToMembers,
@@ -139,8 +147,12 @@ export class TeamBotRoleAccess {
         ${manageableBotSql} AS manageable
         ${visibleBotFrom} WHERE ${liveBotSql}
         AND json_extract(b.visibility_json, '$.kind') = 'public'
-        AND (manageable OR (${activeBotHumanSql('principal', 's')}
-          AND ${botAudienceAccessSql('b.visibility_json', 'viewer.human_id', 'b.owner_human_id')}))
+        AND (manageable OR (${activeBotHumanSql({ human: 'principal', settings: 's' })}
+          AND ${botAudienceAccessSql({
+            visibility: 'b.visibility_json',
+            viewer: 'viewer.human_id',
+            principal: 'b.owner_human_id',
+          })}))
         ) candidate ORDER BY slug`)
               .all(Number(allPublic), roleId, Number(manageAll), human.humanId),
           ),

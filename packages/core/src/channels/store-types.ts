@@ -285,6 +285,12 @@ export interface ChannelStore {
     botSlug: string,
     departureType?: 'left' | 'removed',
   ): ChannelRecord;
+  removeGroupMemberIn(
+    database: DatabaseSync,
+    channelId: string,
+    botSlug: string,
+    departureType?: 'left' | 'removed',
+  ): { record: ChannelRecord; publish: () => void };
 
   deleteGroup(channelId: string): void;
   appendMemoryCommits(input: {
