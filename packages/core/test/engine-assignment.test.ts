@@ -17,6 +17,10 @@ import {
   type EngineTurnRequest,
 } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { createAssignmentsContribution } from '../src/features/assignments/contribution.js';
+import { engineConnectorTools } from '../src/features/connectors/engine-tools.js';
+import type { ConnectorService } from '../src/connectors/service.js';
+import type { EngineToolSource } from '../src/engines/engine-tools.js';
 import { ownerEngineSelection } from './engine-route-fixture.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
@@ -444,7 +448,11 @@ const contextAt = (turn: number) =>
     ask: async () => 'allowed-once' as const,
   }) as unknown as EngineToolContext;
 
-function adapterWith(engines: DshBotEngines, host = new FakeAgentHost({ kind: 'completed' })) {
+function adapterWith(
+  engines: DshBotEngines,
+  host = new FakeAgentHost({ kind: 'completed' }),
+  engineTools?: EngineToolSource,
+) {
   return {
     host,
     adapter: createDshBotAgentAdapter({
@@ -453,12 +461,47 @@ function adapterWith(engines: DshBotEngines, host = new FakeAgentHost({ kind: 'c
       ensureWorkspace: () => {},
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       engines,
+      ...(engineTools === undefined ? {} : { engineTools }),
       engineWorkspaceMode: () => 'workspace-write',
     }),
   };
 }
 
 describe('Engine Assignment at the adapter seam', () => {
+  it('offers exactly the Assignment Report tool when the Bot has no Connector Account Grants', async () => {
+    const connectorSource = engineConnectorTools(
+      { forBot: () => [] } as unknown as ConnectorService,
+      () => undefined,
+    );
+    const { engineReportTool } = createAssignmentsContribution().assignmentAgent;
+    let listed: EngineTurnRequest['tools'] = [];
+    const { adapter } = adapterWith(
+      {
+        engineFor: (_slug, role) => (role === 'assignment' ? 'claude' : undefined),
+        isLive: () => false,
+        release: async () => undefined,
+        runTurn: async (request) => {
+          listed = request.tools;
+          await request.execute(
+            engineReportTool.name,
+            { state: 'completed', summary: 'Done' },
+            request.signal,
+            contextAt(3),
+          );
+          return { turn: 3, endSeq: 12 };
+        },
+      },
+      undefined,
+      connectorSource,
+    );
+    try {
+      await adapter.runAssignment(adapterRun(vi.fn(async () => undefined)));
+      expect(listed).toEqual([engineReportTool]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('interrupts a running Claude Assignment for a steer and delivers one terminal report', async () => {
     const recording = assignmentRecording(true);
     const { host, replay, grant, dsh } = hostSetup([
