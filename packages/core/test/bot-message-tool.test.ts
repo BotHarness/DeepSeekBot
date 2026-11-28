@@ -133,11 +133,18 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
           'bea',
           'Ada · Bea',
         );
-        expect(f.core.channels.readMessages(channel!.id)).toMatchObject([
-          ...[1, 2, 3].map((index) => expect.objectContaining({ body: `Short ${index}` })),
-          expect.objectContaining({ body: longBody }),
-          expect.objectContaining({ body: '', attachments: [attachment] }),
+        const messages = f.core.channels.readMessages(channel!.id);
+        expect(messages.map((message) => message.body)).toEqual([
+          '',
+          longBody,
+          'Short 3',
+          'Short 2',
+          'Short 1',
         ]);
+        expect(messages[0]).toMatchObject({
+          attachments: [attachment],
+          deliveries: [{ botSlug: 'bea', state: 'handled' }],
+        });
         expect(record).toHaveBeenCalledWith(
           'bot-send-message',
           'refused',
