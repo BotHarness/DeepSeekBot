@@ -11,16 +11,20 @@ import { useMountedResource } from './mounted-resource.js';
 const ONBOARDING_BINDING_FIELDS = ['bots', 'channels'] as const;
 const ONBOARDING_BINDING_BOT_FIELDS = ['bots'] as const;
 
-function BindingDialog({
+export function BotBindingDialog({
   slug,
   actions,
   t,
   onClose,
+  dismissLabel = t('onboarding.binding.notNow'),
+  description = t('onboarding.binding.description'),
 }: {
   slug: string;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onClose(): void;
+  dismissLabel?: string;
+  description?: string;
 }): ReactElement {
   const { snapshot, refresh, discover, mount } = useMessagingSnapshot(slug, actions);
   const client = useClientFields(ONBOARDING_BINDING_FIELDS);
@@ -35,11 +39,7 @@ function BindingDialog({
         refresh={refresh}
         discover={discover}
         t={t}
-        bindDialog={{
-          onClose,
-          dismissLabel: t('onboarding.binding.notNow'),
-          description: t('onboarding.binding.description'),
-        }}
+        bindDialog={{ onClose, dismissLabel, description }}
         mutate={async (input) => {
           await actions.messagingIdentity(slug, input);
           await refresh();
@@ -109,7 +109,7 @@ export function OnboardingAppBinding({
         {t('identity.bind')}
       </Button>
       {open ? (
-        <BindingDialog
+        <BotBindingDialog
           key={channel.botSlug}
           slug={channel.botSlug}
           actions={actions}

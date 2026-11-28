@@ -1,5 +1,6 @@
-import { useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 
+import type { BridgeActions } from './actions.js';
 import type { BridgeCall } from './bridge.js';
 import type { DockPanel } from './dock-panels.js';
 import { Button } from './ds/button.js';
@@ -29,11 +30,17 @@ import { teamErrorText } from './team-settings.js';
 import { ChannelsSection } from './team-workbench/channels-section.js';
 import { ExternalRolesSection } from './team-workbench/external-roles-section.js';
 import { DetailNotice, EmptyDetail, WorkbenchFrame } from './team-workbench/frame.js';
+import { ImConnectionsSection } from './team-workbench/im-connections-section.js';
 import { MembersSection } from './team-workbench/members-section.js';
 import { withChoice, type PermissionChoice } from './team-workbench/permission-model.js';
 import { RoleConflictNote, type RoleConflict } from './team-workbench/role-conflict.js';
 import { RolesSection, type Inspection } from './team-workbench/roles-section.js';
 import { SectionNav } from './team-workbench/section-nav.js';
+import {
+  TEAM_WORKBENCH_PANEL,
+  subscribeTeamSectionRequest,
+  teamSectionRequest,
+} from './team-workbench/section-request.js';
 import {
   resolveSection,
   visibleSections,
@@ -49,20 +56,22 @@ export {
   type PermissionChoice,
 } from './team-workbench/permission-model.js';
 
-export const TEAM_WORKBENCH_PANEL = 'team-workbench';
+export { TEAM_WORKBENCH_PANEL };
 
 export function TeamWorkbench({
   call,
   t,
+  actions,
 }: {
   call: BridgeCall;
   t: BotHarnessTranslate;
+  actions?: BridgeActions | undefined;
 }): ReactElement {
   const [view, setView] = useState<TeamModeView>();
   const [roles, setRoles] = useState<readonly TeamRole[]>([]);
   const [catalog, setCatalog] = useState<readonly PermissionEntry[]>([]);
   const [members, setMembers] = useState<readonly TeamMember[]>([]);
-  const [requested, setRequested] = useState<TeamSectionId>();
+  const [requested, setRequested] = useState(() => teamSectionRequest()?.section);
   const [selectedRole, setSelectedRole] = useState<string>();
   const [inspected, setInspected] = useState<Inspection>();
   const [busy, setBusy] = useState(false);
@@ -74,6 +83,12 @@ export function TeamWorkbench({
   const [retrying, setRetrying] = useState(false);
   const inspection = useRef(0);
   const inspecting = useRef<TeamMember | undefined>(undefined);
+  const outside = useSyncExternalStore(subscribeTeamSectionRequest, teamSectionRequest);
+  const [handled, setHandled] = useState(outside);
+  if (outside !== handled) {
+    setHandled(outside);
+    if (outside !== undefined) setRequested(outside.section);
+  }
 
   const refresh = async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -189,7 +204,12 @@ export function TeamWorkbench({
     setRetrying(false);
   };
 
-  const context: TeamSectionContext = { view, roles, members };
+  const context: TeamSectionContext = {
+    view,
+    roles,
+    members,
+    imConnections: actions !== undefined,
+  };
   const sections = visibleSections(context);
   const section = view === undefined ? undefined : resolveSection(context, requested);
 
@@ -241,6 +261,8 @@ export function TeamWorkbench({
     ),
     channels: () => <ChannelsSection call={call} t={t} />,
     externalRoles: () => <ExternalRolesSection call={call} t={t} />,
+    imConnections: () =>
+      actions === undefined ? null : <ImConnectionsSection call={call} t={t} actions={actions} />,
   };
 
   return (
@@ -288,7 +310,11 @@ export function TeamWorkbench({
   );
 }
 
-export function createTeamWorkbenchPanel(call: BridgeCall, t: BotHarnessTranslate): DockPanel {
+export function createTeamWorkbenchPanel(
+  call: BridgeCall,
+  t: BotHarnessTranslate,
+  actions: BridgeActions,
+): DockPanel {
   return {
     id: TEAM_WORKBENCH_PANEL,
     title: t('team.workbench.title'),
@@ -297,6 +323,6 @@ export function createTeamWorkbenchPanel(call: BridgeCall, t: BotHarnessTranslat
     order: 400,
     presentation: 'workbench',
     defaultPosition: { zone: 'center' },
-    component: () => <TeamWorkbench call={call} t={t} />,
+    component: () => <TeamWorkbench call={call} t={t} actions={actions} />,
   };
 }

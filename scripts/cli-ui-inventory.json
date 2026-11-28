@@ -635,6 +635,19 @@
       "commands": ["im-apps", "im-app-add", "im-app-remove", "im-bind", "im-unbind"]
     },
     {
+      "id": "im-connections",
+      "description": "Host-wide IM connection inventory in the Team workbench, with its link from Bot settings.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/im-apps-section.tsx:{t('team.imConnections.title')}",
+        "setting:packages/client/src/client/team-workbench/im-connections-section.tsx:{ <ReceptionStatus reception={connection.reception} recovery={connection.recovery} checking={checks === 'pending'} t={t} /> }",
+        "setting:packages/client/src/client/team-workbench/im-connections-section.tsx:{t('team.imConnections.accountState')}",
+        "setting:packages/client/src/client/team-workbench/im-connections-section.tsx:{t('team.imConnections.bot')}",
+        "setting:packages/client/src/client/team-workbench/im-connections-section.tsx:{t('team.imConnections.platform')}"
+      ],
+      "commands": ["im-connections", "im-bind"]
+    },
+    {
       "id": "diagnostics",
       "description": "Diagnostic bundle/preview and client event readback lack a complete direct CLI; tracked in existing CLI parity work, not a configurable setting exemption.",
       "scope": "Host",

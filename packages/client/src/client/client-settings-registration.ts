@@ -58,6 +58,7 @@ export function registerClientSettings(
     companion,
     releaseNotes,
     updateRuns,
+    openImConnections,
   }: {
     t: BotHarnessTranslate;
     prefs: BotModePrefs;
@@ -72,6 +73,7 @@ export function registerClientSettings(
     companion: WindowCompanions;
     releaseNotes: ReleaseNotesController;
     updateRuns: UpdateRunsController;
+    openImConnections?: (() => void) | undefined;
   },
 ): void {
   ctx.inject(['configForms'], (settingsCtx) => {
@@ -244,7 +246,7 @@ export function registerClientSettings(
         MessagingSection,
       ),
     );
-    const imApps = createImApps({ call, botSettings, actions });
+    const imApps = createImApps({ call, botSettings, actions, openConnections: openImConnections });
     settingsCtx.slots.inject('botharness.settings.section', () =>
       settingsCtx.slots.register(
         {

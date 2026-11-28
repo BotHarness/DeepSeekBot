@@ -103,6 +103,7 @@ import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
 import { createTeamWorkbenchPanel } from './team-workbench.js';
+import { openTeamWorkbenchSection } from './team-workbench/section-request.js';
 import { createEnvironmentPanel, openEnvironmentJoin } from './environment-panel.js';
 import { mountHostSettingsOpener } from './environment-settings-source.js';
 import { createMarketPanel } from './market-panel.js';
@@ -617,7 +618,7 @@ export function apply(ctx: ClientContext): void {
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
         ...(member ? [] : [dockPanels.register(createEnvironmentPanel(t))]),
-        dockPanels.register(createTeamWorkbenchPanel(call, t)),
+        dockPanels.register(createTeamWorkbenchPanel(call, t, actions)),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
@@ -836,6 +837,14 @@ export function apply(ctx: ClientContext): void {
     companion,
     releaseNotes,
     updateRuns,
+    openImConnections: member
+      ? undefined
+      : () =>
+          openTeamWorkbenchSection(
+            dockPanels,
+            () => ctx.layout.selectPanel(PANEL_ID),
+            'imConnections',
+          ),
   });
 
   registerNativeSessionModelSwitch(ctx, actions);
