@@ -25,6 +25,12 @@ All endpoints are HTTPS in production. Responses are JSON with `cache-control: n
 
 Claims are exclusive per computer: of two competing claims with the same key exactly one gets `200`, and every later claim with that key gets `409`, including after a relay restart.
 
+### Expiring connect codes
+
+A connect code has the format `tobs-relay-v1:<HTTPS origin>#<host>.<secret>`. The Host name is 1–32 lowercase letters, digits or dashes, starting with a letter or digit. The secret is 64 lowercase hex characters. The client verifies the HTTPS origin and TLS certificate, then sends `Authorization: Bearer <host>.<secret>` to the same `POST /claim`. The request body and success response are unchanged. Keep the code out of URLs, logs and process arguments.
+
+The relay persists the credential hash and absolute expiry for each name. Code and claim records survive restart. An unknown or replaced code returns `403 {"code":"connect-code-refused"}`. A consumed code returns `409 {"code":"connect-code-used"}`, including after release. An expired, unused code returns `410 {"code":"connect-code-expired"}`. Legacy 64-hex claim keys continue to use the contract above.
+
 ## WebSocket endpoints
 
 - `GET /host` (upgrade), `Authorization: Bearer <owner token>`: the computer's control socket. At most one per computer; a second one is refused with `403`.
@@ -53,3 +59,5 @@ node conformance.mjs --origin https://relay.example.com --key-a-file a.secret --
 ```
 
 Use two unused claim keys. The run claims both, connects two computers and their phones, checks that each phone reaches only its own computer, that one computer going offline or releasing its claim leaves the other untouched, and that a released key cannot be claimed again. It ends with `conformance: pass` or lists each failed check.
+
+The key files also accept complete connect codes. Use `--expired-code-file <file>` to check a known expired, unused code.

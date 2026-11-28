@@ -17,13 +17,13 @@
 ```bash
 cd /opt/botharness-private
 docker build -t tobs-relay:local .
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/config" \
+docker run --rm -it --log-driver=none --user "$(id -u):$(id -g)" -v "$PWD:/config" \
   tobs-relay:local setup --config-dir /config relay.example.com
 docker compose --project-name botharness-private --project-directory /opt/botharness-private \
   --file /opt/botharness-private/compose.yaml up --build --detach --remove-orphans
 ```
 
-初始化以 0600 权限写入 `.env` 和 `bootstrap.secret`，只输出密钥文件位置和 HTTPS 地址。请妥善保管这些文件。Compose 从 `.env` 将认领密钥传入容器环境，服务器管理员仍可查看。中继以非特权用户运行，认领记录只保存哈希。
+初始化会在终端显示一行连接码和二维码。连接码包含 HTTPS 地址，默认 15 分钟内有效，只能认领一次。请妥善保管连接码和二维码。中继以非特权用户运行，只保存连接码凭据的哈希和到期时间。部署可能需要较长时间时，可用 `setup --ttl 30m relay.example.com` 延长有效期。
 
 请将初始化文件和中继数据存放在支持硬链接的文件系统上。中继用硬链接保证每把认领密钥只能使用一次。
 
@@ -33,11 +33,11 @@ docker compose --project-name botharness-private --project-directory /opt/bothar
 
 ### 直接用 Docker
 
-构建同一个镜像，初始化命名卷，再启动一个中继容器。认领时私下从容器的 `/data/bootstrap.secret` 读取密钥。
+构建同一个镜像，初始化命名卷，再启动一个中继容器。请保留初始化命令在终端输出的连接码，供电脑认领。
 
 ```bash
 docker build -t tobs-relay:local .
-docker run --rm -v botharness-private-data:/data tobs-relay:local setup relay.example.com
+docker run --rm -it --log-driver=none -v botharness-private-data:/data tobs-relay:local setup relay.example.com
 docker run -d --name botharness-private --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges:true -p 80:8080 -p 443:8443 -v botharness-private-data:/data tobs-relay:local
 ```
 
@@ -57,7 +57,7 @@ VPS 没有 Docker 和 Node 时，可以从与 VPS 架构匹配的镜像中提取
 从服务器之外访问公网 HTTPS 地址的 `/health`，确认返回 `botharness-private-v1` 和 `botharness-private-v2`。手机能否连接，请按配对步骤验证。
 
 1. 在可信电脑打开**Bot 设置 → 连接 → 添加连接 → 用手机连接这台电脑 → 已安装 App，开始连接 → 进阶方式 → Docker 中继**。
-2. 填写 HTTPS 地址，并私下从服务器的 `bootstrap.secret` 复制首次设置密钥。不要发送到聊天或写入命令参数。
+2. 将服务器终端中以 `tobs-relay-v1:` 开头的一整行粘贴到**连接码**字段。请勿将连接码发到聊天、写入日志或用作命令参数。已有 `bootstrap.secret` 或 `host-*.secret` 的部署可选择**使用旧版设置密钥**，再输入 HTTPS 地址和密钥。
 3. 点击**认领并连接**，等待已连接。本机设置成功、容器运行或健康检查成功，均不能证明手机外网可达。
 4. 显示配对码，用手机扫描，核对完整 Host 指纹；再在电脑端核对并批准准确手机公钥。
 5. 从手机向 Bot 发消息，检查真实回复。外网验收使用手机流量，不只是在家中 Wi-Fi 测试。
@@ -74,13 +74,16 @@ VPS 没有 Docker 和 Node 时，可以从与 VPS 架构匹配的镜像中提取
 
 ```bash
 cd /opt/botharness-private
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/config" \
+docker run --rm -it --log-driver=none --user "$(id -u):$(id -g)" \
+  -v "$PWD:/config" -v botharness-private_relay-data:/data \
   tobs-relay:local add-host --config-dir /config office-mac
 ```
 
-它会写入 `host-office-mac.secret`（密钥，只留在服务器上），并只把它的哈希追加到 `hosts/keys`。中继每次认领时都会读取这个文件，不需要重启。在那台电脑上按上面的步骤认领，只是粘贴 `host-office-mac.secret` 的内容，而不是 `bootstrap.secret`。第一台电脑继续使用 `bootstrap.secret`。
+在新电脑上粘贴终端显示的连接码。中继无需重启。
 
-直接用 Docker 时，运行 `docker run --rm -v botharness-private-data:/data tobs-relay:local add-host office-mac`。使用二进制文件时，在初始化目录运行 `./tobs-relay add-host office-mac`。
+连接码过期后，用同样的命令，将 `add-host ... office-mac` 改为 `add-host ... --reissue office-mac`。首台电脑的名称为 `default`，可运行 `tobs-relay add-host --reissue default`。新码让旧码失效，已认领的电脑和手机配对会保留。如果连接码已使用，请在原电脑上继续；连接另一台电脑时，请用新名称运行 `add-host`。
+
+直接用 Docker 时，运行 `docker run --rm -it --log-driver=none -v botharness-private-data:/data tobs-relay:local add-host office-mac`。使用二进制文件时，在初始化目录运行 `./tobs-relay add-host office-mac`。
 
 从 Node 和 Caddy 升级时，保留 `.env`、`hosts/keys`、设置密钥文件和 `relay-data` 卷。在原目录替换部署文件，沿用原项目名，只执行上面的 Compose `up --build --detach --remove-orphans` 命令。该命令释放 Caddy 占用的端口，让 Go 中继读取原有认领记录并延续手机配对。需要回退时保留旧 Caddy 数据卷。旧部署如果没有 `hosts` 目录，启动前执行 `mkdir -p hosts`。线上协议见[中继标准](private-relay-standard.zh.md)，附第三方中继可用的一致性测试脚本。
 
@@ -107,8 +110,8 @@ CLI 见[私有连接命令](bot-cli.zh.md#docker-私有连接)。真机验收记
 
 1. 检查 Host 版本/Profile/私有模式，以及服务器 DNS/入站连通性、Docker Compose、已有项目和端口归属。家庭内网容器/域名本身不提供公网访问。保留其他服务栈和 Host 数据/配对。Docker Relay 是互斥模式，改变已有私有模式前先询问。
 2. 约定具体资源，不购买基础设施、开启付费服务、替换无关 DNS 或停止占用 80/443 的服务。选择与已安装受支持 Host 匹配的源码发布/标签，记录固定提交，复制完整 deploy/private-relay 目录。需要服务商登录/管理员确认时由我完成。
-3. 仅新部署运行 tobs-relay setup 配置约定的公网域名或 IP 地址，再以明确项目名和目录启动 Compose。.env、bootstrap.secret、新 Host 密钥和所有者令牌留在本机私有位置；秘密只通过受保护输入/文件/stdin 传递，不进聊天、进程参数或日志。保留已有初始化文件/卷，不为强行认领重置或重复初始化。
-4. 验证公网可信 HTTPS 和 /health，再从实际本机 Host 用界面或 private-connect --hostname <https-origin> --token-stdin --confirm 认领，密钥从私有文件传入。结果未知时不自动重放，检查同一 Profile/状态，不暗中使用官方 Connect。
-5. 让我在本机扫码、核对 Host 指纹并批准准确手机公钥，二维码不进聊天。手机使用流量/外部 Wi-Fi 验证真实 Bot 回复，再经授权保留持久化卷重启并验证手机重连。新增电脑分别使用 add-host 密钥独立批准，不重复使用 bootstrap.secret。
+3. 仅新部署运行 tobs-relay setup 配置约定的公网域名或 IP 地址，再以明确项目名和目录启动 Compose。.env、连接码、旧版设置密钥和所有者令牌留在本机私有位置；秘密只通过受保护输入/文件/stdin 传递，不进聊天、进程参数或日志。保留已有初始化文件/卷，不为强行认领重置或重复初始化。
+4. 验证公网可信 HTTPS 和 /health，再从实际本机 Host 用界面或 private-connect --code-stdin --confirm 认领，连接码从私有文件传入。结果未知时不自动重放，检查同一 Profile/状态，不暗中使用官方 Connect。
+5. 让我在本机扫码、核对 Host 指纹并批准准确手机公钥，二维码不进聊天。手机使用流量/外部 Wi-Fi 验证真实 Bot 回复，再经授权保留持久化卷重启并验证手机重连。新增电脑分别使用 add-host 连接码独立批准。
 6. 分别报告服务健康、Host 连接、真实手机回复和待测试项目。提供不泄密的诊断和保留中继数据、旧 Caddy 卷及 Host Profile 的升级/回退方法。停止用同一项目的 down，不加 --volumes。仅经授权撤销测试手机；退役中继不等于撤销手机。
 ```

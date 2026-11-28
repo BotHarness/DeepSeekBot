@@ -13,7 +13,8 @@ export const CONNECT_COMMANDS = [
   },
   {
     command: 'private-connect',
-    description: 'claim a Docker relay: --hostname <https-origin> --token-stdin --confirm',
+    description:
+      'claim a Docker relay: --code-stdin --confirm, or --hostname <https-origin> --token-stdin --confirm for a legacy key',
   },
   {
     command: 'private-tunnel-enable',
@@ -76,6 +77,7 @@ export async function runConnectCommand(
   values: {
     hostname?: string;
     'token-stdin'?: boolean;
+    'code-stdin'?: boolean;
     wait?: boolean;
     confirm?: boolean;
     quick?: boolean;
@@ -89,6 +91,8 @@ export async function runConnectCommand(
   }>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
+  if (values['code-stdin'] && command !== 'private-connect')
+    throw new CliLiveError('usage', '--code-stdin applies to private-connect.');
   if (command !== 'private-route' && values['expected-route-revision'] !== undefined)
     throw new CliLiveError('usage', '--expected-route-revision applies to private-route stop.');
   if (command === 'private-route') {
@@ -251,18 +255,31 @@ export async function runConnectCommand(
     return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;
   }
   if (command === 'private-connect') {
-    if (rest.length || !values.hostname || !values['token-stdin'] || !values.confirm || values.wait)
+    const codeMode = values['code-stdin'] === true;
+    if (
+      rest.length ||
+      !values.confirm ||
+      values.wait ||
+      values.quick ||
+      values.lan ||
+      values.origin !== undefined ||
+      (codeMode
+        ? values.hostname !== undefined || values['token-stdin']
+        : !values.hostname || !values['token-stdin'])
+    )
       throw new CliLiveError(
         'usage',
-        'private-connect requires --hostname <https-origin> --token-stdin --confirm.',
+        'private-connect requires --code-stdin --confirm, or --hostname <https-origin> --token-stdin --confirm for a legacy key.',
       );
-    const bootstrap = (await (io.readStdin?.() ?? Promise.resolve(''))).trim();
-    if (!/^[a-f0-9]{64}$/u.test(bootstrap))
-      throw new CliLiveError('usage', 'Read the initial setup key from stdin.');
+    const credential = (await (io.readStdin?.() ?? Promise.resolve(''))).trim();
+    if (codeMode ? !credential || credential.length > 512 : !/^[a-f0-9]{64}$/u.test(credential))
+      throw new CliLiveError(
+        'usage',
+        codeMode ? 'Read the connect code from stdin.' : 'Read the initial setup key from stdin.',
+      );
     const host = await connect();
     const response = await host.http(DEVICES + '/private', {
-      origin: values.hostname,
-      bootstrap,
+      ...(codeMode ? { code: credential } : { origin: values.hostname, bootstrap: credential }),
       confirm: true,
     });
     return JSON.parse(new TextDecoder().decode(response.bytes)) as unknown;

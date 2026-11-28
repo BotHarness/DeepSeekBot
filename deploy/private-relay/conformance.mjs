@@ -9,7 +9,17 @@ const PROTOCOL_V2 = 'botharness-private-v2';
 const CHANNEL = '/botharness-device/channel';
 const token = () => randomBytes(32).toString('hex');
 
-export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
+function claimCredential(value, origin) {
+  if (/^[a-f0-9]{64}$/u.test(value)) return { bearer: value, format: 'legacy' };
+  const [, codeOrigin, name, key] =
+    /^tobs-relay-v1:(https:\/\/[^\s#]+)#([a-z0-9][a-z0-9-]{0,31})\.([a-f0-9]{64})$/u.exec(value) ??
+    [];
+  if (!name || !key || (codeOrigin !== origin && !/^http:\/\/127\.0\.0\.1:\d+$/u.test(origin)))
+    throw new Error('Invalid claim input or connect code origin mismatch');
+  return { bearer: `${name}.${key}`, format: 'code' };
+}
+
+export async function runConformance({ origin, keyA, keyB, expiredCode, log = () => {} }) {
   const results = [];
   const sockets = [];
   const check = async (name, run) => {
@@ -25,11 +35,11 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
   const expect = (condition, message) => {
     if (!condition) throw new Error(message);
   };
-  const claim = (key, body) =>
+  const claim = (bearer, body) =>
     fetch(`${origin}/claim`, {
       method: 'POST',
       redirect: 'error',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   const ws = origin.replace(/^http/u, 'ws');
@@ -48,6 +58,8 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
       once(socket, 'message').then(([data]) => data.toString()),
       new Promise((resolve) => setTimeout(() => resolve(undefined), ms)),
     ]);
+  const claimA = claimCredential(keyA, origin);
+  const claimB = claimCredential(keyB, origin);
   const a = { owner: token(), phone: token() };
   const b = { owner: token(), phone: token() };
   let hostA, hostB, phoneA, phoneB;
@@ -62,22 +74,31 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
       const response = await claim(token(), { ownerToken: token(), phoneToken: token() });
       expect(response.status === 403, `status ${response.status}`);
     });
+    if (expiredCode)
+      await check('expired connect code is refused', async () => {
+        const { bearer } = claimCredential(expiredCode, origin);
+        const response = await claim(bearer, { ownerToken: token(), phoneToken: token() });
+        expect(response.status === 410, `status ${response.status}`);
+        expect((await response.json()).code === 'connect-code-expired', 'wrong refusal code');
+      });
     await check('competing claims for one Host key: exactly one wins', async () => {
       const rival = { owner: token(), phone: token() };
       const responses = await Promise.all([
-        claim(keyA, { ownerToken: a.owner, phoneToken: a.phone }),
-        claim(keyA, { ownerToken: rival.owner, phoneToken: rival.phone }),
+        claim(claimA.bearer, { ownerToken: a.owner, phoneToken: a.phone }),
+        claim(claimA.bearer, { ownerToken: rival.owner, phoneToken: rival.phone }),
       ]);
       const statuses = responses.map((response) => response.status).sort();
       expect(statuses[0] === 200 && statuses[1] === 409, `statuses ${statuses.join(',')}`);
       if (responses[1].status === 200) Object.assign(a, rival);
     });
     await check('replayed claim is refused', async () => {
-      const response = await claim(keyA, { ownerToken: a.owner, phoneToken: a.phone });
+      const response = await claim(claimA.bearer, { ownerToken: a.owner, phoneToken: a.phone });
       expect(response.status === 409, `status ${response.status}`);
+      if (claimA.format === 'code')
+        expect((await response.json()).code === 'connect-code-used', 'wrong refusal code');
     });
     await check('second Host claims its own key', async () => {
-      const response = await claim(keyB, { ownerToken: b.owner, phoneToken: b.phone });
+      const response = await claim(claimB.bearer, { ownerToken: b.owner, phoneToken: b.phone });
       expect(response.status === 200, `status ${response.status}`);
     });
     await check('phone token cannot act as a Host', async () => {
@@ -141,7 +162,7 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
       });
       expect(response.status === 200, `status ${response.status}`);
       expect(!(await open('/host', { Authorization: `Bearer ${a.owner}` })), 'A still admitted');
-      const replay = await claim(keyA, { ownerToken: token(), phoneToken: token() });
+      const replay = await claim(claimA.bearer, { ownerToken: token(), phoneToken: token() });
       expect(replay.status === 409, `released key reused: ${replay.status}`);
       expect(phoneB.readyState === WebSocket.OPEN, 'phone B closed');
     });
@@ -157,11 +178,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       origin: { type: 'string' },
       'key-a-file': { type: 'string' },
       'key-b-file': { type: 'string' },
+      'expired-code-file': { type: 'string' },
     },
   });
   if (!values.origin || !values['key-a-file'] || !values['key-b-file']) {
     console.error(
-      'Usage: node conformance.mjs --origin https://relay.example.com --key-a-file <file> --key-b-file <file>\nUse two unused Host claim keys. The run claims both and releases Host A.',
+      'Usage: node conformance.mjs --origin https://relay.example.com --key-a-file <file> --key-b-file <file>\nUse two unused Host claim keys or connect codes. Optional: --expired-code-file <file>. The run claims both and releases Host A.',
     );
     process.exitCode = 2;
   } else {
@@ -169,6 +191,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       origin: values.origin.replace(/\/$/u, ''),
       keyA: readFileSync(values['key-a-file'], 'utf8').trim(),
       keyB: readFileSync(values['key-b-file'], 'utf8').trim(),
+      expiredCode: values['expired-code-file']
+        ? readFileSync(values['expired-code-file'], 'utf8').trim()
+        : undefined,
       log: (line) => console.log(line),
     });
     console.log(result.ok ? 'conformance: pass' : 'conformance: fail');

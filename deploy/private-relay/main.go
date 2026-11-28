@@ -75,16 +75,33 @@ func run(ctx context.Context, args []string) error {
 	switch command {
 	case "setup", "add-host":
 		dir := flags.String("config-dir", envOr("RELAY_CONFIG_DIR", "."), "path containing setup files")
+		ttl := flags.Duration("ttl", 15*time.Minute, "connect code lifetime")
+		var reissue bool
+		var data string
+		if command == "add-host" {
+			flags.BoolVar(&reissue, "reissue", false, "replace the connect code for an unclaimed Host")
+			flags.StringVar(&data, "data", envOr("RELAY_DATA", "./relay-data"), "persistent data directory")
+		}
 		if err := flags.Parse(args); err != nil {
 			return err
 		}
+		if *ttl <= 0 {
+			return errors.New("--ttl must be positive")
+		}
 		if flags.NArg() != 1 {
-			return fmt.Errorf("usage: tobs-relay %s [--config-dir DIR] NAME", command)
+			return fmt.Errorf("usage: tobs-relay %s [options] NAME", command)
 		}
+		var code string
+		var err error
 		if command == "setup" {
-			return setup(*dir, flags.Arg(0))
+			code, err = setup(*dir, flags.Arg(0), *ttl)
+		} else {
+			code, err = addHost(*dir, data, flags.Arg(0), *ttl, reissue)
 		}
-		return addHost(*dir, flags.Arg(0))
+		if err != nil {
+			return err
+		}
+		return printConnectCode(code)
 	case "version":
 		if len(args) != 0 {
 			return errors.New("usage: tobs-relay version")
@@ -127,10 +144,15 @@ func httpServer(handler http.Handler) *http.Server {
 
 func serve(ctx context.Context, o *options) error {
 	bootstrap, err := readBootstrap(o.configDir)
-	if err != nil {
-		return fmt.Errorf("read setup key (run tobs-relay setup first): %w", err)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read legacy setup key: %w", err)
 	}
-	keysPath := envOr("RELAY_HOST_KEYS_FILE", filepath.Join(o.configDir, "hosts", "keys"))
+	keysPath := hostKeysPath(o.configDir)
+	if bootstrap == "" {
+		if _, err := readConnectCode(filepath.Dir(keysPath), defaultHost); err != nil {
+			return fmt.Errorf("read default connect code record (run tobs-relay setup first): %w", err)
+		}
+	}
 	relay, err := newRelay(o.dataDir, bootstrap, keysPath)
 	if err != nil {
 		return err

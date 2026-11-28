@@ -2,13 +2,13 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -62,80 +62,50 @@ func httpsOrigin(identity string) string {
 	return "https://" + identity
 }
 
-func setup(directory, address string) error {
+func setup(directory, address string, ttl time.Duration) (string, error) {
 	identity, err := relayIdentity(address)
 	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(directory, "hosts"), 0755); err != nil {
-		return err
+		return "", err
 	}
 	envPath := filepath.Join(directory, ".env")
 	if _, err := os.Stat(envPath); !errors.Is(err, os.ErrNotExist) {
-		return errors.New("setup files already exist or are inaccessible")
+		return "", errors.New("setup files already exist or are inaccessible")
 	}
-	keyPath := filepath.Join(directory, "bootstrap.secret")
-	token := randomHex(32)
-	if err := writeAtomic(keyPath, []byte(token+"\n"), 0600, true); err != nil {
-		return err
+	if _, err := os.Stat(filepath.Join(directory, "bootstrap.secret")); !errors.Is(err, os.ErrNotExist) {
+		return "", errors.New("legacy setup key exists or is inaccessible")
 	}
-	env := "RELAY_DOMAIN=" + identity + "\nRELAY_BOOTSTRAP=" + token + "\n"
-	if err := writeAtomic(envPath, []byte(env), 0600, true); err != nil {
+	keysPath := hostKeysPath(directory)
+	code, err := mintConnectCode(keysPath, identity, defaultHost, ttl, false)
+	if err != nil {
+		return "", err
+	}
+	if err := writeAtomic(envPath, []byte("RELAY_DOMAIN="+identity+"\n"), 0600, true); err != nil {
 		if wasPublished(err) {
-			return err
+			return "", err
 		}
-		return errors.Join(err, os.Remove(keyPath))
+		return "", errors.Join(err, os.Remove(connectCodePath(filepath.Dir(keysPath), defaultHost)))
 	}
-	fmt.Printf("Relay origin: %s\nSetup key file: %s\n", httpsOrigin(identity), keyPath)
-	return nil
+	return code, nil
 }
 
-func addHost(directory, name string) error {
-	if !hostPattern.MatchString(name) || name == defaultHost {
-		return errors.New("use a Host name of 1–32 lowercase letters, digits and dashes, beginning with a letter or digit, other than default")
+func addHost(directory, data, name string, ttl time.Duration, reissue bool) (string, error) {
+	if !hostPattern.MatchString(name) || (name == defaultHost && !reissue) {
+		return "", errors.New("use a Host name of 1–32 lowercase letters, digits and dashes, beginning with a letter or digit; use default only with --reissue")
 	}
-	hosts := filepath.Join(directory, "hosts")
-	if err := os.MkdirAll(hosts, 0755); err != nil {
-		return err
-	}
-	keysPath := filepath.Join(hosts, "keys")
-	keys, err := readHostKeys(keysPath)
+	identity, err := readIdentity(directory)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if keys[name] != "" {
-		return errors.New("Host already has a claim key")
+	if _, err := os.Stat(slotPath(data, name)); err == nil {
+		return "", errors.New("Host has already claimed the relay; use a new Host name")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
 	}
-	keyPath := filepath.Join(directory, "host-"+name+".secret")
-	token := randomHex(32)
-	if err := writeAtomic(keyPath, []byte(token+"\n"), 0600, true); err != nil {
-		return err
-	}
-	file, err := os.OpenFile(keysPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		return errors.Join(err, os.Remove(keyPath))
-	}
-	info, err := file.Stat()
-	prefix := ""
-	if err == nil && info.Size() > 0 {
-		var last [1]byte
-		_, err = file.ReadAt(last[:], info.Size()-1)
-		if last[0] != '\n' {
-			prefix = "\n"
-		}
-	}
-	if err != nil {
-		return errors.Join(err, file.Close(), os.Remove(keyPath))
-	}
-	_, err = file.WriteString(prefix + name + " " + digest(token) + "\n")
-	if err == nil {
-		err = file.Sync()
-	}
-	if err := errors.Join(err, file.Close()); err != nil {
-		return fmt.Errorf("could not record Host key for %s: %w", name, err)
-	}
-	fmt.Printf("Host setup key file: %s\n", keyPath)
-	return nil
+	return mintConnectCode(hostKeysPath(directory), identity, name, ttl, reissue)
+}
+
+func hostKeysPath(directory string) string {
+	return envOr("RELAY_HOST_KEYS_FILE", filepath.Join(directory, "hosts", "keys"))
 }
 
 func readIdentity(directory string) (string, error) {

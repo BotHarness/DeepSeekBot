@@ -44,6 +44,20 @@ export function privateRelayOrigin(value: string): string | undefined {
 }
 const secret = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+type PrivateRelayClaimResult =
+  | { ok: true; status: PrivateRelayStatus }
+  | { ok: false; code: string; host?: string; error?: string };
+
+function parseConnectCode(input: string) {
+  if (input.length > 512) return;
+  const match = /^tobs-relay-v1:([^\s#]+)#([a-z0-9][a-z0-9-]{0,31})\.([a-f0-9]{64})$/u.exec(
+    input.trim(),
+  );
+  const [, origin, host, token] = match ?? [];
+  if (!origin || !host || !token || privateRelayOrigin(origin) !== origin) return;
+  return { origin, host, credential: `${host}.${token}` };
+}
+
 export function createPrivateConnection(options: {
   credentials():
     | Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>
@@ -158,6 +172,89 @@ export function createPrivateConnection(options: {
       }
     });
   }
+  async function claim(
+    origin: string,
+    credential: string,
+    codeHost?: string,
+  ): Promise<PrivateRelayClaimResult> {
+    const normalized = privateRelayOrigin(origin);
+    if (!normalized) return { ok: false, code: 'private-relay-input-invalid' };
+    if (busy || config) return { ok: false, code: 'private-relay-already-configured' };
+    const credentials = options.credentials();
+    if (!credentials) return { ok: false, code: 'credential-unavailable' };
+    busy = true;
+    let persisted = false;
+    const next = {
+      origin: normalized,
+      ownerToken: randomBytes(32).toString('hex'),
+      phoneToken: randomBytes(32).toString('hex'),
+    };
+    try {
+      const health = await fetch(`${normalized}/health`, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+      });
+      const value = (await health.json()) as { protocol?: string };
+      if (!health.ok || value.protocol !== 'botharness-private-v1')
+        return { ok: false, code: 'private-relay-protocol-invalid' };
+      await credentials.modifyRecord(key, async (current) => {
+        if (current) throw new Error('private-relay-already-configured');
+        return { kind: 'grant', payload: next };
+      });
+      persisted = true;
+      const response = await fetch(`${normalized}/claim`, {
+        method: 'POST',
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+        headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerToken: next.ownerToken, phoneToken: next.phoneToken }),
+      });
+      if (!response.ok) {
+        await credentials.deleteRecord(key);
+        if (codeHost) {
+          const refusal: unknown = await response.json().catch(() => undefined);
+          const reason =
+            typeof refusal === 'object' && refusal !== null && 'code' in refusal
+              ? refusal.code
+              : undefined;
+          const detail =
+            response.status === 410 && reason === 'connect-code-expired'
+              ? { code: 'private-relay-code-expired', text: 'Connect code expired.' }
+              : response.status === 409 && reason === 'connect-code-used'
+                ? { code: 'private-relay-code-used', text: 'Connect code has already been used.' }
+                : response.status === 403
+                  ? { code: 'private-relay-code-refused', text: 'Connect code was refused.' }
+                  : undefined;
+          if (detail)
+            return {
+              ok: false,
+              code: detail.code,
+              host: codeHost,
+              error: `${detail.text} Run tobs-relay add-host --reissue ${codeHost} for an unclaimed Host. For a claimed Host, use the original computer or a new Host name.`,
+            };
+        }
+        return {
+          ok: false,
+          code:
+            response.status === 409
+              ? 'private-relay-already-claimed'
+              : 'private-relay-claim-refused',
+        };
+      }
+      config = next;
+      start();
+      options.log('claimed');
+      return { ok: true, status: { ...status } };
+    } catch {
+      if (persisted) {
+        config = next;
+        start();
+      }
+      return { ok: false, code: 'private-relay-unreachable' };
+    } finally {
+      busy = false;
+    }
+  }
   return {
     status: (): PrivateRelayStatus => ({ ...status }),
     admission: (): PrivateRelayAdmission | undefined =>
@@ -191,63 +288,14 @@ export function createPrivateConnection(options: {
         status = { state: 'error', issue: 'private-relay-credential-invalid' };
       }
     },
-    async claim(origin: string, bootstrap: string) {
-      const normalized = privateRelayOrigin(origin);
-      if (!normalized || !secret(bootstrap))
-        return { ok: false, code: 'private-relay-input-invalid' };
-      if (busy || config) return { ok: false, code: 'private-relay-already-configured' };
-      const credentials = options.credentials();
-      if (!credentials) return { ok: false, code: 'credential-unavailable' };
-      busy = true;
-      let persisted = false;
-      const next = {
-        origin: normalized,
-        ownerToken: randomBytes(32).toString('hex'),
-        phoneToken: randomBytes(32).toString('hex'),
-      };
-      try {
-        const health = await fetch(`${normalized}/health`, {
-          redirect: 'error',
-          signal: AbortSignal.timeout(10_000),
-        });
-        const value = (await health.json()) as { protocol?: string };
-        if (!health.ok || value.protocol !== 'botharness-private-v1')
-          return { ok: false, code: 'private-relay-protocol-invalid' };
-        await credentials.modifyRecord(key, async (current) => {
-          if (current) throw new Error('private-relay-already-configured');
-          return { kind: 'grant', payload: next };
-        });
-        persisted = true;
-        const response = await fetch(`${normalized}/claim`, {
-          method: 'POST',
-          redirect: 'error',
-          signal: AbortSignal.timeout(10_000),
-          headers: { Authorization: `Bearer ${bootstrap}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ownerToken: next.ownerToken, phoneToken: next.phoneToken }),
-        });
-        if (!response.ok) {
-          await credentials.deleteRecord(key);
-          return {
-            ok: false,
-            code:
-              response.status === 409
-                ? 'private-relay-already-claimed'
-                : 'private-relay-claim-refused',
-          };
-        }
-        config = next;
-        start();
-        options.log('claimed');
-        return { ok: true, status: { ...status } };
-      } catch {
-        if (persisted) {
-          config = next;
-          start();
-        }
-        return { ok: false, code: 'private-relay-unreachable' };
-      } finally {
-        busy = false;
-      }
+    async claim(origin: string, bootstrap: string): Promise<PrivateRelayClaimResult> {
+      if (!secret(bootstrap)) return { ok: false, code: 'private-relay-input-invalid' };
+      return claim(origin, bootstrap);
+    },
+    async claimCode(code: string): Promise<PrivateRelayClaimResult> {
+      const parsed = parseConnectCode(code);
+      if (!parsed) return { ok: false, code: 'private-relay-input-invalid' };
+      return claim(parsed.origin, parsed.credential, parsed.host);
     },
     close() {
       closed = true;

@@ -37,28 +37,50 @@ export function PrivateRelaySettings({
   pair(): void;
   locked?: boolean;
 }): ReactElement {
+  const [legacy, setLegacy] = useState(false);
+  const [code, setCode] = useState('');
   const [origin, setOrigin] = useState('');
   const [bootstrap, setBootstrap] = useState('');
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<{ code: string; host?: string }>();
+  const ready = legacy ? !!origin.trim() && !!bootstrap.trim() : !!code.trim();
   async function claim() {
-    if (locked) return;
+    if (locked || busy || !ready) return;
     setBusy(true);
-    setFailed(false);
+    setFailure(undefined);
     try {
       const response = await fetch('./api/botharness/devices/private', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin, bootstrap, confirm: true }),
+        body: JSON.stringify(
+          legacy ? { origin, bootstrap, confirm: true } : { code, confirm: true },
+        ),
       });
       if (!response.ok) {
-        setFailed(true);
+        const value: unknown = await response.json().catch(() => undefined);
+        const issue =
+          typeof value === 'object' &&
+          value !== null &&
+          'code' in value &&
+          typeof value.code === 'string'
+            ? value.code
+            : 'unknown';
+        const host =
+          typeof value === 'object' &&
+          value !== null &&
+          'host' in value &&
+          typeof value.host === 'string' &&
+          /^[a-z0-9][a-z0-9-]{0,31}$/u.test(value.host)
+            ? value.host
+            : undefined;
+        setFailure(host === undefined ? { code: issue } : { code: issue, host });
         return;
       }
+      setCode('');
       setBootstrap('');
       await refresh();
     } catch {
-      setFailed(true);
+      setFailure({ code: 'unknown' });
     } finally {
       setBusy(false);
     }
@@ -143,39 +165,82 @@ export function PrivateRelaySettings({
         {steps(0)}
         <p {...stylex.props(styles.meta)}>{t('privateRelay.requirement')}</p>
         {locked ? null : (
-          <div {...stylex.props(styles.form)}>
-            <FieldStack>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void claim();
+            }}
+            {...stylex.props(styles.form)}
+          >
+            {legacy ? (
+              <FieldStack>
+                <TextField
+                  label={t('privateRelay.address')}
+                  value={origin}
+                  onChange={setOrigin}
+                  autoComplete="off"
+                  disabled={busy}
+                />
+                <TextField
+                  label={t('privateRelay.secret')}
+                  value={bootstrap}
+                  onChange={setBootstrap}
+                  type="password"
+                  autoComplete="off"
+                  disabled={busy}
+                />
+              </FieldStack>
+            ) : (
               <TextField
-                label={t('privateRelay.address')}
-                value={origin}
-                onChange={setOrigin}
-                autoComplete="off"
-              />
-              <TextField
-                label={t('privateRelay.secret')}
-                value={bootstrap}
-                onChange={setBootstrap}
+                label={t('privateRelay.code')}
+                value={code}
+                onChange={setCode}
                 type="password"
                 autoComplete="off"
+                maxLength={512}
+                disabled={busy}
               />
-            </FieldStack>
+            )}
             <Button
               variant="primary"
-              disabled={busy || !origin.trim() || !bootstrap.trim()}
-              onClick={() => void claim()}
+              type="submit"
+              disabled={busy || !ready}
               {...stylex.props(styles.submit)}
             >
               {t(busy ? 'privateRelay.connecting' : 'privateRelay.claim')}
             </Button>
-          </div>
+            <Button
+              variant="text"
+              disabled={busy}
+              onClick={() => {
+                setLegacy(!legacy);
+                setCode('');
+                setBootstrap('');
+                setFailure(undefined);
+              }}
+              {...stylex.props(styles.submit)}
+            >
+              {t(legacy ? 'privateRelay.useCode' : 'privateRelay.useLegacyKey')}
+            </Button>
+          </form>
         )}
       </StatusBlock>
-      {failed ? (
+      {failure ? (
         <StatusBlock
           icon="info"
           tone="warning"
           title={t('privateTunnel.panel.failedTitle')}
-          body={t('privateRelay.failed')}
+          body={
+            failure.host && failure.code === 'private-relay-code-expired'
+              ? t('privateRelay.codeExpired', { host: failure.host })
+              : failure.host && failure.code === 'private-relay-code-used'
+                ? t('privateRelay.codeUsed', { host: failure.host })
+                : failure.host && failure.code === 'private-relay-code-refused'
+                  ? t('privateRelay.codeRefused', { host: failure.host })
+                  : !legacy && failure.code === 'private-relay-input-invalid'
+                    ? t('privateRelay.codeInvalid')
+                    : t('privateRelay.failed')
+          }
           data={{ 'data-private-relay-failure': '' }}
         />
       ) : null}

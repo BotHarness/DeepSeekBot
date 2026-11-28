@@ -7,8 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -44,17 +46,18 @@ func (h *liveHost) connected() bool {
 }
 
 func newRelay(directory, bootstrap, keysPath string) (*relay, error) {
-	if !secretPattern.MatchString(bootstrap) {
+	if bootstrap != "" && !secretPattern.MatchString(bootstrap) {
 		return nil, errors.New("bootstrap-secret-invalid")
 	}
 	slots, err := loadSlots(directory)
 	if err != nil {
 		return nil, err
 	}
-	return &relay{
-		directory: directory, bootstrapHash: digest(bootstrap), keysPath: keysPath,
-		slots: slots, live: make(map[string]*liveHost),
-	}, nil
+	r := &relay{directory: directory, keysPath: keysPath, slots: slots, live: make(map[string]*liveHost)}
+	if bootstrap != "" {
+		r.bootstrapHash = digest(bootstrap)
+	}
+	return r, nil
 }
 
 func (r *relay) find(hash string, phone bool) string {
@@ -172,31 +175,42 @@ func (r *relay) releaseSlot(token string) (int, string) {
 	return 200, ""
 }
 
-func (r *relay) claim(w http.ResponseWriter, req *http.Request) {
-	keyHash := digest(bearer(req))
-	name := ""
+func (r *relay) legacyClaimName(keyHash string) (string, error) {
 	if sameHash(keyHash, r.bootstrapHash) {
-		name = defaultHost
-	} else {
-		keys, err := readHostKeys(r.keysPath)
+		return defaultHost, nil
+	}
+	keys, err := readHostKeys(r.keysPath)
+	if err != nil {
+		return "", err
+	}
+	name := ""
+	for candidate, hash := range keys {
+		if sameHash(keyHash, hash) {
+			name = candidate
+		}
+	}
+	return name, nil
+}
+
+func (r *relay) claim(w http.ResponseWriter, req *http.Request) {
+	credential := bearer(req)
+	name, token, isCode := splitConnectCredential(credential)
+	if !isCode {
+		token = ""
+		var err error
+		name, err = r.legacyClaimName(digest(credential))
 		if err != nil {
 			refusal(w, 503, "host-keys-invalid")
 			return
 		}
-		for candidate, hash := range keys {
-			if sameHash(keyHash, hash) {
-				name = candidate
-			}
+		if name == "" {
+			refusal(w, 403, "claim-refused")
+			return
 		}
-	}
-	if name == "" {
-		refusal(w, 403, "claim-refused")
-		return
-	}
-	path := slotPath(r.directory, name)
-	if _, err := os.Stat(path); err == nil {
-		refusal(w, 409, "already-claimed")
-		return
+		if _, err := os.Stat(slotPath(r.directory, name)); err == nil {
+			refusal(w, 409, "already-claimed")
+			return
+		}
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, 1024))
 	if err != nil {
@@ -222,7 +236,7 @@ func (r *relay) claim(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	next := ownerState{Owner: digest(owner), Phone: digest(phone)}
-	status, code := r.claimSlot(name, next)
+	status, code := r.claimSlot(name, token, next)
 	if status != http.StatusOK {
 		refusal(w, status, code)
 		return
@@ -233,12 +247,28 @@ func (r *relay) claim(w http.ResponseWriter, req *http.Request) {
 	}{true, name})
 }
 
-func (r *relay) claimSlot(name string, next ownerState) (int, string) {
+func (r *relay) claimSlot(name, token string, next ownerState) (int, string) {
 	r.claimMu.Lock()
 	defer r.claimMu.Unlock()
+	usedCode := "already-claimed"
+	var expiresAt time.Time
+	if token != "" {
+		record, err := readConnectCode(filepath.Dir(r.keysPath), name)
+		if errors.Is(err, os.ErrNotExist) || (err == nil && !sameHash(digest(token), record.Hash)) {
+			return 403, "connect-code-refused"
+		}
+		if err != nil {
+			return 503, "connect-code-unavailable"
+		}
+		usedCode = "connect-code-used"
+		expiresAt = record.ExpiresAt
+	}
 	path := slotPath(r.directory, name)
 	if _, err := os.Stat(path); err == nil {
-		return 409, "already-claimed"
+		return 409, usedCode
+	}
+	if token != "" && !time.Now().Before(expiresAt) {
+		return 410, "connect-code-expired"
 	}
 	r.mu.Lock()
 	duplicate := r.find(next.Owner, false) != "" || r.find(next.Owner, true) != "" ||
@@ -258,7 +288,7 @@ func (r *relay) claimSlot(name string, next ownerState) (int, string) {
 		r.mu.Unlock()
 	}
 	if errors.Is(err, os.ErrExist) {
-		return 409, "already-claimed"
+		return 409, usedCode
 	}
 	if err != nil {
 		log.Printf("persist relay claim: %v", err)
