@@ -16,7 +16,7 @@ const PRIMITIVES =
 const PAGE_FILL =
   /^theme\.(?:color\.(?:base|surface|sheet|well|field)|layer\.(?:canvas|sheet|well|field)\.fill|layer\.canvas\.\w+)$/u;
 const PAGE_LAYERS = new Set(['canvas', 'well', 'field']);
-const SURFACE_PROPS = new Set(['containerColor', 'backgroundColor']);
+const SURFACE_PROPS = new Set(['containerColor', 'backgroundColor', 'backdropColor']);
 
 function nameOf(element) {
   const name = element.get('openingElement.name');
@@ -77,8 +77,35 @@ function scopeOf(element) {
   return returned ? fn : element;
 }
 
+function implicitWhite(file, ast) {
+  const found = [];
+  traverse(ast, {
+    JSXElement(element) {
+      if (nameOf(element) !== 'Modal') return;
+      const style = literal(attribute(element, 'presentationStyle'));
+      if (!PAGE_SHEET.has(style)) return;
+      if (attribute(element, 'backdropColor')) return;
+      const transparent = attribute(element, 'transparent');
+      const value = transparent?.get('value');
+      const expression = value?.isJSXExpressionContainer() ? value.get('expression') : undefined;
+      if (transparent && !expression?.isBooleanLiteral({ value: false })) return;
+      found.push({
+        rule: 'sheetSurface',
+        file,
+        line: element.node.loc.start.line,
+        text: `Modal ${style} without backdropColor`,
+      });
+    },
+  });
+  return found;
+}
+
 export function mobileSheetSurface(file, ast) {
-  if (PRIMITIVES.test(file)) return [];
+  if (PRIMITIVES.test(file)) return implicitWhite(file, ast);
+  return [...implicitWhite(file, ast), ...sheetBody(file, ast)];
+}
+
+function sheetBody(file, ast) {
   const components = new Map();
   traverse(ast, {
     'FunctionDeclaration|VariableDeclarator'(path) {

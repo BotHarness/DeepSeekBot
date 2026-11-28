@@ -14,12 +14,30 @@ const native = vi.hoisted(() => ({
   detent: undefined as ((detent: string) => void) | undefined,
 }));
 const design = vi.hoisted(() => ({ scheme: 'light' as 'light' | 'dark' }));
+const platform = vi.hoisted(() => ({
+  OS: 'web',
+  Version: '26.0',
+  select: <T,>(options: { default?: T; web?: T }) => options.web ?? options.default,
+}));
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
-  Modal: (props: { visible: boolean; presentationStyle?: string; children?: ReactNode }) =>
+  Platform: platform,
+  Modal: (props: {
+    visible: boolean;
+    presentationStyle?: string;
+    backdropColor?: unknown;
+    children?: ReactNode;
+  }) =>
     props.visible
-      ? createElement('aside', { 'data-presentation': props.presentationStyle }, props.children)
+      ? createElement(
+          'aside',
+          {
+            'data-presentation': props.presentationStyle,
+            'data-backdrop': JSON.stringify(props.backdropColor ?? 'white'),
+          },
+          props.children,
+        )
       : null,
   View: (props: {
     accessibilityLabel?: string;
@@ -276,6 +294,30 @@ it('presents a long list as a UIKit page sheet, where its scroll view can scroll
     'Folders',
   );
   expect(view.querySelector('aside p')?.textContent).toBe('rows');
+});
+
+it('leaves the page sheet background to the system instead of React Native white (#5682)', async () => {
+  platform.OS = 'ios';
+  try {
+    const backdrop = async () =>
+      (
+        await mount(
+          <Sheet visible fill label="Voices" title="Voices" onClose={() => {}}>
+            <p>rows</p>
+          </Sheet>,
+        )
+      )
+        .querySelector('aside')
+        ?.getAttribute('data-backdrop');
+    platform.Version = '26.0';
+    expect(await backdrop()).toBe('"transparent"');
+    platform.Version = '26.1.1';
+    expect(await backdrop()).toBe('"transparent"');
+    platform.Version = '18.6';
+    expect(await backdrop()).toBe('{"semantic":["systemBackground"]}');
+  } finally {
+    Object.assign(platform, { OS: 'web', Version: '26.0' });
+  }
 });
 
 it("keeps a page sheet's bottom actions above the keyboard", async () => {

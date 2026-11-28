@@ -453,7 +453,7 @@ function renderAria(node, depth = 0, lines = []) {
   return lines;
 }
 
-async function withClient(options, paths, label, work) {
+export async function withClient(options, paths, label, work) {
   const instance = readInstance(paths);
   if (!alive(instance.pid))
     throw new Error('recorded Host is not running; run doctor, then launch');

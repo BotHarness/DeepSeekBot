@@ -302,11 +302,22 @@ export function directTools(adapter: DirectToolsContext): DirectBotToolSpec[] {
     ...directToolDefinitions(adapter, CATALOG_RUN),
     ...(adapter.subagentTools?.(CATALOG_RUN.bot.slug) ?? []),
     ...privateTools.values(),
-  ].map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.parameters,
-  }));
+  ]
+    .map<DirectBotToolSpec>((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.parameters,
+    }))
+    .concat(adapter.featureContributions.flatMap((feature) => feature.directTools ?? []));
+}
+
+export function isNativeDirectTool(
+  adapter: Pick<DirectToolsContext, 'featureContributions'>,
+  name: string,
+): boolean {
+  return adapter.featureContributions.some((feature) =>
+    feature.directTools?.some((tool) => tool.name === name),
+  );
 }
 
 export async function runDirectTool(
@@ -325,7 +336,7 @@ export async function runDirectTool(
     (adapter.subagentTools !== undefined && isBotSubagentModelTool(name))
       ? name
       : directToolDefinitions(adapter, run).find((entry) => entry.name === name);
-  if (tool === undefined)
+  if (tool === undefined && !isNativeDirectTool(adapter, name))
     throw new DirectBotToolError('tool-not-direct', `${name} cannot run outside a Bot turn`);
   if (adapter.runs.has(run.sessionId)) throw new Error('Direct run session is already active');
   adapter.runs.set(run.sessionId, { role: 'orchestrator', run, direct: true });
@@ -365,6 +376,7 @@ export async function runDirectTool(
         );
       value = result.value;
     } else if (
+      tool === undefined ||
       hasIrreversibleExternalEffect(toolEffects(name, args)) ||
       toolEffects(name, args)?.authority === 'management'
     ) {
@@ -374,6 +386,11 @@ export async function runDirectTool(
         signal,
       );
       signal.throwIfAborted();
+      if (tool === undefined && handle.agent.ctx.tools.get(name, handle.agent) === undefined)
+        throw new DirectBotToolError(
+          'tool-not-direct',
+          'This tool is unavailable to the Bot. Check its current grants.',
+        );
       const result = await executeNativeTool(handle.agent.ctx, {
         callId: ToolCallId(run.sessionId),
         name,

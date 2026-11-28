@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { DockDirection } from './channel-dock-layout.js';
 import {
@@ -12,6 +12,18 @@ import {
 
 const DRAG_TYPE = 'application/x-bh-channel-subpanel';
 
+function createPanelContainer() {
+  const node = document.createElement('div');
+  node.className = 'bh-channel-leaf-content';
+  return {
+    node,
+    attach(slot: HTMLDivElement | null) {
+      if (slot === null) node.remove();
+      else if (node.parentElement !== slot) slot.append(node);
+    },
+  };
+}
+
 export function ChannelWorkspace({
   channelId,
   tree,
@@ -23,33 +35,14 @@ export function ChannelWorkspace({
   setTree(next: ChannelSplit): void;
   panels: Readonly<Record<string, { label: string; header?: ReactNode; content: ReactNode }>>;
 }) {
-  const host = useRef<HTMLDivElement>(null);
   const drag = useRef<{ channel: string; panel: string } | undefined>(undefined);
   const [drop, setDrop] = useState<{ target: string; direction: DockDirection }>();
   const [containers] = useState(
-    () =>
-      new Map(
-        CHANNEL_LEAVES.map((id) => {
-          const node = document.createElement('div');
-          node.className = 'bh-channel-leaf-content';
-          return [id, node];
-        }),
-      ),
+    () => new Map(CHANNEL_LEAVES.map((id) => [id, createPanelContainer()])),
   );
   for (const id of Object.keys(panels)) {
-    if (!containers.has(id)) {
-      const node = document.createElement('div');
-      node.className = 'bh-channel-leaf-content';
-      containers.set(id, node);
-    }
+    if (!containers.has(id)) containers.set(id, createPanelContainer());
   }
-  useLayoutEffect(() => {
-    for (const [id, container] of containers) {
-      const slot = host.current?.querySelector(`[data-channel-leaf="${id}"]`);
-      if (slot && container.parentElement !== slot) slot.append(container);
-      else if (!slot) container.remove();
-    }
-  });
   const directionAt = (node: HTMLElement, x: number, y: number): DockDirection => {
     const box = node.getBoundingClientRect();
     const dx = (x - box.left) / box.width,
@@ -68,7 +61,11 @@ export function ChannelWorkspace({
     if ('panel' in node) {
       if (!panels[node.panel]) return null;
       return (
-        <div className="bh-channel-leaf" data-channel-leaf={node.panel}>
+        <div
+          className="bh-channel-leaf"
+          data-channel-leaf={node.panel}
+          ref={containers.get(node.panel)?.attach}
+        >
           {drop?.target === node.panel && (
             <div
               className="bh-channel-drop-preview"
@@ -146,7 +143,6 @@ export function ChannelWorkspace({
   }
   return (
     <div
-      ref={host}
       className="bh-channel-workspace-root"
       data-channel-workspace={channelId}
       onDragOver={(event) => {
@@ -229,7 +225,7 @@ export function ChannelWorkspace({
               </div>
             </section>
           ),
-          containers.get(id)!,
+          containers.get(id)!.node,
           id,
         ),
       )}

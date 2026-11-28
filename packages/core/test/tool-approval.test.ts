@@ -19,7 +19,7 @@ import { createToolApprovalRuleStore } from '../src/workspaces/tool-approval-rul
 import { createTempRoot } from './helpers.js';
 import { toolApprovalRequired, toolEffects } from '../src/workspaces/tool-effects.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
-import { mountConnectors } from '../src/connectors/mount.js';
+import { mountConnectors } from '../src/features/connectors/plugin.js';
 import type { ConnectorService } from '../src/connectors/service.js';
 import type { ConnectorAccess } from '../src/connectors/store.js';
 

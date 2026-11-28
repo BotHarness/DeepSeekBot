@@ -10,7 +10,7 @@ import {
   type ComposioClient,
 } from '../src/connectors/composio.js';
 import { connectorToolDenial, readOnlyTool } from '../src/connectors/policy.js';
-import { connectorAccessMap, connectorCatalogFor } from '../src/connectors/mount.js';
+import { connectorAccessMap, connectorCatalogFor } from '../src/features/connectors/plugin.js';
 import { runConnectorCommand } from '../src/cli/cli-connectors.js';
 import { createTempRoot } from './helpers.js';
 
