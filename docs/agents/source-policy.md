@@ -8,6 +8,7 @@ The necessary exceptions are deliberately narrow:
 
 - Node shebangs at line 1 of `scripts/` files.
 - `// @vitest-environment jsdom` at line 1 of a test file.
+- `// table-owner-write: <table>` in package source for an unresolved SQL write target checked by the [Table Owner lint](schema-migrations.md).
 - The exact `/* @vite-ignore */` in the Pagefind dynamic import. Removing it would change Vite's handling of that runtime URL.
 - The exact ISC notices at the start of `packages/client/src/client/hash-icon.tsx` and `packages/client/src/client/inbox-icon.tsx`, each restricted by path, position and content hash; the license requires the notice to accompany the vendored glyph.
 

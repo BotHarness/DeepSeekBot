@@ -53,6 +53,13 @@ describe('source policy', () => {
     expect(result.filter((item) => item.kind === 'useEffect')).toHaveLength(7);
   });
 
+  it('allows table ownership annotations only in package runtime source', async () => {
+    const source = '// table-owner-write: humans\ndb.exec(`DELETE FROM ${table}`)';
+    expect(await scanSource('packages/core/src/purge/write.ts', source)).toEqual([]);
+    expect(await scanSource('scripts/write.mjs', source)).toHaveLength(1);
+    expect(await scanSource('packages/core/src/purge/write.test.ts', source)).toHaveLength(1);
+  });
+
   it('parses TypeScript angle assertions without treating them as JSX', async () => {
     const result = await scanSource(
       'packages/core/src/sample.ts',

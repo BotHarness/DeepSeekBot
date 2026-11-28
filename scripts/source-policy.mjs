@@ -10,6 +10,7 @@ import {
   appliesToStoreSubscriptions,
   findStoreSubscriptions,
 } from './store-subscription-policy.mjs';
+import { isTableOwnerSource, tableOwnerWriteAnnotation } from './table-owner-sql.mjs';
 
 const codeExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
 const sourceExtensions = new Set([...codeExtensions, '.astro', '.css']);
@@ -65,6 +66,7 @@ function issue(path, source, kind, offset, token) {
 
 function isException(path, item) {
   if (item.kind !== 'comment') return false;
+  if (isTableOwnerSource(path) && tableOwnerWriteAnnotation(item.token)) return true;
   if (item.token === '#!/usr/bin/env node' && item.line === 1 && path.startsWith('scripts/'))
     return true;
   if (

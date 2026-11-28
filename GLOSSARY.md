@@ -976,6 +976,9 @@ _Avoid_: config file, database, fleet
 The one profile-scoped `botharness.db` that physically stores every BotHarness operational record while deep modules retain separate interfaces and table ownership. It stores references to, but never replaces, Soul files, attachment content, DSH Session logs, credentials, or DSH-native settings.
 _Avoid_: Messaging database, DSH storage domain, Soul store, generic repository
 
+**Table Owner**:
+The single code module authorized to write the rows of an Operational Database table and create or alter its schema. The Operational Database Owner manages the shared database, supplies transactions, and validates and applies migrations.
+
 **Profile Backup**:
 A self-contained, versioned, compressed `.botharness-backup` file containing the complete operational-database snapshot, every Soul/Memory file, every reachable CAS object, an integrity manifest, and optionally a DSH Session facet produced through SessionPersistence; created only by an explicit Human export, never by a scheduler or dangerous-operation hook.
 _Avoid_: PersonaBot Export, copied database, SoulSnapshot

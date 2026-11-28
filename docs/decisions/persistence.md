@@ -33,6 +33,14 @@ Why: stable names let parallel branches add migrations without reserving numbers
 
 Enforced by: [schema migration lint](../../scripts/check-schema-migrations.mjs), [schema ledger tests](../../packages/core/test/schema-migration-ledger.test.ts), and [integrity and orphan tests](../../packages/core/test/operational-database.test.ts).
 
+### Each table has one Table Owner
+
+Every Operational Database table has one Table Owner responsible for row writes and schema changes. A Table Owner is a domain directory under `packages/core/src`. The `database` module owns the two database bookkeeping tables, `_botharness_schema` and `schema_migrations`. Other modules make changes through the Table Owner's interface. FTS shadow tables share their virtual table's owner. The Operational Database Owner supplies transactions and applies migrations for the whole database.
+
+Why: One module can enforce a table's invariants and evolve its schema while the Host keeps a shared database and transaction boundary.
+
+Enforced by: The [table owner lint](../../scripts/check-table-owners.mjs) replays the schema, verifies the [manifest](../../scripts/table-owners.json), and checks that tables created or altered by new migrations belong to the migration's module. The [writer baseline](../../scripts/table-owner-write-baseline.json) records existing cross-owner write pairs and can only shrink. The lint reports cross-owner reads for information.
+
 ## 3. Operational logs have a separate, disposable store
 
 <a id="adr-0063"></a>

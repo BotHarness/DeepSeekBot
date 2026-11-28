@@ -302,6 +302,10 @@ export const RULES = [
   related('scripts/ui-visual/**', 'Component gallery, checked by the UI visual job'),
   related('verification/**', 'TLA+ models, checked by scripts/verify-tla.mjs in the static job'),
   related('scripts/schema-migrations.json', 'Named schema migration ledger', false, MIGRATION),
+  related(
+    'scripts/{check-table-owners,replay-schema,table-owner*}.{mjs,json}',
+    'Operational Database table ownership lint and inventories',
+  ),
   related('scripts/{dev-secret,workos-secret}.mjs', 'Credential provisioning', false, AUTH),
   related(
     'scripts/{*release*,*publish*,*deploy*,store-*}.{mjs,json,d.mts}',
