@@ -60,6 +60,22 @@ export interface MarketplaceSkill {
   pushedAt: string;
 }
 
+export const MARKETPLACE_SKILL_SECTIONS = ['hot', 'new', 'rising'] as const;
+export type MarketplaceSkillSectionName = (typeof MARKETPLACE_SKILL_SECTIONS)[number];
+
+export interface MarketplaceSkillSection {
+  section: MarketplaceSkillSectionName;
+  entries: { skill: MarketplaceSkill; score: number }[];
+}
+
+export interface MarketplaceSkillSectionView extends MarketplaceSkillSection {
+  day: string | null;
+}
+
+export function isMarketplaceSkillSection(value: unknown): value is MarketplaceSkillSectionName {
+  return MARKETPLACE_SKILL_SECTIONS.some((section) => section === value);
+}
+
 export interface MarketplaceSkillFile {
   path: string;
   size: number;
@@ -254,4 +270,34 @@ export function parseMarketplaceSkillDetail(value: unknown): MarketplaceSkillDet
   )
     return undefined;
   return { skill, content, files };
+}
+
+export function parseMarketplaceSkillSection(value: unknown): MarketplaceSkillSection | undefined {
+  const source = record(value);
+  const section = source?.['section'];
+  const items = source?.['entries'];
+  if (!isMarketplaceSkillSection(section) || !Array.isArray(items)) return undefined;
+  const entries: MarketplaceSkillSection['entries'] = [];
+  for (const item of items) {
+    const entry = record(item);
+    const skill = parseMarketplaceSkill(entry?.['skill']);
+    const score = entry?.['score'];
+    if (skill === undefined || typeof score !== 'number' || !Number.isFinite(score))
+      return undefined;
+    entries.push({ skill, score });
+  }
+  return { section, entries };
+}
+
+export function parseMarketplaceSkillSectionView(
+  value: unknown,
+): MarketplaceSkillSectionView | undefined {
+  const section = parseMarketplaceSkillSection(value);
+  const day = record(value)?.['day'];
+  if (
+    section === undefined ||
+    (day !== null && (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(day)))
+  )
+    return undefined;
+  return { ...section, day };
 }

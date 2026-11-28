@@ -230,6 +230,14 @@ export async function runBotCreateCli(
         command = aliases[action];
         rest = targets;
       }
+    } else if (command === 'market') {
+      const [category, action, ...targets] = rest;
+      if (category === 'skills' && action === 'sections') {
+        command = 'market-skills-sections';
+        rest = targets;
+      } else if (values.help !== true) {
+        throw usageError('market takes skills sections [--section hot|new|rising].');
+      }
     } else if (command === 'skills') {
       const [action, ...targets] = rest;
       if (

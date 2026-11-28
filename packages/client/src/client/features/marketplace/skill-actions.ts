@@ -7,6 +7,7 @@ import type {
   MarketplaceSkillConflictChoice,
   MarketplaceSkillDetail,
   MarketplaceSkillPage,
+  MarketplaceSkillSection,
   MarketplaceSkillPublication,
   MarketplaceSkillReplacement,
   MarketplaceSkillReview,
@@ -16,6 +17,7 @@ import type { InvokeAction } from '../../actions.js';
 
 export interface MarketplaceSkillActions {
   marketplaceSkillList(query?: { q?: string; cursor?: string }): Promise<MarketplaceSkillPage>;
+  marketplaceSkillSections(): Promise<MarketplaceSkillSection[]>;
   marketplaceSkillDetail(id: string): Promise<MarketplaceSkillDetail>;
   marketplaceSkillAddCandidates(): Promise<MarketplaceSkillAddCandidates>;
   marketplaceSkillReview(id: string): Promise<MarketplaceSkillReview>;
@@ -43,6 +45,7 @@ export function createMarketplaceSkillActions(
         ...(query.q === undefined || query.q === '' ? {} : { q: query.q }),
         ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
       }),
+    marketplaceSkillSections: () => invoke('marketplaceSkillSections', {}),
     marketplaceSkillDetail: (id) => invoke('marketplaceSkillDetail', { id }),
     marketplaceSkillAddCandidates: () => invoke('marketplaceSkillAddCandidates', {}),
     marketplaceSkillReview: (id) => invoke('marketplaceSkillReview', { id }),

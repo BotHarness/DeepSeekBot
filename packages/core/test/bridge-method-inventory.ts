@@ -441,6 +441,7 @@ export const bridgeMethodInventory = [
   'marketplaceInstall',
   'marketplaceSkillList',
   'marketplaceSkillDetail',
+  'marketplaceSkillSections',
   'marketplaceSkillAddCandidates',
   'marketplaceSkillReview',
   'marketplaceSkillAdd',

@@ -114,6 +114,76 @@ export async function snapshotAvatarRankings({
   return { day };
 }
 
+export async function snapshotSkillRankings({
+  db,
+  now,
+}: {
+  db: D1Database;
+  now: () => Date;
+}): Promise<{ day: string }> {
+  const date = now();
+  const at = date.getTime();
+  const day = utcDay(date);
+  const recent = at - RANKING_WINDOW_MS;
+  const previous = recent - RANKING_WINDOW_MS;
+  const oldest = utcDay(new Date(at - SNAPSHOT_RETENTION_DAYS * DAY_MS));
+  await db.batch([
+    db.prepare('DELETE FROM skill_ranking_snapshots WHERE day = ?').bind(day),
+    db
+      .prepare(
+        `INSERT INTO skill_ranking_snapshots (day, section, rank, skill_id, score)
+         SELECT ?, 'hot', row_number() OVER (ORDER BY recent DESC, installs DESC, stars DESC, id), id, recent
+         FROM (
+           SELECT skill.id, skill.installs, skill.stars, count(*) AS recent
+           FROM skill_install_receipts i JOIN marketplace_skills skill ON skill.id = i.skill_id
+           WHERE i.created_at BETWEEN ? AND ? AND skill.visibility = 'listed'
+           GROUP BY skill.id
+           ORDER BY recent DESC, installs DESC, stars DESC, skill.id
+           LIMIT ?
+         )`,
+      )
+      .bind(day, recent, at, SECTION_SIZE),
+    db
+      .prepare(
+        `INSERT INTO skill_ranking_snapshots (day, section, rank, skill_id, score)
+         SELECT ?, 'new', row_number() OVER (ORDER BY first_seen_at DESC, id), id, 0
+         FROM (
+           SELECT id, first_seen_at FROM marketplace_skills
+           WHERE visibility = 'listed'
+           ORDER BY first_seen_at DESC, id
+           LIMIT ?
+         )`,
+      )
+      .bind(day, SECTION_SIZE),
+    db
+      .prepare(
+        `INSERT INTO skill_ranking_snapshots (day, section, rank, skill_id, score)
+         SELECT ?, 'rising', row_number() OVER (ORDER BY recent - earlier DESC, recent DESC, id),
+           id, recent - earlier
+         FROM (
+           SELECT skill.id,
+             sum(CASE WHEN i.created_at >= ? THEN 1 ELSE 0 END) AS recent,
+             sum(CASE WHEN i.created_at < ? THEN 1 ELSE 0 END) AS earlier
+           FROM skill_install_receipts i JOIN marketplace_skills skill ON skill.id = i.skill_id
+           WHERE i.created_at BETWEEN ? AND ? AND skill.visibility = 'listed'
+           GROUP BY skill.id
+           HAVING recent >= ? AND recent > earlier
+           ORDER BY recent - earlier DESC, recent DESC, skill.id
+           LIMIT ?
+         )`,
+      )
+      .bind(day, recent, recent, previous, at, RISING_FLOOR, SECTION_SIZE),
+    db
+      .prepare(
+        'INSERT INTO skill_ranking_runs (day, created_at) VALUES (?, ?) ON CONFLICT (day) DO UPDATE SET created_at = excluded.created_at',
+      )
+      .bind(day, at),
+    db.prepare('DELETE FROM skill_ranking_snapshots WHERE day < ?').bind(oldest),
+    db.prepare('DELETE FROM skill_ranking_runs WHERE day < ?').bind(oldest),
+  ]);
+  return { day };
+}
+
 export function createRankings(deps: { db: D1Database; now: () => Date }): Rankings {
   const { db } = deps;
 

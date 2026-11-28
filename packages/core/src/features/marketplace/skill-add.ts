@@ -9,6 +9,7 @@ import {
   type MarketplaceSkillAddResult,
   type MarketplaceSkillDetail,
   type MarketplaceSkillPage,
+  type MarketplaceSkillSection,
   type MarketplaceSkillReview,
 } from '@botharness/host-protocol/marketplace-skill';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
@@ -48,6 +49,7 @@ export interface MarketplaceSkillBridgeDeps {
 
 export type MarketplaceSkillBridgeMethods = {
   marketplaceSkillList(payload: unknown): Promise<BridgeResult<MarketplaceSkillPage>>;
+  marketplaceSkillSections(payload: unknown): Promise<BridgeResult<MarketplaceSkillSection[]>>;
   marketplaceSkillDetail(payload: unknown): Promise<BridgeResult<MarketplaceSkillDetail>>;
   marketplaceSkillAddCandidates(payload: unknown): BridgeResult<MarketplaceSkillAddCandidates>;
   marketplaceSkillReview(payload: unknown): Promise<BridgeResult<MarketplaceSkillReview>>;
@@ -106,6 +108,9 @@ export function createMarketplaceSkillMethods(
           ...(cursor === undefined ? {} : { cursor }),
         }),
       );
+    },
+    marketplaceSkillSections() {
+      return call((host) => host.source.sections());
     },
     marketplaceSkillDetail(payload) {
       const id = validId(payload);

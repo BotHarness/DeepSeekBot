@@ -1,4 +1,8 @@
 import { loadSkillCatalog } from '@botharness/host-client/skill-catalog';
+import {
+  isMarketplaceSkillSection,
+  parseMarketplaceSkillSection,
+} from '@botharness/host-protocol/marketplace-skill';
 import type { PersonaBotSummary } from '../bridge/methods.js';
 import { dmChannelId, type ChannelSkillInvocationToken } from '../channels/channel.js';
 import { parseSkillOwnerKey, rankSkillEntries, type SkillCatalogEntry } from '../skills/entries.js';
@@ -17,6 +21,7 @@ export interface SkillValues {
   confirm?: boolean;
   global?: boolean;
   cursor?: string;
+  section?: string;
   'on-conflict'?: string;
   review?: string;
 }
@@ -64,6 +69,11 @@ export const SKILL_COMMANDS = [
     command: 'marketplace-skill-list',
     description:
       'browse or search Marketplace Skills / 浏览或搜索市场 Skill: [--query <text>] [--cursor <n>]',
+  },
+  {
+    command: 'market-skills-sections',
+    description:
+      'read Marketplace Skill rankings: market skills sections [--section hot|new|rising]',
   },
   {
     command: 'marketplace-skill-detail',
@@ -117,6 +127,21 @@ export async function runSkillCommand(
       ...(values.query === undefined ? {} : { q: values.query }),
       ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
     });
+  }
+  if (command === 'market-skills-sections') {
+    const { section } = values;
+    if (rest.length !== 0 || (section !== undefined && !isMarketplaceSkillSection(section)))
+      usage('market skills sections takes [--section hot|new|rising].');
+    const result = await (await connect())('marketplaceSkillSections', {});
+    if (section === undefined) return result;
+    if (!Array.isArray(result))
+      throw new CliLiveError('marketplace-unavailable', 'Invalid Skill rankings from the Host.');
+    const selected = result
+      .map(parseMarketplaceSkillSection)
+      .find((item) => item?.section === section);
+    if (selected === undefined)
+      throw new CliLiveError('marketplace-unavailable', 'Missing Skill ranking from the Host.');
+    return [selected];
   }
   if (command === 'marketplace-skill-detail') {
     if (rest.length !== 1) usage('marketplace-skill-detail takes <id>.');
