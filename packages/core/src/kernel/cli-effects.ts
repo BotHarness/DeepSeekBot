@@ -463,6 +463,8 @@ export const CLI_EFFECTS = {
   private: { effects: write, brokerRead: false },
   'private-connect': { effects: externalSecretManagement, brokerRead: false },
   'private-ingress-disable': { effects: externalManagement, brokerRead: false },
+  'private-direct-disable': { effects: externalManagement, brokerRead: false },
+  'private-direct-enable': { effects: externalManagement, brokerRead: false },
   'private-ingress-enable': { effects: externalManagement, brokerRead: false },
   'private-mcp-remove': { effects: secretManagement, brokerRead: false },
   'private-mcp-set': { effects: secretManagement, brokerRead: false },

@@ -11,6 +11,7 @@ import {
   stageCloudflaredPackages,
 } from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
+import { directEdgePackages, stageDirectEdgePackages } from './direct-edge-packages.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 import { qqOrdinaryMediaSource } from './product-provider/qq-ordinary-media.mjs';
 
@@ -87,6 +88,7 @@ export function productManifest(manifest, version) {
     optionalDependencies: {
       ...manifest.optionalDependencies,
       ...cloudflaredOptionalDependencies(version),
+      ...Object.fromEntries(directEdgePackages.map(({ name }) => [name, version])),
     },
     dsh: { ...manifest.dsh, bundle: { patch: './cordis.im.patch.yml' } },
     files: [
@@ -324,12 +326,10 @@ export function packProduct({
   const provider = join(staging, 'im-provider');
   const providerRuntime = stageProvider(providerSource, provider, repoRoot);
   packageDirectories.push(provider);
-  const platformDirectories = stageCloudflaredPackages({
-    repoRoot,
-    assetsDirectory: cloudflaredAssets,
-    staging,
-    version,
-  });
+  const platformDirectories = [
+    ...stageCloudflaredPackages({ repoRoot, assetsDirectory: cloudflaredAssets, staging, version }),
+    ...stageDirectEdgePackages({ repoRoot, staging, version }),
+  ];
   const product = join(staging, 'deepseekbot');
   mkdirSync(product);
   const source = join(repoRoot, 'packages/deepseekbot');

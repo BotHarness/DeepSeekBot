@@ -2560,6 +2560,10 @@ For several IM requests in one turn, call `ask_secret` with the existing account
 
 ## Private connection (no Docker)
 
+### Public direct connection
+
+`tobs private-direct-enable --confirm` starts public HTTPS on a Linux Host. Use `--hostname <name>` to select a DNS name. Read the `direct` entry in `tobs devices` → `privateRoutes` and wait for `connected` before running `tobs device-offer --route-id direct --out /absolute/private/path`. `tobs private-route stop direct --confirm` pauses the route and `start direct --confirm` resumes it. `tobs private-direct-disable --confirm` removes its configuration. See [public direct connection](private-connect.md#public-direct-connection).
+
 ### Independently managed private routes
 
 Use `device-offer --route-id quick|custom --out <new-absolute-private-file>` for a single-route invitation, including recovery or older phones. Omit `--route-id` to admit all connected private routes.

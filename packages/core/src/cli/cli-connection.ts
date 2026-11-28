@@ -94,7 +94,7 @@ export async function runConnectionCommand(
       (values['connection-route-id'] !== undefined &&
         (action !== 'stop-route' ||
           argument !== 'private-tunnel' ||
-          !['quick', 'custom'].includes(values['connection-route-id'])))
+          !['quick', 'custom', 'direct'].includes(values['connection-route-id'])))
     )
       throw new CliLiveError(
         'usage',
@@ -105,7 +105,7 @@ export async function runConnectionCommand(
     if (action === 'stop-route' && argument === 'private-tunnel' && !values['connection-route-id'])
       throw new CliLiveError(
         'usage',
-        'Select one owned private route with --connection-route-id quick or custom.',
+        'Select one owned private route with --connection-route-id quick, custom, or direct.',
       );
     const target = {
       action,

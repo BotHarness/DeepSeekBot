@@ -8,6 +8,7 @@ import { createRelationshipControl } from '../../devices/relationship-control.js
 import { createRelationshipHttp, RELATIONSHIPS_PATH } from '../../devices/relationship-http.js';
 import { createPrivateConnection } from '../../devices/private-relay.js';
 import { createPrivateTunnel } from '../../devices/private-tunnel.js';
+import { directEdgeStarter } from '../../devices/private-direct.js';
 import { createConnectBotBridge } from '../../devices/bot-connect-bridge.js';
 import { createLanBotBridge } from '../../devices/bot-lan-bridge.js';
 import { createLanBotDiscovery } from '../../devices/bot-lan-discovery.js';
@@ -347,7 +348,7 @@ export function mountDevicePairing(
               origin: first.origin,
               token: first.token,
               ...(admissions.length > 1
-                ? { additionalOrigins: admissions.slice(1).map((route) => route.origin) }
+                ? { additionalOrigins: admissions.slice(1, 2).map((route) => route.origin) }
                 : {}),
             }
           : privateConnection.admission();
@@ -826,6 +827,10 @@ export function mountDevicePairing(
       port: () => webServer.port,
       passwordSignInAvailable: () => memberDevices?.passwordSignInAvailable() ?? false,
       cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
+      startDirectEdge: directEdgeStarter(
+        join(options.dshHome, 'botharness', 'direct-edge'),
+        options.packageAnchors ?? [],
+      ),
       ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
       record: (phase, info) =>
         write('private-tunnel', phase, `private-tunnel phase=${phase}${info ? ` ${info}` : ''}`),

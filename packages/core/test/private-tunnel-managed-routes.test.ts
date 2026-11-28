@@ -14,6 +14,7 @@ import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createDevicesHttp, type PairingOfferView } from '../src/devices/http.js';
 import { detectPhoneRoutes } from '../src/devices/routes.js';
 import { createNoiseIdentity } from '../src/devices/noise-identity.js';
+import type { StartDirectEdge } from '../src/devices/private-direct.js';
 
 function edgeFetch(runs: ReturnType<typeof fakeCloudflared>['runs'], reachable = () => true) {
   return (async (input: string, init?: RequestInit) => {
@@ -28,6 +29,88 @@ function edgeFetch(runs: ReturnType<typeof fakeCloudflared>['runs'], reachable =
   }) as typeof fetch;
 }
 const namedPort = { value: 0 };
+
+it('admits public direct only after the certificate and Host nonce, then restores it independently', async () => {
+  const credentials = memoryCredentials();
+  const edgeRuns: Parameters<StartDirectEdge>[0][] = [];
+  const closeEdge = vi.fn(async () => undefined);
+  const directOrigin = 'https://direct.example.com';
+  let owner: ReturnType<typeof createPrivateTunnel>;
+  const probe = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+    const url = new URL(String(input));
+    const route = owner.statuses().find((value) => value.origin === url.origin);
+    if (!route?.originPort) throw new Error('missing-origin');
+    return fetch(`http://127.0.0.1:${route.originPort}${url.pathname}`, init);
+  });
+  const options = {
+    credentials: () => credentials,
+    port: () => 1,
+    fetch: probe,
+    startDirectEdge: ((input) => {
+      edgeRuns.push(input);
+      return closeEdge;
+    }) satisfies StartDirectEdge,
+  };
+  owner = createPrivateTunnel(options);
+  tunnels.push(owner);
+  const database = trackTestOwner(
+    mountOperationalDatabase({
+      dshHome: createTempRoot('public-direct-offer-'),
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    }),
+  );
+  const pairing = createDevicePairing({
+    database: attachOperationalModule(database, 'device-pairing'),
+    hostName: 'Public direct test',
+  });
+  const identity = createNoiseIdentity(() => credentials);
+  const http = createDevicesHttp({
+    pairing,
+    privateTunnel: owner,
+    routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+    encryption: async () => ({ ...(await identity.publicIdentity()), state: 'encrypted' }),
+  });
+  const directOffer = () =>
+    http(
+      new Request('http://localhost/api/botharness/devices/offer', {
+        method: 'POST',
+        body: JSON.stringify({ routeId: 'direct' }),
+      }),
+    );
+  await owner.add({ mode: 'direct', hostname: 'direct.example.com' });
+  expect(owner.admissions()).toEqual([]);
+  expect(probe).not.toHaveBeenCalled();
+  expect((await directOffer()).status).toBe(409);
+  edgeRuns[0]!.onEvent({ phase: 'bound', origin: directOrigin });
+  edgeRuns[0]!.onEvent({ phase: 'certificate-failed', issue: 'direct-inbound-closed' });
+  expect(owner.status()).toMatchObject({ state: 'error', issue: 'direct-inbound-closed' });
+  expect(probe).not.toHaveBeenCalled();
+  edgeRuns[0]!.onEvent({ phase: 'certificate-ready' });
+  await vi.waitFor(() => expect(owner.admissions()[0]?.origin).toBe(directOrigin));
+  const response = await directOffer();
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ routes: [directOrigin], reachable: true });
+  await owner.add({ mode: 'ingress', origin: 'https://private.example.com' });
+  await vi.waitFor(() =>
+    expect(owner.admissions().map(({ id }) => id)).toEqual(['direct', 'custom']),
+  );
+  const token = owner.admissions()[0]?.token;
+
+  await owner.close();
+  expect(closeEdge).toHaveBeenCalledOnce();
+  owner = createPrivateTunnel(options);
+  tunnels.push(owner);
+  await owner.restore();
+  expect(edgeRuns).toHaveLength(2);
+  expect(edgeRuns[1]?.hostname).toBe('direct.example.com');
+  edgeRuns[1]!.onEvent({ phase: 'bound', origin: directOrigin });
+  edgeRuns[1]!.onEvent({ phase: 'certificate-ready' });
+  await vi.waitFor(() => expect(owner.admissions()[0]?.token).toBe(token));
+  await owner.stop('direct');
+  expect(owner.admissions().map(({ id }) => id)).toEqual(['custom']);
+  expect(owner.statuses().find(({ id }) => id === 'direct')?.enabled).toBe(false);
+  expect(closeEdge).toHaveBeenCalledTimes(2);
+});
 
 it('adds Quick and ingress independently, makes retries idempotent, and restores enabled routes only', async () => {
   const credentials = memoryCredentials();

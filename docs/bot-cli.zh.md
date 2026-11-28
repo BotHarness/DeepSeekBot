@@ -2428,6 +2428,10 @@ Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册�
 
 ## 私有连接（无需 Docker）
 
+### 公网直连
+
+`tobs private-direct-enable --confirm` 在 Linux Host 上启动公网 HTTPS。可用 `--hostname <域名>` 指定域名。运行 `tobs devices`，等待 `privateRoutes` 中的 `direct` 线路显示 `connected`，再运行 `tobs device-offer --route-id direct --out /absolute/private/path` 创建配对邀请。`tobs private-route stop direct --confirm` 暂停，`start direct --confirm` 恢复。`tobs private-direct-disable --confirm` 移除线路配置。
+
 ### 独立管理私有连接
 
 使用 `device-offer --route-id quick|custom --out <新的绝对路径私有文件>` 创建单条连接的邀请，用于恢复连接或旧版手机；省略 `--route-id` 则邀请包含所有已连通的私有地址。

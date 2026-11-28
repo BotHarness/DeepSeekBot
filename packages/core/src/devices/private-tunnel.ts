@@ -22,6 +22,7 @@ import { validTunnelToken, type SpawnTunnel, type TunnelProcess } from './connec
 import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { PrivateRelayAdmission } from './private-relay.js';
 import { isConnectZoneHost } from './routes.js';
+import type { DirectEdgeIssue, StartDirectEdge } from './private-direct.js';
 import {
   addressRouteHeader,
   DEVICE_NOISE_PEER_HEADER,
@@ -30,9 +31,10 @@ import {
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
-export type PrivateTunnelMode = 'quick' | 'named' | 'ingress';
+export type PrivateTunnelMode = 'quick' | 'named' | 'ingress' | 'direct';
 
 export type PrivateTunnelIssue =
+  | DirectEdgeIssue
   | 'cloudflared-missing'
   | 'cloudflared-download-failed'
   | 'cloudflared-hash-mismatch'
@@ -77,7 +79,7 @@ export type PrivateTunnelResult =
   | {
       ok: true;
       status: PrivateTunnelStatus;
-      routeId?: 'quick' | 'custom';
+      routeId?: 'quick' | 'custom' | 'direct';
       expectedRevision?: string;
     }
   | { ok: false; code: PrivateTunnelRefusal };
@@ -163,7 +165,7 @@ export function parseTunnelRecord(payload: unknown): TunnelRecord | undefined {
   const originPort = value['originPort'];
   const phoneToken = value['phoneToken'];
   if (
-    (mode !== 'quick' && mode !== 'named' && mode !== 'ingress') ||
+    (mode !== 'quick' && mode !== 'named' && mode !== 'ingress' && mode !== 'direct') ||
     typeof phoneToken !== 'string' ||
     !SECRET.test(phoneToken) ||
     typeof originPort !== 'number' ||
@@ -180,6 +182,19 @@ export function parseTunnelRecord(payload: unknown): TunnelRecord | undefined {
   }
   const hostname =
     typeof value['hostname'] === 'string' ? privateTunnelHostname(value['hostname']) : undefined;
+  if (mode === 'direct') {
+    if (value['hostname'] !== undefined && hostname === undefined) return undefined;
+    const origin =
+      typeof value['origin'] === 'string' ? privateIngressOrigin(value['origin']) : undefined;
+    if (value['origin'] !== undefined && origin === undefined) return undefined;
+    return {
+      mode,
+      phoneToken,
+      originPort,
+      ...(hostname && { hostname }),
+      ...(origin && { origin }),
+    };
+  }
   if (mode === 'named') {
     const token = value['token'];
     if (hostname === undefined || typeof token !== 'string' || !validTunnelToken(token))
@@ -190,7 +205,7 @@ export function parseTunnelRecord(payload: unknown): TunnelRecord | undefined {
 }
 
 export function addressSignInAllowed(record: TunnelRecord): boolean {
-  return record.mode !== 'quick' && !(record.mode === 'ingress' && record.lan === true);
+  return record.mode === 'named' || (record.mode === 'ingress' && record.lan !== true);
 }
 
 type TunnelOrigin = Server & { upgraded: Set<Duplex>; addressed: Set<Duplex> };
@@ -408,6 +423,7 @@ export interface PrivateTunnelOptions {
   cloudflaredCache?: string;
   packageAnchors?: readonly string[];
   spawn?: SpawnTunnel;
+  startDirectEdge?: StartDirectEdge;
   fetch?: typeof fetch;
   probeIntervalMs?: number;
   probeWindowMs?: number;
@@ -442,6 +458,7 @@ export function createPrivateTunnelRuntime(
   let current: TunnelRecord | undefined;
   let server: TunnelOrigin | undefined;
   let tunnel: TunnelProcess | undefined;
+  let closeEdge: (() => Promise<void>) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let probeTimer: ReturnType<typeof setTimeout> | undefined;
   let probing = 0;
@@ -469,6 +486,11 @@ export function createPrivateTunnelRuntime(
 
   const read = options.storage.read;
   const persist = options.storage.persist;
+  const unreachable = (): PrivateTunnelIssue =>
+    status.mode === 'direct' &&
+    ['timeout', 'network', 'ECONNREFUSED', 'ETIMEDOUT', 'EHOSTUNREACH'].includes(status.probe ?? '')
+      ? 'direct-inbound-closed'
+      : 'tunnel-unreachable';
 
   const verify = (
     run: number,
@@ -481,7 +503,7 @@ export function createPrivateTunnelRuntime(
     if (run !== generation || session !== probing) return;
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      status = { ...status, state: 'error', issue: 'tunnel-unreachable' };
+      status = { ...status, state: 'error', issue: unreachable() };
       record(
         'unreachable',
         `probe=${status.probe ?? 'timeout'} attempts=${attempt - 1} elapsedMs=${Date.now() - startedAt}`,
@@ -540,7 +562,7 @@ export function createPrivateTunnelRuntime(
             );
             return;
           }
-          status = { ...status, state: 'error', issue: 'tunnel-unreachable' };
+          status = { ...status, state: 'error', issue: unreachable() };
           record('unreachable', `probe=${probe}`);
           probeLater(() => verify(run, session, origin, Date.now() + probeWindow), reprobe);
         },
@@ -550,10 +572,74 @@ export function createPrivateTunnelRuntime(
   const retry = (next: TunnelRecord, run: number): void =>
     later(() => void runTunnel(next, run), (backoff = Math.min(backoff * 2, RESTART_MAX_MS)));
 
+  const runDirect = (next: TunnelRecord, run: number): void => {
+    const started = Date.now();
+    let origin: string | undefined;
+    let fatal: DirectEdgeIssue | undefined;
+    const fail = (issue: DirectEdgeIssue): void => {
+      status = { ...status, state: 'error', issue };
+      record('direct-edge-failed', `issue=${issue} elapsedMs=${Date.now() - started}`);
+    };
+    try {
+      closeEdge = options.startDirectEdge?.({
+        port: next.originPort,
+        ...(next.hostname === undefined ? {} : { hostname: next.hostname }),
+        onEvent(event) {
+          if (run !== generation) return;
+          if (event.phase === 'bound') {
+            origin = privateIngressOrigin(event.origin);
+            if (origin === undefined || !current) return;
+            const changed = current.origin !== undefined && origin !== current.origin;
+            status = { ...status, origin, ...(changed && { addressChanged: true }) };
+            current = { ...current, origin };
+            void persist(current);
+            record('direct-edge-bound', `port=443 elapsedMs=${Date.now() - started}`);
+          } else if (event.phase === 'failed') {
+            fatal = event.issue;
+            fail(event.issue);
+          } else if (event.phase === 'certificate-failed') {
+            probing += 1;
+            probeAbort?.abort();
+            clearTimeout(probeTimer);
+            nonce = undefined;
+            fail(event.issue);
+          } else if (event.phase === 'certificate-renewal-failed') {
+            record('direct-certificate-renewal-failed', `issue=${event.issue}`);
+          } else if (origin !== undefined && status.state !== 'connected') {
+            status = { ...status, state: 'verifying' };
+            delete status.issue;
+            verify(run, ++probing, origin, Date.now() + probeWindow);
+          }
+        },
+        onExit(issue) {
+          if (run !== generation) return;
+          closeEdge = undefined;
+          probing += 1;
+          probeAbort?.abort();
+          clearTimeout(probeTimer);
+          nonce = undefined;
+          if (!fatal) {
+            fail(issue);
+            if (issue === 'direct-edge-exited') retry(next, run);
+          }
+        },
+      });
+    } catch {
+      fail('direct-edge-exited');
+      return;
+    }
+    if (!closeEdge) fail('direct-binary-missing');
+    else record('direct-edge-started', 'command=tobs-relay-edge port=443');
+  };
+
   const runTunnel = async (next: TunnelRecord, run: number): Promise<void> => {
     if (run !== generation) return;
     status = { ...status, state: 'starting' };
     delete status.issue;
+    if (next.mode === 'direct') {
+      runDirect(next, run);
+      return;
+    }
     if (next.mode === 'ingress' && next.origin !== undefined) {
       status = { ...status, state: 'verifying' };
       record('ingress-started', `lan=${String(next.lan === true)}`);
@@ -649,6 +735,8 @@ export function createPrivateTunnelRuntime(
     nonce = undefined;
     tunnel?.kill();
     tunnel = undefined;
+    const edge = closeEdge;
+    closeEdge = undefined;
     const closing = server;
     server = undefined;
     backoff = RESTART_MIN_MS;
@@ -656,6 +744,10 @@ export function createPrivateTunnelRuntime(
       closing.closeAllConnections();
       for (const socket of closing.upgraded) socket.destroy();
       await new Promise<void>((done) => closing.close(() => done()));
+    }
+    if (edge) {
+      await edge();
+      record('direct-edge-stopped', 'port=443');
     }
   };
 
@@ -678,11 +770,14 @@ export function createPrivateTunnelRuntime(
     const lan = next.mode === 'ingress' && next.lan === true;
     const bound =
       (await listen(origin, next.originPort, lan)) ??
-      (next.mode === 'quick' && next.originPort !== 0 ? await listen(origin, 0, lan) : undefined);
+      ((next.mode === 'quick' || next.mode === 'direct') && next.originPort !== 0
+        ? await listen(origin, 0, lan)
+        : undefined);
     const base = {
       mode: next.mode,
       ...(next.mode === 'named' && next.hostname ? { origin: `https://${next.hostname}` } : {}),
       ...(next.mode === 'ingress' && next.origin ? { origin: next.origin, lan } : {}),
+      ...(next.mode === 'direct' && next.origin ? { origin: next.origin } : {}),
     };
     if (bound === undefined) {
       status = { ...base, state: 'error', issue: 'origin-port-busy', originPort: next.originPort };

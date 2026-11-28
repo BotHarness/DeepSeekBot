@@ -21,6 +21,7 @@ import {
 } from './packaged-profile.mjs';
 import { verifyProviderArchive } from './npm-provider-release.mjs';
 import { cloudflaredPackages, fetchCloudflaredAssets } from './cloudflared-packages.mjs';
+import { directEdgePackages } from './direct-edge-packages.mjs';
 
 export const publishedProductProvider = Object.freeze(
   JSON.parse(readFileSync(new URL('./published-product-provider.json', import.meta.url), 'utf8')),
@@ -34,10 +35,13 @@ export const publicationOrder = [
   '@botharness/browser',
   '@botharness/computer',
   ...cloudflaredPackages.map((entry) => entry.name),
+  ...directEdgePackages.map((entry) => entry.name),
   'deepseekbot',
   '@botharness/tobs',
 ];
-const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
+const platformPackages = new Map(
+  [...cloudflaredPackages, ...directEdgePackages].map((entry) => [entry.name, entry]),
+);
 const registry = 'https://registry.npmjs.org';
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -109,7 +113,7 @@ export function checkPackage(manifest, artifact, files, inventory) {
     manifest.name !== artifact.name ||
     manifest.version !== artifact.version ||
     manifest.private ||
-    manifest.license !== (platform ? 'Apache-2.0' : 'MIT')
+    manifest.license !== (platform ? (platform.license ?? 'Apache-2.0') : 'MIT')
   )
     throw new Error(`Invalid public manifest: ${artifact.name}`);
   if (

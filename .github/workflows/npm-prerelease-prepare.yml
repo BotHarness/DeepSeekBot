@@ -14,6 +14,8 @@ on:
       - scripts/npm-prerelease.mjs
       - scripts/published-product-provider.json
       - scripts/product-artifacts.mjs
+      - scripts/direct-edge-packages.mjs
+      - deploy/private-relay/**
       - scripts/dev-im-provider.mjs
       - scripts/product-provider/**
       - scripts/test/npm-prerelease.test.mjs
@@ -44,6 +46,10 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: deploy/private-relay/go.mod
+          cache-dependency-path: deploy/private-relay/go.sum
       - run: pnpm install --frozen-lockfile
       - name: Install the locked browser required by layout tests
         run: pnpm rebuild puppeteer

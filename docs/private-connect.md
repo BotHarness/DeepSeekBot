@@ -4,12 +4,13 @@ Private connection lets your phone reach this computer from mobile data or outsi
 
 ## Choose a deployment
 
-| What you already have                     | Guide with manual steps and an agent prompt                                              |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
-| A Cloudflare account and a domain on it   | [Cloudflare Named Tunnel](private-named-tunnel.md): fixed address; Tobs runs cloudflared |
-| An HTTPS proxy, tunnel or company gateway | [Your own HTTPS ingress](private-ingress.md): nginx/Caddy, frp/ngrok or internal HTTPS   |
-| A public server for your relay            | [Docker private relay](private-relay.md): your server, up to 16 computers                |
-| Nothing yet; a temporary trial is enough  | Quick Tunnel below: no account, changing address                                         |
+| What you already have                       | Guide with manual steps and an agent prompt                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A Cloudflare account and a domain on it     | [Cloudflare Named Tunnel](private-named-tunnel.md): fixed address; Tobs runs cloudflared |
+| An HTTPS proxy, tunnel or company gateway   | [Your own HTTPS ingress](private-ingress.md): nginx/Caddy, frp/ngrok or internal HTTPS   |
+| A public server for your relay              | [Docker private relay](private-relay.md): your server, up to 16 computers                |
+| Tobs Host already on Linux with a public IP | [Public direct connection](#public-direct-connection): automatic HTTPS on TCP 443        |
+| Nothing yet; a temporary trial is enough    | Quick Tunnel below: no account, changing address                                         |
 
 Named/Quick use Cloudflare's network; a self-hosted relay uses your server. HTTPS ingress depends on your chosen provider and a working path from the proxy to the Host. A proxy alone does not traverse home NAT. None of these private modes requires official Tobs Connect.
 
@@ -42,6 +43,18 @@ Wait for **The public address reaches this computer**, choose **Show phone pairi
 The Host never falls back to the official relay. When the public check fails, the page shows the coded reason (for example `dns` while a new Quick address propagates) and keeps retrying.
 
 CLI: `tobs private-tunnel-enable --quick --confirm`, `tobs private-tunnel-enable --hostname <name> --token-stdin --confirm` (pipe the connector token) and `tobs private-tunnel-disable --confirm`. `tobs devices` shows `privateTunnel` status.
+
+## Public direct connection
+
+On a Linux Host with a public IP, open **Connections**. Under **Advanced methods**, choose **Public direct connection**, then select **Enable public direct connection**. Use a Host whose TCP 443 is free and reachable from the internet. The route uses TLS-ALPN-01 on 443, so TCP 80 can stay closed. The Host discovers one public IP and obtains a short-lived trusted certificate. A container or NAT-backed Host can discover its outbound public IPv4 through AWS Check IP. Its public address still needs to forward TCP 443 to the Host.
+
+- On a VPS, allow inbound TCP 443 in the cloud security group and the OS firewall. If the Host runs unprivileged, grant `CAP_NET_BIND_SERVICE` to the installed `tobs-relay` binary, for example with `sudo setcap cap_net_bind_service=+ep /absolute/path/to/tobs-relay`, or configure the capability in the Host service. Reapply file capabilities if an upgrade replaces the binary. The Host reports when another listener owns the port.
+- For a Docker-deployed Host, publish `443:443/tcp`. Run the container with an unprivileged port floor of 443 or lower, or give the child bind permission through the container's capability configuration. Persist the Host Profile to preserve device grants and ACME state. Keep the Host administration port private.
+- To use a DNS name instead, point its public DNS records at the VPS and run `tobs private-direct-enable --hostname <name> --confirm`. Use DNS-only records so ACME reaches TCP 443 on the edge.
+
+When the check passes, choose **Show phone pairing code**, compare the Host fingerprint and approve the exact phone. **Stop** pauses this route, **Resume** checks it again, and **Remove** forgets its settings. Enabled routes resume after a Host restart. If the IP changes, scan a fresh code. Revoke the phone separately to remove its access over every route.
+
+For a direct-only check, leave other routes stopped or create the offer with `tobs device-offer --route-id direct --out /absolute/private/path`. With Wi-Fi off, verify a Bot reply on Android and iOS, restart the same Host Profile, verify another reply without a rescan, then revoke the test phone and check that reconnect is refused. From an external machine, also check `https://<public-address>/api/botharness/devices` returns 404.
 
 ## Advanced: Docker private relay
 

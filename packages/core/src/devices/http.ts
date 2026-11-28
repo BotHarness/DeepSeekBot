@@ -6,7 +6,11 @@ import type {
   PrivateRelayStatus,
 } from './private-relay.js';
 import type { PrivateTunnel, PrivateTunnelStatus } from './private-tunnel.js';
-import type { PrivateRouteInput, PrivateRouteStatus } from './private-tunnel-owner.js';
+import {
+  privateRouteId,
+  type PrivateRouteInput,
+  type PrivateRouteStatus,
+} from './private-tunnel-owner.js';
 import type { EncryptionIdentity } from './noise-identity.js';
 import type { LanBotControl, LanBotSnapshot } from './bot-lan-control.js';
 import { hostId } from './bot-network-wire.js';
@@ -167,7 +171,12 @@ export function createDevicesHttp(options: {
       if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
       if (!options.privateTunnel) return json({ code: 'not-ready' }, 409);
       const routeId = input['routeId'];
-      if (routeId !== undefined && routeId !== 'quick' && routeId !== 'custom')
+      if (
+        routeId !== undefined &&
+        routeId !== 'quick' &&
+        routeId !== 'custom' &&
+        routeId !== 'direct'
+      )
         return json({ code: 'private-route-not-found' }, 400);
       const action = input['action'];
       const expectedRevision = input['expectedRevision'];
@@ -200,12 +209,16 @@ export function createDevicesHttp(options: {
         return json(result, result.ok ? 200 : 409);
       }
       if (input['action'] === 'disable') {
+        if (routeId === 'direct') return json({ code: 'private-tunnel-input-invalid' }, 400);
         const result = await options.privateTunnel.disable();
         return json(result, result.ok ? 200 : 409);
       }
       if (
         (action !== 'enable' && action !== 'add' && action !== 'replace') ||
-        (input['mode'] !== 'quick' && input['mode'] !== 'named' && input['mode'] !== 'ingress')
+        (input['mode'] !== 'quick' &&
+          input['mode'] !== 'named' &&
+          input['mode'] !== 'ingress' &&
+          input['mode'] !== 'direct')
       )
         return json({ code: 'private-tunnel-input-invalid' }, 400);
       const configuration: PrivateRouteInput = {
@@ -218,7 +231,7 @@ export function createDevicesHttp(options: {
       };
       if (action === 'replace' && routeId === undefined)
         return json({ code: 'private-route-id-required' }, 400);
-      if (routeId !== undefined && routeId !== (input['mode'] === 'quick' ? 'quick' : 'custom'))
+      if (routeId !== undefined && routeId !== privateRouteId(configuration.mode))
         return json({ code: 'private-route-not-found' }, 400);
       const result =
         action === 'replace' && routeId !== undefined
@@ -287,7 +300,12 @@ export function createDevicesHttp(options: {
       const tunnelStatus = options.privateTunnel?.status();
       const admissions = options.privateTunnel?.admissions() ?? [];
       const requested = input['routeId'];
-      if (requested !== undefined && requested !== 'quick' && requested !== 'custom')
+      if (
+        requested !== undefined &&
+        requested !== 'quick' &&
+        requested !== 'custom' &&
+        requested !== 'direct'
+      )
         return json({ code: 'private-route-not-found' }, 400);
       const selected =
         requested === undefined
@@ -309,6 +327,7 @@ export function createDevicesHttp(options: {
               ? {
                   additionalOrigins: admissions
                     .filter((route) => route.id !== selected.id)
+                    .slice(0, 1)
                     .map((route) => route.origin),
                 }
               : {}),

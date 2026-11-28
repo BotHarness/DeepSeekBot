@@ -14,7 +14,7 @@ import {
   type TunnelRecord,
 } from './private-tunnel.js';
 
-export type PrivateRouteId = 'quick' | 'custom';
+export type PrivateRouteId = 'quick' | 'custom' | 'direct';
 export interface PrivateRouteStatus extends PrivateTunnelStatus {
   id: PrivateRouteId;
   enabled: boolean;
@@ -41,8 +41,8 @@ export interface PrivateRouteInput {
   lan?: boolean;
   inUse?: boolean;
 }
-const routeId = (mode: PrivateTunnelMode): PrivateRouteId =>
-  mode === 'quick' ? 'quick' : 'custom';
+export const privateRouteId = (mode: PrivateTunnelMode): PrivateRouteId =>
+  mode === 'quick' || mode === 'direct' ? mode : 'custom';
 const configurationOrigin = (configuration: TunnelRecord) =>
   configuration.origin ??
   (configuration.hostname ? `https://${configuration.hostname}` : undefined);
@@ -51,6 +51,7 @@ function sameConfiguration(a: TunnelRecord, b: TunnelRecord): boolean {
   if (a.mode !== b.mode) return false;
   if (a.mode === 'quick') return true;
   if (a.mode === 'named') return a.hostname === b.hostname && a.token === b.token;
+  if (a.mode === 'direct') return a.hostname === b.hostname;
   return a.origin === b.origin && a.lan === b.lan;
 }
 
@@ -62,7 +63,7 @@ function decode(input: unknown): OwnedRoutes | undefined {
       ? {
           version: 2,
           phoneToken: legacy.phoneToken,
-          routes: [{ id: routeId(legacy.mode), enabled: true, configuration: legacy }],
+          routes: [{ id: privateRouteId(legacy.mode), enabled: true, configuration: legacy }],
         }
       : undefined;
   }
@@ -77,13 +78,16 @@ function decode(input: unknown): OwnedRoutes | undefined {
   )
     return;
   const routes: OwnedRoute[] = [];
-  for (const value of input.routes) {
+  const direct = 'direct' in input ? input.direct : undefined;
+  for (const value of direct === undefined ? input.routes : [...input.routes, direct]) {
     if (typeof value !== 'object' || value === null) return;
     const configuration = parseTunnelRecord(value.configuration);
     if (
       !configuration ||
       configuration.phoneToken !== input.phoneToken ||
-      value.id !== routeId(configuration.mode) ||
+      value.id !== privateRouteId(configuration.mode) ||
+      (value.id === 'direct' && value !== direct) ||
+      (value === direct && value.id !== 'direct') ||
       typeof value.enabled !== 'boolean' ||
       routes.some((route) => route.id === value.id) ||
       (value.addressSignIn !== undefined && typeof value.addressSignIn !== 'boolean')
@@ -151,10 +155,19 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       )?.configuration;
       const endpointChanged =
         runtimeUpdate !== undefined &&
-        previousConfiguration?.mode === 'quick' &&
-        nextConfiguration?.hostname !== previousConfiguration.hostname;
+        previousConfiguration !== undefined &&
+        configurationOrigin(previousConfiguration) !==
+          (nextConfiguration && configurationOrigin(nextConfiguration));
       try {
-        await credentials.modifyRecord(key, async () => ({ kind: 'grant', payload: next }));
+        const direct = next.routes.find((route) => route.id === 'direct');
+        await credentials.modifyRecord(key, async () => ({
+          kind: 'grant',
+          payload: {
+            ...next,
+            routes: next.routes.filter((route) => route.id !== 'direct'),
+            ...(direct === undefined ? {} : { direct }),
+          },
+        }));
         commit(next, endpointChanged ? runtimeUpdate : renew, runtimeUpdate);
         return true;
       } catch {
@@ -288,13 +301,18 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     legacy = false,
   ): Promise<PrivateTunnelResult> => {
     if (input.inUse) return { ok: false, code: 'private-route-in-use' };
-    if (!['quick', 'named', 'ingress'].includes(input.mode))
+    if (!['quick', 'named', 'ingress', 'direct'].includes(input.mode))
       return { ok: false, code: 'private-tunnel-input-invalid' };
     const hostname =
-      input.mode === 'named' ? privateTunnelHostname(input.hostname ?? '') : undefined;
+      input.mode === 'named' || (input.mode === 'direct' && input.hostname !== undefined)
+        ? privateTunnelHostname(input.hostname ?? '')
+        : undefined;
     const origin = input.mode === 'ingress' ? privateIngressOrigin(input.origin ?? '') : undefined;
     const token = input.token?.trim();
-    if (input.mode === 'named' && !hostname)
+    if (
+      (input.mode === 'named' || (input.hostname !== undefined && input.mode === 'direct')) &&
+      !hostname
+    )
       return { ok: false, code: 'private-tunnel-hostname-invalid' };
     if (input.mode === 'named' && !validTunnelToken(token ?? ''))
       return { ok: false, code: 'private-tunnel-token-invalid' };
@@ -302,10 +320,10 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       return { ok: false, code: 'private-ingress-origin-invalid' };
     if (closed || !(await load()) || !state) return unavailable();
     await writes;
-    const id = routeId(input.mode);
+    const id = privateRouteId(input.mode);
     if (replace !== undefined && (replace !== id || !state.routes.some((r) => r.id === replace)))
       return { ok: false, code: 'private-route-not-found' };
-    if (legacy && state.routes.some((route) => route.id !== id))
+    if (legacy && state.routes.some((route) => route.id !== id && route.id !== 'direct'))
       return { ok: false, code: 'private-route-id-required' };
     const requestedOrigin = origin ?? (hostname ? `https://${hostname}` : undefined);
     if (
@@ -393,9 +411,10 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
   ): Promise<PrivateTunnelResult> => {
     if (closed || !(await load()) || !state) return unavailable();
     await writes;
-    if (id === undefined && state.routes.length > 1)
+    const legacyRoutes = state.routes.filter((route) => route.id !== 'direct');
+    if (id === undefined && legacyRoutes.length > 1)
       return { ok: false, code: 'private-route-id-required' };
-    const selected = id ?? state.routes[0]?.id;
+    const selected = id ?? legacyRoutes[0]?.id;
     if (selected === undefined) return { ok: true, status: status() };
     if (!state.routes.some((route) => route.id === selected))
       return { ok: false, code: 'private-route-not-found' };
@@ -465,11 +484,17 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
         : [],
     setAddressSignIn: (id: PrivateRouteId, enabled: boolean) =>
       serial(() => setAddressSignIn(id, enabled)),
-    admissions: () =>
-      [...runtimes].flatMap(([id, runtime]) => {
-        const admission = runtime.admission();
-        return admission ? [{ id, ...admission }] : [];
-      }),
+    admissions: () => {
+      const direct = runtimes.get('direct')?.admission();
+      return [
+        ...(direct ? [{ id: 'direct' as const, ...direct }] : []),
+        ...[...runtimes].flatMap(([id, runtime]) => {
+          if (id === 'direct') return [];
+          const admission = runtime.admission();
+          return admission && admission.origin !== direct?.origin ? [{ id, ...admission }] : [];
+        }),
+      ];
+    },
     restore: () =>
       serial(async () => {
         if (closed || !(await load())) return;

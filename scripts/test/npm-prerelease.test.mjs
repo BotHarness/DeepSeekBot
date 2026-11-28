@@ -24,8 +24,11 @@ import {
 import { providerReleasePlan } from '../npm-provider-release.mjs';
 import { productDsh, productImProvider } from '../product-artifacts.mjs';
 import { cloudflaredPackages } from '../cloudflared-packages.mjs';
+import { directEdgePackages } from '../direct-edge-packages.mjs';
 
-const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
+const platformPackages = new Map(
+  [...cloudflaredPackages, ...directEdgePackages].map((entry) => [entry.name, entry]),
+);
 
 const roots = [];
 afterEach(() => roots.splice(0).forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -57,7 +60,11 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     }
     const platform = platformPackages.get(name);
     if (platform) {
-      Object.assign(manifest, { license: 'Apache-2.0', os: [platform.os], cpu: [platform.cpu] });
+      Object.assign(manifest, {
+        license: platform.license ?? 'Apache-2.0',
+        os: [platform.os],
+        cpu: [platform.cpu],
+      });
       mkdirSync(join(dir, 'package/bin'));
       writeFileSync(join(dir, `package/bin/${platform.executable}`), 'binary');
     }

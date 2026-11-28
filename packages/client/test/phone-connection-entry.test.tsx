@@ -544,7 +544,7 @@ it('opens the shared join field from the environment panel plus', async () => {
   expect(document.querySelector('[data-remote-host-add-submit]')).toBeNull();
 });
 
-it('shows the seven methods in two visible ListCards without a separate add action', async () => {
+it('shows the eight methods in two visible ListCards without a separate add action', async () => {
   const call = vi.fn<BridgeCall>();
   await act(async () => root.render(<ConnectionsPage t={t} call={call} />));
   const card = (key: 'recommended' | 'advanced') =>
@@ -554,7 +554,8 @@ it('shows the seven methods in two visible ListCards without a separate add acti
   expect(card('recommended')?.textContent).toContain(t('connections.attribute.signIn'));
   expect(card('recommended')?.textContent).toContain(t('connections.attribute.sameWifi'));
   expect(card('recommended')?.querySelectorAll('li')).toHaveLength(3);
-  expect(card('advanced')?.querySelectorAll('li')).toHaveLength(4);
+  expect(card('advanced')?.querySelectorAll('li')).toHaveLength(5);
+  expect(card('advanced')?.textContent).toContain(t('privateTunnel.directTitle'));
   expect(card('advanced')?.textContent).toContain(t('connections.attribute.cloudflare'));
   expect(card('advanced')?.textContent).toContain(t('connections.attribute.publicHttps'));
   expect(card('advanced')?.textContent).toContain(t('connections.attribute.server'));

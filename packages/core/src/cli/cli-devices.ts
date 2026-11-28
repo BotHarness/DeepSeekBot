@@ -82,9 +82,9 @@ export async function runDevicesCommand(
 ): Promise<unknown> {
   if (
     values['route-id'] !== undefined &&
-    (command !== 'device-offer' || !['quick', 'custom'].includes(values['route-id']))
+    (command !== 'device-offer' || !['quick', 'custom', 'direct'].includes(values['route-id']))
   )
-    throw new CliLiveError('usage', '--route-id quick|custom requires device-offer.');
+    throw new CliLiveError('usage', '--route-id quick|custom|direct requires device-offer.');
   if (command === 'bot-lan') {
     const [action, hostId, publicKey] = rest;
     const valid =

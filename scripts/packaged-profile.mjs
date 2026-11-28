@@ -6,6 +6,7 @@ import { parse, parseDocument } from 'yaml';
 import semver from 'semver';
 import { productImProvider } from './product-artifacts.mjs';
 import { cloudflaredPackageNames } from './cloudflared-packages.mjs';
+import { directEdgePackages } from './direct-edge-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 
 export function verifyProductComposition(entries) {
@@ -115,7 +116,11 @@ export function verifiedProductArtifacts(directory) {
     seen.add(artifact.name);
   }
   const platformArtifacts = manifest.platformArtifacts ?? [];
-  const platformNames = new Set(cloudflaredPackageNames);
+  const platformNames = new Set(
+    platformArtifacts.length === cloudflaredPackageNames.length
+      ? cloudflaredPackageNames
+      : [...cloudflaredPackageNames, ...directEdgePackages.map(({ name }) => name)],
+  );
   if (
     !Array.isArray(platformArtifacts) ||
     (platformArtifacts.length !== 0 && platformArtifacts.length !== platformNames.size)

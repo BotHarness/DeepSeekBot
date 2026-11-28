@@ -19,6 +19,12 @@ import {
 } from '../packaged-profile.mjs';
 import { parse } from 'yaml';
 import { cloudflaredPackageNames } from '../cloudflared-packages.mjs';
+import { directEdgePackages } from '../direct-edge-packages.mjs';
+
+const platformPackageNames = [
+  ...cloudflaredPackageNames,
+  ...directEdgePackages.map(({ name }) => name),
+];
 import { productManagedUpdate } from '../product-provider/update-policy.mjs';
 
 vi.mock('../dev-im-provider.mjs', async (importOriginal) => {
@@ -191,7 +197,7 @@ describe('packaged product selection', () => {
 
   it('overrides the verified platform packages for a packaged install and refuses a partial set', () => {
     const { root, artifacts } = artifactSet();
-    const platformArtifacts = cloudflaredPackageNames.map((name) => {
+    const platformArtifacts = platformPackageNames.map((name) => {
       const filename = `${name.replace(/^@/, '').replace('/', '-')}-0.0.0-test.823.tgz`;
       const bytes = Buffer.from(`platform-fixture:${name}`);
       writeFileSync(join(root, filename), bytes);
@@ -212,10 +218,17 @@ describe('packaged product selection', () => {
     writeFileSync(join(root, 'artifacts.json'), JSON.stringify(inventory));
     expect(verifiedProductArtifacts(root).platformArtifacts).toHaveLength(platformArtifacts.length);
     const overrides = parse(packagedWorkspaceSettings('packages: [.]\n', root)).overrides;
-    for (const name of cloudflaredPackageNames)
+    for (const name of platformPackageNames)
       expect(overrides[`${name}@0.0.0-test.823`]).toMatch(/^file:.*\.tgz$/);
+    const previousPlatforms = platformArtifacts.slice(0, cloudflaredPackageNames.length);
+    writeFileSync(
+      join(root, 'artifacts.json'),
+      JSON.stringify({ ...inventory, platformArtifacts: previousPlatforms }),
+    );
+    expect(verifiedProductArtifacts(root).platformArtifacts).toEqual(previousPlatforms);
     for (const invalid of [
       platformArtifacts.slice(1),
+      platformArtifacts.slice(-cloudflaredPackageNames.length),
       [{ ...platformArtifacts[0], version: '9.0.0' }, ...platformArtifacts.slice(1)],
       [{ ...platformArtifacts[0], name: 'deepseekbot' }, ...platformArtifacts.slice(1)],
     ]) {
@@ -342,7 +355,7 @@ describe('release composition', () => {
       '@botharness/im-provider': '4.32.0-botharness.28',
     });
     expect(release.optionalDependencies).toEqual(
-      Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),
+      Object.fromEntries(platformPackageNames.map((name) => [name, '0.0.0-test.823'])),
     );
     expect(release.dsh.bundle.patch).toBe('./cordis.im.patch.yml');
     expect(release.bin).toEqual({
