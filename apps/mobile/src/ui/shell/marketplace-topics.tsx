@@ -43,13 +43,13 @@ export function MarketplaceTopics({
   const refresh = visible ? <View ref={mounted} /> : null;
   if (SystemListSheet !== undefined) {
     const status: SystemListRow[] = state.busy
-      ? [{ kind: 'progress', key: 'loading', label: t.marketplace.loading }]
+      ? [{ kind: 'progress', key: 'status:loading', label: t.marketplace.loading }]
       : state.error
         ? [
-            { kind: 'note', key: 'error', text: t.marketplace.unavailable, tone: 'danger' },
+            { kind: 'note', key: 'status:error', text: t.marketplace.unavailable, tone: 'danger' },
             {
               kind: 'action',
-              key: 'retry',
+              key: 'status:retry',
               label: t.marketplace.retry,
               onPress: () => void resource.refresh(),
             },

@@ -80,3 +80,35 @@ it('presents topics as system list choices without painting the sheet (#5682)', 
   expect(onChange).toHaveBeenCalledWith('');
   await act(async () => root.unmount());
 });
+
+it('keeps row keys distinct when topics are named like the fixed rows', async () => {
+  const snapshot = {
+    status: 'ready' as const,
+    busy: true,
+    value: [
+      { topic: 'all', count: 1 },
+      { topic: 'status:loading', count: 2 },
+    ],
+  };
+  const resource = {
+    getSnapshot: () => snapshot,
+    subscribe: () => () => {},
+    refresh: vi.fn(async () => {}),
+  };
+  const root = createRoot(document.createElement('div'));
+  await act(async () =>
+    root.render(
+      <MarketplaceTopics
+        visible
+        value=""
+        resource={resource}
+        onChange={() => {}}
+        onClose={() => {}}
+      />,
+    ),
+  );
+  const keys = sheet.props?.sections.flatMap((section) => section.rows.map((row) => row.key)) ?? [];
+  expect(keys).toEqual(['status:loading', 'all', 'topic:all', 'topic:status:loading']);
+  expect(new Set(keys).size).toBe(keys.length);
+  await act(async () => root.unmount());
+});
