@@ -88,7 +88,7 @@ function isException(path, item) {
   )
     return true;
   if (
-    path.startsWith('apps/mobile/src/') &&
+    /^apps\/mobile\/(?:src|app)\//u.test(path) &&
     /^(?:\/\/ sheet-choice-exempt: \S.{11,}|\/\* sheet-choice-exempt: \S.{11,}? \*\/)$/u.test(
       item.token,
     )

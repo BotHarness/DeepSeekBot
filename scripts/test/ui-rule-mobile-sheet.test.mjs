@@ -160,6 +160,34 @@ describe('mobile sheet surface', () => {
     ]);
   });
 
+  it('allows the overlay fill only on a branch that cannot run on iOS', () => {
+    expect(
+      check(`
+        export function Flow() {
+          return (
+            <SheetScreen>
+              <View style={{ backgroundColor: Platform.OS === 'ios' ? theme.overlay.fill : 'transparent' }} />
+              <View style={{ backgroundColor: 'ios' === Platform.OS ? theme.overlay.fill : 'transparent' }} />
+              <View style={{ backgroundColor: Platform.OS !== 'android' ? theme.overlay.fill : 'transparent' }} />
+              <View style={{ backgroundColor: Platform.select({ ios: theme.overlay.fill, android: 'transparent' }) }} />
+              <View style={{ backgroundColor: Platform.select({ default: theme.overlay.fill }) }} />
+              <View style={{ backgroundColor: Platform.OS === 'android' ? theme.overlay.fill : 'transparent' }} />
+              <View style={{ backgroundColor: 'ios' !== Platform.OS ? theme.overlay.fill : 'transparent' }} />
+              <View style={{ backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.overlay.fill }} />
+              <View style={{ backgroundColor: Platform.select({ ios: 'transparent', android: theme.overlay.fill }) }} />
+            </SheetScreen>
+          );
+        }
+      `),
+    ).toEqual([
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 5],
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 6],
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 7],
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 8],
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 9],
+    ]);
+  });
+
   it('skips the sheet primitives that define the tokens', () => {
     expect(
       check(
@@ -228,6 +256,35 @@ describe('mobile choice sheets', () => {
         }
       `),
     ).toEqual([['sheetChoice', 'Sheet exemption without a reason', 6]]);
+  });
+
+  it('credits a native branch only to the sheet it guards', () => {
+    expect(
+      choices(`
+        export function Picker(props) {
+          if (NativeSessionModelSheet !== undefined) return <NativeSessionModelSheet {...props} />;
+          return <Fallback {...props} />;
+        }
+        function Fallback({ items }) {
+          return (
+            <Sheet visible label="x" onClose={close}>
+              {items.map((item) => <CheckmarkRow key={item} label={item} selected />)}
+            </Sheet>
+          );
+        }
+        export function Topics({ items }) {
+          if (SystemListSheet !== undefined) return <SystemListSheet visible sections={[]} />;
+          return <Sheet visible label="y"><CheckmarkRow label="a" selected /></Sheet>;
+        }
+        export function Sibling({ items }) {
+          return (
+            <Sheet visible label="z" onClose={close}>
+              <CheckmarkRow label="b" selected />
+            </Sheet>
+          );
+        }
+      `),
+    ).toEqual([['sheetChoice', 'Sheet with selectable rows', 19]]);
   });
 
   it('accepts system list sheets, native Lists, their fallbacks and sheets without choices', () => {

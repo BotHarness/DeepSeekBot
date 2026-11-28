@@ -457,9 +457,9 @@ A choice or picker sheet (a list where one or more rows show a selection) uses `
 
 `pnpm lint` enforces the standard in `scripts/check-ui-rules.mjs` (implemented in `scripts/ui-rule-mobile-sheet.mjs`, tests in `scripts/test/ui-rule-mobile-sheet.test.mjs`). The sheet rules have **no baseline**: a finding always fails CI, and `--write` cannot record one.
 
-- `sheetSurface`: page tokens, colour literals, `on="canvas"`/`well`/`field`, `presentationBackground`, a `ModalBottomSheet` colour override, a page- or form-sheet `Modal` without `backdropColor`, or `theme.overlay.fill` that no `Platform.OS` check limits to Android.
+- `sheetSurface`: page tokens, colour literals, `on="canvas"`/`well`/`field`, `presentationBackground`, a `ModalBottomSheet` colour override, a page- or form-sheet `Modal` without `backdropColor`, or `theme.overlay.fill` anywhere but a branch that cannot run on iOS (`Platform.OS === 'android'`, `Platform.OS !== 'ios'` or `Platform.select({ android })`).
 - `sheetHeader`: a bare `DrawerHeader` in a sheet.
-- `sheetChoice`: a `Sheet`, `SheetFrame` or `BottomSheet` with selectable rows in the same file (its subtree and same-file components it renders; rows in a separately imported component, such as `voice-catalog-list.tsx` inside the Voice service sheet, are not seen) (`CheckmarkRow`, `RadioMark`, or any `*Row` with `selected` or a check control) and no native `List`, unless the file branches to `SystemListSheet` or a `Native*Sheet` slot (then the React Native sheet is the web or Android fallback) or the sheet carries a reasoned exemption.
+- `sheetChoice`: a `Sheet`, `SheetFrame` or `BottomSheet` with selectable rows in the same file (its subtree and same-file components it renders; rows in a separately imported component, such as `voice-catalog-list.tsx` inside the Voice service sheet, are not seen) (`CheckmarkRow`, `RadioMark`, or any `*Row` with `selected` or a check control) and no native `List`, unless its component, or a same-file component that renders it, branches to `SystemListSheet` or a `Native*Sheet` slot (then the React Native sheet is the web or Android fallback) or the sheet carries a reasoned exemption.
 
 Every bottom sheet, drawer page and sheet-like modal also follows these three rules.
 

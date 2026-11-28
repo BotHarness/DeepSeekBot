@@ -55,33 +55,47 @@ function chain(node) {
   return undefined;
 }
 
-function platformTest(path) {
-  let found = false;
-  path.traverse({
-    MemberExpression(member) {
-      if (chain(member.node) === 'Platform.OS') found = true;
-    },
-  });
-  return found || (path.isMemberExpression() && chain(path.node) === 'Platform.OS');
+function osBranches(test) {
+  if (!test.isBinaryExpression()) return undefined;
+  const { operator, left, right } = test.node;
+  const equal = operator === '===' || operator === '==';
+  if (!equal && operator !== '!==' && operator !== '!=') return undefined;
+  const os = [left, right].find((side) => chain(side) === 'Platform.OS');
+  const literal = [left, right].find((side) => side.type === 'StringLiteral');
+  if (os === undefined || literal === undefined) return undefined;
+  const ios = literal.value === 'ios';
+  return equal ? { consequent: !ios, alternate: ios } : { consequent: ios, alternate: !ios };
 }
 
-function pageFills(path, platform = false) {
+const OFF_IOS = new Set(['android', 'web']);
+
+function pageFills(path, offIos = false) {
   if (path.isConditionalExpression()) {
-    const guarded = platform || platformTest(path.get('test'));
+    const branches = osBranches(path.get('test'));
     return [
-      ...pageFills(path.get('consequent'), guarded),
-      ...pageFills(path.get('alternate'), guarded),
+      ...pageFills(path.get('consequent'), offIos || branches?.consequent === true),
+      ...pageFills(path.get('alternate'), offIos || branches?.alternate === true),
     ];
   }
   if (path.isLogicalExpression())
-    return [...pageFills(path.get('left'), platform), ...pageFills(path.get('right'), platform)];
+    return [...pageFills(path.get('left'), offIos), ...pageFills(path.get('right'), offIos)];
+  if (path.isCallExpression() && chain(path.node.callee) === 'Platform.select') {
+    const options = path.get('arguments.0');
+    if (!options?.isObjectExpression()) return [];
+    return options.get('properties').flatMap((property) => {
+      if (!property.isObjectProperty()) return [];
+      const key = property.node.key;
+      const name = key.type === 'Identifier' ? key.name : key.value;
+      return pageFills(property.get('value'), offIos || OFF_IOS.has(name));
+    });
+  }
   if (path.isStringLiteral())
     return path.node.value === 'transparent' || path.node.value === 'clear'
       ? []
       : [JSON.stringify(path.node.value)];
   const text = chain(path.node);
   if (text === undefined) return [];
-  if (OVERLAY_FILL.test(text)) return platform ? [] : [text];
+  if (OVERLAY_FILL.test(text)) return offIos ? [] : [text];
   return PAGE_FILL.test(text) ? [text] : [];
 }
 
@@ -249,14 +263,24 @@ function systemListTest(test) {
   );
 }
 
-function systemListFallback(program) {
-  let covered = false;
-  program.traverse({
+function guardsNative(fn) {
+  let guarded = false;
+  fn.traverse({
     'IfStatement|ConditionalExpression'(branch) {
-      if (systemListTest(branch.get('test'))) covered = true;
+      if (systemListTest(branch.get('test'))) guarded = true;
     },
   });
-  return covered;
+  return guarded;
+}
+
+function rendersComponent(fn, name) {
+  let renders = false;
+  fn.traverse({
+    JSXOpeningElement(opening) {
+      if (opening.get('name').isJSXIdentifier({ name })) renders = true;
+    },
+  });
+  return renders;
 }
 
 export function mobileSheetChoice(file, ast) {
@@ -272,13 +296,17 @@ export function mobileSheetChoice(file, ast) {
   });
   const comments = ast.comments ?? [];
   const found = [];
-  let covered = false;
-  traverse(ast, {
-    Program(program) {
-      covered = systemListFallback(program);
-      program.stop();
-    },
-  });
+  const owners = new Map([...components].map(([name, fn]) => [fn.node, name]));
+  const covered = (element) => {
+    let fn = element.getFunctionParent();
+    while (fn !== null && !owners.has(fn.node)) fn = fn.getFunctionParent();
+    if (fn === null) return false;
+    if (guardsNative(fn)) return true;
+    const name = owners.get(fn.node);
+    return [...components.values()].some(
+      (other) => other.node !== fn.node && guardsNative(other) && rendersComponent(other, name),
+    );
+  };
   traverse(ast, {
     JSXElement(element) {
       const name = nameOf(element);
@@ -300,7 +328,7 @@ export function mobileSheetChoice(file, ast) {
           },
         });
       scan(element);
-      if (!choice || native || covered) return;
+      if (!choice || native || covered(element)) return;
       const line = element.node.loc.start.line;
       const exemption = comments
         .filter((comment) => comment.loc.end.line >= line - 1 && comment.loc.end.line <= line)

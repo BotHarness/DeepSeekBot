@@ -44,6 +44,7 @@ describe('source policy', () => {
     expect(
       (await scanSource('apps/mobile/src/ui/chat/picker.tsx', bare)).map((item) => item.kind),
     ).toEqual(['comment']);
+    expect(await scanSource('apps/mobile/app/conversation-section.tsx', reasoned)).toEqual([]);
     expect(
       (await scanSource('packages/client/src/picker.tsx', reasoned)).map((item) => item.kind),
     ).toEqual(['comment']);
