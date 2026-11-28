@@ -182,8 +182,17 @@ export function PersonaBotDeletionView({
                 </DeletionNotice>
                 <DeletionNotice icon="messages-square" title={t('deletion.retainTitle')}>
                   {t('deletion.retainBody', {
-                    channels: preview.dependencies.channels.length,
+                    channels:
+                      preview.dependencies.channels.length -
+                      (preview.dependencies.dmChannelsToArchive?.length ?? 0),
                   })}
+                  {preview.dependencies.dmChannelsToArchive?.length ? (
+                    <span>
+                      {t('deletion.archiveDms', {
+                        channels: preview.dependencies.dmChannelsToArchive.length,
+                      })}
+                    </span>
+                  ) : null}
                   {preview.dependencies.workspaces.map((workspace) => (
                     <span key={workspace} {...stylex.props(styles.path)}>
                       {workspace}

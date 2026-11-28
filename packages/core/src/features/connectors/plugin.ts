@@ -1,4 +1,3 @@
-import { attachOperationalModule } from '../../database/owner.js';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Context } from '@deepseek-ai/cordis';
@@ -6,11 +5,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
-import type { BotHarnessCore } from '../../plugin-types.js';
 import { CONNECTOR_CATALOG, matchesCatalog } from '../../connectors/catalog.js';
-import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
 import { GOOGLE_STATE_PREFIX, googleRedirectUri } from '../../connectors/google-oauth.js';
-import { googleToolNames, mountGoogleTools } from './google-tools.js';
 import {
   CONNECTOR_MCP_SERVER,
   CONNECTOR_TOOL_PREFIX,
@@ -18,13 +14,22 @@ import {
   STALE_SIGN_IN_REFUSAL,
   REMOTE_MCP_TOOL_PREFIX,
   connectorToolDenial,
+  composioWriteInput,
   remoteMcpServerName,
   remoteMcpServerNames,
   remoteMcpToolDenial,
 } from '../../connectors/policy.js';
 import { FEATURED_MCP_SERVERS } from '../../connectors/remote.js';
-import { ConnectorError, ConnectorService, type ConnectorApp } from '../../connectors/service.js';
-import { createConnectorStore, type ConnectorAccess } from '../../connectors/store.js';
+import {
+  ConnectorError,
+  type ConnectorApp,
+  type ConnectorService,
+} from '../../connectors/service.js';
+import type { ConnectorAccess } from '../../connectors/store.js';
+import { COMPOSIO_EXECUTE_TOOL } from '../../kernel/composio-tool-effects.js';
+import type { BotHarnessCore } from '../../plugin-types.js';
+import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
+import { googleToolNames, mountGoogleTools } from './google-tools.js';
 
 type Fiber = ReturnType<Context['plugin']>;
 
@@ -271,7 +276,8 @@ export function mountConnectors(
   core: Pick<BotHarnessCore, 'contributeBotAgentSetup' | 'ownership'>,
   service: ConnectorService,
   callback?: ReturnType<typeof connectorCallback>,
-  approval: () => ChannelToolApproval | undefined = () => undefined,
+  approval: () => Pick<ChannelToolApproval, 'ask' | 'track' | 'executionGuard'> | undefined = () =>
+    undefined,
 ): void {
   const mounted = new Map<Agent, Mounted>();
   if (callback !== undefined) mountCallback(ctx, service, callback);
@@ -425,6 +431,53 @@ export function mountConnectors(
     if (botSlug === undefined) return 'App connection tools run only inside a Bot conversation.';
     return connectorToolDenial(name, args, connectorAccessMap(service, botSlug));
   });
+  ctx.on(
+    'tools/execute',
+    async (execution, next) => {
+      const { name, agent, arguments: args, callId, signal } = execution;
+      if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return next();
+      const owner = agent === undefined ? undefined : core.ownership.resolve(agent.session.id);
+      if (agent === undefined || owner === undefined)
+        throw new Error('App connection tools run only inside a Bot conversation.');
+      const access = connectorAccessMap(service, owner.botSlug);
+      const denial = connectorToolDenial(name, args, access);
+      if (denial !== undefined) throw new Error(denial);
+      const input = composioWriteInput(name, args, access);
+      if (input === undefined) return next();
+
+      const broker = approval();
+      const authorizationScope = () =>
+        JSON.stringify(
+          service
+            .forBot(owner.botSlug)
+            .filter((account) => account.provider === 'composio' && account.status === 'active')
+            .map(({ accountId, access }) => [
+              accountId,
+              access,
+              service.account(accountId)?.revision,
+            ]),
+        );
+      const tracked = { ...execution, name: COMPOSIO_EXECUTE_TOOL, arguments: input };
+      const untrack = broker?.track(tracked, 'each-use', false, undefined, undefined, {
+        requireExplicitApproval: true,
+        authorizationScope,
+      });
+      if (broker === undefined || untrack === undefined)
+        throw new Error('Human Tool Approval is unavailable.');
+      try {
+        const outcome = await broker.ask({ agent, toolName: tracked.name, callId, signal });
+        if (outcome !== 'allowed-once')
+          throw new Error(`Human Tool Approval was ${outcome ?? 'unavailable'}.`);
+        signal.throwIfAborted();
+        if (broker.executionGuard(agent, callId)?.(tracked.name, input) !== true)
+          throw new Error('Tool Approval changed before execution.');
+        return await next();
+      } finally {
+        untrack();
+      }
+    },
+    { global: true },
+  );
   ctx.effect(
     () =>
       core.contributeBotAgentSetup((agentCtx, agent, info) => {
@@ -556,25 +609,4 @@ export function mountConnectors(
       }),
     'botharness: connector tools',
   );
-}
-
-export function mountConnectorFeature(
-  ctx: Context,
-  core: Pick<
-    BotHarnessCore,
-    'operationalDatabase' | 'connectors' | 'team' | 'contributeBotAgentSetup' | 'ownership'
-  >,
-  dependencies: { toolApproval: () => ChannelToolApproval | undefined },
-): void {
-  if (core.operationalDatabase.mode !== 'ready') return;
-  const callback = connectorCallback(core.team.publicOrigins);
-  const connectors = new ConnectorService({
-    store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
-    credentials: () => ctx.get('credentials'),
-    log: (phase, fields) => ctx.logger.info('connectors %j', { phase, ...fields }),
-    redirectUri: callback.url,
-    google: { redirectUri: callback.googleUrl },
-  });
-  core.connectors = connectors;
-  mountConnectors(ctx, core, connectors, callback, dependencies.toolApproval);
 }

@@ -3,10 +3,8 @@ import { attachOperationalModule, onOperationalDatabaseClose } from '../../datab
 import type { createCoreStartup } from '../../diagnostics/core-startup.js';
 import { coalesce } from '../../runtime/coalesce.js';
 import { createBotAttentionQuery } from '../../runtime/attention.js';
-import {
-  createHumanAttentionQuery,
-  createHumanAttentionDecisions,
-} from '../../runtime/human-attention.js';
+import { createHumanAttentionDecisions } from './human-attention-decisions.js';
+import { createHumanAttentionQuery } from './human-attention-query.js';
 import type { Context } from '@deepseek-ai/cordis';
 
 import type { BotHarnessCore, createCore } from '../../plugin.js';

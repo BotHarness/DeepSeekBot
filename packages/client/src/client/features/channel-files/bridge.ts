@@ -117,13 +117,10 @@ export async function loadMessageAttachmentTarget(
   channelId: string,
   messageId: string,
   fileId: string,
+  signal?: AbortSignal,
 ): Promise<HostFileTarget> {
   const response = asRecord(
-    await unwrap(call, 'messageAttachmentTarget', {
-      channelId,
-      messageId,
-      fileId,
-    }),
+    await unwrap(call, 'messageAttachmentTarget', { channelId, messageId, fileId }, signal),
   );
   const target = asRecord(response?.['target']);
   if (

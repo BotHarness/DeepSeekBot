@@ -22,6 +22,8 @@ export const en = {
     eraseChosen: 'Memory erasure was included in your confirmation.',
     dependencies: (sessions: number, grants: number, channels: number) =>
       `${sessions} sessions stop · ${grants} access grants or identities are revoked · history in ${channels} conversations stays.`,
+    archiveDms: (channels: number) =>
+      `Archive ${channels} DMs and their history. They disappear from the chat list.`,
     previewFailed: 'Could not load the deletion details. Try again.',
     failed: 'Could not finish deletion. Review the current details and try again.',
     incomplete: 'Deletion has not finished. Retry to finish the confirmed operation.',
@@ -309,6 +311,7 @@ export const zh: typeof en = {
     eraseChosen: '你确认的操作包括清理记忆。',
     dependencies: (sessions: number, grants: number, channels: number) =>
       `停止 ${sessions} 个会话，撤销 ${grants} 项授权或身份，保留 ${channels} 个聊天的历史。`,
+    archiveDms: (channels: number) => `归档 ${channels} 个私聊及其历史，聊天列表中将不再显示。`,
     previewFailed: '读取删除详情失败，再试一次。',
     failed: '删除未完成，查看最新详情后重试。',
     incomplete: '删除尚未完成，重试以完成已确认的操作。',

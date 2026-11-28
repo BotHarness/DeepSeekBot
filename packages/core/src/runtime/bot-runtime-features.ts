@@ -16,7 +16,7 @@ import { DEFAULT_PROMPT_LIMITS } from '../prompts/prompt-limits.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
 import type { createBotRuntimeState } from './bot-runtime-state.js';
 import { createBotRuntimeLifecycle, createBotRuntimeRecovery } from './bot-runtime-lifecycle.js';
-import { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/runtime-types.js';
+import { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from './assignment-approval-capacity.js';
 import type { RuntimeFeatureServices } from './feature-services.js';
 import { createRuntimeMembership } from './runtime-membership.js';
 import { createRuntimeQuotes } from './runtime-quotes.js';

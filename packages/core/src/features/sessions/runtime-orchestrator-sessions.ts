@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { BOT_BUSY } from '../../runtime/bot-runtime-types.js';
 
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
@@ -12,12 +13,6 @@ import type {
   SessionOwnership,
   SessionOwnershipRecord,
 } from '../../sessions/ownership.js';
-
-export const BOT_BUSY = {
-  outcome: 'refused',
-  code: 'bot-busy',
-  message: 'This Bot is working right now; wait for it to finish, then try again.',
-} as const;
 
 interface OrchestratorSessionsPorts {
   agents: BotAgentAdapter;

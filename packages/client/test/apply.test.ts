@@ -134,6 +134,7 @@ function createScoped(specs: Spec[], disposed: Spec[], withSettings = false, wit
       subscribe: () => () => undefined,
     },
     provide: () => () => undefined,
+    on: () => () => undefined,
     effect: (callback: () => unknown) => {
       callback();
       return () => undefined;

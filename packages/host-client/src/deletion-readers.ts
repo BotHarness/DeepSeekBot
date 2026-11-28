@@ -88,6 +88,7 @@ function isPreview(value: unknown): value is WireBotDeletionPreview {
     optional(row['refusal'], text) &&
     dependencies !== undefined &&
     dependencyKeys.every((key) => strings(dependencies[key])) &&
+    optional(dependencies['dmChannelsToArchive'], strings) &&
     optional(row['deletion'], (deletion) => isDeletion(deletion) && deletion.slug === row['slug'])
   );
 }
@@ -221,14 +222,19 @@ export function retryBotDeletion(
   host: HostCall,
   slug: string,
   allowMetadata: true,
+  archiveDmToken?: string,
 ): Promise<AnyDeletion>;
 export async function retryBotDeletion(
   host: HostCall,
   slug: string,
   allowMetadata = false,
+  archiveDmToken?: string,
 ): Promise<AnyDeletion> {
   return deletionReceipt(
-    await host.call('deletionRetry', { slug }),
+    await host.call('deletionRetry', {
+      slug,
+      ...(archiveDmToken === undefined ? {} : { archiveDmToken }),
+    }),
     'deletionRetry',
     slug,
     allowMetadata,

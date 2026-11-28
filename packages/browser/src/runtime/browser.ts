@@ -13,22 +13,22 @@ import {
   PROVISION_MIN_FREE_BYTES,
   checkDiskSpace,
   detectMissingSystemLibs,
-  diagnoseStartupExit,
   diskSpaceFailure,
   installFailure,
   missingBinaryFailure,
   missingLibsFailure,
-  missingLibsOfBinary,
-  spawnFailure,
-  startupTimeoutFailure,
+  windowsBrowserHandoffFailure,
 } from './provision.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import {
   PINNED_CHROMIUM_VERSION,
   buildLaunchArgs,
+  closeWindowsBrowserHandoff,
+  connectWindowsBrowserHandoff,
   discoverBrowserBinary,
+  hasWindowsBrowserProfileLock,
   installPinnedBrowser,
-  parseDevToolsUrl,
+  waitForBrowserEndpoint,
 } from './browser-launch.js';
 import {
   SNAPSHOT_SCRIPT,
@@ -56,7 +56,8 @@ export type * from './browser-contract.js';
 export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotBrowserRuntime {
   const onEvent = options.onEvent ?? ((): void => undefined);
   const launchTimeoutMs = options.launchTimeoutMs ?? 20_000;
-  const connect = options.connect ?? ((url: string) => connectCdp(url));
+  const connect = (url: string, timeoutMs?: number): Promise<CdpClient> =>
+    options.connect?.(url) ?? connectCdp(url, undefined, timeoutMs);
   let child: ChildProcess | undefined;
   let client: CdpClient | undefined;
   let starting: Promise<void> | undefined;
@@ -66,6 +67,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let lastUrl: string | undefined;
   let foreground = false;
   let launchedHeadless: boolean | undefined;
+  let handedOff = false;
   const sessions = new Map<string, string>();
   const closedChildren = new WeakSet<ChildProcess>();
 
@@ -74,7 +76,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     client.isConnected?.() !== false &&
     (options.execution !== undefined
       ? options.execution.isRunning()
-      : child !== undefined && child.exitCode === null && !child.killed);
+      : handedOff || (child !== undefined && child.exitCode === null && !child.killed));
 
   const launch = async (headless: boolean): Promise<void> => {
     if (options.execution !== undefined) {
@@ -146,6 +148,8 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     }
     mkdirSync(options.userDataDir, { recursive: true });
     onEvent(`launch ${binary} mode=${headless ? 'headless' : 'headed'}`);
+    const platform = options.platform ?? process.platform;
+    const startedLaunch = Date.now();
     const proc = spawn(
       binary,
       [
@@ -162,74 +166,37 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       closedChildren.add(proc);
       options.onObservationChanged?.();
     });
-    const endpoint = await new Promise<string>((resolve, reject) => {
-      let stderr = '';
-      let stderrTruncated = false;
-      const settle = (action: () => void): void => {
-        clearTimeout(timer);
-        proc.stderr?.off('data', onData);
-        proc.off('exit', onExit);
-        proc.off('error', onError);
-        action();
-      };
-      const timer = setTimeout(
-        () =>
-          settle(() =>
-            reject(
-              startupTimeoutFailure(launchTimeoutMs, {
-                binary: binary ?? '',
-                ...(proc.pid === undefined ? {} : { pid: proc.pid }),
-                exitCode: proc.exitCode,
-                signalCode: proc.signalCode,
-                killed: proc.killed,
-                stderr: stderrTruncated
-                  ? stderr.includes('\n')
-                    ? stderr.slice(stderr.indexOf('\n') + 1)
-                    : '<truncated line>'
-                  : stderr,
-              }),
-            ),
-          ),
-        launchTimeoutMs,
-      );
-      const onData = (chunk: Buffer): void => {
-        stderr += chunk.toString('utf8');
-        const url = parseDevToolsUrl(stderr);
-        if (url !== undefined) settle(() => resolve(url));
-        if (stderr.length > 8192) {
-          stderr = stderr.slice(-8192);
-          stderrTruncated = true;
-        }
-      };
-      const onExit = (code: number | null): void =>
-        settle(() => {
-          const launchedBinary = binary;
-          const platform = options.platform ?? process.platform;
-          const missing =
-            launchedBinary === undefined || platform !== 'linux'
-              ? []
-              : missingLibsOfBinary(launchedBinary, options.preflight);
-          reject(
-            diagnoseStartupExit({
-              binary: launchedBinary ?? '',
-              code,
-              stderr,
-              platform,
-              missingLibs: missing,
-            }),
-          );
-        });
-      const onError = (error: Error): void =>
-        settle(() => reject(spawnFailure(error, binary ?? '')));
-      proc.stderr?.on('data', onData);
-      proc.on('exit', onExit);
-      proc.on('error', onError);
+    const startup = await waitForBrowserEndpoint(proc, {
+      binary,
+      platform,
+      timeoutMs: launchTimeoutMs,
+      preflight: options.preflight,
     });
-    try {
-      client = await connect(endpoint);
-    } catch (error) {
-      proc.kill('SIGTERM');
-      throw error;
+    if (startup.kind === 'windows-handoff') {
+      client = await connectWindowsBrowserHandoff({
+        userDataDir: options.userDataDir,
+        deadline: startedLaunch + launchTimeoutMs,
+        connect,
+      });
+      const durationMs = Date.now() - startedLaunch;
+      if (client === undefined) {
+        onEvent(
+          `phase=startup-handoff outcome=error code=${startup.code} durationMs=${durationMs}`,
+        );
+        throw windowsBrowserHandoffFailure(
+          startup.code,
+          hasWindowsBrowserProfileLock(options.userDataDir),
+        );
+      }
+      handedOff = true;
+      onEvent(`phase=startup-handoff outcome=ready code=${startup.code} durationMs=${durationMs}`);
+    } else {
+      try {
+        client = await connect(startup.url);
+      } catch (error) {
+        proc.kill('SIGTERM');
+        throw error;
+      }
     }
     watchBrowserTargets(client, options.onObservationChanged);
     onEvent('ready');
@@ -245,7 +212,10 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       (typeof options.headless === 'function' ? options.headless() : options.headless === true);
     foreground = !headless && options.foregroundTabs?.() === true;
     if (isRunning() && (options.execution !== undefined || launchedHeadless === headless)) return;
-    if (starting === undefined && child !== undefined && !closedChildren.has(child))
+    if (
+      starting === undefined &&
+      (handedOff || (child !== undefined && !closedChildren.has(child)))
+    )
       await shutdown();
     if (stopRevision !== revision) throw new Error('Browser start was cancelled');
     starting ??= launchAfterCleanup(headless);
@@ -885,6 +855,15 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     await starting?.catch(() => undefined);
     const proc = child;
     const live = client;
+    if (handedOff && live !== undefined) {
+      try {
+        await closeWindowsBrowserHandoff(options.userDataDir, live);
+      } catch (error) {
+        onEvent('phase=stop outcome=error reason=profile-release-unconfirmed');
+        throw error;
+      }
+      handedOff = false;
+    }
     client = undefined;
     sessions.clear();
     if (options.execution !== undefined) {

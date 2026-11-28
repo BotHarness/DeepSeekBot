@@ -357,6 +357,7 @@ function stubActions(): BridgeActions {
       applications: [],
     })),
     messageAttachmentOpen: vi.fn(async () => undefined),
+    messageAttachmentOpenDefault: vi.fn(async () => 'opened' as const),
     messageAttachmentDownload: vi.fn(async () => undefined),
     workspaceFileTarget: async () => ({
       path: '/workspace',

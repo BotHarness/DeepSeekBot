@@ -1799,7 +1799,10 @@ printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-
 # 仅在明确审核擦除 owner 展示的 Memory 目录后：
 printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-id> --confirmation-stdin --confirm --erase-memory
 deepseekbot bot-delete-retry <bot-id> --confirm
+printf '%s' '{"token":"<新的 preview.token>"}' | deepseekbot bot-delete-retry <bot-id> --confirm --confirmation-stdin
 ```
+
+`preview.dependencies.dmChannelsToArchive` 列出删除 Bot 时连同历史一起归档的私聊。归档后，频道列表将不再显示这些私聊，也无法通过频道读取其消息。Host 会保留原有历史记录以供归属追溯。如果 Bot 已在旧版 Host 上删除，可重新运行 `bot-delete-preview`，将新 token 通过 stdin 交给上方最后一条命令。私聊归档与尚未完成的 Memory 清理各自独立。
 
 删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。任何 Bot（包括 Tob）都可以归档或删除；若该 Bot 是最后一个持有“管理 App”的 Bot，预览会带上 `lastAppManager: true`。名称、人格文本和导入内容都不能赋予 App 管理授权。
 

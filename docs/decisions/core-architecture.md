@@ -42,6 +42,8 @@ Team contributes its bridge methods, Typert handlers, startup and confinement ho
 
 Release contributes installer and restarter registration. Profile Storage applies pending resets before other Profile hooks, starts attachment maintenance after Core initializes, and registers Profile Backup routes before Diagnostics routes. Marketplace registers Bot ZIP routes after Diagnostics routes. Host composition supplies the shared services used by these hooks.
 
+Connectors contributes Host setup for the account store, OAuth callback and Agent tools. Composio calls use the current Account Grants at dispatch. A write in any part of a batch requires a Human decision on the whole call, with approval bound to the input and current account access.
+
 ## Google Workspace connector custody
 
 The Connectors feature owns the Google OAuth bridge, callback and Agent Tool registrations. It reuses the DSH web server's connector callback on a loopback origin, giving the Owner's Web OAuth client one exact authorized redirect without starting another listener. The Google code exchange uses a single-use state and an S256 PKCE verifier held in Host memory. The service saves the client secret and account refresh tokens through the DSH Credentials Provider. The existing Connector Account row carries the Google subject, displayed identity and consent level. Each Bot's grant remains independent of Google consent. [#5334](https://github.com/BotHarness/DeepSeekBot/issues/5334)
@@ -61,3 +63,7 @@ The PersonaBot record carries its lifecycle and presentation policy. The Registr
 For a same-layer edge A → B, a path from B back to A puts both modules in the same strongly connected component. The checker keeps a per-file count of all such edges so a new cyclic import fails even if the existing feedback edge would still break the cycle. To find a cut for each component, it considers previously retained edges first and previous feedback edges last. Within each group it considers larger import counts first, with lexical edge order breaking ties. It keeps an edge when the retained graph can accept it without forming a cycle. The skipped edges form the feedback set. Unrelated edges cannot change a component's cut, and deleting dependencies cannot force the checker to choose a new feedback edge.
 
 The first run against the legacy `peerCycles` baseline measures the base commit's source with the new rules. Future runs use the recorded counts. The checker rejects growth and requires `node scripts/check-package-boundaries.mjs --update` to record a reduction.
+
+## Runtime imports and Feature Contributions
+
+[#5638](https://github.com/BotHarness/DeepSeekBot/issues/5638) removes runtime dependencies from Runtime to Features. Runtime assembly calls the services supplied through Feature Contributions. Activity and Assignment consumers read their queries from the owning features. Kernel owns the direct tool error shared by Runtime and Features, and Prompts owns the reply transport reminder used in both native and Engine turns. Runtime owns the Session busy result and Assignment concurrency default. Type-only references to Feature port signatures are erased by the compiler.

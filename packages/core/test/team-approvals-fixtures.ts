@@ -19,7 +19,7 @@ import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { createFakeRosterDomain, createTestRosterStore } from './roster-fixture.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTempRoot, createTestOwnership } from './helpers.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import { ChannelUserQuestions } from '../src/channels/user-questions.js';
 import { createAssignmentAccessStore } from '../src/workspaces/assignment-access.js';

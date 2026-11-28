@@ -53,14 +53,6 @@ import { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 export { TURN_ONLY_BOT_TOOLS } from './dsh-bot-agent-adapter-shared.js';
 export { hostWorkContext } from './dsh-bot-agent-adapter-orchestrator.js';
 
-export { onlyActiveGrant } from '../features/assignments/tools.js';
-export {
-  assignmentLoadoutParameter,
-  type AssignmentModeChoices,
-} from '../features/assignments/loadout-parameter.js';
-
-export { replyReminderText } from '../features/messaging/prompt.js';
-
 export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick | MixedGroupPick>;
   describe(

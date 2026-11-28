@@ -1,6 +1,6 @@
 import type { NativeDirectToolSpec } from '../../kernel/runtime-host.js';
 import { randomUUID } from 'node:crypto';
-import { HarnessError } from '@deepseek-ai/dsh-llm';
+import { DirectBotToolError } from '../../kernel/direct-bot-tool.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelRecord } from '../../channels/channel.js';
@@ -36,13 +36,6 @@ export interface DirectBotToolCall {
 }
 
 const DIRECT_TOOL_CALL_LIMIT = 50;
-
-export class DirectBotToolError extends HarnessError {
-  constructor(code: string, message: string) {
-    super(message, code);
-    this.name = 'DirectBotToolError';
-  }
-}
 
 const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
   'create_assignment',
