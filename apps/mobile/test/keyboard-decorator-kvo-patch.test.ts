@@ -13,25 +13,34 @@ const lines = (text: string, sign: '+' | '-') =>
     .split('\n')
     .filter((line) => line.startsWith(sign) && !line.startsWith(`${sign}${sign}${sign}`))
     .join('\n');
-
-it('keeps one keyboard decorator class under the KVO class when the chat scroll view re-enters a window', () => {
+const patched = () => {
   expect(existsSync(path)).toBe(true);
-  const diff = section(readFileSync(path, 'utf8'));
+  return section(readFileSync(path, 'utf8'));
+};
+
+it('never swaps the class of a chat scroll view or its container, so KVO stays valid in either order', () => {
+  const diff = patched();
+  const removed = lines(diff, '-');
   const added = lines(diff, '+');
-  expect(lines(diff, '-')).toContain('if ([originalClassName hasPrefix:@"KC_NoScrollRect_"]) {');
-  expect(
-    added.match(/for \(Class cls = originalClass; cls; cls = class_getSuperclass\(cls\)\)/g),
-  ).toHaveLength(2);
-  expect(added).toContain('[NSStringFromClass(cls) hasPrefix:KCNoScrollRectClassPrefix]');
-  expect(added).toContain('[NSStringFromClass(cls) hasPrefix:KCFixedHitTestClassPrefix]');
+  expect(removed).toContain('object_setClass(scrollView, subclass);');
+  expect(removed).toContain('object_setClass(container, subclass);');
+  expect(added).not.toMatch(/object_setClass\(|objc_allocateClassPair\(|objc_registerClassPair\(/);
+  expect(added).toContain('KCHookScrollRectToVisible(KCDeclaredClass(scrollView));');
+  expect(added).toContain('KCHookHitTest(KCDeclaredClass(container));');
 });
 
-it('restores only a decorator class that is still on top when Fabric recycles the decorator', () => {
-  const added = lines(section(readFileSync(path, 'utf8')), '+');
+it('limits the no-op scroll and the hit test fix to decorated views until Fabric recycles the decorator', () => {
+  const added = lines(patched(), '+');
+  expect(added).toContain('if (objc_getAssociatedObject(self, KCNoScrollRectKey)) {');
+  expect(added).toContain('result == self && objc_getAssociatedObject(self, KCFixedHitTestKey)');
+  expect(added).toContain(
+    'objc_setAssociatedObject(scrollView, KCNoScrollRectKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);',
+  );
   expect(added).toContain('- (void)prepareForRecycle');
   expect(added).toContain(
-    '[NSStringFromClass(scrollViewClass) hasPrefix:KCNoScrollRectClassPrefix]',
+    'objc_setAssociatedObject(scrollView, KCNoScrollRectKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);',
   );
-  expect(added).toContain('object_setClass(_scrollView, class_getSuperclass(scrollViewClass));');
-  expect(added).toContain('_scrollView = scrollView;');
+  expect(added).toContain(
+    'objc_setAssociatedObject(container, KCFixedHitTestKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);',
+  );
 });
