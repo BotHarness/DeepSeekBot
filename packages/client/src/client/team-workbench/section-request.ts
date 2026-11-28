@@ -42,3 +42,11 @@ export function openTeamWorkbenchSection(
   const timeout = setTimeout(unsubscribe, 10_000);
   activate();
 }
+
+export function imConnectionsOpener<Panel>(
+  panels: Pick<DockPanelHost, 'available' | 'open' | 'subscribe'>,
+  layout: { selectPanel(id: Panel): void },
+  main: Panel,
+): () => void {
+  return () => openTeamWorkbenchSection(panels, () => layout.selectPanel(main), 'imConnections');
+}

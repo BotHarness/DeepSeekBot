@@ -40,6 +40,7 @@ import { RolesSection, type Inspection } from './team-workbench/roles-section.js
 import { SectionNav } from './team-workbench/section-nav.js';
 import {
   TEAM_WORKBENCH_PANEL,
+  imConnectionsOpener,
   subscribeTeamSectionRequest,
   teamSectionRequest,
 } from './team-workbench/section-request.js';
@@ -58,7 +59,7 @@ export {
   type PermissionChoice,
 } from './team-workbench/permission-model.js';
 
-export { TEAM_WORKBENCH_PANEL };
+export { TEAM_WORKBENCH_PANEL, imConnectionsOpener };
 
 export function TeamWorkbench({
   call,
