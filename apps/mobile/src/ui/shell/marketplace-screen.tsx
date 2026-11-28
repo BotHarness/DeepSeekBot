@@ -85,16 +85,15 @@ export function MarketplaceScreen() {
         onSort={setSort}
         onTopic={setTopic}
       />
-      {choosingTopic ? (
-        <MarketplaceTopics
-          value={topic}
-          onChange={(value) => {
-            setTopic(value);
-            setChoosingTopic(false);
-          }}
-          onClose={() => setChoosingTopic(false)}
-        />
-      ) : null}
+      <MarketplaceTopics
+        visible={choosingTopic}
+        value={topic}
+        onChange={(value) => {
+          setTopic(value);
+          setChoosingTopic(false);
+        }}
+        onClose={() => setChoosingTopic(false)}
+      />
     </View>
   );
 }
