@@ -31,7 +31,6 @@ import {
 import type {
   AutoRejectionOverrideResult,
   BotCreatePreview,
-  ConnectorRequestPreview,
   Pending,
   ToolApprovalDecision,
   ToolApprovalNotice,
@@ -49,7 +48,6 @@ export {
 export type {
   AutoRejectionOverrideResult,
   BotCreatePreview,
-  ConnectorRequestPreview,
   ToolApprovalDecision,
   ToolApprovalNotice,
   ToolApprovalOrigin,
@@ -146,7 +144,7 @@ export class ChannelToolApproval {
       requireExplicitApproval?: boolean;
       authorizationScope?: () => string;
       origin?: ToolApprovalOrigin;
-      connectorRequest?: ConnectorRequestPreview;
+      connectorRequest?: TrackedCall['connectorRequest'];
     },
   ): (() => void) | undefined {
     const agent = execution.agent;
@@ -185,9 +183,7 @@ export class ChannelToolApproval {
       ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
       ...(device === undefined ? {} : { device }),
       ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
-      ...(options?.connectorRequest === undefined
-        ? {}
-        : { connectorRequest: options.connectorRequest }),
+      ...(options?.connectorRequest && { connectorRequest: options.connectorRequest }),
     };
     tracked.scopeKey = this.#currentScope(tracked, owner)!;
     this.#tracked.set(key, tracked);
@@ -391,12 +387,8 @@ export class ChannelToolApproval {
         ...(tracked.approvalReview === undefined ? {} : { approvalReview: tracked.approvalReview }),
         externalDecision: tracked.externalDecision ?? 'operation',
         allowAlways: policy.rememberable,
-        ...(tracked.botCreatePreview === undefined
-          ? {}
-          : { botCreatePreview: tracked.botCreatePreview }),
-        ...(tracked.connectorRequest === undefined
-          ? {}
-          : { connectorRequest: tracked.connectorRequest }),
+        ...(tracked.botCreatePreview && { botCreatePreview: tracked.botCreatePreview }),
+        ...(tracked.connectorRequest && { connectorRequest: tracked.connectorRequest }),
       },
     };
     let resolve!: (outcome: ApprovalOutcome) => void;
