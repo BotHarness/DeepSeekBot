@@ -1,4 +1,3 @@
-import { contactId, personBlocked } from '../contact-identity.js';
 import { canExternalContactSpeak, coversBot } from '../../team-policy/external-contact.js';
 import { approvedConversationPairing, externalContactRoles } from './contact-roles.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
@@ -18,7 +17,7 @@ import {
   blockConversationSource,
   blockSender,
   sourceBlocked,
-  ownerActor,
+  personBlockApplies,
   senderBlocked,
   unblockConversationSource,
   unblockSender,
@@ -740,8 +739,7 @@ export function externalContactAccess(
   if (identity.revokedAt || !identity.enabled || !platformPeople(identity.platform))
     return { ...empty, status: 'unavailable' };
   if (
-    (personBlocked(db, botSlug, contactId(identity, actorId)) &&
-      !ownerActor(db, botSlug, identity.fingerprint, actorId)) ||
+    personBlockApplies(db, botSlug, identity, actorId) ||
     senderBlocked(db, botSlug, {
       fingerprint: identity.fingerprint,
       actor: { kind: 'user', id: actorId },

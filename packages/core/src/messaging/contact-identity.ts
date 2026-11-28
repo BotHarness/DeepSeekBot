@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { MessagingIdentity } from './identity.js';
 import type { MessagingInboundEvent } from './provider.js';
 
-type ContactBinding = Pick<
+export type ContactBinding = Pick<
   MessagingIdentity,
   'id' | 'providerId' | 'platform' | 'contactWorkspaceId'
 >;

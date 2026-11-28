@@ -159,3 +159,35 @@ it('refuses contact discovery and mutation to an ordinary member and scopes im.b
     error: { code: 'permission-required' },
   });
 });
+
+it('exempts a newly paired Owner across the Bot’s Apps', async () => {
+  const fx = await setup();
+  const second = fx.addApp('ada', 'slack-2', 'slack', 'T12345');
+  const result = await fx.methods.externalContacts({});
+  if (!result.ok || !result.value.contacts[0]) throw new Error('Contact missing');
+  const input = { slug: 'ada', contactId: result.value.contacts[0].id, blocked: true };
+  expect(await fx.methods.externalContactBlock(input)).toMatchObject({ ok: true });
+  const isBlocked = () => fx.database.read((db) => sourceBlocked(db, 'ada', second.event));
+  expect(isBlocked()).toBe(true);
+  const request = fx.core.externalMessaging.pairing.request(
+    fx.identity.id,
+    directMessage('slack', 'owner', actorId, '/pair'),
+    'management',
+  );
+  expect(
+    await fx.methods.pairingReview({
+      slug: 'ada',
+      input: {
+        kind: 'approve',
+        id: request.id,
+        expectedRevision: request.revision,
+        capabilities: ['approve'],
+      },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(isBlocked()).toBe(false);
+  expect(await fx.methods.externalContactBlock(input)).toMatchObject({
+    ok: false,
+    error: { code: 'sender-block-owner' },
+  });
+});
