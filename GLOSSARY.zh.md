@@ -975,8 +975,8 @@ _避免使用_：config file、database、fleet
 整个 Profile 共用的单一 `botharness.db`，物理存储全部 BotHarness operational record，同时各 deep module 保持独立 interface 与 table ownership。它保存对 Soul file、attachment content、DSH Session log、credential 与 DSH-native setting 的引用，但绝不取代这些对象。
 _避免使用_：Messaging database、DSH storage domain、Soul store、generic repository
 
-**Table Owner（表所有者）**：
-唯一有权写入 Operational Database 中某张表的记录，并创建或修改该表结构的代码模块。Operational Database Owner 管理共享数据库、提供事务，并验证和执行迁移。
+**Table Owner**：
+表所有者是唯一有权写入 Operational Database 中某张表的记录，并创建或修改该表结构的代码模块。Operational Database Owner 管理共享数据库、提供事务，并验证和执行迁移。
 
 **Profile Backup**：
 一种自包含、带版本、压缩的 `.botharness-backup` 文件，包含完整 operational-database snapshot、所有 Soul/Memory file、所有 reachable CAS object、integrity manifest，并可选择包含通过 SessionPersistence 生成的 DSH Session facet；它仅由 Human 显式 export 创建，绝不会由 scheduler 或 dangerous-operation hook 自动创建。
