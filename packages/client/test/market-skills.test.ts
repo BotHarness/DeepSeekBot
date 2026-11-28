@@ -255,3 +255,25 @@ it('reads the Host Skill rankings and treats a Host without them as empty', asyn
   expect(await actions.marketplaceSkillSections()).toEqual([]);
   expect(invoke).toHaveBeenCalledWith('marketplaceSkillSections', {});
 });
+
+it('refreshes the install count on ranking cards after adding', async () => {
+  const actions = {
+    ...actionsFor(),
+    marketplaceSkillSections: vi.fn(async () => [
+      { section: 'hot' as const, entries: [{ skill, score: 5 }] },
+    ]),
+  };
+  await act(async () => root.render(createElement(MarketSkills, { actions, t })));
+  const ranked = () =>
+    host.querySelector('[data-market-skill-ranking="hot"] [data-market-skill="tidy-notes"]');
+  await act(async () => ranked()!.querySelector<HTMLButtonElement>('button')!.click());
+  await act(async () => buttonNamed(t('market.skills.addOpen')).click());
+  await act(async () => checkbox(t('market.skills.global')).click());
+  actions.marketplaceSkillDetail.mockResolvedValue({
+    skill: { ...skill, installs: 3 },
+    content: '',
+    files: review.files,
+  });
+  await act(async () => buttonNamed(t('market.skills.add')).click());
+  expect(ranked()?.textContent).toContain(t('market.skills.installs', { count: 3 }));
+});

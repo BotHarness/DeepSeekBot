@@ -21,7 +21,12 @@ export async function addedMarketplaceSkills(
         );
         if (text === undefined) return undefined;
         const { source, hash } = readSkillDocumentMetadata(text);
-        const document = parseSkillDocument(text);
+        let document: ReturnType<typeof parseSkillDocument>;
+        try {
+          document = parseSkillDocument(text);
+        } catch {
+          return undefined;
+        }
         if (source === undefined || !MARKETPLACE_SKILL_ID.test(source) || document === undefined)
           return undefined;
         return {

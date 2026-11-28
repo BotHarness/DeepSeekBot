@@ -199,17 +199,19 @@ export function MarketSkills({
 
   const added = (skill: MarketplaceSkill) =>
     void actions.marketplaceSkillDetail(skill.id).then(
-      (detail) =>
+      (detail) => {
+        const fresh = (item: MarketplaceSkill) =>
+          item.id === skill.id ? { ...item, installs: detail.skill.installs } : item;
         setPage((current) =>
-          current === undefined
-            ? current
-            : {
-                ...current,
-                skills: current.skills.map((item) =>
-                  item.id === skill.id ? { ...item, installs: detail.skill.installs } : item,
-                ),
-              },
-        ),
+          current === undefined ? current : { ...current, skills: current.skills.map(fresh) },
+        );
+        setRankings((current) =>
+          current.map((section) => ({
+            ...section,
+            entries: section.entries.map((entry) => ({ ...entry, skill: fresh(entry.skill) })),
+          })),
+        );
+      },
       () => undefined,
     );
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MarketplaceSkill } from '@botharness/host-protocol/marketplace-skill';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { groupAddedSkills, targetLabels } from '../src/client/market-yours.js';
 
 const skill: MarketplaceSkill = {
   id: 'a'.repeat(24),
@@ -276,5 +277,34 @@ describe('Marketplace All tab (#5441)', () => {
       sources(),
       'all',
     );
+  });
+
+  it('keeps every Bot an added Skill lives in, even when two Bots share a name', () => {
+    const added = (target: string) => ({
+      id: skill.id,
+      name: 'tidy-notes',
+      description: '',
+      target,
+      hash: 'h',
+    });
+    const grouped = groupAddedSkills([
+      added('helper-a'),
+      added('helper-b'),
+      added('helper-a'),
+      added('global'),
+    ]);
+    expect(grouped).toEqual([
+      { id: skill.id, name: 'tidy-notes', targets: ['helper-a', 'helper-b', 'global'] },
+    ]);
+    const names = new Map([
+      ['helper-a', 'Helper'],
+      ['helper-b', 'Helper'],
+      ['solo', 'Solo'],
+    ]);
+    expect(
+      grouped[0]!.targets.map(targetLabels(names, zhTranslate('market.skills.globalShort'))),
+    ).toEqual(['Helper (helper-a)', 'Helper (helper-b)', zhTranslate('market.skills.globalShort')]);
+    expect(targetLabels(names, 'Global')('solo')).toBe('Solo');
+    expect(targetLabels(names, 'Global')('global')).toBe('Global');
   });
 });

@@ -639,6 +639,13 @@ it('lists the Marketplace Skills added to Bots and globally, and skips hand-writ
     '---\nname: own-notes\ndescription: Written by hand.\n---\n',
   );
 
+  const malformed = join(host.core.registry.memoryDirFor('second')!, '.agents/skills/broken');
+  mkdirSync(malformed, { recursive: true });
+  writeFileSync(
+    join(malformed, 'SKILL.md'),
+    `---\nname: broken\ndescription: Bad flag.\nuser-invocable: maybe\nmetadata:\n  tobs-source: "${id}"\n---\n`,
+  );
+
   const added = value(await bridge.marketplaceSkillAdded({}));
   expect(added.skills).toEqual([
     {

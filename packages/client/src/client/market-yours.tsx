@@ -47,18 +47,28 @@ export function needsReconnect(account: Pick<Account, 'status'>): boolean {
   return account.status === 'expired' || account.status === 'failed';
 }
 
-export function groupAddedSkills(
-  skills: readonly MarketplaceSkillAdded[],
-  label: (target: string) => string,
-): AddedSkill[] {
+export function groupAddedSkills(skills: readonly MarketplaceSkillAdded[]): AddedSkill[] {
   const byId = new Map<string, AddedSkill>();
   for (const skill of skills) {
     const entry = byId.get(skill.id) ?? { id: skill.id, name: skill.name, targets: [] };
-    const target = label(skill.target);
-    if (!entry.targets.includes(target)) entry.targets.push(target);
+    if (!entry.targets.includes(skill.target)) entry.targets.push(skill.target);
     byId.set(skill.id, entry);
   }
   return [...byId.values()];
+}
+
+export function targetLabels(
+  names: ReadonlyMap<string, string>,
+  global: string,
+): (target: string) => string {
+  const counts = new Map<string, number>();
+  for (const name of names.values()) counts.set(name, (counts.get(name) ?? 0) + 1);
+  return (target) => {
+    if (target === 'global') return global;
+    const name = names.get(target);
+    if (name === undefined) return target;
+    return (counts.get(name) ?? 0) > 1 ? `${name} (${target})` : name;
+  };
 }
 
 export function MarketYours({
@@ -77,6 +87,7 @@ export function MarketYours({
   onChanged: () => void;
 }): ReactElement {
   const [added, setAdded] = useState<AddedSkill[]>([]);
+  const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<unknown>();
   const list = new Intl.ListFormat(marketplaceLanguage(t) === 'zh' ? 'zh-CN' : 'en', {
@@ -91,12 +102,8 @@ export function MarketYours({
     ]).then(
       ([found, candidates]) => {
         if (!live) return;
-        const names = new Map(candidates.bots.map((bot) => [bot.slug, bot.displayName]));
-        setAdded(
-          groupAddedSkills(found.skills, (target) =>
-            target === 'global' ? t('market.skills.globalShort') : (names.get(target) ?? target),
-          ),
-        );
+        setNames(new Map(candidates.bots.map((bot) => [bot.slug, bot.displayName])));
+        setAdded(groupAddedSkills(found.skills));
       },
       () => {
         if (live) setAdded([]);
@@ -107,6 +114,7 @@ export function MarketYours({
     };
   }, [actions, refresh]);
 
+  const label = targetLabels(names, t('market.skills.globalShort'));
   const reconnect = actions.connectorReconnect;
   const stale = reconnect === undefined ? [] : (view?.accounts.filter(needsReconnect) ?? []);
 
@@ -181,7 +189,7 @@ export function MarketYours({
                 key={skill.id}
                 leading={<BrandLogo src={undefined} size={LOGO} fallbackIcon="book-open" />}
                 title={skill.name}
-                summary={byline(t('market.all.kind.skill'), list.format(skill.targets))}
+                summary={byline(t('market.all.kind.skill'), list.format(skill.targets.map(label)))}
                 action={{
                   label: t('market.detail.open', { name: skill.name }),
                   disabled: busy === skill.id,
