@@ -1,5 +1,6 @@
 export const bridgeMethodInventory = [
   'botAccessDirectory',
+  'channelWorkbenchDirectory',
   'botAccessRoles',
   'botVisibility',
   'botVisibilitySet',
