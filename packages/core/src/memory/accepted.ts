@@ -1,4 +1,4 @@
-import { asyncGitSteps, type GitSteps } from './git-steps.js';
+import { asyncGitSteps, MemoryGitTimeoutError, type GitSteps } from './git-steps.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
@@ -58,6 +58,13 @@ export function createMemoryAcceptance(options: {
     operations.add(botSlug);
     try {
       return await asyncGitSteps(steps);
+    } catch (error) {
+      if (error instanceof MemoryGitTimeoutError) {
+        warn?.(
+          `memory-git-timeout phase=execute bot=${botSlug} command=git duration_ms=${error.elapsedMs} timeout_ms=${error.timeoutMs}`,
+        );
+      }
+      throw error;
     } finally {
       operations.delete(botSlug);
     }
