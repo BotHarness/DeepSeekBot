@@ -778,7 +778,6 @@ export function mobileVerification({ event, labels = [], changes = [], truncated
 }
 
 function mergeGroupChanges({ base_sha: base, head_sha: head }) {
-  // Treat renames as a deletion and an addition so both paths reach the planner.
   const entries = execFileSync(
     'git',
     ['diff', '--name-status', '-z', '--no-renames', base, head, '--'],
