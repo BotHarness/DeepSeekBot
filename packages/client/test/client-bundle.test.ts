@@ -356,6 +356,7 @@ describe('@botharness/ui browser bundle', () => {
         list: { subscribe: () => () => undefined, getSnapshot: () => ({ ids: [], byId: {} }) },
       },
       provide: () => () => undefined,
+      on: (() => () => false) satisfies Context['on'],
       effect: (callback: () => unknown) => {
         callback();
         return () => undefined;
