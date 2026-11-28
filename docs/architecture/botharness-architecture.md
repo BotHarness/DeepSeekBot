@@ -1856,6 +1856,12 @@ The Group append transaction places the Source Event before evaluating Bot recep
 
 Group Channel actions use the Team permission engine through `TeamChannels`. The Host reads the versioned table from `channel_records`, resolves the caller's current Role overrides and enforces the result at the existing action boundary. The Team workbench and CLI edit the same table through `channelPolicySet` with a revision precondition.
 
+The Team workbench Channel summaries use two read-only Gateway operations.
+`roleChannels` projects live Channel visibility and role overrides through `TeamChannels`.
+`botInternalMembers` applies the Bot access-role management check, then projects the current DM audience, readable Channel memberships and recent participant DM metadata.
+Both operations share contracts with the CLI and Host Client.
+Channel policy changes and revocations reset the existing roster stream. Publishing a Channel sends a roster change.
+
 ### Team mode M7 runtime access
 
 The application-defined Bot visibility/principal checks and append-only speaker policy are

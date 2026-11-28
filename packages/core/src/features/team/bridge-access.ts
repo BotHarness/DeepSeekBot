@@ -120,6 +120,7 @@ export function guardHumanBridge(
           deps.team &&
           [
             'botAccessRoles',
+            'botInternalMembers',
             'botVisibility',
             'botVisibilitySet',
             'botSwitches',
