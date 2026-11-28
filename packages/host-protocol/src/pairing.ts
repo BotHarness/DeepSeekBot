@@ -37,6 +37,8 @@ export type PairingRefusal =
   | 'offer-invalid'
   | 'offer-expired'
   | 'unreachable'
+  | 'private-relay-unreachable'
+  | 'private-relay-admission-refused'
   | 'certificate-untrusted'
   | ConnectRefusal;
 

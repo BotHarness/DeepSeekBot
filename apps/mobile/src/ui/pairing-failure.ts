@@ -7,6 +7,7 @@ const LINK_FAULTS = new Set<PairingFailure>([
   'link-expired',
   'offer-invalid',
   'offer-expired',
+  'private-relay-admission-refused',
 ]);
 
 export function pairingFailureText(code: PairingFailure, method: PairingMethod): string {

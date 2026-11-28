@@ -142,6 +142,10 @@ export const en = {
     cancelled: 'Pairing was cancelled.',
     unknown: 'Could not pair. Show a new code and try again.',
     unreachable: `Cannot reach your computer. Check that it is awake with ${productName.en} open, and that this phone is on the same Wi-Fi or tailnet, then retry.`,
+    'private-relay-unreachable':
+      'Cannot connect through the private relay. Check your internet connection, then retry. If it still fails, ask the computer owner to check the relay.',
+    'private-relay-admission-refused':
+      'The private relay refused this code. Ask the computer owner to show a new pairing code, then scan it.',
     'certificate-untrusted':
       'This phone does not trust the certificate of your computer’s address. Ask your IT admin to install the company certificate through device management, or connect on the same Wi-Fi instead, then retry.',
     'sign-in-cancelled': 'Sign-in was cancelled.',
@@ -164,6 +168,8 @@ export const en = {
     'link-expired': 'This pairing link has expired. Copy a new link on your computer.',
     'offer-invalid': 'This pairing link was already used. Copy a new link on your computer.',
     'offer-expired': 'This pairing link has expired. Copy a new link on your computer.',
+    'private-relay-admission-refused':
+      'The private relay refused this link. Ask the computer owner for a new pairing link.',
     unknown: 'Could not pair. Copy a new link on your computer and try again.',
   } satisfies Partial<Record<PairingFailure, string>>,
   copyFingerprint: 'Copy fingerprint',
@@ -307,6 +313,10 @@ export const zh: typeof en = {
     cancelled: '已取消配对。',
     unknown: '无法配对，换一个二维码后重试。',
     unreachable: `连不上你的电脑。请确认电脑未休眠且已打开 ${productName.zh}，手机与电脑在同一 Wi-Fi 或 tailnet 中，然后重试。`,
+    'private-relay-unreachable':
+      '无法通过私有中继连接。请检查网络后重试。如果仍然失败，请让电脑所有者检查中继。',
+    'private-relay-admission-refused':
+      '私有中继拒绝了这个配对码。请让电脑所有者显示新的配对码，再扫描。',
     'certificate-untrusted':
       '这台手机不信任电脑地址的证书。请让 IT 管理员通过设备管理安装公司证书，或改用同一 Wi-Fi 连接，然后重试。',
     'sign-in-cancelled': '已取消登录。',
@@ -328,6 +338,7 @@ export const zh: typeof en = {
     'link-expired': '这个配对链接已过期，请在电脑上复制新的链接。',
     'offer-invalid': '这个配对链接已经用过了，请在电脑上复制新的链接。',
     'offer-expired': '这个配对链接已过期，请在电脑上复制新的链接。',
+    'private-relay-admission-refused': '私有中继拒绝了这个链接。请向电脑所有者获取新的配对链接。',
     unknown: '无法配对，请在电脑上复制新的链接后重试。',
   },
   copyFingerprint: '复制指纹',

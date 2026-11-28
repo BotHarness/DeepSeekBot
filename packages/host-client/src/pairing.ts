@@ -20,7 +20,12 @@ import {
   secureRandom,
 } from './encrypted-carrier';
 import { isConnectRoute, isEncryptedRoute, isLanRoute } from '@botharness/host-protocol/route';
-import { channelFailureDetail, joinFailureDetails } from '@botharness/host-protocol/pairing-detail';
+import {
+  channelFailureDetail,
+  joinFailureDetails,
+  reasonCode,
+  relayFailureDetail,
+} from '@botharness/host-protocol/pairing-detail';
 import { SavedHostsWriteError, type HostEncryption } from './hosts';
 import { privateRouteOrigins } from '@botharness/host-protocol/route';
 import type { HostCarrier, LocalNetworkStatus } from '@botharness/host-protocol/carrier';
@@ -297,7 +302,9 @@ export async function pairHost(options: {
     if (!redeemed.ok) {
       const detail = 'detail' in redeemed ? redeemed.detail : undefined;
       observation.finish(
-        redeemed.code === 'unreachable' ? 'failed' : 'refused',
+        redeemed.code === 'unreachable' || redeemed.code === 'private-relay-unreachable'
+          ? 'failed'
+          : 'refused',
         redeemed.code,
         detail,
       );
@@ -462,6 +469,7 @@ async function redeemEncrypted(options: {
     ...remote.filter((route) => route !== preferred),
   ];
   let result: Redemption = { ok: false, code: 'no-route' };
+  let relayRefused = false;
   const details: string[] = [];
   let lanDenied = false;
   for (const route of routes) {
@@ -470,9 +478,11 @@ async function redeemEncrypted(options: {
     if (result.ok) return result;
     if (result.detail !== undefined) details.push(result.detail);
     if (result.code === 'lan-permission-denied') lanDenied = true;
+    if (result.code === 'private-relay-admission-refused') relayRefused = true;
     if (
       result.code !== 'lan-unreachable' &&
       result.code !== 'lan-permission-denied' &&
+      result.code !== 'private-relay-admission-refused' &&
       !(advertised.privateRelay && result.code === 'unreachable')
     )
       break;
@@ -491,10 +501,11 @@ async function redeemEncrypted(options: {
       if (terminal) break;
     }
   }
-  const code =
-    lanDenied && (result.code === 'unreachable' || result.code === 'lan-unreachable')
-      ? 'lan-permission-denied'
-      : result.code;
+  let code = result.code;
+  if (code === 'unreachable' && advertised.privateRelay)
+    code = relayRefused ? 'private-relay-admission-refused' : 'private-relay-unreachable';
+  else if (lanDenied && (code === 'unreachable' || code === 'lan-unreachable'))
+    code = 'lan-permission-denied';
   const detail = joinFailureDetails(details);
   return detail === undefined ? { ok: false, code } : { ok: false, code, detail };
 }
@@ -519,6 +530,7 @@ async function resumeEncryptedRoute(
       result.code === 'offer-expired' ||
       result.code === 'offer-invalid' ||
       result.code === 'channel-authentication-failed' ||
+      result.code === 'private-relay-admission-refused' ||
       attempt >= PENDING_RESUME_LIMIT ||
       Date.parse(options.payload.expiresAt) <= Date.now() ||
       !(await pause(PENDING_RESUME_MS, options.signal))
@@ -557,8 +569,16 @@ function redeemEncryptedRoute(
         detail: channelFailureDetail(route, 'offer-deadline'),
       });
     let probing = false;
-    const fail = (reason: string) => {
-      if (probing) return;
+    const fail = (reason: string, opened = true) => {
+      if (done || probing) return;
+      if (!opened && encryption.privateRelay) {
+        const status = reasonCode(reason);
+        if (status === 'http-401' || status === 'http-403') {
+          const code = 'private-relay-admission-refused';
+          finish({ ok: false, code, detail: relayFailureDetail(code, status) });
+          return;
+        }
+      }
       const transport = options.carrier.transportFailure;
       if (
         !authenticated &&

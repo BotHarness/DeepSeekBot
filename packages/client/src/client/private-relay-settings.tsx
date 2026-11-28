@@ -7,6 +7,7 @@ import { FieldStack, TextField } from './ds/field.js';
 import { CopyChip, StatusBlock, StatusStack } from './ds/status-block.js';
 import { StepProgress } from './ds/step-progress.js';
 import { color, space, text } from './ds/tokens.stylex.js';
+import { privateRelayIssueLabels } from './features/environments/connections-locale.js';
 
 const styles = stylex.create({
   meta: {
@@ -24,6 +25,8 @@ const styles = stylex.create({
   },
   submit: { alignSelf: 'flex-start' },
 });
+
+const relayFailureMessages = new Map(Object.entries(privateRelayIssueLabels));
 
 export function PrivateRelaySettings({
   t,
@@ -110,7 +113,7 @@ export function PrivateRelaySettings({
             icon="info"
             tone="warning"
             title={t('privateTunnel.panel.errorTitle')}
-            body={t('privateRelay.failed')}
+            body={t(relayFailureMessages.get(status.issue ?? '') ?? 'privateRelay.failed')}
             data={{ 'data-private-relay': 'error' }}
           >
             {address}

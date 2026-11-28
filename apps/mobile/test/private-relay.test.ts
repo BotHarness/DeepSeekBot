@@ -8,6 +8,8 @@ import {
 import { parsePairingLink, pairingLinkMode, redeemPairing } from '@botharness/host-client/pairing';
 import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import { learnedRoutes } from '@botharness/host-client/learned-routes';
+import { pairingDiagnostics } from '@botharness/host-protocol/pairing-detail';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 const admission = { origin: 'https://relay.example.com', token: 'ab'.repeat(32) };
 const encryption = {
@@ -17,6 +19,49 @@ const encryption = {
   privateRelay: admission,
 };
 describe('private relay trust boundary', () => {
+  it.each([
+    ["Expected HTTP 101 response but was '403 Forbidden'", true, 'private-relay-admission-refused'],
+    ['Received bad response code from server: 403.', true, 'private-relay-admission-refused'],
+    ['Connection refused', true, 'private-relay-unreachable'],
+    ["Expected HTTP 101 response but was '403 Forbidden'", false, 'unreachable'],
+  ])(
+    'reports a native WebSocket failure %s (private route: %s)',
+    async (reason, privateRoute, code) => {
+      const transportFailure = vi.fn(async () => 'socket-error');
+      const raw: HostCarrier = {
+        randomBytes: () => new Uint8Array(32).fill(1),
+        request: vi.fn(),
+        transportFailure,
+        openSocket: (_url, events) => {
+          queueMicrotask(() => events.closed(reason));
+          return { send: vi.fn(), close: vi.fn() };
+        },
+      };
+      const result = await redeemPairing({
+        carrier: raw,
+        deviceName: 'Phone',
+        confirmFingerprint: async () => true,
+        payload: {
+          host: { id: 'host', name: 'Home' },
+          offer: 'offer',
+          expiresAt: '2099-01-01',
+          routes: [privateRoute ? admission.origin : 'https://computer.example.ts.net'],
+          encryption: {
+            protocol: encryption.protocol,
+            publicKey: encryption.hostKey,
+            ...(privateRoute ? { privateRelay: admission } : {}),
+          },
+        },
+      });
+      expect(result).toMatchObject({ ok: false, code });
+      if (code !== 'private-relay-admission-refused' || result.ok) return;
+      expect(transportFailure).not.toHaveBeenCalled();
+      expect(pairingDiagnostics({ ...result, method: 'qr', platform: 'android' })).toContain(
+        'reason: private-relay-admission-refused\ndetail: relay:private-relay-admission-refused:http-403',
+      );
+    },
+  );
+
   it('persists two explicitly admitted private origins without learning a third route', () => {
     const second = 'https://second.example.com';
     const privateRelay = { ...admission, additionalOrigins: [second] };

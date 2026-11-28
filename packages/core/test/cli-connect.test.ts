@@ -73,6 +73,28 @@ describe('connect CLI', () => {
     });
     expect(JSON.stringify(result)).not.toContain('a'.repeat(64));
   });
+  it('can wait for the private relay control connection and return its coded refusal', async () => {
+    const origin = 'https://relay.example.com';
+    const status = { state: 'error', origin, issue: 'private-relay-busy' };
+    const http = vi
+      .fn()
+      .mockResolvedValueOnce(reply({ ok: true, status: { state: 'connecting', origin } }))
+      .mockResolvedValueOnce(reply({ privateRelay: { state: 'connecting', origin } }))
+      .mockResolvedValueOnce(reply({ privateRelay: status }));
+    const result = await runConnectCommand(
+      'private-connect',
+      [],
+      { hostname: origin, 'token-stdin': true, confirm: true, wait: true },
+      { readStdin: async () => 'a'.repeat(64) },
+      async () => ({ http }),
+      async () => {},
+    );
+    expect(result).toEqual({ ok: true, status });
+    expect(http.mock.calls.slice(1)).toEqual([
+      ['/api/botharness/devices'],
+      ['/api/botharness/devices'],
+    ]);
+  });
   it('enables a Quick or Named private tunnel only with --confirm and reads the token from stdin', async () => {
     const http = vi.fn(async () => reply({ ok: true, status: { state: 'starting' } }));
     const connect = vi.fn(async () => ({ http }));

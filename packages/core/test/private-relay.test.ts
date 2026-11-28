@@ -53,6 +53,85 @@ vi.mock('ws', async (original) => {
   };
 });
 
+it('reports an occupied control socket, recovers when it closes, and identifies a released claim', async () => {
+  const relay = createPrivateRelay({
+    directory: createTempRoot('private-relay-refusals-'),
+    bootstrap: 'a'.repeat(64),
+  });
+  relay.server.listen(0, '127.0.0.1');
+  await once(relay.server, 'listening');
+  const relayHttp = `http://127.0.0.1:${(relay.server.address() as AddressInfo).port}`;
+  mapping.relay = relayHttp.replace('http', 'ws');
+  const origin = 'https://relay.example.com';
+  const ownerToken = 'b'.repeat(64);
+  const phoneToken = 'c'.repeat(64);
+  const headers = { Authorization: `Bearer ${ownerToken}` };
+  const realFetch = globalThis.fetch;
+  const fetchRelay = vi.fn((url: string, init: RequestInit) =>
+    realFetch(url.replace(origin, relayHttp), init),
+  );
+  vi.stubGlobal('fetch', fetchRelay);
+  const credentials: Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'> = {
+    readRecord: async () => ({ kind: 'grant', payload: { origin, ownerToken, phoneToken } }),
+    modifyRecord: async () => undefined,
+    deleteRecord: async () => {},
+  };
+  const log = vi.fn();
+  const connection = createPrivateConnection({
+    credentials: () => credentials,
+    port: () => 1,
+    log,
+  });
+  const released = createPrivateConnection({ credentials: () => credentials, port: () => 1, log });
+  let occupied: WebSocket | undefined;
+  try {
+    const claim = await realFetch(`${relayHttp}/claim`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${'a'.repeat(64)}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerToken, phoneToken }),
+    });
+    expect(claim.ok).toBe(true);
+    occupied = new WebSocket(`${mapping.relay}/host`, { headers });
+    await once(occupied, 'open');
+
+    await connection.restore();
+    await vi.waitFor(() =>
+      expect(connection.status()).toEqual({
+        state: 'error',
+        origin,
+        issue: 'private-relay-busy',
+      }),
+    );
+    expect(log).toHaveBeenCalledWith('private-relay-busy');
+    expect(connection.admission()).toBeUndefined();
+    occupied.close();
+    await once(occupied, 'close');
+    await vi.waitFor(() => expect(connection.status()).toEqual({ state: 'connected', origin }), {
+      timeout: 6500,
+    });
+    expect(fetchRelay).toHaveBeenCalledTimes(1);
+    connection.close();
+
+    const release = await realFetch(`${relayHttp}/claim`, { method: 'DELETE', headers });
+    expect(release.ok).toBe(true);
+    await released.restore();
+    await vi.waitFor(() =>
+      expect(released.status()).toEqual({
+        state: 'error',
+        origin,
+        issue: 'private-relay-owner-refused',
+      }),
+    );
+    expect(log).toHaveBeenCalledWith('private-relay-owner-refused');
+  } finally {
+    occupied?.terminate();
+    connection.close();
+    released.close();
+    relay.close();
+    vi.unstubAllGlobals();
+  }
+}, 10_000);
+
 it('pairs through the private outbound relay, authorizes exact device keys, carries encrypted RPC and enforces revoke', async () => {
   const owner = trackTestOwner(
     mountOperationalDatabase({

@@ -2436,6 +2436,8 @@ deepseekbot private-route deny-address-sign-in custom --confirm
 
 `private-connect --hostname <https-origin> --token-stdin --confirm` 经本机已认证 Host 认领尚未认领的私有中继。首次设置密钥只从标准输入读取，不放在命令参数中。`devices` 返回 `privateRelay` 状态；连接成功后，`device-offer --out <absolute-new-file>` 将敏感配对邀请写入新建的绝对路径文件。使用 `device-requests`、`device-approve-key`、`device-revoke` 批准准确设备并撤销。参见[私有部署](private-connect.zh.md)。未知认领结果不会自动重试，也不会暗中切换到官方中继。
 
+添加 `--wait`，让 `private-connect` 输出首次观察到的控制连接结果。认领成功后，控制连接仍可能返回 `status.state: "error"` 和具体的 `issue`，包括 `private-relay-busy`、`private-relay-owner-refused`、`private-relay-upgrade-refused` 和 `private-relay-unreachable`。如果命令返回时仍在连接，请用 `devices` 查看当前状态。参见[中继故障排查](private-relay.zh.md#失败恢复)。
+
 ### 同账号 Connect 自动配对
 
 手机与 Host 登录同一 Tobs Connect 账号后，连接无需电脑批准或手工核对指纹。此路径信任账号认证和中继来授权新设备；未登录的扫码和私有连接保留现有设备批准。`connect-status` 查看账号及连接状态，`devices` 查看设备授权，`device-revoke` 撤销准确设备。不需要审核专用配置。

@@ -73,6 +73,33 @@ it('updates real retained events, keeps evidence on failure, and stops polling w
   expect(fetcher).toHaveBeenCalledTimes(calls);
 });
 
+it('shows why a private relay refused the control connection', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(100);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json({
+        entries: [
+          row(1, 'private-relay phase=private-relay-busy', 'private-relay'),
+          row(2, 'private-relay phase=private-relay-owner-refused', 'private-relay'),
+        ],
+      }),
+    ),
+  );
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<ConnectionProgressLog t={t} source="private-relay" />));
+    expect(host.textContent).toContain('此电脑会自动重试');
+    expect(host.textContent).toContain('中继不再识别这台电脑的认领');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
+
 it('shows only allowlisted probe details and bounded numeric progress', () => {
   expect(
     connectionProgressRows(

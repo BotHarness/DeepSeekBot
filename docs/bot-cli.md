@@ -2568,6 +2568,8 @@ An invitation admits only connected private routes. Updated phones retain at mos
 
 `private-connect --hostname <https-origin> --token-stdin --confirm` claims an unclaimed private Docker relay through the authenticated local Host. The setup key comes only from stdin, never command arguments. `devices` reports `privateRelay` state; `device-offer --out <absolute-new-file>` writes the sensitive pairing invitation after the relay is connected. Use `device-requests`, `device-approve-key` and `device-revoke` for exact-device approval and revocation. See [private deployment](private-connect.md). A failed/unknown claim is not automatically replayed, and no official fallback is selected.
 
+Add `--wait` to include the first observed control connection result in `private-connect` output. A successful claim can return `status.state: "error"` with an `issue`. The possible connection issues include `private-relay-busy`, `private-relay-owner-refused`, `private-relay-upgrade-refused`, and `private-relay-unreachable`. If the command returns while still connecting, use `devices` to check current status. See [relay recovery](private-relay.md#failures-and-recovery).
+
 ### Same-account Connect enrollment
 
 A phone signed into the same Tobs Connect account as a Host can enroll without Host-side approval or manual fingerprint comparison. Account authentication and the relay authorize this path; unsigned/QR/private pairing retains existing device approval. `connect-status` reports account and connection state, `devices` lists resulting grants, and `device-revoke` revokes an exact device. No review-specific configuration is required.

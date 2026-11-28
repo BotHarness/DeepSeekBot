@@ -123,7 +123,7 @@ export function openNoiseSocket(options: {
   raw: HostCarrier;
   timeoutMs?: number;
   message(value: Record<string, unknown>): void;
-  closed(reason: string): void;
+  closed(reason: string, opened: boolean): void;
 }) {
   if (
     !checkRoute(options.origin, options.encryption.privateRelay).ok &&
@@ -145,6 +145,7 @@ export function openNoiseSocket(options: {
     route: isLanRoute(options.origin) ? 'lan' : 'connect',
   });
   let done = false;
+  let opened = false;
   let nextCredit = 0,
     outstandingBytes = 0;
   const credits = new Map<number, number>();
@@ -162,7 +163,7 @@ export function openNoiseSocket(options: {
     outstandingBytes = 0;
     socket.close();
     reject(new Error(reason));
-    options.closed(reason);
+    options.closed(reason, opened);
   };
   const timer = setTimeout(() => fail('channel-timeout'), options.timeoutMs ?? 10_000);
   let socket: HostSocket;
@@ -171,6 +172,7 @@ export function openNoiseSocket(options: {
       `${socketOrigin(options.origin)}${CONNECT_CHANNEL_PATH}`,
       {
         open: () => {
+          opened = true;
           let first: string;
           try {
             first = channel.start();

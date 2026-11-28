@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { clearsPastedLink, pairingFailureText } from '../src/ui/pairing-failure';
 import { t } from '../src/ui/strings';
+import { en, zh } from '../src/features/environments/pairing-strings';
 
 describe('pairing failure text', () => {
   it('talks about the code when a scan fails', () => {
@@ -22,6 +23,17 @@ describe('pairing failure text', () => {
   it('keeps the shared wording for failures that are not about the link', () => {
     expect(pairingFailureText('unreachable', 'paste')).toBe(t.pairRefused.unreachable);
     expect(pairingFailureText('no-route', 'paste')).toBe(t.pairRefused['no-route']);
+  });
+
+  it('sends a refused phone to the owner for a new code or link', () => {
+    const code = 'private-relay-admission-refused';
+    expect(pairingFailureText(code, 'qr')).toBe(t.pairRefused[code]);
+    expect(pairingFailureText(code, 'paste')).toBe(t.pairRefusedLink[code]);
+    expect(en.pairRefused[code]).toMatch(/owner.*new pairing code/u);
+    expect(en.pairRefusedLink[code]).toMatch(/owner.*new pairing link/u);
+    expect(zh.pairRefused[code]).toMatch(/电脑所有者.*新的配对码/u);
+    expect(zh.pairRefusedLink[code]).toMatch(/电脑所有者.*新的配对链接/u);
+    expect(clearsPastedLink(code, 'paste')).toBe(true);
   });
 });
 
