@@ -4,6 +4,7 @@ import babelTraverse from '@babel/traverse';
 const traverse = babelTraverse.default ?? babelTraverse;
 const sourceFile = /^packages\/[^/]+\/src\/.*\.(?:[cm]?[jt]sx?|sql)$/u;
 const testFile = /\.(?:d|spec|test)\.[^/]+$|\/(?:__tests__|test|tests)\//u;
+const migrationFile = /^packages\/core\/src\/database\/migrations\//u;
 const sqlKeyword = /\b(?:INSERT|REPLACE|UPDATE|DELETE|FROM|JOIN)\b/iu;
 const catalogByOwners = new WeakMap();
 const interpolation = /\u0000(\d+)\u0000/gu;
@@ -23,7 +24,7 @@ const operations = new RegExp(
 );
 
 export function isTableOwnerSource(file) {
-  return sourceFile.test(file) && !testFile.test(file);
+  return sourceFile.test(file) && !testFile.test(file) && !migrationFile.test(file);
 }
 
 export function tableOwnerWriteAnnotation(line) {

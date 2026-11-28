@@ -39,7 +39,7 @@ Every Operational Database table has one Table Owner responsible for row writes 
 
 Why: One module can enforce a table's invariants and evolve its schema while the Host keeps a shared database and transaction boundary.
 
-Enforced by: The [table owner lint](../../scripts/check-table-owners.mjs) replays the schema, verifies the [manifest](../../scripts/table-owners.json), and checks that tables created or altered by new migrations belong to the migration's module. The [writer baseline](../../scripts/table-owner-write-baseline.json) records existing cross-owner write pairs and can only shrink. The lint reports cross-owner reads for information.
+Enforced by: The [table owner lint](../../scripts/check-table-owners.mjs) replays the schema, verifies the [manifest](../../scripts/table-owners.json), and checks that tables created, altered or row-written by new migrations belong to the migration's module. Row writes inside migration files are attributed to the migration's `module`, not to `database`. The [writer baseline](../../scripts/table-owner-write-baseline.json) records existing cross-owner write pairs and can only shrink. The lint reports cross-owner reads for information.
 
 ## 3. Operational logs have a separate, disposable store
 

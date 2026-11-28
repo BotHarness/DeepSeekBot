@@ -3,6 +3,13 @@ import { resolve } from 'node:path';
 import { constants, DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
+const rowWrites = new Set([
+  constants.SQLITE_INSERT,
+  constants.SQLITE_UPDATE,
+  constants.SQLITE_DELETE,
+]);
+const bookkeeping = new Set(['_botharness_schema', 'schema_migrations']);
+
 export async function replaySchema(root) {
   const source = pathToFileURL(resolve(root, 'packages/core/src/database/')).href + '/';
   const hooks = registerHooks({
@@ -53,8 +60,10 @@ export async function replaySchema(root) {
     let previous = tables();
     const migrations = plan.migrations.map((migration) => {
       const altered = new Set();
-      database.setAuthorizer((action, _first, table) => {
-        if (action === constants.SQLITE_ALTER_TABLE && previous.has(table)) altered.add(table);
+      const written = new Set();
+      database.setAuthorizer((action, first, second, _database, trigger) => {
+        if (action === constants.SQLITE_ALTER_TABLE && previous.has(second)) altered.add(second);
+        if (rowWrites.has(action) && !trigger && !bookkeeping.has(first)) written.add(first);
         return constants.SQLITE_OK;
       });
       try {
@@ -75,6 +84,7 @@ export async function replaySchema(root) {
         id: migration.id,
         module: migration.module,
         tables: [...new Set([...changed, ...altered])],
+        writes: [...written].filter((name) => current.has(name)),
       };
     });
     database.exec('COMMIT');

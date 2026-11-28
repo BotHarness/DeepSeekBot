@@ -161,17 +161,24 @@ export async function checkTableOwners(root = ROOT, { update = false } = {}) {
           `Migration ${migration.id} (${migration.module}): cannot create or alter ${table}; owner is ${owners[table] ?? '<unregistered>'}`,
         );
     }
+    for (const table of migration.writes) {
+      if (owners[table] !== migration.module && !migration.tables.includes(table))
+        errors.push(
+          `Migration ${migration.id} (${migration.module}): cannot write rows of ${table}; owner is ${owners[table] ?? '<unregistered>'}`,
+        );
+    }
   }
 
   const { writes, reads, errors: scanErrors } = scanSources(worktreeSources(root), owners);
   errors.push(...scanErrors);
   const current = inventory(writes);
   if (!local && !update) errors.push(`${BASELINE}: missing; run ${UPDATE}`);
-  if (baseBaseline && local) {
-    for (const [table, writer] of addedPairs(local, baseBaseline))
+  const cap = local ?? baseBaseline ?? {};
+  const proposed = update ? retainedPairs(current, cap) : local;
+  if (baseBaseline && proposed) {
+    for (const [table, writer] of addedPairs(proposed, baseBaseline))
       errors.push(`${BASELINE}: baseline grew; added ${table} ← ${writer}`);
   }
-  const cap = local ?? baseBaseline ?? {};
   for (const [table, writer] of addedPairs(current, cap))
     errors.push(
       `${writes.get(table).get(writer)}: ${writer} writes ${table}, owned by ${owners[table]}; use the Table Owner's interface`,
@@ -184,6 +191,14 @@ export async function checkTableOwners(root = ROOT, { update = false } = {}) {
   }
 
   return { errors, reads: inventory(reads), tables: tables.length, writes: pairCount(current) };
+}
+
+function retainedPairs(current, cap) {
+  return Object.fromEntries(
+    Object.entries(current)
+      .map(([table, writers]) => [table, writers.filter((writer) => cap[table]?.includes(writer))])
+      .filter(([, writers]) => writers.length),
+  );
 }
 
 function pairCount(records) {

@@ -134,6 +134,32 @@ describe('table owner lint', { timeout: 60_000 }, () => {
     ]);
   });
 
+  it('attributes row writes in a new migration to its module', () => {
+    const migration = (sql) => ({
+      [`${database}/schema-plan.ts`]: `
+        import { first } from './migrations.js';
+        import { second } from './migrations/second.js';
+        export const BOT_HARNESS_SCHEMA_PLAN = { migrations: [first, second] };
+      `,
+      [`${database}/migrations/second.ts`]: `
+        export const second = {
+          generation: 3,
+          id: 'second',
+          module: 'channels',
+          migrate(db) { db.exec(${JSON.stringify(sql)}); },
+        };
+      `,
+      [snapshot]: [{ id: 'first' }, { id: 'second' }],
+    });
+    const own = fixture({ changes: migration('UPDATE channels SET id = id') });
+    expect(own.errors).toEqual([]);
+    expect(own.baseline).toEqual({});
+    const other = fixture({ changes: migration('INSERT INTO humans SELECT id FROM channels') });
+    expect(other.errors).toEqual([
+      'Migration second (channels): cannot write rows of humans; owner is humans',
+    ]);
+  });
+
   it('rejects a hand-grown baseline and refuses to grow it with --update', () => {
     const changes = { [writer]: 'db.exec("DELETE FROM humans")' };
     const updated = fixture({ changes, update: true });

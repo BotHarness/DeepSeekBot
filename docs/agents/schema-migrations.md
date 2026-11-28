@@ -1,8 +1,8 @@
 # Operational database migrations
 
 Register any new table's Table Owner in [`scripts/table-owners.json`](../../scripts/table-owners.json) first.
-Use that owner as the migration's `module`. Each table the migration creates or alters must
-belong to that module. FTS shadow tables share the virtual table's owner.
+Use that owner as the migration's `module`. Each table the migration creates, alters or
+backfills must belong to that module. FTS shadow tables share the virtual table's owner.
 
 If a write uses a dynamic table name that the lint cannot resolve, place
 `// table-owner-write: <table>` immediately above the write.
