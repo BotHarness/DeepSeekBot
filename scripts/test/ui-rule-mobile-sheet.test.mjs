@@ -121,16 +121,20 @@ describe('mobile sheet surface', () => {
             <Modal visible presentationStyle="formSheet" backdropColor={theme.color.base} />
             <Modal visible presentationStyle="pageSheet" backdropColor={systemSheetBackdrop()} />
             <Modal visible presentationStyle="overFullScreen" />
+            <Modal visible presentationStyle="pageSheet" transparent={false} />
+            <Modal visible presentationStyle="pageSheet" transparent />
           </>
         );
       }
     `;
     expect(check(source)).toEqual([
       ['sheetSurface', 'Modal pageSheet without backdropColor', 5],
+      ['sheetSurface', 'Modal pageSheet without backdropColor', 9],
       ['sheetSurface', 'backdropColor: theme.color.base', 6],
     ]);
     expect(check(source, 'apps/mobile/src/ui/chat/sheet-frame.ios.tsx')).toEqual([
       ['sheetSurface', 'Modal pageSheet without backdropColor', 5],
+      ['sheetSurface', 'Modal pageSheet without backdropColor', 9],
     ]);
   });
 

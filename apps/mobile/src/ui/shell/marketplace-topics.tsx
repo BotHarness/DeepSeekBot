@@ -69,7 +69,7 @@ export function MarketplaceTopics({
               key: 'topics',
               rows: topics.map((item) => ({
                 kind: 'choice' as const,
-                key: item.topic || 'all',
+                key: item.topic ? `topic:${item.topic}` : 'all',
                 testID: testID(item),
                 label: label(item),
                 selected: item.topic === value,

@@ -84,7 +84,11 @@ function implicitWhite(file, ast) {
       if (nameOf(element) !== 'Modal') return;
       const style = literal(attribute(element, 'presentationStyle'));
       if (!PAGE_SHEET.has(style)) return;
-      if (attribute(element, 'backdropColor') || attribute(element, 'transparent')) return;
+      if (attribute(element, 'backdropColor')) return;
+      const transparent = attribute(element, 'transparent');
+      const value = transparent?.get('value');
+      const expression = value?.isJSXExpressionContainer() ? value.get('expression') : undefined;
+      if (transparent && !expression?.isBooleanLiteral({ value: false })) return;
       found.push({
         rule: 'sheetSurface',
         file,

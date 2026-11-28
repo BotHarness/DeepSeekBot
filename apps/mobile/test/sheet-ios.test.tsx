@@ -311,6 +311,8 @@ it('leaves the page sheet background to the system instead of React Native white
         ?.getAttribute('data-backdrop');
     platform.Version = '26.0';
     expect(await backdrop()).toBe('"transparent"');
+    platform.Version = '26.1.1';
+    expect(await backdrop()).toBe('"transparent"');
     platform.Version = '18.6';
     expect(await backdrop()).toBe('{"semantic":["systemBackground"]}');
   } finally {

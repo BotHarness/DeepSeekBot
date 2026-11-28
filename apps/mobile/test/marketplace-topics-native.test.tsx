@@ -74,6 +74,7 @@ it('presents topics as system list choices without painting the sheet (#5682)', 
     ['marketplace-topic-all', 'All', false],
     ['marketplace-topic-writing', 'writing (12)', true],
   ]);
+  expect(rows.map((row) => row.key)).toEqual(['all', 'topic:writing']);
   const all = rows[0];
   if (all?.kind === 'choice') all.onPress();
   expect(onChange).toHaveBeenCalledWith('');
