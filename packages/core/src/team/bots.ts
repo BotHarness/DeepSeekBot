@@ -7,7 +7,7 @@ import type { BotMemoryPlacement } from '../workspaces/bot-memory-placement.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
-import { toOperationalError } from '../database/owner-errors.js';
+import { CommittedOperationInterruptedError } from '../database/owner-errors.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { ChannelRecord } from '../channels/channel.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
@@ -433,12 +433,14 @@ export class TeamBots {
   ): void {
     type Move = ReturnType<BotMemoryPlacement['prepare']>;
     const prepared: { plan: VisibilityPlan; move: Move | undefined }[] = [];
+    let committingVisibility = false;
     let publishDepartures: (() => void)[];
     try {
       for (const plan of plans) {
         const move = plan.memory ? plan.placement?.prepare(plan.memory) : undefined;
         prepared.push({ plan, move });
       }
+      committingVisibility = true;
       publishDepartures = this.db.transaction(
         (db) => {
           const revokeAllPublicForRole = scope?.revokeAllPublicForRole;
@@ -500,25 +502,25 @@ export class TeamBots {
         ],
       );
     } catch (error) {
-      if (
-        !(error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted')
-      ) {
-        const rollbackErrors: unknown[] = [];
-        for (const { move } of prepared.reverse()) {
-          try {
-            move?.rollback();
-          } catch (rollbackError) {
-            rollbackErrors.push(rollbackError);
-          }
-        }
-        if (rollbackErrors.length)
-          throw new AggregateError(rollbackErrors, 'Bot Memory rollback failed', { cause: error });
+      if (error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted') {
+        if (committingVisibility)
+          throw new CommittedOperationInterruptedError(
+            'Bot visibility committed before notification was interrupted',
+            error,
+          );
+        throw error;
       }
-      if (
-        error instanceof OperationalDatabaseError &&
-        error.code !== 'post-commit-interrupted' &&
-        error.cause instanceof TeamError
-      )
+      const rollbackErrors: unknown[] = [];
+      for (const { move } of prepared.reverse()) {
+        try {
+          move?.rollback();
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (rollbackErrors.length)
+        throw new AggregateError(rollbackErrors, 'Bot Memory rollback failed', { cause: error });
+      if (error instanceof OperationalDatabaseError && error.cause instanceof TeamError)
         throw error.cause;
       throw error;
     }
@@ -533,11 +535,7 @@ export class TeamBots {
         }
       }
     } catch (error) {
-      throw toOperationalError(
-        'post-commit-interrupted',
-        'Bot visibility publication failed',
-        error,
-      );
+      throw new CommittedOperationInterruptedError('Bot visibility publication failed', error);
     }
   }
 

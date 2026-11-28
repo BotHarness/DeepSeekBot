@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -93,17 +93,23 @@ export function RoleBotScope({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [stale, setStale] = useState<'none' | 'reloading' | 'reloaded'>('none');
+  const completedSaves = useRef(0);
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
+    const savesAtRead = completedSaves.current;
+    const obsolete = () => controller.signal.aborted || savesAtRead !== completedSaves.current;
     void readRoleBotScope(bridgeHost(call, controller.signal), roleId)
       .then((next) => {
-        if (controller.signal.aborted) return;
+        if (obsolete()) return;
         setView(next);
+        setDraft((previous) =>
+          previous?.editableBotsRevision === next.editableBotsRevision ? previous : undefined,
+        );
         setFailed(false);
         setStale((value) => (value === 'reloading' ? 'reloaded' : value));
       })
       .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
+        if (!obsolete()) setFailed(true);
       });
     return () => controller.abort();
   }, [call, roleId, revision, attempt]);
@@ -159,8 +165,10 @@ export function RoleBotScope({
                 botSlugs: [...current.slugs].filter((slug) => editable.has(slug)),
               },
       });
+      completedSaves.current++;
       setView(next);
       setDraft(undefined);
+      setFailed(false);
       setStale('none');
       onChanged();
     } catch (failure) {

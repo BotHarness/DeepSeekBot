@@ -8,7 +8,12 @@ import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { TeamWorkbench } from '../src/client/team-workbench.js';
 import type { TeamRole } from '../src/client/team-roles-bridge.js';
-import { draftChanged, savedDraft, scopeRow } from '../src/client/team-workbench/role-bot-scope.js';
+import {
+  RoleBotScope,
+  draftChanged,
+  savedDraft,
+  scopeRow,
+} from '../src/client/team-workbench/role-bot-scope.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -231,7 +236,7 @@ it('keeps the attempted selection after a stale role and reloads the scope', asy
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   expect(reads).toBe(2);
-  expect(host.textContent).toContain('这个角色刚被修改过，已重新载入。');
+  expect(host.textContent).toContain('Bot 访问范围已变化，已重新载入。');
   expect(row('dispatch').dataset['teamBotScopeOn']).toBe('true');
   expect(save()).not.toBeNull();
 });
@@ -436,5 +441,45 @@ it('uses the refreshed selection when the editable Bot set changes after a confl
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   expect(row('newly-editable').dataset['teamBotScopeOn']).toBe('true');
+  expect(host.textContent).toContain('Bot 访问范围已变化，已重新载入。请检查选项后再保存。');
+  expect(save()).toBeNull();
+});
+
+it('keeps the saved selection when a pre-save read completes late', async () => {
+  const before = scope();
+  const after = scope({
+    revision: 4,
+    editableBotsRevision: 'editable-bots-v2',
+    bots: before.bots.map((bot) => (bot.slug === 'dispatch' ? { ...bot, selected: true } : bot)),
+  });
+  let releaseRead: (() => void) | undefined;
+  const lateRead = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  let reads = 0;
+  const call = workbench({
+    roleBotScope: async () => {
+      if (++reads > 1) await lateRead;
+      return { ok: true, value: before };
+    },
+    roleBotScopeSet: () => ({ ok: true, value: after }),
+  });
+  const render = (revision: number) =>
+    root.render(
+      <RoleBotScope
+        call={call}
+        t={zhTranslate}
+        roleId="leads"
+        revision={revision}
+        onChanged={() => {}}
+      />,
+    );
+  await act(async () => render(3));
+  await act(async () => toggle('dispatch').click());
+  await act(async () => render(4));
+  expect(reads).toBe(2);
+  await act(async () => save()!.click());
+  await act(async () => releaseRead?.());
+  expect(row('dispatch').dataset['teamBotScopeOn']).toBe('true');
   expect(save()).toBeNull();
 });

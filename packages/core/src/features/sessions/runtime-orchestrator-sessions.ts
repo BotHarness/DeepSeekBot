@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import { OperationalDatabaseError } from '../../database/owner-errors.js';
+import { CommittedOperationInterruptedError } from '../../database/owner-errors.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type {
@@ -34,10 +34,6 @@ interface OrchestratorSessionsPorts {
   sessionArchived: ((sessionId: string) => boolean) | undefined;
   warn: ((message: string) => void) | undefined;
   workspaceRoot: string | undefined;
-}
-
-function commitInterrupted(error: unknown): boolean {
-  return error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted';
 }
 
 export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
@@ -121,7 +117,8 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
       ports.ownership.discardOrchestratorReplacements(botSlug);
       return { outcome: 'replaced', value: await body() };
     } catch (error) {
-      if (!commitInterrupted(error)) await archive.unarchiveSession(current);
+      if (!(error instanceof CommittedOperationInterruptedError))
+        await archive.unarchiveSession(current);
       throw error;
     }
   }
@@ -148,8 +145,9 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     try {
       value = await body();
     } catch (error) {
+      if (error instanceof CommittedOperationInterruptedError) throw error;
       try {
-        if (!commitInterrupted(error)) ports.ownership.discardOrchestratorReplacement(sessionId);
+        ports.ownership.discardOrchestratorReplacement(sessionId);
       } catch {
         warnReplacementFailure('orchestrator-replacement-discard-failed', bot.slug, sessionId);
       }

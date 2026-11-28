@@ -2,6 +2,7 @@ import { reconcilePublicBotMemories } from '../src/workspaces/bot-memory-placeme
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import { join, dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { execFileSync } from 'node:child_process';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import type { BotVisibility } from '../src/team-policy/bot-contract.js';
@@ -104,6 +105,28 @@ function crossDevice(source: string, target: string) {
   });
 }
 
+function sessionArchives() {
+  const archived = new Set<string>();
+  const options = {
+    sessionArchive: () => ({
+      async archiveSession(id: string) {
+        if (id === 'unsaved')
+          throw Object.assign(new Error('unsaved'), { name: 'WorkspaceUnknownSessionError' });
+        archived.add(id);
+      },
+      async unarchiveSession(id: string) {
+        archived.delete(id);
+      },
+    }),
+    workspaces: () => ({
+      get: () => undefined,
+      list: () => [],
+      archivedSessionIds: [...archived],
+    }),
+  };
+  return { archived, options };
+}
+
 describe('M7 public Bot Memory placement', () => {
   it('preserves Group memberships across Team mode suspension and an all-public scope edit', async () => {
     const { core } = fixture();
@@ -151,38 +174,31 @@ describe('M7 public Bot Memory placement', () => {
     expect(core.team.bots.canReach(bob, 'helper')).toBe(true);
   });
 
-  it.each(['post-commit interruption', 'Memory finalization failure'])(
-    'keeps archived Sessions and recovers unsaved replacements after %s in a multi-Bot scope save',
-    async (failure) => {
-      let armed = false;
+  it.each(['visibility commit interruption', 'Memory finalization failure'])(
+    'reconciles saved and unsaved Sessions after %s in a multi-Bot scope save',
+    async (fault) => {
+      let armedRoleId: string | undefined;
       const mount = databaseOwner.mountOperationalDatabase;
       vi.spyOn(databaseOwner, 'mountOperationalDatabase').mockImplementationOnce((options) =>
         mount({
           ...options,
-          faultInjector: ({ stage }) => {
-            if (armed && stage === 'after-commit-before-notify')
-              throw new Error('interrupted after commit');
+          faultInjector: ({ stage, activePath }) => {
+            if (!armedRoleId || stage !== 'after-commit-before-notify') return;
+            const reader = new DatabaseSync(activePath, { readOnly: true });
+            try {
+              const durable =
+                reader
+                  .prepare(`SELECT b.slug FROM persona_bots b, json_each(b.visibility_json, '$.audience.roleIds') AS role
+                WHERE b.slug IN ('helper', 'other') AND role.value=?`)
+                  .all(armedRoleId).length === 2;
+              if (durable) throw new Error(fault);
+            } finally {
+              reader.close();
+            }
           },
         }),
       );
-      const archived = new Set<string>();
-      const options = {
-        sessionArchive: () => ({
-          async archiveSession(id: string) {
-            if (id === 'unsaved')
-              throw Object.assign(new Error('unsaved'), { name: 'WorkspaceUnknownSessionError' });
-            archived.add(id);
-          },
-          async unarchiveSession(id: string) {
-            archived.delete(id);
-          },
-        }),
-        workspaces: () => ({
-          get: () => undefined,
-          list: () => [],
-          archivedSessionIds: [...archived],
-        }),
-      };
+      const { archived, options } = sessionArchives();
       const f = fixture(options);
       const { core, db } = f;
       const { roleId } = core.team.roles.create(owner, 'Readers', []).role;
@@ -216,10 +232,8 @@ describe('M7 public Bot Memory placement', () => {
       vi.spyOn(memory, 'prepare').mockImplementation((plan) => {
         const move = prepare(plan);
         if (plan.slug !== 'other') return move;
-        if (failure === 'post-commit interruption') {
-          armed = true;
-          return move;
-        }
+        if (fault === 'visibility commit interruption') armedRoleId = roleId;
+        if (fault !== 'Memory finalization failure') return move;
         return {
           ...move,
           finish: () => {
@@ -255,6 +269,59 @@ describe('M7 public Bot Memory placement', () => {
       expect(replacement?.sessionId).not.toBe('unsaved');
       expect(replacement?.cwdReference).toBe(restored.registry.memoryDirFor('other'));
       expect(restored.runtime.currentOrchestratorSessionId?.('other')).toBe(replacement?.sessionId);
+    },
+  );
+
+  it.each(['saved', 'unsaved'])(
+    'keeps the original %s Session after interruption of the Memory preparation journal',
+    async (sessionId) => {
+      let armed = false;
+      const mount = databaseOwner.mountOperationalDatabase;
+      vi.spyOn(databaseOwner, 'mountOperationalDatabase').mockImplementationOnce((options) =>
+        mount({
+          ...options,
+          faultInjector: ({ stage, activePath }) => {
+            if (!armed || stage !== 'after-commit-before-notify') return;
+            const reader = new DatabaseSync(activePath, { readOnly: true });
+            try {
+              if (
+                reader
+                  .prepare(`SELECT 1 FROM workspace_file_transfers
+                WHERE human_id='bot-memory/helper' AND json_extract(moves_json,'$.phase')='prepared'`)
+                  .get()
+              )
+                throw new Error('interrupted Memory preparation');
+            } finally {
+              reader.close();
+            }
+          },
+        }),
+      );
+      const { archived, options } = sessionArchives();
+      const f = fixture(options);
+      const { core } = f;
+      core.ownership.claim({
+        sessionId,
+        botSlug: 'helper',
+        rootRole: 'orchestrator',
+        cwdReference: f.source,
+        at: '2026-01-01T00:00:00.000Z',
+      });
+      armed = true;
+      await expect(core.team.setBotVisibility(owner, 'helper', everyone)).rejects.toMatchObject({
+        code: 'post-commit-interrupted',
+      });
+      expect([...archived]).toEqual([]);
+      intact(f.source, f.history);
+
+      await core.runtime.close();
+      core.operationalDatabase.close();
+      const restored = open(f.home, options);
+      expect(restored.runtime.currentOrchestratorSessionId?.('helper')).toBe(sessionId);
+      expect(restored.team.bots.view(alice, 'helper').visibility).toEqual({ kind: 'private' });
+      expect(restored.ownership.pendingOrchestratorReplacements('helper')).toEqual([]);
+      expect(restored.registry.memoryDirFor('helper')).toBe(f.source);
+      expect(fs.existsSync(f.target)).toBe(false);
     },
   );
 

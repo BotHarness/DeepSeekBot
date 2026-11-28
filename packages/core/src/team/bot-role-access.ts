@@ -8,7 +8,7 @@ import {
   type TeamAccessBot,
 } from '@botharness/host-protocol/team-roles';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { toOperationalError } from '../database/owner-errors.js';
+import { CommittedOperationInterruptedError } from '../database/owner-errors.js';
 import type { HumanContext } from '../humans/context.js';
 import {
   activeBotHumanSql,
@@ -258,8 +258,7 @@ export class TeamBotRoleAccess {
       try {
         return this.scope(human, roleId);
       } catch (error) {
-        throw toOperationalError(
-          'post-commit-interrupted',
+        throw new CommittedOperationInterruptedError(
           'Reading the committed Bot scope failed',
           error,
         );

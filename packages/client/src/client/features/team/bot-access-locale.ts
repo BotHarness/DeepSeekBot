@@ -46,7 +46,7 @@ export const zh = {
   'team.workbench.botScope.reason.all': '已包含在「全部 Bot」里。',
   'team.workbench.botScope.unavailable': '成员暂时用不了',
   'team.workbench.botScope.discard': '放弃',
-  'team.workbench.botScope.stale': '这个角色刚被修改过，已重新载入。你的选择还在，检查后再保存。',
+  'team.workbench.botScope.stale': 'Bot 访问范围已变化，已重新载入。请检查选项后再保存。',
   'team.workbench.botScope.loadFailed': '没能载入这个角色能访问的 Bot。',
   'team.error.botNotEditable': '其中有 Bot 你不能修改，刷新后再试。',
   'team.error.botNotFound': '这个 Bot 不存在，或者你看不到它。',
@@ -106,7 +106,7 @@ export const en = {
   'team.workbench.botScope.unavailable': 'Unavailable to members',
   'team.workbench.botScope.discard': 'Discard',
   'team.workbench.botScope.stale':
-    'This role just changed and has been reloaded. Your choices are kept; review them and save again.',
+    'Bot access changed. Review the reloaded selections before saving.',
   'team.workbench.botScope.loadFailed': 'Could not load which Bots this role can use.',
   'team.error.botNotEditable': 'One of these Bots can’t be changed by you. Refresh and try again.',
   'team.error.botNotFound': 'This Bot doesn’t exist, or you can’t see it.',
