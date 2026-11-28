@@ -1,14 +1,12 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { WebSocket } from 'ws';
 import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { isConnectZoneHost } from './routes.js';
+import type { PrivateAdmission } from '@botharness/host-protocol/host-encryption';
+import { PRIVATE_RELAY_V3, relationshipRelayToken } from '@botharness/host-protocol/private-relay';
 
-export interface PrivateRelayAdmission {
-  origin: string;
-  token: string;
-  additionalOrigins?: string[];
-}
+export type PrivateRelayAdmission = PrivateAdmission;
 interface Configuration {
   origin: string;
   ownerToken: string;
@@ -44,12 +42,18 @@ export function privateRelayOrigin(value: string): string | undefined {
 }
 const secret = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+const protocolHeader = 'x-botharness-relay-protocol';
+const hashToken = (value: string) => createHash('sha256').update(value).digest('hex');
+
 export function createPrivateConnection(options: {
   credentials():
     | Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>
     | undefined;
   port(): number;
   log(phase: string): void;
+  deviceTokens?(origin: string): string[];
+  relationships?(): ReadonlyArray<{ id: string; publicKey: string }>;
+  key?(): Promise<Uint8Array>;
 }) {
   const key = credentialKey('botharness-core', 'private-relay');
   let config: Configuration | undefined;
@@ -58,11 +62,18 @@ export function createPrivateConnection(options: {
   let retry: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
   let busy = false;
+  let protocol: typeof PRIVATE_RELAY_V3 | undefined;
+  let scopedKey: Uint8Array | undefined;
+  let sync: (() => Promise<boolean>) | undefined;
+  const invites = new Map<string, number>();
   const peers = new Map<string, { socket: WebSocket; queued: string[]; bytes: number }>();
   const stop = () => {
     clearTimeout(retry);
     const socket = control;
     control = undefined;
+    sync = undefined;
+    scopedKey?.fill(0);
+    scopedKey = undefined;
     socket?.terminate();
     for (const peer of peers.values()) peer.socket.terminate();
     peers.clear();
@@ -73,12 +84,19 @@ export function createPrivateConnection(options: {
     const current = config;
     status = { state: 'connecting', origin: current.origin };
     const socket = new WebSocket(`${current.origin.replace(/^http/u, 'ws')}/host`, {
-      headers: { Authorization: `Bearer ${current.ownerToken}` },
+      headers: {
+        Authorization: `Bearer ${current.ownerToken}`,
+        [protocolHeader]: PRIVATE_RELAY_V3,
+      },
       handshakeTimeout: 10_000,
       maxPayload: 140_000,
       followRedirects: false,
     });
     control = socket;
+    let negotiated = false;
+    let latest: { encoded: string; acknowledged: Promise<boolean> } | undefined;
+    const peerHashes = new Map<string, string>();
+    const pending = new Map<string, (ok: boolean) => void>();
     const send = (value: unknown) => {
       const text = JSON.stringify(value);
       if (
@@ -90,12 +108,93 @@ export function createPrivateConnection(options: {
       }
       socket.send(text);
     };
-    socket.on('open', () => {
+    const connected = () => {
       status = { state: 'connected', origin: current.origin };
       options.log('connected');
+    };
+    socket.on('upgrade', (response) => {
+      negotiated = response.headers[protocolHeader] === PRIVATE_RELAY_V3;
+    });
+    socket.on('open', () => {
+      if (control !== socket) return;
+      if (!negotiated) {
+        protocol = undefined;
+        connected();
+        return;
+      }
+      protocol = PRIVATE_RELAY_V3;
+      void (async () => {
+        const key = await options.key?.();
+        if (control !== socket) {
+          key?.fill(0);
+          return;
+        }
+        scopedKey = key;
+        const synchronize = () => {
+          const now = Date.now();
+          for (const [token, expiry] of invites) {
+            if (expiry <= now) invites.delete(token);
+          }
+          const peerEntries: { hash: string; peer: true }[] = [];
+          if (key) {
+            for (const relationship of options.relationships?.() ?? []) {
+              try {
+                const cacheKey = relationship.id + ':' + relationship.publicKey;
+                let hash = peerHashes.get(cacheKey);
+                if (!hash) {
+                  hash = hashToken(
+                    relationshipRelayToken(
+                      current.origin,
+                      relationship.id,
+                      key,
+                      relationship.publicKey,
+                    ),
+                  );
+                  peerHashes.set(cacheKey, hash);
+                }
+                peerEntries.push({ hash, peer: true });
+              } catch {
+                options.log('relationship-admission-key-invalid');
+              }
+            }
+          }
+          const entries = [
+            ...Array.from(new Set(options.deviceTokens?.(current.origin)), (token) => ({
+              hash: hashToken(token),
+            })),
+            ...peerEntries,
+            ...Array.from(invites, ([token, expiresAt]) => ({ hash: hashToken(token), expiresAt })),
+          ].sort((a, b) => a.hash.localeCompare(b.hash));
+          const encoded = JSON.stringify(entries);
+          if (latest?.encoded === encoded) return latest.acknowledged;
+          const id = randomBytes(16).toString('hex');
+          const acknowledged = new Promise<boolean>((resolve) => {
+            const timer = setTimeout(() => socket.terminate(), 4000);
+            timer.unref();
+            pending.set(id, (ok) => {
+              clearTimeout(timer);
+              resolve(ok);
+            });
+          });
+          latest = { encoded, acknowledged };
+          send({ type: 'admissions', id, entries });
+          return acknowledged;
+        };
+        sync = () => {
+          try {
+            return synchronize();
+          } catch {
+            socket.terminate();
+            return Promise.resolve(false);
+          }
+        };
+        if ((await sync()) && control === socket) connected();
+      })().catch(() => socket.terminate());
     });
     socket.on('error', () => socket.terminate());
     socket.on('close', () => {
+      for (const done of pending.values()) done(false);
+      pending.clear();
       if (control !== socket) return;
       stop();
       status = { state: 'error', origin: current.origin, issue: 'private-relay-unreachable' };
@@ -111,6 +210,13 @@ export function createPrivateConnection(options: {
         const input = JSON.parse(data.toString()) as { type?: string; id?: string; data?: string };
         if (!input.id || !/^[a-f0-9]{32}$/u.test(input.id)) throw new Error();
         const id = input.id;
+        if (input.type === 'admissions-ack' && negotiated) {
+          const complete = pending.get(id);
+          if (!complete) throw new Error();
+          pending.delete(id);
+          complete(true);
+          return;
+        }
         if (input.type === 'open') {
           if (peers.has(id) || peers.size >= 32) throw new Error();
           const local = new WebSocket(`ws://127.0.0.1:${options.port()}${CONNECT_CHANNEL_PATH}`, {
@@ -164,6 +270,45 @@ export function createPrivateConnection(options: {
       config && status.state === 'connected'
         ? { origin: config.origin, token: config.phoneToken }
         : undefined,
+    async pairingAdmission(
+      expiresAt: string,
+      managedOnly = false,
+    ): Promise<PrivateRelayAdmission | undefined> {
+      const origin = config?.origin;
+      if (!config || !origin || status.state !== 'connected') return;
+      if (!protocol) return managedOnly ? undefined : { origin, token: config.phoneToken };
+      const token = randomBytes(32).toString('hex');
+      if (invites.size >= 16) {
+        const oldest = invites.keys().next().value;
+        if (oldest) invites.delete(oldest);
+      }
+      invites.set(token, Date.parse(expiresAt));
+      if ((await sync?.()) && invites.has(token))
+        return { origin, token, protocol: PRIVATE_RELAY_V3 };
+      invites.delete(token);
+      if (managedOnly) throw new Error('private-relay-unreachable');
+    },
+    relationshipAdmission(id: string, publicKey: string): PrivateRelayAdmission | undefined {
+      if (!config || status.state !== 'connected') return;
+      const { origin, phoneToken } = config;
+      if (!protocol) return { origin, token: phoneToken };
+      if (scopedKey)
+        return {
+          origin,
+          token: relationshipRelayToken(origin, id, scopedKey, publicKey),
+          protocol: PRIVATE_RELAY_V3,
+        };
+    },
+    syncAdmissions: () => sync?.(),
+    invalidateInvites() {
+      invites.clear();
+      return sync?.();
+    },
+    async revokedAdmission() {
+      if (!config) return;
+      if (!protocol && status.state === 'connected') return 'legacy' as const;
+      return (await sync?.()) ? ('removed' as const) : ('pending' as const);
+    },
     async restore() {
       const stored = await options
         .credentials()

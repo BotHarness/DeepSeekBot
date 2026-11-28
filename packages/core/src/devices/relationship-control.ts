@@ -5,6 +5,7 @@ import type { ConnectAccount } from './connect-account.js';
 import { EnrollmentRefused } from './relationship-enrollments.js';
 import {
   relationshipObservationSchema,
+  relationshipRouteAdmissionSchema,
   relationshipTransportPeerSchema,
   type RelationshipTransportPeer,
 } from './relationship-contract.js';
@@ -16,6 +17,7 @@ import type { PrivateAdmission } from '@botharness/host-client/hosts';
 import { openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
 import { checkRoute, isPrivateRoute } from '@botharness/host-protocol/route';
 import { parsePairingLink } from '@botharness/host-client/pairing';
+import { relationshipRelayToken } from '@botharness/host-protocol/private-relay';
 import { nodeDeviceCarrier } from './node-carrier.js';
 import type { DevicePairing } from './pairing.js';
 import type { EncryptionIdentity } from './noise-identity.js';
@@ -87,7 +89,8 @@ export function createRelationshipControl(options: {
   identity: { key(): Promise<Uint8Array>; publicIdentity(): Promise<EncryptionIdentity> };
   routes(): Promise<string[]>;
   account?(): Pick<ConnectAccount, 'relationshipSession' | 'verifyOffer'> | undefined;
-  privateAdmission?: () => PrivateAdmission | undefined;
+  privateAdmission?: (id: string, publicKey: string) => PrivateAdmission | undefined;
+  privatePairingAdmission?: (expiresAt: string) => Promise<PrivateAdmission | undefined>;
   credentials?: () => RelationshipCredentialProvider | undefined;
   now?: () => number;
   record?: (event: {
@@ -154,8 +157,8 @@ export function createRelationshipControl(options: {
     publicKey: (await options.identity.publicIdentity()).publicKey,
     routes: await options.routes(),
   });
-  const wirePeer = async (): Promise<RelationshipTransportPeer> => {
-    const privateRelay = options.privateAdmission?.();
+  const wirePeer = async (id: string, publicKey: string): Promise<RelationshipTransportPeer> => {
+    const privateRelay = options.privateAdmission?.(id, publicKey);
     const parsed = peerSchema.safeParse({
       ...(await ownPeer()),
       ...(privateRelay ? { privateRelay } : {}),
@@ -191,6 +194,14 @@ export function createRelationshipControl(options: {
     try {
       secret = await options.identity.key();
       if (abort.signal.aborted || closed) throw new RelationshipRefused('relationship-cancelled');
+      const scopedToken =
+        privateRelay && command.action !== 'propose' && command.action !== 'account-propose'
+          ? relationshipRelayToken(origin, commandId(command), secret, peer.publicKey)
+          : undefined;
+      const admissionTokens =
+        privateRelay && scopedToken && scopedToken !== privateRelay.token
+          ? [privateRelay.token, scopedToken]
+          : undefined;
       return await new Promise<Record<string, unknown>>((resolve, reject) => {
         const stop = (reason?: unknown) =>
           reject(
@@ -202,6 +213,7 @@ export function createRelationshipControl(options: {
           );
         abort.signal.addEventListener('abort', () => stop(), { once: true });
         channel = openNoiseSocket({
+          ...(admissionTokens ? { admissionTokens } : {}),
           origin,
           hostId: peer.id,
           encryption: {
@@ -325,7 +337,7 @@ export function createRelationshipControl(options: {
       const response = await request(relationship.peer, {
         action: 'status',
         id: relationshipId,
-        peer: await wirePeer(),
+        peer: await wirePeer(relationship.id, relationship.peer.publicKey),
       });
       if (response['state'] === 'disconnected') {
         checkOpen();
@@ -579,7 +591,7 @@ export function createRelationshipControl(options: {
           }
           if (relationship.state === 'disconnected')
             return { ok: true, state: 'disconnected', peer: { ...(await ownPeer()), routes: [] } };
-          const peer = await wirePeer();
+          const peer = await wirePeer(command.id, peerKey);
           return { ok: true, state: checkRelationship(command.id, peerKey).state, peer };
         }
         if (command.action === 'verify-return') {
@@ -619,7 +631,13 @@ export function createRelationshipControl(options: {
           authorization.check();
         }
         const offer = relationships.enrollment(command.id, peerKey, command);
-        return { ok: true, offer: offer.offer, expiresAt: offer.expiresAt };
+        const relayPairing = await options.privatePairingAdmission?.(offer.expiresAt);
+        return {
+          ok: true,
+          offer: offer.offer,
+          expiresAt: offer.expiresAt,
+          ...(relayPairing ? { relayPairing } : {}),
+        };
       } catch (error) {
         if (error instanceof EnrollmentRefused) return { ok: false, code: error.code };
         if (error instanceof RelationshipRefused) return { ok: false, code: error.code };
@@ -650,7 +668,7 @@ export function createRelationshipControl(options: {
         await request(peer, {
           action: 'propose',
           id: relationship.id,
-          peer: await wirePeer(),
+          peer: await wirePeer(relationship.id, peer.publicKey),
           offer: parsed.payload.offer,
           expiresAt: relationship.expiresAt,
         });
@@ -683,7 +701,7 @@ export function createRelationshipControl(options: {
           remote = await request(relationship.peer, {
             action: 'status',
             id: relationshipId,
-            peer: await wirePeer(),
+            peer: await wirePeer(relationship.id, relationship.peer.publicKey),
           });
           observe(relationshipId, 'outgoing', { state: 'reachable', observedAt: now() });
         } catch (error) {
@@ -773,7 +791,7 @@ export function createRelationshipControl(options: {
           {
             action: 'status',
             id: relationshipId,
-            peer: await wirePeer(),
+            peer: await wirePeer(relationship.id, relationship.peer.publicKey),
           },
           undefined,
           undefined,
@@ -828,7 +846,10 @@ export function createRelationshipControl(options: {
           throw new RelationshipRefused('relationship-inactive');
         if (typeof response['offer'] !== 'string' || typeof response['expiresAt'] !== 'string')
           throw new RelationshipRefused('relationship-response-invalid');
-        const privateRelay = await admissions.read(relationshipId);
+        const relayPairing = relationshipRouteAdmissionSchema
+          .optional()
+          .parse(response['relayPairing']);
+        const privateRelay = relayPairing ?? (await admissions.read(relationshipId));
         const current = activeRelationship(relationshipId, relationship.peer.publicKey);
         authorization?.check();
         return {

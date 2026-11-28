@@ -14,6 +14,16 @@
 - `packages/client/src/client/{bot-intro,connection-methods,connections-dialog,paired-device-setup,paired-devices,pairing-settings,pairing-table,phone-pairing-address}.tsx`
 - `packages/client/src/client/use-paired-devices.ts`
 - `packages/core/src/devices/pairing.ts`
+- `packages/core/src/devices/private-relay.ts`
+- `deploy/private-relay/conformance.mjs`
+
+## Private relay revocation
+
+Use a task-owned v3 relay and Host, with two updated phones and two approved pairings on that Host. Confirm both can exchange messages. Revoke phone A from Devices or with `device-revoke <id> --confirm`. The CLI should report `relayAdmission: removed` after the relay acknowledges.
+
+Close and reconnect both clients. Phone A's next relay upgrade must receive HTTP 403. Phone B must open a new channel and receive a Bot reply without a new pairing code. Restart the same relay with its data directory and repeat both reconnects. The Go restart test and relay conformance check qualify the protocol. Record native Bot-reply evidence separately.
+
+Set `BOTHARNESS_TEST_GO_RELAY` to an absolute path to a local Go relay binary when running `packages/core/test/private-relay.test.ts`. The integration test exercises the Host's encrypted gateway with both the Go relay and the legacy Node relay.
 
 ## Terms
 

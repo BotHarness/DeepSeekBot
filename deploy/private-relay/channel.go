@@ -82,7 +82,13 @@ func (r *relay) upgrade(w http.ResponseWriter, req *http.Request) {
 		refuseUpgrade(w)
 		return
 	}
-	name, host := r.reserveUpgrade(token, hosting)
+	v3 := hosting && req.Header.Get(protocolHeader) == protocolV3
+	if !secretPattern.MatchString(token) {
+		refuseUpgrade(w)
+		return
+	}
+	hash := digest(token)
+	name, host := r.reserveUpgrade(hash, hosting, v3)
 	if host == nil {
 		refuseUpgrade(w)
 		return
@@ -92,37 +98,45 @@ func (r *relay) upgrade(w http.ResponseWriter, req *http.Request) {
 	if browser {
 		req.Header.Set("Sec-WebSocket-Protocol", browserProtocol)
 	}
-	conn, err := upgrader.Upgrade(w, req, nil)
+	var headers http.Header
+	if v3 {
+		headers = http.Header{protocolHeader: []string{protocolV3}}
+	}
+	conn, err := upgrader.Upgrade(w, req, headers)
 	if err == nil {
 		releasePendingConnection(req.Context())
 	}
-	r.finishUpgrade(name, host, hosting, conn)
+	r.finishUpgrade(name, host, hash, hosting, conn)
 }
 
-func (r *relay) reserveUpgrade(token string, hosting bool) (string, *liveHost) {
+func (r *relay) reserveUpgrade(hash string, hosting, v3 bool) (string, *liveHost) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	name := r.nameFor(token, !hosting)
+	name := r.find(hash, !hosting)
 	host := r.live[name]
 	if r.closed || name == "" {
 		return "", nil
 	}
 	if hosting {
-		if host != nil || len(r.live) >= maxHosts {
+		if host != nil || len(r.live) >= maxHosts || (r.slots[name].Managed && !v3) {
 			return "", nil
 		}
-		host = &liveHost{ready: make(chan struct{}), phones: make(map[string]*relaySocket)}
+		host = &liveHost{
+			ready: make(chan struct{}), phones: make(map[string]*relaySocket),
+			admissionReady: !v3, managedControl: v3,
+		}
 		r.live[name] = host
 	} else {
 		if host != nil && host.control == nil {
 			r.mu.Unlock()
 			<-host.ready
 			r.mu.Lock()
-			if r.live[name] != host {
+			if r.live[name] != host || !r.slots[name].admits(hash) {
 				return "", nil
 			}
 		}
-		if !host.connected() || len(host.phones)+host.pendingPhones >= maxPhones {
+		if !host.connected() || !host.admissionReady ||
+			len(host.phones)+host.pendingPhones >= maxPhones {
 			return "", nil
 		}
 		host.pendingPhones++
@@ -130,7 +144,7 @@ func (r *relay) reserveUpgrade(token string, hosting bool) (string, *liveHost) {
 	return name, host
 }
 
-func (r *relay) finishUpgrade(name string, host *liveHost, hosting bool, conn *websocket.Conn) {
+func (r *relay) finishUpgrade(name string, host *liveHost, hash string, hosting bool, conn *websocket.Conn) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if hosting {
@@ -138,7 +152,7 @@ func (r *relay) finishUpgrade(name string, host *liveHost, hosting bool, conn *w
 	} else {
 		host.pendingPhones--
 	}
-	if r.live[name] != host || (!hosting && !host.connected()) {
+	if r.live[name] != host || (!hosting && (!host.connected() || !r.slots[name].admits(hash))) {
 		if conn != nil {
 			_ = conn.Close()
 		}
@@ -157,6 +171,8 @@ func (r *relay) finishUpgrade(name string, host *liveHost, hosting bool, conn *w
 		return
 	}
 	id := randomHex(16)
+	socket.admissionHash = hash
+	socket.peerAdmission = r.slots[name].peerAdmission(hash)
 	host.phones[id] = socket
 	host.control.send(message("open", id))
 	go r.readPhone(host, id, socket)
@@ -185,13 +201,13 @@ func (r *relay) readHost(name string, host *liveHost) {
 	}()
 	for {
 		data, ok := readText(host.control.conn, 2*maxFrame)
-		if !ok || !r.handleControl(host, data) {
+		if !ok || !r.handleControl(name, host, data) {
 			return
 		}
 	}
 }
 
-func (r *relay) handleControl(host *liveHost, data []byte) bool {
+func (r *relay) handleControl(name string, host *liveHost, data []byte) bool {
 	var input map[string]json.RawMessage
 	if json.Unmarshal(data, &input) != nil {
 		return false
@@ -200,6 +216,9 @@ func (r *relay) handleControl(host *liveHost, data []byte) bool {
 	if json.Unmarshal(input["id"], &id) != nil || !channelID.MatchString(id) ||
 		json.Unmarshal(input["type"], &kind) != nil {
 		return false
+	}
+	if kind == "admissions" {
+		return host.managedControl && r.replaceAdmissions(name, host, id, input["entries"])
 	}
 	var text *string
 	if kind != "close" &&
@@ -248,14 +267,16 @@ func (r *relay) readPhone(host *liveHost, id string, phone *relaySocket) {
 }
 
 type relaySocket struct {
-	conn        *websocket.Conn
-	done        chan struct{}
-	wake        chan struct{}
-	mu          sync.Mutex
-	pending     [][]byte
-	queuedBytes int
-	drainTimer  *time.Timer
-	alive       atomic.Bool
+	admissionHash string
+	peerAdmission bool
+	conn          *websocket.Conn
+	done          chan struct{}
+	wake          chan struct{}
+	mu            sync.Mutex
+	pending       [][]byte
+	queuedBytes   int
+	drainTimer    *time.Timer
+	alive         atomic.Bool
 }
 
 func newSocket(conn *websocket.Conn) *relaySocket {

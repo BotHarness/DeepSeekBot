@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { CONNECT_HOSTNAME } from '@botharness/host-protocol/connect-zones';
 import { checkRoute, isPrivateRoute, hasPrivateOrigin } from '@botharness/host-protocol/route';
 import type { PrivateAdmission } from '@botharness/host-client/hosts';
+import { PRIVATE_RELAY_V3 } from '@botharness/host-protocol/private-relay';
 
 export function relationshipAdmissionForRoutes(
   admission: PrivateAdmission | undefined,
@@ -15,6 +16,7 @@ export function relationshipAdmissionForRoutes(
   return {
     origin,
     token: admission.token,
+    ...(admission.protocol ? { protocol: admission.protocol } : {}),
     ...(additionalOrigins.length ? { additionalOrigins: additionalOrigins.slice(0, 1) } : {}),
   };
 }
@@ -30,11 +32,13 @@ export const relationshipRouteAdmissionSchema = z
   .object({
     origin: privateOrigin,
     token: z.string().regex(/^[a-f0-9]{64}$/u),
+    protocol: z.literal(PRIVATE_RELAY_V3).optional(),
     additionalOrigins: z.array(privateOrigin).max(1).optional(),
   })
-  .transform(({ origin, token, additionalOrigins }) => ({
+  .transform(({ origin, token, additionalOrigins, protocol }) => ({
     origin,
     token,
+    ...(protocol ? { protocol } : {}),
     ...(additionalOrigins?.length ? { additionalOrigins } : {}),
   }));
 

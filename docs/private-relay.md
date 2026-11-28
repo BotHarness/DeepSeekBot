@@ -62,7 +62,7 @@ From outside the server, open `/health` at the public HTTPS origin. Expect `both
 4. Choose **Show phone pairing code**. On the native phone, scan it and verify the full Host fingerprint against the trusted desktop. On the desktop, compare and approve the exact phone key.
 5. Send a Bot message from the phone and check the actual reply. For external-access acceptance use mobile data, not only home Wi-Fi.
 
-The first successful claim wins. A repeated or competing claim is refused. Relay admission is not Host authorization: the pinned Host key and per-Host device approval remain mandatory. The QR includes sensitive relay admission material; treat it like a pairing invitation. Revoking a phone denies Host access and closes its active encrypted channels, even though the relay admission token shared by the phones of that computer is not rotated.
+The first successful claim wins. A repeated or competing claim is refused. The pinned Host key and per-device approval authorize Host access. Keep the pairing QR private. On a v3 relay, revoking a phone also closes its relay admission and expires outstanding relay invitations. Other approved phones keep their access without a new scan. Older relays still use the shared admission token. Update phone apps before enabling v3 on their Host. See [protocol negotiation](private-relay-standard.md#v3-device-admission).
 
 ## More computers on one relay
 

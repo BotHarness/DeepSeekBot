@@ -2,7 +2,7 @@
 
 The private relay standard lets one outbound-only service carry the encrypted phone channel for several computers that have no inbound reachability. Anyone can implement a compatible relay. The bundled Go relay (`tobs-relay` in `deploy/private-relay`) is the reference implementation. The relay forwards ciphertext. The computer's pinned Noise key and exact-device approval determine who can control it.
 
-This page describes `botharness-private-v2`. A v2 relay also accepts every v1 request, so a single-computer v1 setup keeps working.
+This page describes `botharness-private-v3`. A v3 relay serves v1 and v2 Hosts until each Host enables v3 on its own claim.
 
 The legacy Node and Caddy deployment and its Node server tests are retained for rollback until [real-device acceptance #3746](https://github.com/BotHarness/DeepSeekBot/issues/3746) passes. The conformance script below also runs against the Go reference relay.
 
@@ -18,7 +18,7 @@ All endpoints are HTTPS in production. Responses are JSON with `cache-control: n
 
 | Request                                                                                                  | Auth                                  | Result                                                                                                                                         |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                                                                            | none                                  | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2"]}`                                       |
+| `GET /health`                                                                                            | none                                  | `200 {"protocol":"botharness-private-v1","protocols":["botharness-private-v1","botharness-private-v2","botharness-private-v3"]}`               |
 | `POST /claim` with body `{"ownerToken":"<64 lowercase hex>","phoneToken":"<64 lowercase hex>"}` (≤1 KiB) | `Authorization: Bearer <claim key>`   | `200 {"claimed":true,"host":"example-host"}`; `403` unknown key; `409` key already used (also after release); `400` malformed or reused tokens |
 | `DELETE /claim`                                                                                          | `Authorization: Bearer <owner token>` | `200 {"released":true}`: closes that computer's sockets and forgets its tokens; the claim key stays used                                       |
 | `GET /status`                                                                                            | `Authorization: Bearer <owner token>` | `200 {"connected":true,"host":"example-host"}`; `404` otherwise                                                                                |
@@ -43,6 +43,23 @@ A Host-requested phone close delivers already queued frames in order before clos
 
 The ID above is an example; `<Noise ciphertext>` stands for the actual encrypted frame, not a literal message to send.
 
+## V3 device admission
+
+`GET /health` keeps `protocol: "botharness-private-v1"` and lists `botharness-private-v3` after v1 and v2 in `protocols`. A v3 computer sends `X-BotHarness-Relay-Protocol: botharness-private-v3` on its authenticated `GET /host` upgrade. It uses v3 control messages only if the relay echoes that header in the `101` response. Without the echo, the existing shared-token behavior applies to v1/v2 relays.
+
+On each negotiated control connection, the relay refuses phone upgrades until the Host sends its complete admission set. The Host repeats the message whenever the set changes.
+
+- Host → relay: `{"type":"admissions","id":"<32 lowercase hex>","entries":[{"hash":"<64 lowercase hex>"},{"hash":"<64 lowercase hex>","expiresAt":1795500000000}]}`.
+- Relay → Host: `{"type":"admissions-ack","id":"<same id>"}` after atomically storing the set and applying it to new and open sockets.
+
+The set may be empty and contains at most 1,024 unique hashes. A hash is SHA-256 of the bearer token's 64 lowercase hex characters, encoded as lowercase hex. An optional `expiresAt` is a Unix timestamp in milliseconds for a temporary invitation. The relay accepts expirations up to 11 minutes in the future for 10-minute invitations and clock skew. A permanent entry can set `peer: true` for a computer-to-computer admission. Removing it refuses future upgrades and leaves an open channel to finish its final exchange. The Host still enforces relationship state inside Noise.
+
+The relay closes the control socket on invalid updates or storage failure. Once a claim has a v3 set, its original shared token is retired and subsequent control sockets must negotiate v3. A restarted relay loads the registrations from disk and waits for the Host to reconcile them before accepting phones. If a revoke happens while disconnected, the next sync excludes the revoked device.
+
+BotHarness creates a random admission token per pairing invitation and cancels outstanding relay invitations when a device is revoked. For a paired device with credential `id.secret`, the bearer used for reconnect is HMAC-SHA-256 keyed by the 32-byte SHA-256 digest of the secret's UTF-8 text. The message is the UTF-8 encoding of the compact JSON array `["botharness-private-v3", origin, id]`, where `origin` is the exact HTTPS origin. The output is lowercase hex. The relay receives only the derived bearer on upgrade and stores only its hash. The device credential and pinned-key Noise admission still authorize application traffic.
+
+Update phones and browser Clients before upgrading the Host to v3. Updated Clients with an existing pairing try their saved admission first and use the derived bearer if the socket is refused before opening. A new v3 pairing uses its invitation during pairing and its derived bearer afterward. Existing approved devices can migrate while offline and reconnect without a new scan. A legacy app binary needs an update to open a v3 Host's route. A migrated claim closes admission on an older relay binary because its retired shared token is no longer usable.
+
 ## Conformance
 
 `deploy/private-relay/conformance.mjs` checks a running relay from the outside:
@@ -52,4 +69,4 @@ cd deploy/private-relay && npm ci
 node conformance.mjs --origin https://relay.example.com --key-a-file a.secret --key-b-file b.secret
 ```
 
-Use two unused claim keys. The run claims both, connects two computers and their phones, checks that each phone reaches only its own computer, that one computer going offline or releasing its claim leaves the other untouched, and that a released key cannot be claimed again. It ends with `conformance: pass` or lists each failed check.
+Use two unused claim keys. The run claims both, connects two computers and their phones, checks routing isolation and verifies that a released key cannot be claimed again. On v3 it also retires the shared token, revokes one phone and verifies that another phone on the same Host can reconnect and exchange data. It ends with `conformance: pass` or lists each failed check.

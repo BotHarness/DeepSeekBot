@@ -183,7 +183,7 @@ func serve(ctx context.Context, o *options) error {
 	if manager != nil {
 		go manager.renew(ctx)
 	}
-	log.Printf("relay listening on %s (%s, %s)", listener.Addr(), protocolV1, protocolV2)
+	log.Printf("relay listening on %s (%s, %s, %s)", listener.Addr(), protocolV1, protocolV2, protocolV3)
 	select {
 	case <-ctx.Done():
 		return nil
@@ -311,7 +311,7 @@ func health(ctx context.Context, o *options) error {
 		Protocols []string
 	}
 	if resp.StatusCode != 200 || json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 1024)).Decode(&body) != nil ||
-		len(body.Protocols) != 2 || body.Protocols[0] != protocolV1 || body.Protocols[1] != protocolV2 {
+		len(body.Protocols) < 2 || body.Protocols[0] != protocolV1 || body.Protocols[1] != protocolV2 {
 		return errors.New("relay health probe failed")
 	}
 	fmt.Println("healthy")

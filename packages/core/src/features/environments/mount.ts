@@ -132,6 +132,7 @@ export function mountDevicePairing(
   };
   let push: PushDelivery | undefined;
   let activity: ActivityDelivery | undefined;
+  let privateAdmissionChanged: ((invalidateInvites?: boolean) => void) | undefined;
   const videoOwner = (): LocalVideoOwner | undefined =>
     (ctx.get('botharnessComputer') as ComputerService | undefined)?.localVideo;
   const voiceCall = async (
@@ -168,6 +169,7 @@ export function mountDevicePairing(
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     ...(options.onDevicesChanged ? { onChange: options.onDevicesChanged } : {}),
     onRevoked: (deviceId) => {
+      privateAdmissionChanged?.(true);
       push?.unregister(deviceId);
       const activityStarted = Date.now();
       void activity
@@ -190,12 +192,14 @@ export function mountDevicePairing(
           write('computer', 'video-revoke-failed', 'computer-video phase=revoke-failed'),
         );
     },
-    onPaired: (device) =>
+    onPaired: (device) => {
+      privateAdmissionChanged?.();
       void push
         ?.announcePaired(device)
         .catch((error: unknown) =>
           ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
-        ),
+        );
+    },
   });
   ctx.effect(
     () => options.team?.bindPairing(pairing) ?? (() => {}),
@@ -339,7 +343,7 @@ export function mountDevicePairing(
       pairing,
       identity,
       credentials: options.credentials ?? (() => undefined),
-      privateAdmission: () => {
+      privateAdmission: (id, publicKey) => {
         const admissions = privateTunnel.admissions();
         const first = admissions[0];
         return first
@@ -350,8 +354,12 @@ export function mountDevicePairing(
                 ? { additionalOrigins: admissions.slice(1).map((route) => route.origin) }
                 : {}),
             }
-          : privateConnection.admission();
+          : privateConnection.relationshipAdmission(id, publicKey);
       },
+      privatePairingAdmission: (expiresAt) =>
+        privateTunnel.admissions().length === 0
+          ? privateConnection.pairingAdmission(expiresAt, true)
+          : Promise.resolve(undefined),
       record: (event) => write('host-relationships', event.phase, JSON.stringify(event)),
       routes: async () =>
         (await routes()).routes
@@ -812,14 +820,33 @@ export function mountDevicePairing(
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
       log: (phase) => write('private-relay', phase, 'private-relay phase=' + phase),
+      deviceTokens: pairing.relayTokens,
+      relationships: () =>
+        relationships
+          .list()
+          .filter((relationship) => relationship.state !== 'disconnected')
+          .map((relationship) => ({ id: relationship.id, publicKey: relationship.peer.publicKey })),
+      key: identity.key,
     });
     webCtx.effect(() => {
+      privateAdmissionChanged = (invalidateInvites) => {
+        if (invalidateInvites) void privateConnection.invalidateInvites();
+        else void privateConnection.syncAdmissions();
+      };
+      const unsubscribe = options.database.subscribe(({ topics }) => {
+        if (topics.includes('member-purged')) void privateConnection.invalidateInvites();
+        else if (topics.includes('host-relationships')) void privateConnection.syncAdmissions();
+      });
       void privateConnection
         .restore()
         .catch(() =>
           write('private-relay', 'restore-failed', 'private-relay phase=restore-failed'),
         );
-      return () => privateConnection.close();
+      return () => {
+        privateAdmissionChanged = undefined;
+        unsubscribe();
+        privateConnection.close();
+      };
     }, 'botharness: private relay');
     const privateTunnel = createPrivateTunnel({
       credentials: options.credentials ?? (() => undefined),

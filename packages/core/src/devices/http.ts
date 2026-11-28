@@ -301,6 +301,7 @@ export function createDevicesHttp(options: {
           tunnelStatus.state !== 'connected')
       )
         return json({ code: 'private-tunnel-unreachable', issue: tunnelStatus?.issue }, 409);
+      const offer = pairing.createOffer();
       const privateRelay = selected
         ? {
             origin: selected.origin,
@@ -313,9 +314,10 @@ export function createDevicesHttp(options: {
                 }
               : {}),
           }
-        : options.privateConnection?.admission();
+        : await options.privateConnection?.pairingAdmission(offer.expiresAt);
+      if (!selected && privateStatus?.state === 'connected' && !privateRelay)
+        return json({ code: 'private-relay-unreachable' }, 409);
       if (privateRelay) routes = [privateRelay.origin];
-      const offer = pairing.createOffer();
       const link = pairingLink({
         v: 1,
         ...(options.encryption === undefined
@@ -371,7 +373,12 @@ export function createDevicesHttp(options: {
       if (target.revokedAt !== undefined)
         return json({ code: 'device-already-revoked', device: target }, 409);
       const result = pairing.revoke(target.id);
-      return json({ ...result, device: { id: target.id, name: target.name } });
+      const relayAdmission = await options.privateConnection?.revokedAdmission();
+      return json({
+        ...result,
+        device: { id: target.id, name: target.name },
+        ...(relayAdmission === undefined ? {} : { relayAdmission }),
+      });
     }
     if (request.method === 'POST' && path === DEVICES_SERVE_PATH && options.publish) {
       const input = await body(request);
