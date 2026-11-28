@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { FlatList, Keyboard, View, type ViewInstance } from 'react-native';
+import { FlatList, View, type ViewInstance } from 'react-native';
 
 import type { HostClient } from '@botharness/host-client/client';
 import {
@@ -12,7 +12,7 @@ import {
 import { SHEET_GROUP, Sheet, SheetFailed } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { SearchField } from '../primitives/search-field';
+import { dismissSheetSearchKeyboard, SheetSearchField } from '../primitives/sheet-search-field';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
@@ -62,7 +62,7 @@ export function MessagePersonSheet({
     };
   }, [client, attempt]);
   const close = () => {
-    Keyboard.dismiss();
+    dismissSheetSearchKeyboard();
     onClose();
   };
   const open = async (person: TeamPerson) => {
@@ -74,7 +74,7 @@ export function MessagePersonSheet({
     try {
       const target = await openHumanDm(client, person);
       if (stale()) return;
-      Keyboard.dismiss();
+      dismissSheetSearchKeyboard();
       onOpened(target);
     } catch {
       if (stale()) return;
@@ -116,7 +116,7 @@ export function MessagePersonSheet({
     >
       <View ref={mount} style={{ flexShrink: 1 }}>
         {load.state === 'ready' && load.people.length > 0 ? (
-          <SearchField
+          <SheetSearchField
             testID="message-person-search"
             value={query}
             onChangeText={setQuery}
