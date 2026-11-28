@@ -61,7 +61,7 @@ export function targetLabels(
   names: ReadonlyMap<string, string>,
   global: string,
 ): (target: string) => string {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, number>([[global, 1]]);
   for (const name of names.values()) counts.set(name, (counts.get(name) ?? 0) + 1);
   return (target) => {
     if (target === 'global') return global;

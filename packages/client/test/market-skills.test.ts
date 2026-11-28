@@ -264,9 +264,13 @@ it('refreshes the install count on ranking cards after adding', async () => {
     ]),
   };
   await act(async () => root.render(createElement(MarketSkills, { actions, t })));
-  const ranked = () =>
-    host.querySelector('[data-market-skill-ranking="hot"] [data-market-skill="tidy-notes"]');
-  await act(async () => ranked()!.querySelector<HTMLButtonElement>('button')!.click());
+  const hot = () =>
+    host.querySelector<HTMLElement>(`section[aria-label="${t('market.section.hot')}"]`)!;
+  const open = () =>
+    [...hot().querySelectorAll('button')].find(
+      (button) => button.textContent === 'tidy-notescarol/skills',
+    )!;
+  await act(async () => open().click());
   await act(async () => buttonNamed(t('market.skills.addOpen')).click());
   await act(async () => checkbox(t('market.skills.global')).click());
   actions.marketplaceSkillDetail.mockResolvedValue({
@@ -275,5 +279,36 @@ it('refreshes the install count on ranking cards after adding', async () => {
     files: review.files,
   });
   await act(async () => buttonNamed(t('market.skills.add')).click());
-  expect(ranked()?.textContent).toContain(t('market.skills.installs', { count: 3 }));
+  expect(hot().textContent).toContain(t('market.skills.installs', { count: 3 }));
+});
+
+it('applies a fresh install count to rankings that arrive after the add', async () => {
+  let release: (
+    value: { section: 'hot'; entries: { skill: MarketplaceSkill; score: number }[] }[],
+  ) => void = () => undefined;
+  const actions = {
+    ...actionsFor(),
+    marketplaceSkillSections: vi.fn(
+      () =>
+        new Promise<{ section: 'hot'; entries: { skill: MarketplaceSkill; score: number }[] }[]>(
+          (resolve) => {
+            release = resolve;
+          },
+        ),
+    ),
+  };
+  await act(async () => root.render(createElement(MarketSkills, { actions, t })));
+  await act(async () => buttonNamed('tidy-notescarol/skills').click());
+  await act(async () => buttonNamed(t('market.skills.addOpen')).click());
+  await act(async () => checkbox(t('market.skills.global')).click());
+  actions.marketplaceSkillDetail.mockResolvedValue({
+    skill: { ...skill, installs: 3 },
+    content: '',
+    files: review.files,
+  });
+  await act(async () => buttonNamed(t('market.skills.add')).click());
+  await act(async () => release([{ section: 'hot', entries: [{ skill, score: 5 }] }]));
+  expect(
+    host.querySelector(`section[aria-label="${t('market.section.hot')}"]`)?.textContent,
+  ).toContain(t('market.skills.installs', { count: 3 }));
 });

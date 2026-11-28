@@ -138,6 +138,7 @@ export function MarketSkills({
   const [more, setMore] = useState(false);
   const [open, setOpen] = useState<MarketplaceSkill>();
   const [rankings, setRankings] = useState<readonly MarketplaceSkillSection[]>([]);
+  const [installs, setInstalls] = useState<ReadonlyMap<string, number>>(new Map());
   const latest = useRef(0);
 
   const ranked = useMountedResource<HTMLDivElement>(() => {
@@ -200,27 +201,35 @@ export function MarketSkills({
   const added = (skill: MarketplaceSkill) =>
     void actions.marketplaceSkillDetail(skill.id).then(
       (detail) => {
-        const fresh = (item: MarketplaceSkill) =>
-          item.id === skill.id ? { ...item, installs: detail.skill.installs } : item;
+        setInstalls((current) => new Map(current).set(skill.id, detail.skill.installs));
         setPage((current) =>
-          current === undefined ? current : { ...current, skills: current.skills.map(fresh) },
-        );
-        setRankings((current) =>
-          current.map((section) => ({
-            ...section,
-            entries: section.entries.map((entry) => ({ ...entry, skill: fresh(entry.skill) })),
-          })),
+          current === undefined
+            ? current
+            : {
+                ...current,
+                skills: current.skills.map((item) =>
+                  item.id === skill.id ? { ...item, installs: detail.skill.installs } : item,
+                ),
+              },
         );
       },
       () => undefined,
     );
+
+  const shownRankings = rankings.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      const count = installs.get(entry.skill.id);
+      return count === undefined ? entry : { ...entry, skill: { ...entry.skill, installs: count } };
+    }),
+  }));
 
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-market-skills>
       <SearchField label={t('market.skills.search')} value={query} onChange={setQuery} />
       <div ref={ranked} {...stylex.props(styles.contents)}>
         {query.trim() === '' ? (
-          <MarketSkillRankings sections={rankings} t={t} onOpen={setOpen} />
+          <MarketSkillRankings sections={shownRankings} t={t} onOpen={setOpen} />
         ) : null}
       </div>
       {error !== undefined ? (

@@ -306,5 +306,8 @@ describe('Marketplace All tab (#5441)', () => {
     ).toEqual(['Helper (helper-a)', 'Helper (helper-b)', zhTranslate('market.skills.globalShort')]);
     expect(targetLabels(names, 'Global')('solo')).toBe('Solo');
     expect(targetLabels(names, 'Global')('global')).toBe('Global');
+    expect(targetLabels(new Map([['global-bot', 'Global']]), 'Global')('global-bot')).toBe(
+      'Global (global-bot)',
+    );
   });
 });
