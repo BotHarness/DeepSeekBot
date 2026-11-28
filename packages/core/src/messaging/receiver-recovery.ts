@@ -1,11 +1,6 @@
-export type ReceptionRecovery =
-  | {
-      kind: 'retrying';
-      reason: 'provider-unavailable';
-      attempt: number;
-      nextRetryAt: string;
-    }
-  | { kind: 'action-required'; reason: string };
+import type { ReceptionRecovery } from '@botharness/host-protocol/messaging-connections';
+
+export type { ReceptionRecovery } from '@botharness/host-protocol/messaging-connections';
 
 interface RecoveryEntry {
   owner: object;

@@ -1,3 +1,4 @@
+import { isMarketplaceSkillSection } from '../../host-protocol/src/marketplace-skill.js';
 import { readBoundedJson } from './bounded-json.js';
 import {
   MAX_SKILL_PUBLISH_BODY,
@@ -10,6 +11,7 @@ import type { Protection } from './protection.js';
 import { SKILL_INSTALL_ROUTE, SKILL_LIST_PATH, SKILL_ROUTE, type MarketSkills } from './skills.js';
 
 export const ADMIN_SKILLS_PATH = '/v1/admin/skills';
+const SKILL_SECTION_ROUTE = /^\/v1\/skills\/sections\/([^/]+)$/u;
 const TARGET_HASH = /^[0-9a-f]{64}$/u;
 const MAX_QUERY = 100;
 
@@ -38,6 +40,7 @@ export function isSkillRoute(pathname: string): boolean {
   return (
     pathname === SKILL_LIST_PATH ||
     SKILL_FILES_ROUTE.test(pathname) ||
+    SKILL_SECTION_ROUTE.test(pathname) ||
     SKILL_ROUTE.test(pathname) ||
     SKILL_INSTALL_ROUTE.test(pathname) ||
     pathname === ADMIN_SKILLS_PATH ||
@@ -47,7 +50,9 @@ export function isSkillRoute(pathname: string): boolean {
 }
 
 export function isPublicSkillRead(pathname: string): boolean {
-  return pathname === SKILL_LIST_PATH || SKILL_ROUTE.test(pathname);
+  return (
+    pathname === SKILL_LIST_PATH || SKILL_ROUTE.test(pathname) || SKILL_SECTION_ROUTE.test(pathname)
+  );
 }
 
 export async function handleSkillRoute(
@@ -172,6 +177,11 @@ export async function handleSkillRoute(
       }),
     );
   }
+  const section = SKILL_SECTION_ROUTE.exec(url.pathname)?.[1];
+  if (section !== undefined)
+    return isMarketplaceSkillSection(section)
+      ? json(200, await skills.section(section))
+      : failure(404, 'section-not-found');
   const id = SKILL_ROUTE.exec(url.pathname)?.[1];
   const detail = id === undefined ? undefined : await skills.detail(id);
   return detail === undefined ? failure(404, 'skill-not-found') : json(200, detail);

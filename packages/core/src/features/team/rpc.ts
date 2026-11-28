@@ -382,6 +382,14 @@ export const teamServiceRpc = {
     return unwrapAsync(this.methods.botAccessRoles({ slug }));
   },
 
+  roleChannels(roleId: string) {
+    return unwrapAsync(this.methods.roleChannels({ roleId }));
+  },
+
+  botInternalMembers(slug: string) {
+    return unwrapAsync(this.methods.botInternalMembers({ slug }));
+  },
+
   roleBotScope(roleId: string) {
     return unwrapAsync(this.methods.roleBotScope({ roleId }));
   },

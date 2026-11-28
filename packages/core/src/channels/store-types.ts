@@ -175,6 +175,7 @@ export interface ChannelStore {
   setHumanAvatar(human: HumanContext, avatar: string | null): LocalHumanIdentity;
   finishHumanProfileSetup(human: HumanContext): LocalHumanIdentity;
   humanAvatars(human: HumanContext, humanIds: readonly string[]): HumanAvatar[];
+  publishRecordChanged?(): void;
   list(): ChannelRecord[];
   get(id: string): ChannelRecord | undefined;
   hasHumanMembership?(human: HumanContext, id: string): boolean;

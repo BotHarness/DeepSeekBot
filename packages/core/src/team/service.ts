@@ -335,7 +335,15 @@ export class TeamService {
       (human, bot, sql) => this.privateAccess.recordBotAction(human, bot, 'botVisibilitySet', sql),
       this.spaceProvider,
     );
-    this.botRoleAccess = new TeamBotRoleAccess(db, this.roles, this.bots, this.replaceBotMemory);
+    this.botRoleAccess = new TeamBotRoleAccess(
+      db,
+      this.roles,
+      this.bots,
+      channels,
+      this.channelAccess,
+      options.now ?? Date.now,
+      this.replaceBotMemory,
+    );
 
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
     this.approvals = new TeamApprovals(db, channels, this.roles, this.bots, this.channelAccess);

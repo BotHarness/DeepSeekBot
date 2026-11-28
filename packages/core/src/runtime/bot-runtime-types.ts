@@ -58,6 +58,7 @@ import type {
   BotHoldCause,
   BotStopOutcome,
   NativeSessionArchive,
+  OrchestratorAgentRun,
   OrchestratorReplacement,
   SessionStopOutcome,
 } from '../features/sessions/agent-run-types.js';
@@ -135,6 +136,11 @@ export interface BotRuntime {
     human?: HumanContext,
   ): Promise<void>;
   compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
+  attachResumedOrchestrator?(
+    botSlug: string,
+    sessionId: string,
+    attach: (run: OrchestratorAgentRun) => Promise<void>,
+  ): Promise<void>;
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission;
   sendOrchestratorMessage?(
     human: HumanContext,

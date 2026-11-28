@@ -231,6 +231,7 @@ deepseekbot skills-list --bot <bot-id> --session <session-id> [--query <text>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <name> --owner bot:<bot-id>
 deepseekbot skills-remove <name> --bot <bot-id> --confirm
+deepseekbot market skills sections [--section hot|new|rising]
 deepseekbot marketplace-skill-list [--query <text>] [--cursor <n>]
 deepseekbot marketplace-skill-detail <skill-id>
 deepseekbot skills-add <skill-id> --bot <bot-id>[,<bot-id>...] [--on-conflict replace|rename] [--review <review-id> --confirm]
@@ -270,6 +271,8 @@ Trusted effect declarations describe tool calls on approval cards; they do not b
 `skills-list --bot <bot-id> --session <session-id>` returns what the `/` menu in that Session's detail composer offers. It lists the Skills the Session itself can discover: Host Skills, that Bot's Memory Repository Skills, and the Project Skills of the Workspace Grant whose folder is the Session's working directory. It lists one entry per name, using the precedence in [ADR-0345](decisions/workspaces.md#adr-0345): Workspace, then Memory, then Host. Picking one inserts a plain `/name` token. The request reaches the Session as user input, so DSH's own Skill gesture loads that Skill there; no snapshot is stored.
 
 `skills-memory --bot <bot-id>` lists the Project Skills in that PersonaBot's own Memory Repository, the same list as its profile's **Skills** card: root `.dsh/skills` before `.agents/skills`, model-only Skills included (`userInvocable: false`), Workspace Skills excluded. `skills-show <name> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` returns that Skill's full text. `skills-remove <name> --bot <bot-id> --confirm` deletes the Skill folder (or flat `.md` file) from the Memory Repository and commits `skills: remove <name>`, so git history can restore it (uncommitted edits are committed first as `skills: save <name> before removal`; a folder holding git-ignored files refuses with `skill-has-ignored-files`, because history could not restore them); the open `/` menu updates through the live catalog event. Without `--confirm` it refuses. There is no disable switch. A missing Skill refuses with `skill-not-found`.
+
+`market skills sections` reads the Hot, New, and Rising Marketplace Skill rankings from the Host. Use `--section` to keep one section in the returned JSON array. The Host returns `marketplace-unavailable` when it cannot read the rankings.
 
 `marketplace-skill-list` searches the Skills section of the Marketplace: Indexed Skill Repositories (public GitHub repositories with the `tobs-skill` topic), one entry per `SKILL.md` folder, ordered by installs then stars. `marketplace-skill-detail <skill-id>` returns the entry's `SKILL.md`, file list, `scripts` and scan `findings`. `skills-add <skill-id>` without `--confirm` downloads the listed commit's files, scans them again on the Host, and prints the review (`verdict`, `findings`, `scripts`, `files`, `conflicts`) plus the Bots you may add to; nothing changes. Show that review to the Human, then repeat with `--review <reviewId> --confirm`; the add uses exactly the files of that review, even if the entry was refreshed since. `--bot` adds to each named Bot you own: it writes `.agents/skills/<name>/` in the Memory Repository and commits `skills: add <name> from Marketplace (<owner>/<repo>)`. `--global` adds a Host Skill under `<DSH home>/skills/<name>/`, visible to every Bot unless a Bot has its own Project Skill with that name; only the Host owner (or the owner's Bots) may. The written `SKILL.md` records `metadata.tobs-source` (the entry id), `tobs-repository` and `tobs-hash`. A name already taken refuses with `skill-exists` unless `--on-conflict replace` (overwrite the folder) or `rename` (add as `<name>-2`). A Skill whose files hold a download-and-execute pattern refuses with `skill-blocked`; a review older than 30 minutes refuses with `review-expired`. Each Bot target and the global target count one Install Receipt.
 
@@ -529,6 +532,7 @@ deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
 deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot im-connections [--read-mode saved|status]
 deepseekbot messaging-grants <bot-id> --read-mode status
 deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
@@ -543,6 +547,8 @@ deepseekbot im-app-remove discord --app <app-id>
 `im-status` and `messaging-grants` include process-local `recovery` metadata: `retrying` with `reason`, `attempt`, `nextRetryAt`, or `action-required` with `reason`. Temporary provider readiness failures retry exponentially from 250 ms to a 30 s cap until recovery. Host restart reconstructs receivers from enabled bindings and grants. `im-reconnect` uses the existing Owner and current revision without changing conversation access. Failed mutations are reported, never automatically replayed.
 
 `im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](decisions/im-providers.md#adr-0343).
+
+`im-connections` lists App Bindings for all Bots on the Host, including paused bindings and bindings whose Provider is unavailable. It requires the Host Owner. The default `status` checks each bound account. Use `--read-mode saved` for the same inventory without Provider checks (`checks: pending`). `canOpenSettings` indicates whether the Host Owner also owns the Bot.
 
 ### IM messaging, approvals and failure alerts from the CLI
 
@@ -959,8 +965,17 @@ does not resolve Inbox or conclude the turn. `bot-trace --session direct` record
 `action: "inspect" | "drop" | "react"` and explicit `channel_id`, with the required draft or
 reaction references. It is available through `bot-tool` as well. The model sees only
 `bot_send_message` for delivery; old send names remain direct-CLI compatibility commands.
-Proactive colleague text uses `bot_id`; reachable external posting uses `binding_id` with
+Proactive colleague messages use `bot_id`; reachable external posting uses `binding_id` with
 `conversation_id`. These target forms are exclusive with the other destination fields.
+
+For a local `bot_id`, pass up to ten references returned by `channel_attachment_import` in
+`attachments`. Set `body` to an empty string for a file-only message. The import limit is 25 MiB
+per file. Remote Bot DMs accept text. A `committed` receipt with `notWoken` means the Channel
+message was saved and the listed Bots did not receive an Inbox admission. A `send-streak`
+refusal ends a turn after three consecutive sends to the same destination without other work.
+`collaboration-hop-limit` reports the attempted hop and the configured depth limit. A new Human
+DM or @-mention can start a new chain. Use `diagnostic-logs --kind error` to find
+`bot-send-message` entries with the reason and applicable limit.
 
 `bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen. A Bot-to-Bot send requires `--cause-event <source-event-id>` naming a real Source Event admitted to this Bot; the Host checks admission ownership, current Channel membership and the source-effect fence. A missing cause still fails, and another Bot's source returns `source-unavailable`. The flag supplies causation separately from the tool's single destination. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (waiting on an Assignment, question cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
@@ -2633,6 +2648,8 @@ deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expect
 deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
 deepseekbot bots access-directory
 deepseekbot bots access-roles <slug>
+deepseekbot --as <username> roles channels <roleId>
+deepseekbot --as <username> bots channels <slug>
 ```
 
 Use the revision from `roles bot-scope` when saving. For selected scope, also pass its `editableBotsRevision`. `selected:` replaces the editable selections on
@@ -2642,6 +2659,10 @@ The explicit selections stay saved. Each Bot row reports its `audience` (`everyo
 `members`) and whether it is `editable`; only role-audience Bots can be selected for a role.
 The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
 role sources. Active invitees are visible to callers with `members.manage`. A private Bot's access is visible to its owner only.
+
+Both Channel reads return JSON and accept `--as <username>`. `roles channels` requires `roles.manage` or `members.manage`. It returns `autoJoin` for public and matching role-visible Channels, and `overrides` for Channels with a policy row for the role. Entries can appear in both groups and identify the Channel and its `permissions` tab. Private Channels require an invitation.
+
+`bots channels` uses the same Bot owner and manager rules as `bots access-roles`. It returns readable `channels`, `dmMembers` who can currently DM the Bot, and `recentInteractions`. Callers without `members.manage` see only their own entry in `dmMembers`. Recent interactions are metadata from the caller’s readable internal DMs with the Bot. The result includes the latest non-notice message timestamp per DM from the past 30 days, newest first, up to 20 entries.
 
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 

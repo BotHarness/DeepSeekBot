@@ -108,6 +108,7 @@ describe("generated developer reference", () => {
       { name: "agent/created", direction: "consumes", operation: "on" },
       { name: "agent/created", direction: "consumes", operation: "on" },
       { name: "agent/created", direction: "consumes", operation: "on" },
+      { name: "agent/created", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },
       { name: "agent/disposed", direction: "consumes", operation: "on" },

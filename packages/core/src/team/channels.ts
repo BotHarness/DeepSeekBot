@@ -1,3 +1,4 @@
+import type { RoleChannelLink, RoleChannelsView } from '@botharness/host-protocol/team-roles';
 import { channelActionRoleIds } from './host-permissions.js';
 import {
   CHANNEL_APPROVAL_ACTIONS,
@@ -133,6 +134,52 @@ export class TeamChannels {
         .map((row) => row.channel_id),
     );
   }
+  roleChannels(human: HumanContext, roleId: string): RoleChannelsView {
+    this.roles.botScopeTarget(human, roleId);
+    const rows = this.db.read((db) =>
+      z
+        .array(
+          z.object({
+            channelId: z.string(),
+            name: z.string(),
+            autoJoin: z.coerce.boolean(),
+            override: z.coerce.boolean(),
+          }),
+        )
+        .parse(
+          db
+            .prepare(`
+        SELECT c.channel_id AS channelId, json_extract(c.record_json, '$.name') AS name,
+          (json_extract(c.visibility_json, '$.kind') = 'public' OR (
+            json_extract(c.visibility_json, '$.kind') = 'roles' AND EXISTS (
+              SELECT 1 FROM json_each(c.visibility_json, '$.roleIds') WHERE value = ?
+            )
+          )) AS autoJoin,
+          EXISTS (
+            SELECT 1 FROM json_each(c.permission_table_json, '$.overrides')
+            WHERE json_extract(value, '$.roleId') = ?
+          ) AS override
+        FROM channel_records c
+        WHERE c.channel_id IN (${this.accessQuery(false)})
+          AND json_extract(c.record_json, '$.type') = 'group'
+        ORDER BY c.channel_id
+      `)
+            .all(roleId, roleId, human.humanId),
+        ),
+    );
+    const link = ({ channelId, name }: (typeof rows)[number]): RoleChannelLink => ({
+      channelId,
+      name,
+      tab: 'permissions',
+    });
+    return {
+      roleId,
+      autoJoin: rows.filter((row) => row.autoJoin).map(link),
+      overrides: rows.filter((row) => row.override).map(link),
+      privateChannelsRequireInvitation: true,
+    };
+  }
+
   canKnow(human: HumanContext, channelId: string): boolean {
     return !!this.db.read((db) =>
       db
@@ -289,6 +336,7 @@ export class TeamChannels {
       ['channels', 'team'],
     );
     this.changed(visibility.kind !== 'public');
+    if (visibility.kind === 'public') this.channels.publishRecordChanged?.();
     return null;
   }
   private memberId(reference: string): string {

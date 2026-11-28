@@ -90,6 +90,7 @@ const LOCAL_LOG_COMMANDS = new Set([
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'bots', description: 'bots list|create|show|delete' },
+  { command: 'market', description: 'market skills sections reads the Marketplace Skill rankings' },
   {
     command: 'skills',
     description: 'skills publish|replace|delete|mine: Marketplace Skill uploads',
@@ -228,6 +229,7 @@ export async function runBotCreateCli(
           'proactive-opt-out',
           'access-directory',
           'access-roles',
+          'channels',
         ].includes(action)
       ) {
         command = 'bot-access';
@@ -235,6 +237,14 @@ export async function runBotCreateCli(
         if (!action || !aliases[action]) throw usageError('invalid-input');
         command = aliases[action];
         rest = targets;
+      }
+    } else if (command === 'market') {
+      const [category, action, ...targets] = rest;
+      if (category === 'skills' && action === 'sections') {
+        command = 'market-skills-sections';
+        rest = targets;
+      } else if (values.help !== true) {
+        throw usageError('market takes skills sections [--section hot|new|rising].');
       }
     } else if (command === 'skills') {
       const [action, ...targets] = rest;

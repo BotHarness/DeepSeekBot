@@ -702,6 +702,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     deletionDependencies: outboundGrants.deletionDependencies,
     disableBot: outboundGrants.disableBot,
     apps: outboundSnapshot.apps,
+    connections: outboundSnapshot.connections,
     setups: outboundSnapshot.setups,
     snapshot: outboundSnapshot.snapshot,
     targets: outboundBinding.targets,

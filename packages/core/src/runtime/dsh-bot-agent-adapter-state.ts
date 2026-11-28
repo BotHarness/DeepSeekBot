@@ -92,6 +92,7 @@ export class DshBotAgentAdapterState {
   readonly #preparationTimeoutMs: number;
   readonly observePreparation: DshBotAgentAdapterOptions['observePreparation'];
   readonly observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
+  readonly botMessageDiagnostics: DshBotAgentAdapterOptions['botMessageDiagnostics'];
   readonly engines: DshBotEngines | undefined;
   readonly enginePersona: DshBotAgentAdapterOptions['enginePersona'];
   readonly engineWorkspaceMode: DshBotAgentAdapterOptions['engineWorkspaceMode'];
@@ -99,6 +100,7 @@ export class DshBotAgentAdapterState {
   readonly engineToolGate: EngineToolGate | undefined;
   readonly engineStops = new Map<string, AbortController>();
   readonly borrowedOrchestrators = new WeakSet<AgentHandle>();
+  readonly configuredOrchestrators = new WeakSet<Agent>();
   readonly releaseNativeAgent: DshBotAgentAdapterOptions['releaseNativeAgent'];
   readonly engineChannels = new Map<string, string>();
   readonly preparationVisibleMs: number;
@@ -150,6 +152,7 @@ export class DshBotAgentAdapterState {
     this.#preparationTimeoutMs = options.preparationTimeoutMs ?? PREPARATION_TIMEOUT_MS;
     this.observePreparation = options.observePreparation;
     this.observeDirectToolCleanupFailure = options.observeDirectToolCleanupFailure;
+    this.botMessageDiagnostics = options.botMessageDiagnostics;
     this.preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
     this.engines = options.engines;
     this.enginePersona = options.enginePersona;
@@ -345,9 +348,15 @@ export class DshBotAgentAdapterState {
     agentCtx: Context,
     agent: Agent,
     run: OrchestratorAgentRun | AssignmentAgentRun,
+    requireUnbound = false,
   ): Promise<void> {
     const presets = this.#resolveAgentPresets?.();
     if (presets === undefined) return;
+    if (
+      requireUnbound &&
+      (presets.composedPreset === undefined || presets.composedPreset(agentCtx) !== undefined)
+    )
+      return;
     let recorded: string | undefined;
     try {
       recorded = presets.presetForSession?.(agent.session) ?? undefined;

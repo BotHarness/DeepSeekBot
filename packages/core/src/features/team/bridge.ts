@@ -73,6 +73,16 @@ export function createTeamBridge(
           .parse(payload);
         return service.botRoleAccess.botRoles(human, slug);
       }),
+    roleChannels: (payload: unknown) =>
+      call((service) => {
+        const { roleId } = z.strictObject({ roleId: z.string().min(1) }).parse(payload);
+        return service.channelAccess.roleChannels(human, roleId);
+      }),
+    botInternalMembers: (payload: unknown) =>
+      call((service) => {
+        const { slug } = z.strictObject({ slug: z.string().min(1) }).parse(payload);
+        return service.botRoleAccess.internalMembers(human, slug);
+      }),
     roleBotScope: (payload: unknown) =>
       call((service) => {
         const { roleId } = z

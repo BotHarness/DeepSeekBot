@@ -68,6 +68,14 @@ it('runs native capture regressions for a source-patch-only change', () => {
   expect(plan(pr('docs/research/patches/dsh-desktop-window-capture.patch')).tests).toBe('full');
 });
 
+it('selects affected tests and mobile verification the same way for a merge group', () => {
+  const input = pr('packages/client/src/client/chip.tsx');
+  const queued = { ...input, event: 'merge_group' };
+  expect(plan(queued)).toEqual(plan(input));
+  expect(plan(queued).tests).toBe('affected');
+  expect(mobileVerification(queued)).toEqual(mobileVerification(input));
+});
+
 describe('mobile verification selection', () => {
   const sources = {
     ...repo,
@@ -623,6 +631,7 @@ describe('CI test plan drift checks', () => {
     on: {
       push: { branches: ['main'] },
       pull_request: { types: ['opened', 'labeled'] },
+      merge_group: { types: ['checks_requested'] },
       schedule: [{ cron: '0 0 * * *' }],
       workflow_dispatch: null,
     },
@@ -653,6 +662,7 @@ describe('CI test plan drift checks', () => {
     broken.jobs.lint = {};
     broken.jobs.verify.name = 'verify';
     broken.on.pull_request.paths = ['packages/**'];
+    delete broken.on.merge_group;
     broken.jobs['test-full'].strategy.matrix = { shard: [1, 2, 3] };
     broken.jobs['test-affected'].if = "needs.plan.outputs.shards == '3'";
     broken.jobs.verify.steps = [{ run: "if (shards === '3') affected();" }];
@@ -660,6 +670,7 @@ describe('CI test plan drift checks', () => {
       `The aggregate job must keep the required check name "${REQUIRED_CHECK}"`,
       'The aggregate job does not need lint',
       'The pull_request trigger filters paths; path selection belongs to scripts/ci-plan.mjs',
+      '.github/workflows/verify.yml must run on merge_group checks_requested',
       'test-full must take its duration-balanced matrix from the plan job',
       `test-affected must run when the plan selects ${SHARDS} shards`,
       `The aggregate job must expect ${SHARDS} full and affected shards`,

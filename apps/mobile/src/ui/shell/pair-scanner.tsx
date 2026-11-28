@@ -2,6 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useReducer, useRef, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
@@ -39,6 +40,7 @@ export function PairScanner({
   const theme = useDesignTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const scan = Math.min(width * pairingScan.widthRatio, pairingScan.maxSize);
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
@@ -151,7 +153,11 @@ export function PairScanner({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
-      contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
+      contentContainerStyle={{
+        padding: space.x5,
+        paddingBottom: insets.bottom + space.x5,
+        gap: space.x4,
+      }}
     >
       {header}
       <View

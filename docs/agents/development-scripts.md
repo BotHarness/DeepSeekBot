@@ -45,7 +45,9 @@ For affected tests, `scripts/ci-affected.mjs` asks the pinned Vitest dependency 
 
 Refresh the durations when shard times drift apart: download the `test (shard N)` logs of a recent full run and run `node scripts/ci-test-durations.mjs "<run id and date>" <log>...`.
 
-The required aggregate check keeps its existing name. Planned skips are accepted; selected jobs must succeed, including the planning job and any dispatched affected shards. Failures and cancellations block the check. Every job uses the frozen workspace lockfile and pinned toolchain when installing dependencies.
+The ruleset requires the `required` aggregate check from `verify`. On `merge_group` with activity `checks_requested`, Verify checks out the queue head and applies the same path-based plan to the diff from the queue base SHA to the queue head SHA. The PR's `ci:full` label applies to the PR run. The queue event has no PR labels. PR body, regression proof, provenance, visual evidence and human merge policy checks run in their PR workflows.
+
+The aggregate accepts planned skips and requires every selected job to succeed. Failures and cancellations block the check. Every job uses the frozen workspace lockfile and pinned toolchain when installing dependencies.
 
 The docs site build test (`apps/docs/test/changelog-public-surfaces.test.ts`) runs in its own job: on full runs, when a changed path is a docs site input below, when it is imported by `apps/docs/astro.config.ts`, `scripts/sync-docs.mjs` or `scripts/sync-slides.mjs`, or when the test names it.
 

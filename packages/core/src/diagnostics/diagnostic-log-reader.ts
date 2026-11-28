@@ -61,7 +61,10 @@ export function diagnosticLogView(entry: LogEntry): DiagnosticLogView {
             value === null
           )
             fields[key] = value;
-        code = entry.kind;
+        code =
+          entry.kind === 'host.warn' && typeof payload['phase'] === 'string'
+            ? payload['phase']
+            : entry.kind;
       }
     } catch {}
   }
