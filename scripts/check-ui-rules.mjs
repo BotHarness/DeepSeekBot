@@ -133,7 +133,7 @@ export const RULES = {
     section: 'apps/mobile/DESIGN.md § Bottom sheets',
   },
   sheetChoice: {
-    help: 'present a choice or picker sheet through SystemListSheet (SwiftUI List on iOS, Material ListItems on Android), like the Composer model picker; where a native List cannot host the content, put `// sheet-choice-exempt: <reason>` on the line before the sheet',
+    help: 'present a choice or picker sheet through SystemListSheet (SwiftUI List on iOS, Material ListItems on Android), like the Composer Model Choice picker; where a native List cannot host the content, put `// sheet-choice-exempt: <reason>` on the line before the sheet',
     section: 'apps/mobile/DESIGN.md § Bottom sheets',
   },
   sheetHeader: {
