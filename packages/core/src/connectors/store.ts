@@ -3,7 +3,8 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export type ConnectorAccess = 'read' | 'write';
 export type ConnectorAccountStatus = 'pending' | 'active' | 'expired' | 'failed';
-export type ConnectorProvider = 'composio' | 'mcp';
+export type ConnectorProvider = 'composio' | 'mcp' | 'google';
+export const CONNECTOR_ACCOUNT_LABEL = /^[\p{L}\p{N}][\p{L}\p{N} ._@+-]{0,63}$/u;
 
 export interface ConnectorMcpServerRecord {
   service: string;

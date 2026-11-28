@@ -81,6 +81,10 @@ const composition = layers.get('index.ts');
 const sourceExtension = /\.[cm]?[jt]sx?$/u;
 const nonRuntimeSource = /(?:\.(?:d|spec|test)\.[cm]?[jt]sx?$|\/(?:__tests__|test|tests)\/)/u;
 
+export function isCoreDomain(name) {
+  return layers.get(name)?.name === 'domain';
+}
+
 function isCoreDirectory(name) {
   return layers.has(name) && !sourceExtension.test(name);
 }

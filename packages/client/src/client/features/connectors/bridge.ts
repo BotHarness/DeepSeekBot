@@ -1,9 +1,25 @@
 export type ConnectorAccess = 'read' | 'write';
 export type ConnectorStatus = 'pending' | 'active' | 'expired' | 'failed';
+export type ConnectorProvider = 'composio' | 'mcp' | 'google';
+
+export const GOOGLE_SERVICE = 'google_workspace';
+
+export interface GoogleSetup {
+  configured: boolean;
+  redirectUri?: string;
+  oauthClientType: 'web';
+  browserLocation: 'host';
+  apis: ReadonlyArray<{ id: string; name: string }>;
+  limits: {
+    testingRefreshTokenDays: number;
+    unverifiedExternalUserCap: number;
+    internalWorkspaceOnly: boolean;
+  };
+}
 
 export interface ConnectorAccountRecord {
   accountId: string;
-  provider: 'composio' | 'mcp';
+  provider: ConnectorProvider;
   service: string;
   label: string;
   identity?: string;
@@ -62,7 +78,7 @@ export interface McpAppSearch {
 
 export interface BotConnector {
   accountId: string;
-  provider?: 'composio' | 'mcp';
+  provider?: ConnectorProvider;
   service: string;
   label: string;
   identity?: string;
@@ -74,6 +90,9 @@ import type { InvokeAction } from '../../actions.js';
 
 export interface ConnectorActions {
   connectors?(): Promise<ConnectorsView>;
+  connectorGoogleSetup?(): Promise<GoogleSetup>;
+  connectorGoogleAdd?(input: { clientId: string; clientSecret: string }): Promise<GoogleSetup>;
+  connectorGoogleLogin?(label: string): Promise<{ account: ConnectorAccountRecord; url: string }>;
   connectorKeySet?(apiKey: string): Promise<ConnectorsView>;
   connectorKeyClear?(): Promise<ConnectorsView>;
   connectorConnect?(
@@ -104,6 +123,9 @@ export interface ConnectorActions {
 export function createConnectorActions(invoke: InvokeAction) {
   return {
     connectors: () => invoke('connectors', {}),
+    connectorGoogleSetup: () => invoke('connectorGoogleSetup', {}),
+    connectorGoogleAdd: (input) => invoke('connectorGoogleAdd', { input }),
+    connectorGoogleLogin: (label) => invoke('connectorGoogleLogin', { label }),
     connectorKeySet: (apiKey) => invoke('connectorKeySet', { apiKey }),
     connectorKeyClear: () => invoke('connectorKeyClear', {}),
     connectorConnect: (service, label) =>

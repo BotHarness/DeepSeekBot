@@ -2,7 +2,7 @@ import { useState, type ReactElement } from 'react';
 
 import { MaskedEmail } from './account-quota.js';
 import type { BridgeActions } from './actions.js';
-import { ConnectAppDialog } from './app-connections-catalog.js';
+import { ConnectAppDialog, type PickedApp } from './app-connections-catalog.js';
 import { errorMessage } from './bridge.js';
 import { Button } from './ds/button.js';
 import { FieldStack, TextField } from './ds/field.js';
@@ -11,7 +11,12 @@ import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { StatusList, StatusListAction, StatusListRow, type StatusTone } from './ds/status-block.js';
-import type { ConnectorAccess, ConnectorsView } from './features/connectors/bridge.js';
+import type { ConnectorAccess, ConnectorsView, GoogleSetup } from './features/connectors/bridge.js';
+import {
+  googleActions,
+  googleApp,
+  googleWriteWaiting,
+} from './features/connectors/google-connect.js';
 import { ConnectorLogo } from './features/connectors/logos.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -31,6 +36,9 @@ type Actions = Pick<
   | 'connectorMcpAdd'
   | 'connectorGrantSet'
   | 'connectorAccountRemove'
+  | 'connectorGoogleSetup'
+  | 'connectorGoogleAdd'
+  | 'connectorGoogleLogin'
 >;
 
 type Choice = ConnectorAccess | 'none';
@@ -85,7 +93,8 @@ export function ConnectorsSettings({
   const [busy, setBusy] = useState(false);
   const [keyDraft, setKeyDraft] = useState<string | undefined>();
   const [clearing, setClearing] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const [connecting, setConnecting] = useState<PickedApp | boolean>(false);
+  const [google, setGoogle] = useState<GoogleSetup | undefined>();
   const [open, setOpen] = useState<string | undefined>();
   const [links, setLinks] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<Account | undefined>();
@@ -101,6 +110,12 @@ export function ConnectorsSettings({
       (failure: unknown) => {
         if (live) setError(errorMessage(failure));
       },
+    );
+    actions.connectorGoogleSetup?.().then(
+      (next) => {
+        if (live) setGoogle(next);
+      },
+      () => undefined,
     );
     return () => {
       live = false;
@@ -206,6 +221,31 @@ export function ConnectorsSettings({
           }
         />
       </SettingsSection>
+      {google === undefined || googleActions(actions) === undefined ? null : (
+        <SettingsSection title={t('connectors.google.name')}>
+          <SettingsRow
+            title={t('connectors.google.client')}
+            info={{ label: t('connectors.google.client'), text: t('connectors.google.about') }}
+            description={
+              google.configured ? t('connectors.google.saved') : t('connectors.google.missing')
+            }
+            control={
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                data-google-open=""
+                onClick={() => {
+                  setError(undefined);
+                  setConnecting(googleApp(t));
+                }}
+              >
+                {google.configured ? t('connectors.catalog.connect') : t('connectors.google.setUp')}
+              </Button>
+            }
+          />
+        </SettingsSection>
+      )}
       <SettingsSection
         title={t('connectors.accounts.section')}
         action={
@@ -229,10 +269,12 @@ export function ConnectorsSettings({
                 account.status === 'failed' ||
                 (account.status === 'pending' && signIn === undefined);
               const shared = account.provider === 'mcp' && account.access !== undefined;
+              const writeWaiting = googleWriteWaiting(account);
               const extra = [
-                ...(shared
+                ...(shared || (account.provider === 'google' && account.access !== undefined)
                   ? [t(account.access === 'read' ? 'connectors.bot.read' : 'connectors.bot.write')]
                   : []),
+                ...(writeWaiting ? [t('connectors.google.allowWrite')] : []),
                 ...(account.provider === 'mcp' &&
                 account.access === undefined &&
                 account.grants.some((grant) => grant.access === 'read')
@@ -284,6 +326,16 @@ export function ConnectorsSettings({
                         onClick={() => void reconnect(account.accountId)}
                       >
                         {t('connectors.accounts.reconnect')}
+                      </Button>
+                    ) : writeWaiting ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        data-connector-allow-write=""
+                        onClick={() => void reconnect(account.accountId)}
+                      >
+                        {t('connectors.google.allowWriteAction')}
                       </Button>
                     ) : undefined
                   }
@@ -397,15 +449,20 @@ export function ConnectorsSettings({
           </FieldStack>
         </FormDialog>
       )}
-      {!connecting ? null : (
+      {connecting === false ? null : (
         <ConnectAppDialog
           actions={actions}
           view={view}
           t={t}
-          onClose={() => setConnecting(false)}
+          service={connecting === true ? undefined : connecting}
+          onClose={() => {
+            setConnecting(false);
+            void actions.connectorGoogleSetup?.().then(setGoogle, () => undefined);
+          }}
           onView={setView}
           onLinked={(accountId, url) => {
             setConnecting(false);
+            void actions.connectorGoogleSetup?.().then(setGoogle, () => undefined);
             linked(accountId, url);
             void actions.connectors?.().then(setView, () => undefined);
           }}

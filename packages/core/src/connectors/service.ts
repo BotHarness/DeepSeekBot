@@ -10,13 +10,16 @@ import {
 } from './catalog.js';
 import { ComposioError, createComposioClient, type ComposioClient } from './composio.js';
 import { ConnectorError } from './errors.js';
+import { GoogleConnectors } from './google.js';
+import { GOOGLE_NAME, GOOGLE_SERVICE } from './google-oauth.js';
 import { FEATURED_MCP_SERVERS, RemoteMcpConnectors } from './remote.js';
 import type { RemoteMcpClient } from './remote-mcp.js';
-import type {
-  ConnectorAccess,
-  ConnectorAccountRecord,
-  ConnectorGrantRecord,
-  ConnectorStore,
+import {
+  CONNECTOR_ACCOUNT_LABEL as LABEL,
+  type ConnectorAccess,
+  type ConnectorAccountRecord,
+  type ConnectorGrantRecord,
+  type ConnectorStore,
 } from './store.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
@@ -71,7 +74,6 @@ interface Config {
 }
 
 const CONFIG_KEY = credentialKey('botharness-connectors', 'composio');
-const LABEL = /^[\p{L}\p{N}][\p{L}\p{N} ._@+-]{0,63}$/u;
 const SLUG = /^[a-z0-9][a-z0-9_]{0,63}$/;
 
 function defaultLabel(name: string): string {
@@ -115,6 +117,7 @@ export class ConnectorService {
   readonly #names = new Map<string, string>();
   readonly #logos = new Map<string, Promise<string | null>>();
   readonly remote: RemoteMcpConnectors;
+  readonly google: GoogleConnectors;
 
   constructor(options: {
     store: ConnectorStore;
@@ -122,12 +125,20 @@ export class ConnectorService {
     client?: ComposioClient;
     mcpClient?: RemoteMcpClient;
     redirectUri?: () => string | undefined | Promise<string | undefined>;
+    google?: { redirectUri: () => string | undefined; fetcher?: typeof fetch; now?: () => number };
     log?: (phase: string, fields?: Record<string, string | number>) => void;
   }) {
     this.#store = options.store;
     this.#credentials = options.credentials;
     this.#client = options.client ?? createComposioClient();
     this.#log = options.log ?? (() => undefined);
+    this.google = new GoogleConnectors({
+      redirectUri: () => undefined,
+      ...options.google,
+      store: options.store,
+      credentials: options.credentials,
+      changed: () => this.#changed(),
+    });
     this.remote = new RemoteMcpConnectors({
       store: options.store,
       credentials: options.credentials,
@@ -202,6 +213,7 @@ export class ConnectorService {
   }
 
   appName(service: string): string {
+    if (service === GOOGLE_SERVICE) return GOOGLE_NAME;
     return (
       catalogEntry(service)?.name ??
       this.remote.name(service) ??
@@ -389,6 +401,7 @@ export class ConnectorService {
     const current = this.#store.account(accountId);
     if (current === undefined)
       throw new ConnectorError('not-found', 'The App connection does not exist.');
+    if (current.provider === 'google') return this.google.reconnect(accountId);
     if (current.provider === 'mcp') return this.remote.reconnect(accountId);
     const config = await this.#requireConfig();
     await this.#upstream(() => this.#client.removeAccount(config.apiKey, current.externalId));
@@ -441,6 +454,7 @@ export class ConnectorService {
   async remove(accountId: string): Promise<boolean> {
     const account = this.#store.account(accountId);
     if (account === undefined) return false;
+    if (account.provider === 'google') return this.google.remove(accountId);
     if (account.provider === 'mcp') {
       await this.remote.remove(accountId);
       return true;
@@ -486,6 +500,16 @@ export class ConnectorService {
           access,
         },
       ];
+    });
+  }
+
+  googleForBot(botSlug: string): BotConnector[] {
+    return this.forBot(botSlug).flatMap((grant) => {
+      if (grant.provider !== 'google' || grant.status !== 'active') return [];
+      const consent = this.#store.account(grant.accountId)?.access;
+      if (consent === undefined) return [];
+      const access = consent === 'write' && grant.access === 'write' ? 'write' : 'read';
+      return [{ ...grant, access }];
     });
   }
 

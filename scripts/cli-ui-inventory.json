@@ -1471,17 +1471,21 @@
     },
     {
       "id": "app-connectors",
-      "description": "App connections through the Owner's Composio key or remote MCP sign-in, with per-Bot read or write access.",
+      "description": "App connections through the Owner's Composio key, remote MCP sign-in or the Owner's own Google OAuth client, with per-Bot read or write access.",
       "scope": "Local Host",
       "surfaces": [
         "setting:packages/client/src/client/app-connections-catalog.tsx:{picked.name}",
         "setting:packages/client/src/client/connectors-settings.tsx:{grant.botName ?? grant.botSlug}",
         "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}",
-        "route:packages/core/src/connectors/mount.ts:CONNECTOR_CALLBACK_PATH",
-        "route:packages/core/src/connectors/mount.ts:CONNECTOR_DEVICE_CALLBACK_PATH",
-        "setting:packages/client/src/client/app-connections-catalog.tsx:{t('connectors.composio.savedTitle')}"
+        "route:packages/core/src/features/connectors/plugin.ts:CONNECTOR_CALLBACK_PATH",
+        "route:packages/core/src/features/connectors/plugin.ts:CONNECTOR_DEVICE_CALLBACK_PATH",
+        "setting:packages/client/src/client/app-connections-catalog.tsx:{t('connectors.composio.savedTitle')}",
+        "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.google.client')}",
+        "setting:packages/client/src/client/features/connectors/google-connect.tsx:{t('connectors.google.client')}",
+        "setting:packages/client/src/client/features/connectors/google-connect.tsx:{t('connectors.google.name')}"
       ],
       "commands": [
+        "connector",
         "connectors",
         "connector-key-set",
         "connector-key-clear",
