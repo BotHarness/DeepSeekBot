@@ -2496,16 +2496,16 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 
 ```sh
 deepseekbot roles bot-scope <roleId>
-deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set selected:<slug>,<slug>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expected-editable-bots-revision <editableBotsRevision> --set selected:<slug>,<slug>
 deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
 deepseekbot bots access-directory
 deepseekbot bots access-roles <slug>
 ```
 
-保存时使用 `roles bot-scope` 返回的版本号。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
+保存时使用 `roles bot-scope` 返回的版本号。保存指定 Bot 时还需传入该命令返回的 `editableBotsRevision`。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
 Host Owner 和已持有全部公开 Bot 授权的合格角色管理员可以选择 `all`，授权访问现在和今后发布的公开 Bot。
 显式选择仍会保留。每个 Bot 行会给出 `audience`（`everyone`、`roles` 或 `members`）和 `editable`；只有按角色公开的 Bot 能被选给角色。
-`access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源和仍活跃的点名邀请成员。
+`access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源。具有 `members.manage` 权限的调用者还可查看仍活跃的点名邀请成员。
 私有 Bot 的访问配置仅对其负责人可见。
 
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。

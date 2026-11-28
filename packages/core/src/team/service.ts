@@ -871,7 +871,7 @@ export class TeamService {
       ? this.replaceBotMemory(
           slug,
           action,
-          () => this.bots.setVisibility(human, slug, visibility, false).preview.memory?.to,
+          () => this.bots.planVisibilityChanges(human, [{ slug, visibility }])[0]?.memory?.target,
         )
       : action();
   }

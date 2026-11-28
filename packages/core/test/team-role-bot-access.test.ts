@@ -49,16 +49,20 @@ it('grants and revokes participant DM access through the same selected role audi
   });
 
   const patch = { roleId: role.roleId, expectedRevision: before.value.revision };
+  const selected = {
+    kind: 'selected',
+    expectedEditableBotsRevision: before.value.editableBotsRevision,
+  };
   expect(
     await api.roleBotScopeSet({
       ...patch,
-      scope: { kind: 'selected', botSlugs: ['dispatch', 'missing'] },
+      scope: { ...selected, botSlugs: ['dispatch', 'missing'] },
     }),
   ).toMatchObject({ ok: false, error: { code: 'bot-not-editable' } });
   expect(await api.roleBotScope({ roleId: role.roleId })).toEqual(before);
   const applied = await api.roleBotScopeSet({
     ...patch,
-    scope: { kind: 'selected', botSlugs: ['dispatch'] },
+    scope: { ...selected, botSlugs: ['dispatch'] },
   });
   expect(applied).toMatchObject({
     ok: true,
@@ -87,13 +91,17 @@ it('grants and revokes participant DM access through the same selected role audi
     output: { message: { body: 'Selected by role' } },
   });
   expect(
-    await api.roleBotScopeSet({ ...patch, scope: { kind: 'selected', botSlugs: [] } }),
+    await api.roleBotScopeSet({ ...patch, scope: { ...selected, botSlugs: [] } }),
   ).toMatchObject({ ok: false, error: { code: 'stale-role' } });
   expect(
     await api.roleBotScopeSet({
       ...patch,
       expectedRevision: applied.value.revision,
-      scope: { kind: 'selected', botSlugs: [] },
+      scope: {
+        ...selected,
+        botSlugs: [],
+        expectedEditableBotsRevision: applied.value.editableBotsRevision,
+      },
     }),
   ).toMatchObject({ ok: true });
   await expect(f.invoke('channelDm', { slug: 'dispatch' })).resolves.toMatchObject({
@@ -173,7 +181,8 @@ it('uses the same revision from either editing surface and restricts delegated C
   const asAdmin = (...args: string[]) => run(cli.url, ['--as', 'bob', ...args]);
   const before = await asAdmin('roles', 'bot-scope', role.roleId);
   expect(before).toMatchObject({ status: 0, output: { canSetAll: false, canSetSelected: true } });
-  const revision = z.object({ revision: z.number() }).parse(before.output).revision;
+  const scopeVersion = z.object({ revision: z.number(), editableBotsRevision: z.string() });
+  const { revision, editableBotsRevision } = scopeVersion.parse(before.output);
   expect(await asAdmin('bots', 'access-directory')).toMatchObject({ status: 0 });
   expect((await asAdmin('bots', 'access-directory')).output).not.toEqual(
     expect.arrayContaining([expect.objectContaining({ slug: 'owner-private' })]),
@@ -182,7 +191,7 @@ it('uses the same revision from either editing surface and restricts delegated C
     status: 1,
     output: { error: { code: 'bot-not-found' } },
   });
-  const save = (value: string, at: number) =>
+  const save = (value: string, at: number, token?: string) =>
     asAdmin(
       'roles',
       'bot-scope-set',
@@ -191,6 +200,7 @@ it('uses the same revision from either editing surface and restricts delegated C
       String(at),
       '--set',
       value,
+      ...(token ? ['--expected-editable-bots-revision', token] : []),
     );
   expect(await save('all', revision)).toMatchObject({
     status: 1,
@@ -199,7 +209,7 @@ it('uses the same revision from either editing surface and restricts delegated C
   expect(
     await api.botVisibilitySet({ slug: 'owner-public', visibility: rolesAudience([role.roleId]) }),
   ).toMatchObject({ ok: true, value: { applied: true } });
-  expect(await save('selected:', revision)).toMatchObject({
+  expect(await save('selected:', revision, editableBotsRevision)).toMatchObject({
     status: 1,
     output: { error: { code: 'stale-role' } },
   });
@@ -207,10 +217,8 @@ it('uses the same revision from either editing surface and restricts delegated C
     status: 0,
     output: { roles: [{ roleId: role.roleId, source: 'selected' }] },
   });
-  const current = z
-    .object({ revision: z.number() })
-    .parse((await asAdmin('roles', 'bot-scope', role.roleId)).output).revision;
-  expect(await save('selected:', current)).toMatchObject({
+  const current = scopeVersion.parse((await asAdmin('roles', 'bot-scope', role.roleId)).output);
+  expect(await save('selected:', current.revision, current.editableBotsRevision)).toMatchObject({
     status: 0,
     output: { bots: [{ slug: 'owner-public', selected: false }] },
   });
@@ -242,5 +250,78 @@ it('uses the same revision from either editing surface and restricts delegated C
   expect(await save('all', delegatedRevision)).toMatchObject({
     status: 0,
     output: { kind: 'all' },
+  });
+});
+
+it('rejects a selected save when the editor gained access to another selected Bot', async () => {
+  const f = await actors();
+  const api = f.methods(owner);
+  const manager = f.methods(f.human);
+  const target = f.team.roles.create(owner, 'Readers', []).role;
+  const edit = f.team.roles.create(owner, 'Role editor', ['roles.manage']).role;
+  const manage = f.team.roles.create(owner, 'Bot manager', ['bots.manageAll']).role;
+  f.team.roles.set(owner, f.member.humanId, ['member', edit.roleId]);
+  expect(f.registry.create({ slug: 'foreign', displayName: 'Foreign' }).ok).toBe(true);
+  expect(
+    await api.botVisibilitySet({ slug: 'foreign', visibility: rolesAudience([target.roleId]) }),
+  ).toMatchObject({ ok: true });
+
+  const loaded = f.team.botRoleAccess.scope(f.human, target.roleId);
+  expect(loaded.bots.filter((bot) => bot.editable)).toEqual([]);
+  f.team.roles.set(owner, f.member.humanId, ['member', edit.roleId, manage.roleId]);
+  const current = f.team.botRoleAccess.scope(f.human, target.roleId);
+  expect(current.revision).toBe(loaded.revision);
+  expect(current.bots).toMatchObject([{ slug: 'foreign', selected: true, editable: true }]);
+
+  expect(
+    await manager.roleBotScopeSet({
+      roleId: target.roleId,
+      expectedRevision: loaded.revision,
+      scope: {
+        kind: 'selected',
+        botSlugs: [],
+        expectedEditableBotsRevision: loaded.editableBotsRevision,
+      },
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'stale-role' } });
+  expect(f.team.botRoleAccess.scope(f.human, target.roleId)).toEqual(current);
+});
+
+it('shows a Bot owner their role sources and gates invitee names on member directory access', async () => {
+  const f = await actors();
+  const api = f.methods(owner);
+  const principal = f.methods(f.human);
+  const access = f.team.roles.create(owner, 'Readers', []).role;
+  expect(
+    await api.roleBotScopeSet({
+      roleId: access.roleId,
+      expectedRevision: access.revision,
+      scope: { kind: 'all' },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(
+    f.registry.create({ slug: 'named', displayName: 'Named', ownerHumanId: f.human.humanId }).ok,
+  ).toBe(true);
+  expect(
+    await api.botVisibilitySet({
+      slug: 'named',
+      visibility: {
+        kind: 'public',
+        audience: { kind: 'members', humanIds: [f.alice.member.humanId] },
+      },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(await principal.botAccessRoles({ slug: 'named' })).toMatchObject({
+    ok: true,
+    value: { roles: [{ roleId: access.roleId, source: 'all' }], invitedMembers: [] },
+  });
+  const directory = f.team.roles.create(owner, 'Member directory', ['members.manage']).role;
+  f.team.roles.set(owner, f.human.humanId, ['member', directory.roleId]);
+  expect(await principal.botAccessRoles({ slug: 'named' })).toMatchObject({
+    ok: true,
+    value: {
+      roles: [{ roleId: access.roleId, source: 'all' }],
+      invitedMembers: [{ humanId: f.alice.member.humanId, displayName: 'Alice' }],
+    },
   });
 });

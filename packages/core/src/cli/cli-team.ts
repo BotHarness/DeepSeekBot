@@ -49,7 +49,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | effective [<username>] | conflicts <username> | bot-scope <roleId> | bot-scope-set <roleId> --expected-revision <revision> --set all|selected:<slugs> | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
+      'list | catalog | effective [<username>] | conflicts <username> | bot-scope <roleId> | bot-scope-set <roleId> --expected-revision <revision> --set all|selected:<slugs> [--expected-editable-bots-revision <token>] | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -71,6 +71,7 @@ type TeamValues = {
   'speaker-context'?: string;
   'policy-stdin'?: boolean;
   'expected-revision'?: string;
+  'expected-editable-bots-revision'?: string;
   topic?: string;
   query?: string;
   after?: string;
@@ -343,11 +344,18 @@ export async function runTeamCommand(
     if (action === 'bot-scope-set' && argument && rest.length === 2) {
       const revision = values['expected-revision'];
       const set = values.set;
+      const expectedEditableBotsRevision = values['expected-editable-bots-revision'];
       const scope =
-        set === 'all'
+        set === 'all' && expectedEditableBotsRevision === undefined
           ? { kind: 'all' }
-          : set?.startsWith('selected:')
-            ? { kind: 'selected', botSlugs: ids(set.slice('selected:'.length)) }
+          : set?.startsWith('selected:') &&
+              expectedEditableBotsRevision !== undefined &&
+              /^[a-f0-9]{64}$/u.test(expectedEditableBotsRevision)
+            ? {
+                kind: 'selected',
+                botSlugs: ids(set.slice('selected:'.length)),
+                expectedEditableBotsRevision,
+              }
             : undefined;
       if (revision === undefined || scope === undefined) return usage();
       return rpc('roleBotScopeSet', {
@@ -356,6 +364,7 @@ export async function runTeamCommand(
         scope,
       });
     }
+    if (values['expected-editable-bots-revision'] !== undefined) return usage();
     if (action !== 'update' && values['expected-revision'] !== undefined) return usage();
     if (action === 'bot-scope' && argument && rest.length === 2)
       return rpc('roleBotScope', { roleId: argument });

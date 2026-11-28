@@ -87,7 +87,7 @@ export function RoleBotScope({
   onChanged(): void;
 }): ReactElement {
   const [view, setView] = useState<RoleBotScopeView>();
-  const [draft, setDraft] = useState<BotScopeDraft>();
+  const [draft, setDraft] = useState<BotScopeDraft & { editableBotsRevision: string }>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -127,19 +127,20 @@ export function RoleBotScope({
       </div>
     );
 
-  const current = draft ?? savedDraft(view);
+  const current =
+    draft?.editableBotsRevision === view.editableBotsRevision ? draft : savedDraft(view);
   const dirty = draftChanged(view, current);
   const readOnly = !view.canSetAll && !view.canSetSelected;
   const choose = (kind: ScopeKind): void => {
     setError(undefined);
-    setDraft({ kind, slugs: current.slugs });
+    setDraft({ kind, slugs: current.slugs, editableBotsRevision: view.editableBotsRevision });
   };
   const toggle = (slug: string, on: boolean): void => {
     const slugs = new Set(current.slugs);
     if (on) slugs.add(slug);
     else slugs.delete(slug);
     setError(undefined);
-    setDraft({ kind: 'selected', slugs });
+    setDraft({ kind: 'selected', slugs, editableBotsRevision: view.editableBotsRevision });
   };
   const save = async (): Promise<void> => {
     setBusy(true);
@@ -154,6 +155,7 @@ export function RoleBotScope({
             ? { kind: 'all' }
             : {
                 kind: 'selected',
+                expectedEditableBotsRevision: view.editableBotsRevision,
                 botSlugs: [...current.slugs].filter((slug) => editable.has(slug)),
               },
       });

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import {
   STALE_HOST_ROLE,
@@ -7,6 +8,7 @@ import {
   type TeamAccessBot,
 } from '@botharness/host-protocol/team-roles';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import { toOperationalError } from '../database/owner-errors.js';
 import type { HumanContext } from '../humans/context.js';
 import {
   activeBotHumanSql,
@@ -36,6 +38,18 @@ const visibleBotFrom = `FROM persona_bots b
   CROSS JOIN team_settings s
   JOIN humans viewer ON viewer.human_id = ? AND ${activeBotHumanSql({ human: 'viewer', settings: 's' })}`;
 
+function editableBotsRevision(
+  bots: readonly { slug: string; selected: boolean; editable: boolean }[],
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify(
+        bots.filter((bot) => bot.editable).map(({ slug, selected }) => [slug, selected]),
+      ),
+    )
+    .digest('hex');
+}
+
 export class TeamBotRoleAccess {
   constructor(
     private readonly db: OperationalDatabaseModulePort,
@@ -62,7 +76,8 @@ export class TeamBotRoleAccess {
   }
 
   botRoles(human: HumanContext, slug: string): BotAccessRolesView {
-    const manageAll = this.permissions(human).includes('bots.manageAll');
+    const permissions = this.permissions(human);
+    const manageAll = permissions.includes('bots.manageAll');
     return this.db.read((db) => {
       const raw = db
         .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName,
@@ -97,7 +112,7 @@ export class TeamBotRoleAccess {
             .all(visibility),
         );
       const invitedMembers =
-        access.audience.kind === 'members'
+        access.audience.kind === 'members' && permissions.includes('members.manage')
           ? z
               .object({ humanId: z.string(), displayName: z.string() })
               .array()
@@ -183,6 +198,7 @@ export class TeamBotRoleAccess {
     return {
       roleId,
       revision: role.revision,
+      editableBotsRevision: editableBotsRevision(bots),
       kind: role.allPublicBots ? 'all' : 'selected',
       canSetAll,
       canSetSelected,
@@ -204,8 +220,7 @@ export class TeamBotRoleAccess {
     const allPublic = scope.kind === 'all';
     const plan = () => {
       const role = this.requireScopeEdit(human, input);
-      const updates =
-        scope.kind === 'selected' ? this.selectedUpdates(human, roleId, scope.botSlugs) : [];
+      const updates = scope.kind === 'selected' ? this.selectedUpdates(human, roleId, scope) : [];
       return {
         scopeChanged: allPublic !== role.allPublicBots,
         changes: this.bots
@@ -222,7 +237,6 @@ export class TeamBotRoleAccess {
                 slug: bot.slug,
                 source: memory.source,
                 target: memory.target,
-                cwd: memory.preview.to,
               },
             ]
           : [],
@@ -231,7 +245,7 @@ export class TeamBotRoleAccess {
     const commit = (current: typeof planned) => {
       if (!current.scopeChanged && !current.changes.length) return this.scope(human, roleId);
       this.bots.commitVisibilityChanges(human, current.changes, {
-        reconcileAllPublic: current.scopeChanged && !allPublic,
+        ...(current.scopeChanged && !allPublic ? { revokeAllPublicForRole: roleId } : {}),
         write: (db) => {
           this.requireScopeEdit(human, input);
           const result = db
@@ -241,13 +255,21 @@ export class TeamBotRoleAccess {
           if (!result.changes) throw new TeamError(STALE_HOST_ROLE);
         },
       });
-      return this.scope(human, roleId);
+      try {
+        return this.scope(human, roleId);
+      } catch (error) {
+        throw toOperationalError(
+          'post-commit-interrupted',
+          'Reading the committed Bot scope failed',
+          error,
+        );
+      }
     };
 
     const replaceBotMemory = this.replaceBotMemory;
     if (!replaceBotMemory || !plannedMoves.length) return commit(planned);
     const apply = plannedMoves.reduceRight<() => RoleBotScopeView | Promise<RoleBotScopeView>>(
-      (next, move) => () => replaceBotMemory(move.slug, next, () => move.cwd),
+      (next, move) => () => replaceBotMemory(move.slug, next, () => move.target),
       () => {
         const current = plan();
         if (JSON.stringify(moves(current)) !== JSON.stringify(plannedMoves))
@@ -258,8 +280,15 @@ export class TeamBotRoleAccess {
     return apply();
   }
 
-  private selectedUpdates(human: HumanContext, roleId: string, botSlugs: string[]) {
+  private selectedUpdates(
+    human: HumanContext,
+    roleId: string,
+    scope: Extract<RoleBotScopeUpdate['scope'], { kind: 'selected' }>,
+  ) {
+    const { botSlugs, expectedEditableBotsRevision } = scope;
     const editable = this.roleBots(human, roleId, false, true).filter((bot) => bot.editable);
+    if (editableBotsRevision(editable) !== expectedEditableBotsRevision)
+      throw new TeamError(STALE_HOST_ROLE);
     const desired = new Set(botSlugs);
     const editableSlugs = new Set(editable.map((bot) => bot.slug));
     if (botSlugs.some((slug) => !editableSlugs.has(slug))) throw new TeamError('bot-not-editable');

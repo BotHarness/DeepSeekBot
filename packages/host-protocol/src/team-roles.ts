@@ -10,7 +10,9 @@ export interface HostRoleUpdatePrecondition {
   readonly expectedRevision: number;
 }
 
-export type RoleBotScope = { kind: 'all' } | { kind: 'selected'; botSlugs: string[] };
+export type RoleBotScope =
+  | { kind: 'all' }
+  | { kind: 'selected'; botSlugs: string[]; expectedEditableBotsRevision: string };
 
 export interface RoleBotScopeUpdate extends HostRoleUpdatePrecondition {
   scope: RoleBotScope;
@@ -27,6 +29,7 @@ export type PublicBotAudience = 'everyone' | 'roles' | 'members';
 
 export interface RoleBotScopeView extends HostRoleRevision {
   kind: RoleBotScope['kind'];
+  editableBotsRevision: string;
   canSetAll: boolean;
   canSetSelected: boolean;
   bots: (TeamAccessBot & {

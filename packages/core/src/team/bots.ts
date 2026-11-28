@@ -7,6 +7,7 @@ import type { BotMemoryPlacement } from '../workspaces/bot-memory-placement.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
+import { toOperationalError } from '../database/owner-errors.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { ChannelRecord } from '../channels/channel.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
@@ -240,11 +241,37 @@ export class TeamBots {
     );
   }
 
-  private allPublicGroupDepartures() {
+  private eligiblePublicGroupMemberships(roleId: string) {
+    const participants = this.db.read((db) =>
+      z
+        .object({ channelId: z.string(), botSlug: z.string().nullable() })
+        .array()
+        .parse(
+          db
+            .prepare(`WITH role_holders AS (
+          SELECT h.human_id FROM human_roles r JOIN humans h USING (human_id)
+          CROSS JOIN team_settings s WHERE r.role_id = ? AND ${activeBotHumanSql({ human: 'h', settings: 's' })}
+        )
+        SELECT channel_id AS channelId, NULL AS botSlug FROM channel_human_members
+        JOIN role_holders USING (human_id) WHERE left_at IS NULL
+        UNION
+        SELECT channel_id, bot_slug FROM bot_channel_adders JOIN role_holders USING (human_id)`)
+            .all(roleId),
+        ),
+    );
+    const affected = new Map<string, Set<string | null>>();
+    for (const { channelId, botSlug } of participants) {
+      const slugs = affected.get(channelId);
+      if (slugs) slugs.add(botSlug);
+      else affected.set(channelId, new Set([botSlug]));
+    }
+    if (!affected.size) return [];
     const groups = new Map<string, ChannelRecord[]>();
     for (const channel of this.channels.list()) {
-      if (channel.type !== 'group') continue;
+      const slugs = affected.get(channel.id);
+      if (channel.type !== 'group' || !slugs) continue;
       for (const slug of channel.members) {
+        if (!slugs.has(null) && !slugs.has(slug)) continue;
         const memberships = groups.get(slug);
         if (memberships) memberships.push(channel);
         else groups.set(slug, [channel]);
@@ -252,11 +279,11 @@ export class TeamBots {
     }
     return [...groups].flatMap(([botSlug, memberships]) => {
       const bot = this.findBot(botSlug);
-      if (bot?.visibility.kind !== 'public') return [];
-      return this.channelsLeaving(bot, bot.visibility, memberships).map(({ channelId }) => ({
-        channelId,
-        botSlug,
-      }));
+      if (bot?.visibility.kind !== 'public' || bot.visibility.audience.kind === 'everyone')
+        return [];
+      return memberships
+        .filter((channel) => this.groupEligible(bot, channel))
+        .map((channel) => ({ bot, channel }));
     });
   }
   reachable(human: HumanContext) {
@@ -336,6 +363,13 @@ export class TeamBots {
     if (visibility.kind === 'public') {
       const a = visibility.audience;
       for (const id of a.kind === 'roles' ? a.roleIds : a.kind === 'members' ? a.humanIds : []) {
+        if (
+          a.kind === 'roles' &&
+          bot.visibility.kind === 'public' &&
+          bot.visibility.audience.kind === 'roles' &&
+          bot.visibility.audience.roleIds.includes(id)
+        )
+          continue;
         const exists = this.db.read((db) =>
           db
             .prepare(
@@ -386,6 +420,7 @@ export class TeamBots {
         (c) =>
           c.type === 'group' &&
           c.members.includes(bot.slug) &&
+          this.groupEligible(bot, c) &&
           !this.groupEligible(bot, c, visibility),
       )
       .map((c) => ({ channelId: c.id }));
@@ -394,7 +429,7 @@ export class TeamBots {
   commitVisibilityChanges(
     human: HumanContext,
     plans: readonly VisibilityPlan[],
-    scope?: { write: (db: DatabaseSync) => void; reconcileAllPublic: boolean },
+    scope?: { write: (db: DatabaseSync) => void; revokeAllPublicForRole?: string },
   ): void {
     type Move = ReturnType<BotMemoryPlacement['prepare']>;
     const prepared: { plan: VisibilityPlan; move: Move | undefined }[] = [];
@@ -406,6 +441,11 @@ export class TeamBots {
       }
       publishDepartures = this.db.transaction(
         (db) => {
+          const revokeAllPublicForRole = scope?.revokeAllPublicForRole;
+          const eligible = revokeAllPublicForRole
+            ? this.eligiblePublicGroupMemberships(revokeAllPublicForRole)
+            : [];
+          const newVisibility = new Map(plans.map(({ bot, visibility }) => [bot.slug, visibility]));
           scope?.write(db);
           for (const {
             plan: { bot, visibility },
@@ -433,8 +473,13 @@ export class TeamBots {
                 bot.slug,
               );
           }
-          const departures = scope?.reconcileAllPublic
-            ? this.allPublicGroupDepartures()
+          const departures = revokeAllPublicForRole
+            ? eligible
+                .filter(
+                  ({ bot, channel }) =>
+                    !this.groupEligible(bot, channel, newVisibility.get(bot.slug)),
+                )
+                .map(({ bot, channel }) => ({ channelId: channel.id, botSlug: bot.slug }))
             : plans.flatMap(({ bot, preview }) =>
                 preview.channelsLeaving.map(({ channelId }) => ({ channelId, botSlug: bot.slug })),
               );
@@ -469,18 +514,30 @@ export class TeamBots {
         if (rollbackErrors.length)
           throw new AggregateError(rollbackErrors, 'Bot Memory rollback failed', { cause: error });
       }
-      if (error instanceof OperationalDatabaseError && error.cause instanceof TeamError)
+      if (
+        error instanceof OperationalDatabaseError &&
+        error.code !== 'post-commit-interrupted' &&
+        error.cause instanceof TeamError
+      )
         throw error.cause;
       throw error;
     }
     try {
-      for (const { move } of prepared) move?.finish();
-    } finally {
       try {
-        for (const publish of publishDepartures) publish();
+        for (const { move } of prepared) move?.finish();
       } finally {
-        this.changed(true);
+        try {
+          for (const publish of publishDepartures) publish();
+        } finally {
+          this.changed(true);
+        }
       }
+    } catch (error) {
+      throw toOperationalError(
+        'post-commit-interrupted',
+        'Bot visibility publication failed',
+        error,
+      );
     }
   }
 

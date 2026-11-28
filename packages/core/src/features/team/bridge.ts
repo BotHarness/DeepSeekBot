@@ -76,7 +76,11 @@ export function createTeamBridge(
             scope: z.discriminatedUnion('kind', [
               z.object({ kind: z.literal('all') }).strict(),
               z
-                .object({ kind: z.literal('selected'), botSlugs: z.string().min(1).array() })
+                .object({
+                  kind: z.literal('selected'),
+                  botSlugs: z.string().min(1).array(),
+                  expectedEditableBotsRevision: z.string().regex(/^[a-f0-9]{64}$/u),
+                })
                 .strict(),
             ]),
           })

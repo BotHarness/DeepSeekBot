@@ -54,6 +54,7 @@ function isRoleBotScopeView(value: unknown): value is RoleBotScopeView {
     typeof row?.roleId === 'string' &&
     count(row.revision) &&
     row.revision > 0 &&
+    typeof row.editableBotsRevision === 'string' &&
     (row.kind === 'all' || row.kind === 'selected') &&
     typeof row.canSetAll === 'boolean' &&
     typeof row.canSetSelected === 'boolean' &&

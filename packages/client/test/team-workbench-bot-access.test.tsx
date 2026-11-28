@@ -46,6 +46,7 @@ function scope(overrides: Partial<RoleBotScopeView> = {}): RoleBotScopeView {
   return {
     roleId: 'leads',
     revision: 3,
+    editableBotsRevision: 'editable-bots-v1',
     kind: 'selected',
     canSetAll: true,
     canSetSelected: true,
@@ -187,7 +188,15 @@ it('saves the selected Bots only after an explicit save and switches to all Bots
   await act(async () => save()!.click());
   expect(call).toHaveBeenCalledWith(
     'roleBotScopeSet',
-    { roleId: 'leads', expectedRevision: 3, scope: { kind: 'selected', botSlugs: ['dispatch'] } },
+    {
+      roleId: 'leads',
+      expectedRevision: 3,
+      scope: {
+        kind: 'selected',
+        botSlugs: ['dispatch'],
+        expectedEditableBotsRevision: 'editable-bots-v1',
+      },
+    },
     undefined,
   );
   expect(row('dispatch').dataset['teamBotScopeOn']).toBe('true');
@@ -396,4 +405,36 @@ it('keeps Save disabled after Discard until the stale-role reload succeeds', asy
   await act(async () => release!());
   expect(save()!.disabled).toBe(false);
   expect(call.mock.calls.filter(([method]) => method === 'roleBotScopeSet')).toHaveLength(1);
+});
+
+it('uses the refreshed selection when the editable Bot set changes after a conflict', async () => {
+  const before = scope();
+  const after = scope({
+    editableBotsRevision: 'editable-bots-v2',
+    bots: [
+      ...before.bots,
+      {
+        slug: 'newly-editable',
+        displayName: 'Newly editable',
+        selected: true,
+        editable: true,
+        source: 'selected',
+        audience: 'roles',
+        availableToMembers: true,
+      },
+    ],
+  });
+  let current = before;
+  const call = workbench({
+    roleBotScope: () => ({ ok: true, value: current }),
+    roleBotScopeSet: () => {
+      current = after;
+      return { ok: false, error: { code: 'stale-role', message: 'stale', details: {} } };
+    },
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => toggle('dispatch').click());
+  await act(async () => save()!.click());
+  expect(row('newly-editable').dataset['teamBotScopeOn']).toBe('true');
+  expect(save()).toBeNull();
 });
