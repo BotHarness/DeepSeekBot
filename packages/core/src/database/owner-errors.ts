@@ -19,6 +19,13 @@ export class OperationalDatabaseError extends Error {
   }
 }
 
+export class CommittedOperationInterruptedError extends OperationalDatabaseError {
+  constructor(message: string, cause: unknown) {
+    super('post-commit-interrupted', message, { cause });
+    this.name = 'CommittedOperationInterruptedError';
+  }
+}
+
 export function isThenable(value: unknown): value is PromiseLike<unknown> {
   if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return false;
   return typeof (value as { then?: unknown }).then === 'function';

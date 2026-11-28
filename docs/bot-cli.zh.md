@@ -2521,6 +2521,20 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 若 Host 返回 `stale-role`，请重新读取角色，确认最新权限后再试。
 省略此选项时，`roles update` 会以执行更新的同一身份读取当前版本。
 
+```sh
+deepseekbot roles bot-scope <roleId>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expected-editable-bots-revision <editableBotsRevision> --set selected:<slug>,<slug>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
+deepseekbot bots access-directory
+deepseekbot bots access-roles <slug>
+```
+
+保存时使用 `roles bot-scope` 返回的版本号。保存指定 Bot 时还需传入该命令返回的 `editableBotsRevision`。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
+Host Owner 和已持有全部公开 Bot 授权的合格角色管理员可以选择 `all`，授权访问现在和今后发布的公开 Bot。
+显式选择仍会保留。每个 Bot 行会给出 `audience`（`everyone`、`roles` 或 `members`）和 `editable`；只有按角色公开的 Bot 能被选给角色。
+`access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源。具有 `members.manage` 权限的调用者还可查看仍活跃的点名邀请成员。
+私有 Bot 的访问配置仅对其负责人可见。
+
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 
 用 `deepseekbot --as <username> channels policy <频道 ID>` 查看频道审批规则。返回的 `approvalPolicy` 包含当前生效的模式、查看范围和决定条件。新建和升级后的频道默认使用 `legacy` 模式，只有符合决定条件的人能查看审批详情。频道管理员可以用 `--see-approvals allow|deny|inherit` 和 `--decide-approvals allow|deny|inherit` 修改「所有成员」一行。要修改角色覆盖，先读取权限表，再用 `--policy-stdin` 提交修改后的策略 JSON。用 `--use-channel-approvals` 可启用权限表中的配置，修改审批规则也会启用权限表。可以查看但不能决定时，`tool-approval-status` 返回 `approval.canDecide: false`。提交决定时，`tool-approval-decide` 会重新检查当前权限。

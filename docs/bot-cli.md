@@ -2644,6 +2644,22 @@ When editing a role from an earlier `roles list`, pass its `revision` as `--expe
 If the Host returns `stale-role`, read the role again and review the latest grants before retrying.
 Without the flag, `roles update` reads the current revision using the same caller as the update.
 
+```sh
+deepseekbot roles bot-scope <roleId>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expected-editable-bots-revision <editableBotsRevision> --set selected:<slug>,<slug>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
+deepseekbot bots access-directory
+deepseekbot bots access-roles <slug>
+```
+
+Use the revision from `roles bot-scope` when saving. For selected scope, also pass its `editableBotsRevision`. `selected:` replaces the editable selections on
+public Bots with role audiences. An empty list clears those selections. The Host Owner and eligible role
+managers who already hold the grant can choose `all` to cover all current and future public Bots.
+The explicit selections stay saved. Each Bot row reports its `audience` (`everyone`, `roles` or
+`members`) and whether it is `editable`; only role-audience Bots can be selected for a role.
+The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
+role sources. Active invitees are visible to callers with `members.manage`. A private Bot's access is visible to its owner only.
+
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 
 Read Channel approval rules with `deepseekbot --as <username> channels policy <channel-id>`. The `approvalPolicy` field reports the effective mode and who can see and decide. New and upgraded Channels start in `legacy` mode, where only eligible deciders can see approval details. A Channel manager can set the everyone row with `--see-approvals allow|deny|inherit` and `--decide-approvals allow|deny|inherit`. To edit role overrides, read the table and send the updated policy JSON through `--policy-stdin`. Use `--use-channel-approvals` to activate the table as configured. Changing an approval rule also activates it. `tool-approval-status` returns `approval.canDecide: false` when the request is visible to the caller but read-only. `tool-approval-decide` checks the caller's current authority again.
