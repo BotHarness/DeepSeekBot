@@ -72,7 +72,7 @@ export function safeAttachmentName(raw?: string): string {
   return clean && clean !== '.' && clean !== '..' ? clean : 'attachment';
 }
 
-export function sniffAttachmentMime(b: Uint8Array): string {
+export function sniffAttachmentMime(b: Uint8Array, totalBytes = b.byteLength): string {
   const ascii = (from: number, to: number): string => String.fromCharCode(...b.subarray(from, to));
   if (b.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => b[i] === v))
     return 'image/png';
@@ -100,7 +100,9 @@ export function sniffAttachmentMime(b: Uint8Array): string {
   if (b.length >= 5 && ascii(0, 5) === '%PDF-') return 'application/pdf';
   if (b.length === 0) return 'application/octet-stream';
   try {
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(b);
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(b, {
+      stream: b.byteLength < totalBytes,
+    });
     if (!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(text)) return 'text/plain';
   } catch {}
   return 'application/octet-stream';
@@ -140,7 +142,7 @@ function inspect(
   return {
     hash,
     name: safeAttachmentName(name),
-    mime: sniffAttachmentMime(head.subarray(0, headSize)),
+    mime: sniffAttachmentMime(head.subarray(0, headSize), size),
     size,
   };
 }

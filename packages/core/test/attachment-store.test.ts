@@ -113,6 +113,55 @@ describe('profile attachment storage', () => {
     });
   });
 
+  it.each([
+    {
+      scenario: 'one byte of a character at the sample boundary',
+      bytes: Buffer.from('# '.padEnd(511, 'a') + '界\n'),
+      mime: 'text/plain',
+    },
+    {
+      scenario: 'three bytes of a character at the sample boundary',
+      bytes: Buffer.from('a'.repeat(509) + '🌏'),
+      mime: 'text/plain',
+    },
+    { scenario: 'a short complete file', bytes: Buffer.from('界🌏\n'), mime: 'text/plain' },
+    {
+      scenario: 'a truncated character at the end of a short file',
+      bytes: Buffer.from([0x61, 0xe7, 0x95]),
+      mime: 'application/octet-stream',
+    },
+    {
+      scenario: 'a truncated character at EOF exactly at the sample limit',
+      bytes: Buffer.concat([Buffer.alloc(511, 0x61), Buffer.from([0xe7])]),
+      mime: 'application/octet-stream',
+    },
+    {
+      scenario: 'malformed bytes inside the sample before a split character',
+      bytes: Buffer.concat([Buffer.from([0xc0, 0xaf]), Buffer.from('a'.repeat(509) + '界')]),
+      mime: 'application/octet-stream',
+    },
+    {
+      scenario: 'an invalid continuation byte at the sample boundary',
+      bytes: Buffer.concat([Buffer.alloc(510, 0x61), Buffer.from([0xf0, 0x80, 0x80, 0x80])]),
+      mime: 'application/octet-stream',
+    },
+    {
+      scenario: 'a binary control byte before a split character',
+      bytes: Buffer.from('\0' + 'a'.repeat(510) + '界'),
+      mime: 'application/octet-stream',
+    },
+  ])('sniffs UTF-8 on upload and current-file reads: $scenario', async ({ bytes, mime }) => {
+    const store = createAttachmentStore({ rootDir: root() });
+    const uploaded = await store.upload({ data: chunks(bytes), name: 'report.md' });
+    const downloaded = await store.download(uploaded.fileId ?? uploaded.hash);
+
+    expect(Buffer.from(await new Response(downloaded.body).arrayBuffer())).toEqual(bytes);
+    expect({ upload: uploaded.mime, current: downloaded.ref.mime }).toEqual({
+      upload: mime,
+      current: mime,
+    });
+  });
+
   it('sweeps only old incomplete staging files, never committed objects', async () => {
     const home = root();
     const store = createAttachmentStore({ rootDir: home });

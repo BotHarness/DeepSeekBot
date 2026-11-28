@@ -165,6 +165,7 @@ export const INBOX_OPTIONS = {
 } as const;
 
 export const MESSAGING_OPTIONS = {
+  actor: { type: 'string' },
   'input-stdin': { type: 'boolean' },
   'read-mode': { type: 'string' },
   confirm: { type: 'boolean' },
@@ -303,6 +304,9 @@ export const TEAM_OPTIONS = {
   'mention-all': { type: 'string' },
   'add-bots': { type: 'string' },
   'wake-bot': { type: 'string' },
+  'see-approvals': { type: 'string' },
+  'decide-approvals': { type: 'string' },
+  'use-channel-approvals': { type: 'boolean' },
   'mention-bot': { type: 'string' },
   'mention-label': { type: 'string' },
   'block-human': { type: 'string' },

@@ -521,16 +521,24 @@ describe('M2 private Bot boundaries', () => {
       value: { channel: { id: group.id, name: group.name, members: ['owner-bot', 'bob-bot'] } },
     });
     if (!visible.ok) throw new Error('member-group-read-refused');
-    expect(Object.keys(visible.value).sort()).toEqual([
+    const memberGroupFields = [
       'admins',
+      'approvalPolicy',
       'canEditDetails',
+      'canManageApprovals',
       'canPost',
       'channel',
       'policy',
       'policyRevision',
       'role',
       'visibility',
-    ]);
+    ];
+    expect(Object.keys(visible.value).sort()).toEqual(memberGroupFields);
+    expect(visible.value).toHaveProperty('approvalPolicy', {
+      mode: 'legacy',
+      see: 'eligible-deciders',
+      decide: 'bot-owner-or-opaque-tools',
+    });
     for (const key of ['invitations', 'joinRequests', 'wakePolicies', 'ownerBotSlug'])
       expect(visible.value.channel).not.toHaveProperty(key);
     for (const marker of ['alice-bot', 'carol-bot', invitation.id, request.id, 'digest'])
@@ -547,16 +555,7 @@ describe('M2 private Bot boundaries', () => {
     });
     const after = f.methods(bob).channelGet({ channelId: group.id });
     if (!after.ok) throw new Error('member-group-read-refused');
-    expect(Object.keys(after.value).sort()).toEqual([
-      'admins',
-      'canEditDetails',
-      'canPost',
-      'channel',
-      'policy',
-      'policyRevision',
-      'role',
-      'visibility',
-    ]);
+    expect(Object.keys(after.value).sort()).toEqual(memberGroupFields);
     expect(after.value.channel.members).toEqual(['owner-bot', 'bob-bot']);
     expect(after.value).not.toHaveProperty('channelFingerprint');
     expect(

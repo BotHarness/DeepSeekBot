@@ -116,14 +116,14 @@ function tools(accounts: readonly Account[] | undefined, execute: Execute) {
         ]),
       }),
     ),
-    write.bind(
+    send.bind(
       defineTool({
         name: 'google_calendar_create_event',
         description:
           'Create an event on the selected Google account’s primary calendar. Requires approval.',
-        ...write.options(
+        ...send.options(
           {
-            account: write.account,
+            account: send.account,
             ...range,
             summary: { type: 'string', required: true, description: 'Event title.' },
           },

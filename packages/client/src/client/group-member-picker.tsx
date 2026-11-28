@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { useRef, useState, type ReactElement } from 'react';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import { HUMAN_AVATAR_BATCH, readHumanAvatars } from '@botharness/host-client/human-profile';
@@ -332,7 +333,7 @@ type BatchItem = {
 };
 
 function memberTarget(member: PickedGroupMember): GroupMemberTarget {
-  return { kind: member.kind, id: member.id, operationKey: crypto.randomUUID() };
+  return { kind: member.kind, id: member.id, operationKey: createBrowserUuid() };
 }
 
 export function useGroupMemberBatch() {

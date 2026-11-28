@@ -9,6 +9,8 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createChannelStore } from '../src/channels/store.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { runConnectorCommand } from '../src/cli/cli-connectors.js';
 import { googleScopes } from '../src/connectors/google-oauth.js';
 import { ConnectorService } from '../src/connectors/service.js';
@@ -18,8 +20,8 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { mountGoogleTools } from '../src/features/connectors/google-tools.js';
 import { createConnectorsBridgeMethods } from '../src/features/connectors/methods.js';
 import { connectorCallback, connectorCatalogFor } from '../src/features/connectors/plugin.js';
-import type { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
-import { createTempRoot } from './helpers.js';
+import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
+import { createTempRoot, createTestOwnership } from './helpers.js';
 
 const CLIENT_ID = 'demo.apps.googleusercontent.com';
 const CLIENT_SECRET = 'fixture_client_secret';
@@ -152,7 +154,10 @@ function mount(
     service,
     approval: () => approval,
   });
-  const agent = { id: 'fixture-agent' } as Agent;
+  const agent = {
+    id: 'fixture-agent',
+    session: { id: 'fixture-session', header: { cwd: '/fixture' } },
+  } as Agent;
   function call(name: string, args: Record<string, unknown>, tool = tools.get(name)) {
     if (!tool) throw new Error(`Tool unavailable: ${name}`);
     const callId = ToolCallId('fixture-call');
@@ -417,6 +422,63 @@ describe('Google Workspace Connector Accounts', () => {
       ada.stop();
       bea.stop();
     } finally {
+      f.close();
+    }
+  });
+
+  it.each([
+    { name: 'google_gmail_send', args: sendArgs },
+    {
+      name: 'google_calendar_create_event',
+      args: {
+        summary: 'Planning',
+        start: '2026-11-28T09:00:00Z',
+        end: '2026-11-28T10:00:00Z',
+      },
+    },
+  ])('asks for approval under Full Access before $name reaches Google', async ({ name, args }) => {
+    const f = fixture();
+    const { service } = f;
+    const channels = createChannelStore({ rootDir: createTempRoot('bh-google-approval-') });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    if (!dm) throw new Error('Missing approval DM');
+    const ownership = createTestOwnership({
+      'fixture-session': { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
+    const approval = new ChannelToolApproval(
+      channels,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => true,
+    );
+    const ada = mount(service, 'ada', approval);
+    try {
+      await service.google.setClient({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
+      const login = await service.google.login('Work');
+      service.grant('ada', login.account.accountId, 'write');
+      const consent = await service.reconnect(login.account.accountId);
+      await f.finish(service, consent.url ?? '', 'work-write');
+      const result = ada.call(name, args).catch((error: unknown) => error);
+      await vi.waitFor(() => expect(channels.readMessages(dm.id)).toHaveLength(1));
+      const [card] = channels.readMessages(dm.id);
+      if (!card) throw new Error('Missing approval card');
+      expect(card.toolApprovalRequest).toMatchObject({
+        toolName: name,
+        effects: { changes: 'irreversible', reach: 'external' },
+        externalDecision: 'each-use',
+      });
+      expect(f.apiRequests).toHaveLength(0);
+      expect(await approval.decide(OWNER_HUMAN_CONTEXT, 'ada', card.id, 'rejected')).toBe(true);
+      expect(await result).toMatchObject({ message: expect.stringContaining('rejected') });
+      expect(f.apiRequests).toHaveLength(0);
+    } finally {
+      ada.stop();
+      approval.close();
       f.close();
     }
   });

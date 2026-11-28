@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { createElement } from 'react';
 import type { ComponentType } from 'react';
 import type {
@@ -157,7 +158,7 @@ export function createDockPanelRegistry(
       if (!botId.trim() || botId.length > 160 || !label.trim() || label.length > 160)
         throw new Error('invalid_bot_binding');
       if (instances.length >= 16) throw new Error('panel_instance_limit');
-      const instance = { id: 'instance:' + crypto.randomUUID(), definitionId, botId, label };
+      const instance = { id: 'instance:' + createBrowserUuid(), definitionId, botId, label };
       const next = [...instances, instance];
       options.saveInstances?.(next);
       instances = next;

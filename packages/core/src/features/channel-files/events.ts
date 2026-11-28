@@ -198,7 +198,7 @@ export function createChannelFileAccess({
       }
       if (
         data.byteLength !== downloaded.ref.size ||
-        sniffAttachmentMime(data.subarray(0, 512)) !== downloaded.ref.mime
+        sniffAttachmentMime(data.subarray(0, 512), data.byteLength) !== downloaded.ref.mime
       ) {
         throw new Error(`Attachment ${ref.name} changed while being read`);
       }

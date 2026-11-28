@@ -1,6 +1,12 @@
+import { Context } from '@deepseek-ai/cordis';
+import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
+import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { OAuthError } from '@modelcontextprotocol/client';
 import { describe, expect, it } from 'vitest';
 
+import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { registerBridge } from '../src/bridge/rpc.js';
+import { createCore } from '../src/plugin.js';
 import { runConnectorCommand } from '../src/cli/cli-connectors.js';
 import { createConnectorsBridgeMethods } from '../src/features/connectors/methods.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -700,11 +706,47 @@ describe('remote MCP App connections', () => {
       await run('connector-mcp-finish', ['http://localhost/cb?state=s&code=c']);
       expect(sent).toEqual([
         ['connectorMcpSearch', { query: 'analytics', cursor: 'p2' }],
-        ['connectorMcpAdd', { url: POSTHOG, name: 'PostHog', label: 'Work' }],
+        ['connectorMcpAdd', { input: { url: POSTHOG, name: 'PostHog', label: 'Work' } }],
         ['connectorMcpFinish', { url: 'http://localhost/cb?state=s&code=c' }],
       ]);
       await expect(run('connector-mcp-add', [])).rejects.toMatchObject({ code: 'usage' });
     } finally {
+      owner.close();
+    }
+  });
+
+  it('adds a remote MCP account from the CLI through its Typert descriptor', async () => {
+    const { client } = fakeMcp();
+    const { owner, service } = setup(client);
+    const ctx = new Context();
+    const core = createCore({ dshHome: createTempRoot('botharness-mcp-cli-host-') });
+    ctx.provide('typert');
+    ctx.set('typert', {
+      local: { get: () => undefined, hasSeen: () => false },
+      lookups: { definitions: () => [], get: () => undefined },
+      resources: { entries: () => [] },
+    });
+    const gateway = new TypertGatewayService(ctx, {});
+    registerBridge(ctx, createBridgeMethodsForHumans({ ...core, connectors: service }));
+    const peer = new Peer(ctx, { principal: { kind: 'owner' } });
+    try {
+      const added = await runConnectorCommand(
+        'connector-mcp-add',
+        [POSTHOG],
+        { name: 'PostHog', label: 'Gateway fixture' },
+        {},
+        async () => (method, args) =>
+          gateway.invoke({ namespace: 'botharness', method, args, peer }),
+      );
+      expect(added).toMatchObject({
+        account: { provider: 'mcp', status: 'pending', label: 'Gateway fixture' },
+        url: expect.any(String),
+      });
+      expect(service.available()).toMatchObject([{ provider: 'mcp', label: 'Gateway fixture' }]);
+    } finally {
+      await ctx.fiber.dispose();
+      await core.runtime.close();
+      core.operationalDatabase.close();
       owner.close();
     }
   });

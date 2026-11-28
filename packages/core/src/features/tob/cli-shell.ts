@@ -12,6 +12,7 @@ import {
   type ShellExecution,
 } from '@deepseek-ai/dsh-shell';
 import { defineTool, type ToolDefinition, type ToolExecution } from '@deepseek-ai/dsh-tools';
+import { hostNodeEnv } from '../../execution/host-node-env.js';
 import { tobCliCommandSchema } from '../../kernel/tob-cli-request.js';
 import { TobError } from '../../tob/service.js';
 import { startTobCliBroker, type TobCliBrokerOptions } from './cli-broker.js';
@@ -47,6 +48,7 @@ export function cliModulePath(): string {
 function makeShim(modulePath: string): { directory: string; remove(): void } {
   const directory = mkdtempSync(join(tmpdir(), 'botharness-tob-cli-'));
   const entry = join(directory, 'entry.mjs');
+  const electronNode = hostNodeEnv({})['ELECTRON_RUN_AS_NODE'] === '1';
   try {
     writeFileSync(
       entry,
@@ -55,13 +57,13 @@ function makeShim(modulePath: string): { directory: string; remove(): void } {
     );
     writeFileSync(
       join(directory, 'deepseekbot'),
-      `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(entry)} "$@"\n`,
+      `#!/bin/sh\n${electronNode ? 'ELECTRON_RUN_AS_NODE=1 ' : ''}exec ${shellQuote(process.execPath)} ${shellQuote(entry)} "$@"\n`,
       { mode: 0o500 },
     );
     if (process.platform === 'win32')
       writeFileSync(
         join(directory, 'deepseekbot.cmd'),
-        `@echo off\r\n"${process.execPath}" "${entry}" %*\r\n`,
+        `@echo off\r\n${electronNode ? 'setlocal\r\nset "ELECTRON_RUN_AS_NODE=1"\r\n' : ''}"${process.execPath}" "${entry}" %*\r\n`,
         { mode: 0o500 },
       );
     chmodSync(directory, 0o500);
@@ -156,7 +158,7 @@ process.exitCode = await runBotCreateCli(process.argv.slice(1), {
                 ['--input-type=module', '--eval', entry, '--', ...command.argv],
                 {
                   cwd,
-                  env,
+                  env: hostNodeEnv(env),
                   signal,
                   shell: false,
                   windowsHide: true,

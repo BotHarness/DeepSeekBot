@@ -6,12 +6,14 @@ export interface PrivateInputLogDetails {
   sessionId?: string;
   durationMs?: number;
   program?: string;
+  consumer?: string;
   tool?: string;
   failure?: string;
   reason?: string;
   exitCode?: number | null;
   httpStatus?: number;
   errorName?: string;
+  errorCode?: string;
   initiator?: 'replacement' | 'revocation';
   active?: number;
   stopped?: number;

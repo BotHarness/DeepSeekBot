@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { notChannelNoticeSql } from '../../channels/channel-notice.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
-import type { HumanContext } from '../../humans/context.js';
+import { humanContext, type HumanContext } from '../../humans/context.js';
 import { readHumanAssignmentContext } from '../../runtime/assignment-human-context.js';
 import { isMaskedApprovalCard } from '../../team/approval-contract.js';
 import {
-  ACTION_ATTENTION_CTE,
+  actionAttentionCte,
   attentionBotOwner,
   attentionDmOwner,
   INBOX_CHANNEL_ATTENTION_CTE,
@@ -124,7 +124,32 @@ export function createHumanAttentionQuery(
   mutedChannelIds: (human: HumanContext) => readonly string[] = () => [],
   now: () => Date = () => new Date(),
   project: <T>(human: HumanContext, value: T) => T = (_human, value) => value,
+  channelApprovalDecider?: (
+    human: HumanContext,
+    channelId: string,
+    messageId: string,
+  ) => boolean | undefined,
 ): HumanAttentionQuery {
+  const approvalCte = actionAttentionCte(channelApprovalDecider !== undefined);
+  let approvalDeciderRegistered = false;
+  const actionCteForRead = () => {
+    if (channelApprovalDecider && !approvalDeciderRegistered) {
+      database.read((db) =>
+        db.function('botharness_activity_can_decide', (humanId, channelId, messageId) => {
+          if (
+            typeof humanId !== 'string' ||
+            typeof channelId !== 'string' ||
+            typeof messageId !== 'string'
+          )
+            return null;
+          const decision = channelApprovalDecider(humanContext(humanId), channelId, messageId);
+          return decision === undefined ? null : Number(decision);
+        }),
+      );
+      approvalDeciderRegistered = true;
+    }
+    return approvalCte;
+  };
   let lowerRegistered = false;
   const activeSnooze = (id: string, source: string, at: string): string =>
     `EXISTS (SELECT 1 FROM human_inbox_snoozes s WHERE s.human_id = $humanId AND s.item_id = ${id} AND s.source_key = coalesce(${source}, '') AND s.until > '${at}')`;
@@ -289,7 +314,7 @@ export function createHumanAttentionQuery(
       const channelCte = (
         category === 'unread' ? INBOX_CHANNEL_UNREAD_CTE : INBOX_CHANNEL_REPLIES_CTE
       ).replace('WITH ', searchCte);
-      const actionCte = ACTION_ATTENTION_CTE.replace('WITH ', searchCte);
+      const actionCte = actionCteForRead().replace('WITH ', searchCte);
       const direction = sort === 'oldest' ? 'ASC' : 'DESC';
       const cursorComparison = sort === 'oldest' ? '>' : '<';
       const snoozedOnly = input.snoozed === true;
@@ -719,7 +744,7 @@ SELECT 'handled:' || request.source_event_id AS id,
       return database.read(
         (db) =>
           db
-            .prepare(`${ACTION_ATTENTION_CTE}
+            .prepare(`${actionCteForRead()}
           SELECT bot_slug AS botSlug,
                  sum(kind = 'assignment-waiting-human') AS waitingHumanCount,
                  sum(kind = 'assignment-blocked') AS blockedCount,
@@ -753,7 +778,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         (db) =>
           db
             .prepare(
-              `${ACTION_ATTENTION_CTE} SELECT bot_slug, count(DISTINCT id) AS count FROM attention WHERE category = 'action' AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = attention.id AND d.source_key = coalesce(attention.source_event_id, '')) AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())} GROUP BY bot_slug`,
+              `${actionCteForRead()} SELECT bot_slug, count(DISTINCT id) AS count FROM attention WHERE category = 'action' AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = $humanId AND d.item_id = attention.id AND d.source_key = coalesce(attention.source_event_id, '')) AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())} GROUP BY bot_slug`,
             )
             .all(
               { humanId: human.humanId },

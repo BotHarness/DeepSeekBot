@@ -132,7 +132,15 @@ describe('M4 Channel policy CLI', () => {
     const args = ['channels', 'policy', 'group-1'];
     expect(await run(f.url, args)).toMatchObject({
       status: 0,
-      output: { policy: DEFAULT_CHANNEL_POLICY, policyRevision: 'a'.repeat(64) },
+      output: {
+        policy: DEFAULT_CHANNEL_POLICY,
+        policyRevision: 'a'.repeat(64),
+        approvalPolicy: {
+          mode: 'legacy',
+          see: 'eligible-deciders',
+          decide: 'bot-owner-or-opaque-tools',
+        },
+      },
     });
     expect(f.calls.map(({ input }) => input.method)).toEqual(['botharness/channelGet']);
     const policy = {
@@ -179,6 +187,79 @@ describe('M4 Channel policy CLI', () => {
               editDetails: 'deny',
             },
             overrides: [],
+          },
+        },
+      },
+    });
+  });
+  it('keeps approval fields absent when submitting a permission table from an older client', async () => {
+    const f = await host();
+    const policy = {
+      version: 1,
+      everyone: {
+        addMembers: 'allow',
+        post: 'deny',
+        mentionAll: 'allow',
+        wakeBot: 'allow',
+        addBots: 'deny',
+        editDetails: 'deny',
+      },
+      overrides: [],
+    };
+    expect(
+      (
+        await run(
+          f.url,
+          ['channels', 'policy', 'group-1', '--policy-stdin'],
+          JSON.stringify(policy),
+        )
+      ).status,
+    ).toBe(0);
+    const write = JSON.stringify(f.calls.at(-1)?.input);
+    expect(write).not.toContain('seeApprovals');
+    expect(write).not.toContain('decideApprovals');
+  });
+  it('uses member authority and the observed revision for Channel approval setting flags', async () => {
+    const f = await host();
+    const args = ['channels', 'policy', 'group-1', '--as', 'bob'];
+    expect(
+      (
+        await run(f.url, [
+          ...args,
+          '--see-approvals',
+          'deny',
+          '--decide-approvals',
+          'allow',
+          '--use-channel-approvals',
+        ])
+      ).output,
+    ).toMatchObject({ error: { code: 'remote-access/denied' } });
+    expect(f.calls[0]).toMatchObject({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', method: 'channelGet' },
+    });
+    expect(
+      (
+        await run(f.url, [
+          'channels',
+          'policy',
+          'group-1',
+          '--see-approvals',
+          'deny',
+          '--decide-approvals',
+          'allow',
+          '--use-channel-approvals',
+        ])
+      ).status,
+    ).toBe(0);
+    expect(f.calls.at(-1)?.input).toMatchObject({
+      method: 'botharness/channelPolicySet',
+      payload: {
+        args: {
+          expectedRevision: 'a'.repeat(64),
+          policy: {
+            approvalMode: 'channel',
+            everyone: { seeApprovals: 'deny', decideApprovals: 'allow' },
           },
         },
       },
