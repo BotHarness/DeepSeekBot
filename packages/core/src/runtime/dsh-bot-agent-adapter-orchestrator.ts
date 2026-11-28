@@ -652,14 +652,17 @@ export async function orchestratorHandle(
       const current = adapter.runs.get(run.sessionId);
       return current?.role === 'orchestrator' && current.run.holdsManagementGrant?.() === true;
     };
-    let managerPrompt = holdsManagementGrant();
+    let managerPrompt = resumedAgent === undefined ? holdsManagementGrant() : undefined;
     let managerPromptStale = false;
     const managerPromptNow = () => {
-      if (managerPromptStale && adapter.runs.get(run.sessionId)?.role === 'orchestrator') {
+      if (
+        (managerPrompt === undefined || managerPromptStale) &&
+        adapter.runs.get(run.sessionId)?.role === 'orchestrator'
+      ) {
         managerPrompt = holdsManagementGrant();
         managerPromptStale = false;
       }
-      return managerPrompt;
+      return managerPrompt ?? false;
     };
     const disposeManagerPromptRefresh = agentCtx.on(
       'session/event',
