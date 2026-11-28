@@ -148,6 +148,13 @@ it('locks rows the role cannot change and says why', () => {
   expect(draftChanged(view, { kind: 'all', slugs: draft.slugs })).toBe(true);
 });
 
+async function renderRoles(call: BridgeCall): Promise<void> {
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  const nav = host.querySelector<HTMLButtonElement>('[data-team-nav="roles"]');
+  if (!nav) throw new Error('Missing roles nav');
+  await act(async () => nav.click());
+}
+
 function workbench(handlers: Record<string, (args: Record<string, unknown>) => unknown>) {
   return vi.fn<BridgeCall>(async (method, args) => {
     if (method === 'teamMode') return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
@@ -179,7 +186,7 @@ it('saves the selected Bots only after an explicit save and switches to all Bots
       return { ok: true, value: current };
     },
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
 
   expect(host.textContent).toContain('私有 Bot 只属于它的负责人，不受这里的设置影响。');
   expect(toggle('lobby').disabled).toBe(true);
@@ -232,7 +239,7 @@ it('keeps the attempted selection after a stale role and reloads the scope', asy
       error: { code: 'stale-role', message: 'stale', details: {} },
     }),
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   expect(reads).toBe(2);
@@ -245,7 +252,7 @@ it('disables all Bots for a role manager without the all-public grant', async ()
   const call = workbench({
     roleBotScope: () => ({ ok: true, value: scope({ canSetAll: false }) }),
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   expect(mode('全部 Bot').disabled).toBe(true);
   expect(host.textContent).toContain('才能授予「全部 Bot」');
 });
@@ -301,7 +308,7 @@ it('lists who can use each Bot with the source of every role', async () => {
     }),
     botAccessRoles: (args) => ({ ok: true, value: access[args['slug'] as string] }),
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => host.querySelector<HTMLButtonElement>('[data-team-nav="bots"]')!.click());
 
   expect(host.querySelector('[data-team-bot-detail="lobby"]')).not.toBeNull();
@@ -328,7 +335,7 @@ it('lists who can use each Bot with the source of every role', async () => {
 
 it('keeps unsaved Bot choices when switching between All Bots and Selected Bots', async () => {
   const call = workbench({ roleBotScope: () => ({ ok: true, value: scope() }) });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => toggle('dispatch').click());
   await act(async () => mode('全部 Bot').click());
   await act(async () => mode('选定的 Bot').click());
@@ -349,7 +356,7 @@ it('offers a read retry when the reload after a stale role fails', async () => {
       error: { code: 'stale-role', message: 'stale', details: {} },
     }),
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   expect(host.textContent).toContain('没能载入这个角色能访问的 Bot。');
@@ -374,7 +381,7 @@ it('keeps the retry for unread Bots visible when a filter matches nothing', asyn
       throw new Error('offline');
     },
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => host.querySelector<HTMLButtonElement>('[data-team-nav="bots"]')!.click());
   const chip = [...host.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find(
     (node) => node.textContent === '私有',
@@ -398,7 +405,7 @@ it('keeps Save disabled after Discard until the stale-role reload succeeds', asy
       error: { code: 'stale-role', message: 'stale', details: {} },
     }),
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   const discard = [
@@ -437,7 +444,7 @@ it('uses the refreshed selection when the editable Bot set changes after a confl
       return { ok: false, error: { code: 'stale-role', message: 'stale', details: {} } };
     },
   });
-  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await renderRoles(call);
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   expect(row('newly-editable').dataset['teamBotScopeOn']).toBe('true');
