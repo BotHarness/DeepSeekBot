@@ -133,7 +133,13 @@ export function parseUpdateRun(value: unknown): UpdateRun | undefined {
 }
 
 export function newUpdateRequestId(): string {
-  return createBrowserUuid();
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.getRandomValues === 'function') return createBrowserUuid(crypto);
+
+  const bytes = new Uint8Array(16);
+  for (let index = 0; index < bytes.length; index += 1)
+    bytes[index] = Math.floor(Math.random() * 256);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export class UpdateRunsController {

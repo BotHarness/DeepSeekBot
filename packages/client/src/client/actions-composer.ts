@@ -73,8 +73,14 @@ export interface ComposerActions {
   };
 }
 
+let localEchoSequence = 0;
+
 function nextLocalEchoId(): string {
-  return `human-${createBrowserUuid()}`;
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.getRandomValues === 'function') return `human-${createBrowserUuid(crypto)}`;
+
+  localEchoSequence += 1;
+  return `human-${localEchoSequence.toString(16).padStart(8, '0').slice(-8)}-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
 }
 
 function reconcileCommittedMessage(
