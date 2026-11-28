@@ -198,5 +198,3 @@ export interface AssignmentAgentRun {
 export type AssignmentRequestDelivery =
   | { delivery: 'steer' }
   | { delivery: 'followup'; accepted: Promise<void>; done: Promise<void> };
-
-export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;

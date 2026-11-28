@@ -181,7 +181,14 @@ function AttachmentRow({
   const menu = useHostFileMenu(commands, channelId, t);
   const id = ref.fileId;
   const hostMenu = id !== undefined && commands !== undefined && channelId !== undefined;
-  const opener = useHostFileDefaultOpen(hostMenu ? commands : undefined, channelId, id, menu, t);
+  const opener = useHostFileDefaultOpen(
+    id === undefined || channelId === undefined || actions === undefined
+      ? undefined
+      : () => actions.messageAttachmentOpenDefault(channelId, messageId, id),
+    id,
+    menu,
+    t,
+  );
   const resource = useMessageResource(
     channelId === undefined ? undefined : channelAttachmentUrl(ref, { channelId, messageId }),
     false,

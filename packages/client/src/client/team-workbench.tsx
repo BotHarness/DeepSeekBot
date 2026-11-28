@@ -27,12 +27,14 @@ import {
   type TeamRole,
 } from './team-roles-bridge.js';
 import { teamErrorText } from './team-settings.js';
+import { BotsSection } from './team-workbench/bots-section.js';
 import { ChannelsSection } from './team-workbench/channels-section.js';
 import { ExternalRolesSection } from './team-workbench/external-roles-section.js';
 import { DetailNotice, EmptyDetail, WorkbenchFrame } from './team-workbench/frame.js';
 import { ImConnectionsSection } from './team-workbench/im-connections-section.js';
 import { MembersSection } from './team-workbench/members-section.js';
 import { withChoice, type PermissionChoice } from './team-workbench/permission-model.js';
+import { RoleBotScope } from './team-workbench/role-bot-scope.js';
 import { RoleConflictNote, type RoleConflict } from './team-workbench/role-conflict.js';
 import { RolesSection, type Inspection } from './team-workbench/roles-section.js';
 import { SectionNav } from './team-workbench/section-nav.js';
@@ -198,6 +200,14 @@ export function TeamWorkbench({
     setBusy(false);
   };
 
+  const reloadRoleList = async (): Promise<void> => {
+    try {
+      setRoles(await loadRoles(call));
+    } catch (failure) {
+      setError(teamErrorText(t, failure));
+    }
+  };
+
   const retry = async (): Promise<void> => {
     setRetrying(true);
     await refresh();
@@ -243,6 +253,16 @@ export function TeamWorkbench({
             setConflict(undefined);
             clearInspection();
           }}
+          botScope={(role) => (
+            <RoleBotScope
+              key={role.roleId}
+              call={call}
+              t={t}
+              roleId={role.roleId}
+              revision={role.revision}
+              onChanged={() => void reloadRoleList()}
+            />
+          )}
           onChoose={(role, id, choice) => void choose(role, id, choice)}
           onInspect={(member) => void inspect(member)}
         />
@@ -259,6 +279,10 @@ export function TeamWorkbench({
         onInspect={(member) => void inspect(member)}
       />
     ),
+    bots: () =>
+      view === undefined ? null : (
+        <BotsSection call={call} t={t} view={view} roles={roles} members={members} />
+      ),
     channels: () => <ChannelsSection call={call} t={t} />,
     externalRoles: () => <ExternalRolesSection call={call} t={t} />,
     imConnections: () =>

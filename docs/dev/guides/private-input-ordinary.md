@@ -4,13 +4,14 @@ Since [ADR-0189](../../decisions/secrets.md#adr-0189) a PersonaBot can ask for a
 
 ## What the Bot can do
 
-| Tool                 | What it does                                                                                                                                                                                                |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ask_secret`         | Posts an input card in the Channel the request came from. Only the Owner can fill it. The Bot gets back `private:<id>:<field>` references, never values.                                                    |
-| `secret_http`        | Calls an HTTP API. The Host sends the request to the endpoint the Owner typed into the card; the Bot chooses a path under it, the method, and `{{field}}` placeholders for secrets in headers, query, body. |
-| `protected_cli`      | The fixed `http-status-v1` check: one GET, returns only the status code.                                                                                                                                    |
-| `secret_cli`         | Runs one installed command-line tool with secrets in its environment. The Host starts the program without a shell, in the Bot's working folder, inside the Shell sandbox, with a clean environment.         |
-| `secret_mcp_connect` | Starts an MCP server for this Bot's chat Session with secrets in its environment; its tools appear as `mcp__<server_name>__<tool>`. `secret_mcp_disconnect` stops it or lists what is connected.            |
+| Tool                   | What it does                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ask_secret`           | Looks up saved credentials by default. Explicit `collect` can open a private form for the Owner. The Bot receives opaque references.                                                                        |
+| `list_secret_accounts` | Lists the saved account names this Bot can look up.                                                                                                                                                         |
+| `secret_http`          | Calls an HTTP API. The Host sends the request to the endpoint the Owner typed into the card; the Bot chooses a path under it, the method, and `{{field}}` placeholders for secrets in headers, query, body. |
+| `protected_cli`        | The fixed `http-status-v1` check: one GET, returns only the status code.                                                                                                                                    |
+| `secret_cli`           | Runs one installed command-line tool with secrets in its environment. The Host starts the program without a shell, in the Bot's working folder, inside the Shell sandbox, with a clean environment.         |
+| `secret_mcp_connect`   | Starts an MCP server for this Bot's chat Session with secrets in its environment; its tools appear as `mcp__<server_name>__<tool>`. `secret_mcp_disconnect` stops it or lists what is connected.            |
 
 Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` card offers allow once, always allow this kind, and reject. The kind is the program, the account and the set of environment variable names; arguments are not part of it. Always allow saves a revocable `secret-cli` rule for that Bot and role, so later calls of the same kind run with any arguments without a card, and a different program, account or variable set gets a new card. No exact or all-opaque rule covers `secret_cli` ([ADR-0191](../../decisions/secrets.md#adr-0191), [ADR-0208](../../decisions/secrets.md#adr-0208)).
 
@@ -87,7 +88,7 @@ node scripts/ask-secret-fixture.mjs 31381
 Open the printed Web URL, select a PersonaBot with a working model, and send in its DM or mention it in a Group:
 
 ```text
-Call ask_secret for account synthetic-http, with three required fields:
+Call ask_secret with mode collect for account synthetic-http and these three required fields:
 endpoint labeled API address, api_key labeled API key, api_secret labeled API secret.
 After I submit, use secret_http: GET /status?marker=SYNTHETIC-1380-url-A with header
 x-api-key set to {{api_key}} and x-api-secret set to {{api_secret}}.

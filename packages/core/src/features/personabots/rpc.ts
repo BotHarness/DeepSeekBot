@@ -238,10 +238,11 @@ export function deletionConfirm(
 export function deletionRetry(
   methods: PersonaBotsBridgeMethods,
   slug: string,
+  archiveDmToken?: string,
 ): Promise<
   AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
 > {
-  return unwrapAsync(methods.deletionRetry({ slug }));
+  return unwrapAsync(methods.deletionRetry({ slug, archiveDmToken }));
 }
 
 export function deletionMemoryFolder(
@@ -567,10 +568,11 @@ export const personaBotDeletionRpc = {
 
   async deletionRetry(
     slug: string,
+    archiveDmToken?: string,
   ): Promise<
     AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
   > {
-    return deletionRetry(this.methods, slug);
+    return deletionRetry(this.methods, slug, archiveDmToken);
   },
 
   deletionMemoryFolder(slug: string): AdminResult<{

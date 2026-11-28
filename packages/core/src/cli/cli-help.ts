@@ -277,7 +277,7 @@ Usage:
   tobs bot-delete-preview <id>
   tobs bot-delete-memory-folder <id>
   tobs bot-delete-confirm <id> --confirmation-stdin --confirm [--erase-memory]
-  tobs bot-delete-retry <id> --confirm
+  tobs bot-delete-retry <id> --confirm [--confirmation-stdin]
   tobs bot-avatar-set|bot-banner-set <id> (--file <image> | --clear)
   tobs bot-banner-set|bot-appearance-set <id> --recipe-stdin
   tobs bot-primary-color-set <id> (--color <#rrggbb> | --automatic)

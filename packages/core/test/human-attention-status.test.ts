@@ -5,11 +5,11 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { createHumanAttentionDecisions } from '../src/features/activity/human-attention-decisions.js';
 import {
-  createHumanAttentionDecisions,
   createHumanAttentionQuery,
   UNREAD_COUNT_LIMIT,
-} from '../src/runtime/human-attention.js';
+} from '../src/features/activity/human-attention-query.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 function fixture() {

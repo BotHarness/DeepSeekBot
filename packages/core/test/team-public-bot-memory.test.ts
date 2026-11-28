@@ -2,12 +2,13 @@ import { reconcilePublicBotMemories } from '../src/workspaces/bot-memory-placeme
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import { join, dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { execFileSync } from 'node:child_process';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import type { BotVisibility } from '../src/team-policy/bot-contract.js';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import * as databaseOwner from '../src/database/owner.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
@@ -30,6 +31,7 @@ const alice = humanContext('alice'),
 const everyone = { kind: 'public', audience: { kind: 'everyone' } } as const;
 const cores: BotHarnessCore[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   vi.mocked(fs.renameSync).mockImplementation(real.renameSync);
   vi.mocked(fs.cpSync).mockImplementation(real.cpSync);
   vi.mocked(fs.rmSync).mockImplementation(real.rmSync);
@@ -40,14 +42,14 @@ afterEach(async () => {
     core.operationalDatabase.close();
   }
 });
-function open(home: string, agents?: BotAgentAdapter) {
-  const core = createCore({ dshHome: home, ...(agents ? { agents } : {}) });
+function open(home: string, options?: Parameters<typeof createCore>[0]) {
+  const core = createCore({ dshHome: home, ...options });
   cores.push(core);
   return core;
 }
-function fixture(agents?: BotAgentAdapter) {
+function fixture(options?: Parameters<typeof createCore>[0]) {
   const home = fs.realpathSync(createTempRoot('m7-shared-memory-'));
-  const core = open(home, agents);
+  const core = open(home, options);
   const db = attachOperationalModule(core.operationalDatabase, 'm7-memory-test');
   db.transaction((sql) => {
     sql.prepare('UPDATE team_settings SET enabled=1').run();
@@ -103,7 +105,445 @@ function crossDevice(source: string, target: string) {
   });
 }
 
+function sessionArchives() {
+  const archived = new Set<string>();
+  const options = {
+    sessionArchive: () => ({
+      async archiveSession(id: string) {
+        if (id === 'unsaved')
+          throw Object.assign(new Error('unsaved'), { name: 'WorkspaceUnknownSessionError' });
+        archived.add(id);
+      },
+      async unarchiveSession(id: string) {
+        archived.delete(id);
+      },
+    }),
+    workspaces: () => ({
+      get: () => undefined,
+      list: () => [],
+      archivedSessionIds: [...archived],
+    }),
+  };
+  return { archived, options };
+}
+
 describe('M7 public Bot Memory placement', () => {
+  it('preserves Group memberships across Team mode suspension and an all-public scope edit', async () => {
+    const { core } = fixture();
+    await core.team.setOwnerPassword(owner, 'owner-password-1');
+    const api = createBridgeMethodsForHumans(core)(owner);
+    const role = core.team.roles.create(owner, 'Public Bot readers', []).role;
+    core.team.roles.set(owner, bob.humanId, [role.roleId]);
+    expect(
+      await api.botVisibilitySet({
+        slug: 'helper',
+        visibility: { kind: 'public', audience: { kind: 'members', humanIds: [bob.humanId] } },
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await api.roleBotScopeSet({
+        roleId: role.roleId,
+        expectedRevision: role.revision,
+        scope: { kind: 'all' },
+      }),
+    ).toMatchObject({ ok: true });
+    const group = core.channels.createGroup(bob, { name: 'Team', members: ['helper'] });
+    core.team.channelAccess.addMember(bob, group.id, alice.humanId);
+    core.team.bots.recordAdder(bob, 'helper', group.id);
+
+    await core.team.setMode(owner, false);
+    expect(core.team.bots.canReach(owner, 'helper')).toBe(false);
+    const { revision, editableBotsRevision } = core.team.botRoleAccess.scope(owner, role.roleId);
+    expect(
+      await api.roleBotScopeSet({
+        roleId: role.roleId,
+        expectedRevision: revision,
+        scope: {
+          kind: 'selected',
+          botSlugs: [],
+          expectedEditableBotsRevision: editableBotsRevision,
+        },
+      }),
+    ).toMatchObject({ ok: true });
+    await core.team.setMode(owner, true);
+
+    expect(core.channels.get(group.id)?.members).toEqual(['helper']);
+    expect(
+      core.channels.readMessages(group.id).filter((message) => message.memberDeparture),
+    ).toEqual([]);
+    expect(core.team.bots.canReach(bob, 'helper')).toBe(true);
+  });
+
+  it.each(['visibility commit interruption', 'Memory finalization failure'])(
+    'reconciles saved and unsaved Sessions after %s in a multi-Bot scope save',
+    async (fault) => {
+      let armedRoleId: string | undefined;
+      const mount = databaseOwner.mountOperationalDatabase;
+      vi.spyOn(databaseOwner, 'mountOperationalDatabase').mockImplementationOnce((options) =>
+        mount({
+          ...options,
+          faultInjector: ({ stage, activePath }) => {
+            if (!armedRoleId || stage !== 'after-commit-before-notify') return;
+            const reader = new DatabaseSync(activePath, { readOnly: true });
+            try {
+              const durable =
+                reader
+                  .prepare(`SELECT b.slug FROM persona_bots b, json_each(b.visibility_json, '$.audience.roleIds') AS role
+                WHERE b.slug IN ('helper', 'other') AND role.value=?`)
+                  .all(armedRoleId).length === 2;
+              if (durable) throw new Error(fault);
+            } finally {
+              reader.close();
+            }
+          },
+        }),
+      );
+      const { archived, options } = sessionArchives();
+      const f = fixture(options);
+      const { core, db } = f;
+      const { roleId } = core.team.roles.create(owner, 'Readers', []).role;
+      const slugs = ['helper', 'other'];
+      for (const [slug, sessionId] of [
+        ['helper', 'saved'],
+        ['other', 'unsaved'],
+      ] as const) {
+        const cwdReference = core.registry.memoryDirFor(slug);
+        if (!cwdReference) throw new Error('missing original Bot Memory path');
+        core.ownership.claim({
+          sessionId,
+          botSlug: slug,
+          rootRole: 'orchestrator',
+          cwdReference,
+          at: '2026-01-01T00:00:00.000Z',
+        });
+        expect(core.runtime.currentOrchestratorSessionId?.(slug)).toBe(sessionId);
+      }
+      db.transaction((sql) => {
+        sql
+          .prepare('UPDATE persona_bots SET visibility_json=? WHERE slug IN (?, ?)')
+          .run(
+            JSON.stringify({ kind: 'public', audience: { kind: 'roles', roleIds: [] } }),
+            ...slugs,
+          );
+      });
+      const memory = core.spaces.botMemory;
+      if (!memory) throw new Error('missing Bot Memory placement');
+      const prepare = memory.prepare.bind(memory);
+      vi.spyOn(memory, 'prepare').mockImplementation((plan) => {
+        const move = prepare(plan);
+        if (plan.slug !== 'other') return move;
+        if (fault === 'visibility commit interruption') armedRoleId = roleId;
+        if (fault !== 'Memory finalization failure') return move;
+        return {
+          ...move,
+          finish: () => {
+            throw new Error('interrupted Memory finalization');
+          },
+        };
+      });
+      const { revision, editableBotsRevision } = core.team.botRoleAccess.scope(owner, roleId);
+      await expect(
+        core.team.botRoleAccess.setScope(owner, {
+          roleId,
+          expectedRevision: revision,
+          scope: {
+            kind: 'selected',
+            botSlugs: slugs,
+            expectedEditableBotsRevision: editableBotsRevision,
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'post-commit-interrupted' });
+      expect([...archived]).toEqual(['saved']);
+      intact(f.target, f.history);
+
+      await core.runtime.close();
+      core.operationalDatabase.close();
+      const restored = open(f.home, options);
+      expect(restored.team.botRoleAccess.scope(owner, roleId).bots).toMatchObject([
+        { slug: 'helper', selected: true },
+        { slug: 'other', selected: true },
+      ]);
+      expect(restored.runtime.currentOrchestratorSessionId?.('helper')).toBeUndefined();
+      const replacement = restored.ownership.rootsFor('other', 'orchestrator')[0];
+      expect(replacement?.sessionId).toBeDefined();
+      expect(replacement?.sessionId).not.toBe('unsaved');
+      expect(replacement?.cwdReference).toBe(restored.registry.memoryDirFor('other'));
+      expect(restored.runtime.currentOrchestratorSessionId?.('other')).toBe(replacement?.sessionId);
+    },
+  );
+
+  it.each(['saved', 'unsaved'])(
+    'keeps the original %s Session after interruption of the Memory preparation journal',
+    async (sessionId) => {
+      let armed = false;
+      const mount = databaseOwner.mountOperationalDatabase;
+      vi.spyOn(databaseOwner, 'mountOperationalDatabase').mockImplementationOnce((options) =>
+        mount({
+          ...options,
+          faultInjector: ({ stage, activePath }) => {
+            if (!armed || stage !== 'after-commit-before-notify') return;
+            const reader = new DatabaseSync(activePath, { readOnly: true });
+            try {
+              if (
+                reader
+                  .prepare(`SELECT 1 FROM workspace_file_transfers
+                WHERE human_id='bot-memory/helper' AND json_extract(moves_json,'$.phase')='prepared'`)
+                  .get()
+              )
+                throw new Error('interrupted Memory preparation');
+            } finally {
+              reader.close();
+            }
+          },
+        }),
+      );
+      const { archived, options } = sessionArchives();
+      const f = fixture(options);
+      const { core } = f;
+      core.ownership.claim({
+        sessionId,
+        botSlug: 'helper',
+        rootRole: 'orchestrator',
+        cwdReference: f.source,
+        at: '2026-01-01T00:00:00.000Z',
+      });
+      armed = true;
+      await expect(core.team.setBotVisibility(owner, 'helper', everyone)).rejects.toMatchObject({
+        code: 'post-commit-interrupted',
+      });
+      expect([...archived]).toEqual([]);
+      intact(f.source, f.history);
+
+      await core.runtime.close();
+      core.operationalDatabase.close();
+      const restored = open(f.home, options);
+      expect(restored.runtime.currentOrchestratorSessionId?.('helper')).toBe(sessionId);
+      expect(restored.team.bots.view(alice, 'helper').visibility).toEqual({ kind: 'private' });
+      expect(restored.ownership.pendingOrchestratorReplacements('helper')).toEqual([]);
+      expect(restored.registry.memoryDirFor('helper')).toBe(f.source);
+      expect(fs.existsSync(f.target)).toBe(false);
+    },
+  );
+
+  it('applies the same Memory audience and Group departures through either visibility editor', async () => {
+    const f = fixture();
+    const { core, db } = f;
+    const bridge = createBridgeMethodsForHumans(core)(owner);
+    expect(
+      core.registry.create({ slug: 'mentor', displayName: 'Mentor', ownerHumanId: alice.humanId })
+        .ok,
+    ).toBe(true);
+    const { roleId } = core.team.roles.create(owner, 'Public Bot readers', []).role;
+    core.team.roles.set(owner, bob.humanId, [roleId]);
+    const shared: BotVisibility = {
+      kind: 'public',
+      audience: { kind: 'roles', roleIds: [roleId] },
+    };
+    const revoked: BotVisibility = { kind: 'public', audience: { kind: 'roles', roleIds: [] } };
+    const makeGroup = async (slug: string) => {
+      expect(await bridge.botVisibilitySet({ slug, visibility: shared })).toMatchObject({
+        ok: true,
+      });
+      const channel = core.channels.createGroup(bob, { name: slug, members: [slug] });
+      core.team.channelAccess.addMember(bob, channel.id, alice.humanId);
+      core.team.bots.recordAdder(bob, slug, channel.id);
+      return channel.id;
+    };
+    const fromRole = await makeGroup('helper');
+    const fromBot = await makeGroup('mentor');
+    const { revision, editableBotsRevision } = core.team.botRoleAccess.scope(owner, roleId);
+    expect(
+      await bridge.roleBotScopeSet({
+        roleId,
+        expectedRevision: revision,
+        scope: {
+          kind: 'selected',
+          botSlugs: ['mentor'],
+          expectedEditableBotsRevision: editableBotsRevision,
+        },
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await bridge.botVisibilitySet({ slug: 'mentor', visibility: revoked, confirm: true }),
+    ).toMatchObject({
+      ok: true,
+      value: { applied: true, preview: { channelsLeaving: [{ channelId: fromBot }] } },
+    });
+    const result = (slug: string, channelId: string) => ({
+      memoryAudience: db.read((sql) =>
+        sql
+          .prepare('SELECT audience_json FROM workspace_spaces WHERE space_id=?')
+          .get(botMemorySpaceId(slug)),
+      ),
+      groupMembers: core.channels.get(channelId)?.members,
+    });
+    expect(result('helper', fromRole)).toEqual(result('mentor', fromBot));
+    expect(result('helper', fromRole)).toEqual({
+      memoryAudience: { audience_json: JSON.stringify(revoked.audience) },
+      groupMembers: [],
+    });
+  });
+
+  it.each(['selected', 'all'] as const)(
+    'can retry %s scope revocation after the second Group departure fails',
+    async (kind) => {
+      const { core, db } = fixture();
+      const bridge = createBridgeMethodsForHumans(core)(owner);
+      const { roleId } = core.team.roles.create(owner, 'Public Bot readers', []).role;
+      core.team.roles.set(owner, bob.humanId, [roleId]);
+      const audience = { kind: 'roles', roleIds: kind === 'selected' ? [roleId] : [] };
+      expect(
+        await bridge.botVisibilitySet({ slug: 'helper', visibility: { kind: 'public', audience } }),
+      ).toMatchObject({ ok: true, value: { applied: true } });
+      const scope = () => core.team.botRoleAccess.scope(owner, roleId);
+      if (kind === 'all')
+        expect(
+          await bridge.roleBotScopeSet({
+            roleId,
+            expectedRevision: scope().revision,
+            scope: { kind: 'all' },
+          }),
+        ).toMatchObject({ ok: true });
+
+      const groups = ['First', 'Second'].map((name) => {
+        const group = core.channels.createGroup(bob, { name, members: ['helper'] });
+        core.team.channelAccess.addMember(bob, group.id, alice.humanId);
+        core.team.bots.recordAdder(bob, 'helper', group.id);
+        return group.id;
+      });
+      db.transaction((sql) =>
+        sql.exec(`CREATE TRIGGER fail_second_departure
+        BEFORE UPDATE OF record_json ON channel_records
+        WHEN json_extract(NEW.record_json, '$.type') = 'group'
+          AND json_extract(NEW.record_json, '$.name') IN ('First', 'Second')
+          AND json_array_length(NEW.record_json, '$.members') = 0
+          AND EXISTS (SELECT 1 FROM channel_records
+            WHERE channel_id <> NEW.channel_id
+              AND json_extract(record_json, '$.type') = 'group'
+              AND json_extract(record_json, '$.name') IN ('First', 'Second')
+              AND json_array_length(record_json, '$.members') = 0)
+        BEGIN SELECT RAISE(ABORT, 'interrupted second departure'); END`),
+      );
+
+      const before = scope();
+      const save = ({ revision, editableBotsRevision }: ReturnType<typeof scope>) =>
+        bridge.roleBotScopeSet({
+          roleId,
+          expectedRevision: revision,
+          scope: {
+            kind: 'selected',
+            botSlugs: [],
+            expectedEditableBotsRevision: editableBotsRevision,
+          },
+        });
+      const departures = (id: string) =>
+        core.channels
+          .readMessages(id)
+          .filter((message) => message.memberDeparture?.memberId === 'helper');
+      expect(await save(before)).toMatchObject({ ok: false });
+      expect(groups.map((id) => core.channels.get(id)?.members)).toEqual([['helper'], ['helper']]);
+      expect(groups.flatMap(departures)).toEqual([]);
+      expect(scope()).toEqual(before);
+      expect(core.team.bots.canReach(bob, 'helper')).toBe(true);
+
+      db.transaction((sql) => sql.exec('DROP TRIGGER fail_second_departure'));
+      expect(await save(before)).toMatchObject({ ok: true });
+      expect(core.team.bots.canReach(bob, 'helper')).toBe(false);
+      expect(groups.map((id) => core.channels.get(id)?.members)).toEqual([[], []]);
+      const revision = scope().revision;
+      expect(await save(scope())).toMatchObject({ ok: true, value: { revision } });
+      expect(groups.map((id) => departures(id).length)).toEqual([1, 1]);
+    },
+  );
+
+  it('repairs a retained Bot’s Memory even when its visibility still lists a deleted role', async () => {
+    const f = fixture();
+    const bridge = createBridgeMethodsForHumans(f.core)(owner);
+    const { roleId } = f.core.team.roles.create(owner, 'Public Bot readers', []).role;
+    const retired = f.core.team.roles.create(owner, 'Retired', []).role;
+    const audience = { kind: 'roles', roleIds: [roleId, retired.roleId] };
+    expect(
+      await bridge.botVisibilitySet({ slug: 'helper', visibility: { kind: 'public', audience } }),
+    ).toMatchObject({ ok: true });
+    const spaceId = botMemorySpaceId('helper');
+    f.db.transaction((sql) =>
+      sql.prepare('DELETE FROM workspace_spaces WHERE space_id=?').run(spaceId),
+    );
+    f.core.team.roles.delete(owner, retired.roleId);
+    const { revision, editableBotsRevision } = f.core.team.botRoleAccess.scope(owner, roleId);
+    expect(
+      await bridge.roleBotScopeSet({
+        roleId,
+        expectedRevision: revision,
+        scope: {
+          kind: 'selected',
+          botSlugs: ['helper'],
+          expectedEditableBotsRevision: editableBotsRevision,
+        },
+      }),
+    ).toMatchObject({ ok: true, value: { revision } });
+    expect(
+      f.db.read((sql) =>
+        sql
+          .prepare('SELECT kind, audience_json FROM workspace_spaces WHERE space_id=?')
+          .get(spaceId),
+      ),
+    ).toEqual({ kind: 'shared', audience_json: JSON.stringify(audience) });
+    expect(f.core.registry.memoryDirFor('helper')).toBe(f.target);
+    intact(f.target, f.history);
+  });
+
+  it('moves multiple unplaced public Memories and rolls every move back on a failed scope edit', async () => {
+    const f = fixture();
+    const { core, db } = f;
+    const bridge = createBridgeMethodsForHumans(core)(owner);
+    const { roleId } = core.team.roles.create(owner, 'Public Bot readers', []).role;
+    const slugs = ['helper', 'other'];
+    const otherSource = core.registry.memoryDirFor('other');
+    db.transaction((sql) => {
+      sql
+        .prepare('UPDATE persona_bots SET visibility_json=? WHERE slug IN (?, ?)')
+        .run(
+          JSON.stringify({ kind: 'public', audience: { kind: 'roles', roleIds: [] } }),
+          ...slugs,
+        );
+      sql.exec(`CREATE TRIGGER reject_other BEFORE UPDATE OF visibility_json ON persona_bots
+        WHEN NEW.slug = 'other' BEGIN SELECT RAISE(ABORT, 'rejected'); END`);
+    });
+    const before = core.team.botRoleAccess.scope(owner, roleId);
+    const patch = {
+      roleId,
+      expectedRevision: before.revision,
+      scope: {
+        kind: 'selected',
+        botSlugs: slugs,
+        expectedEditableBotsRevision: before.editableBotsRevision,
+      },
+    };
+    expect(await bridge.roleBotScopeSet(patch)).toMatchObject({ ok: false });
+    expect(core.team.botRoleAccess.scope(owner, roleId)).toEqual(before);
+    expect(core.registry.memoryDirFor('helper')).toBe(f.source);
+    expect(core.registry.memoryDirFor('other')).toBe(otherSource);
+    intact(f.source, f.history);
+    expect(fs.existsSync(f.target)).toBe(false);
+    expect(db.read((sql) => sql.prepare('SELECT * FROM workspace_file_transfers').all())).toEqual(
+      [],
+    );
+
+    db.transaction((sql) => sql.exec('DROP TRIGGER reject_other'));
+    expect(await bridge.roleBotScopeSet(patch)).toMatchObject({ ok: true });
+    for (const slug of slugs) {
+      const spaceId = botMemorySpaceId(slug);
+      expect(core.registry.memoryDirFor(slug)).toBe(join(f.home, spaceId, 'bots', slug, 'memory'));
+      expect(
+        db.read((sql) =>
+          sql.prepare('SELECT audience_json FROM workspace_spaces WHERE space_id=?').get(spaceId),
+        ),
+      ).toEqual({ audience_json: JSON.stringify({ kind: 'roles', roleIds: [roleId] }) });
+    }
+    intact(f.target, f.history);
+  });
+
   it('previews labelled paths without moving Memory, publishes the same repository, and never lists the backing space', async () => {
     const f = fixture(),
       bridge = createBridgeMethodsForHumans(f.core)(alice);
@@ -185,15 +625,17 @@ describe('M7 public Bot Memory placement', () => {
       release = resolve;
     });
     const f = fixture({
-      async runOrchestrator() {
-        started();
-        await hold;
+      agents: {
+        async runOrchestrator() {
+          started();
+          await hold;
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected');
+        },
+        async close() {},
       },
-      async runAssignment() {},
-      requestAssignment() {
-        throw new Error('unexpected');
-      },
-      async close() {},
     });
     const dm = f.core.channels.getOrCreateDm(alice, 'helper')!;
     await f.core.channels.appendMessage(alice, dm.id, {

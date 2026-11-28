@@ -3,14 +3,18 @@ import { currentBotPrimaryColor, isBotPrimaryColor } from '../bots/primary-color
 import { dmChannelId } from '../channels/channel.js';
 import { botAvatarUrl } from '../bots/avatar-http.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
+import type { BotMemoryPlacement } from '../workspaces/bot-memory-placement.js';
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
+import { CommittedOperationInterruptedError } from '../database/owner-errors.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { ChannelRecord } from '../channels/channel.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { TeamRoles } from './roles.js';
 import type { TeamChannels } from './channels.js';
 import { TeamError } from '../team-policy/error.js';
+import { activeBotHumanSql, botAudienceAccessSql } from '../team-policy/bot-access.js';
 import {
   audienceContains,
   botVisibilitySchema,
@@ -36,6 +40,13 @@ const botRow = z.object({
   switches: z.string().transform((v) => botSwitchesSchema.parse(JSON.parse(v))),
 });
 type Bot = z.infer<typeof botRow>;
+type VisibilityPlan = ReturnType<TeamBots['planVisibility']>;
+type VisibilityChange = { slug: string; visibility: BotVisibility };
+export type ReplaceBotMemory = <T>(
+  slug: string,
+  action: () => T | Promise<T>,
+  nextCwd: () => string | undefined,
+) => Promise<T>;
 const fields =
   'slug, owner_human_id AS owner, body, visibility_json AS visibility, switches_json AS switches';
 
@@ -50,6 +61,7 @@ export class TeamBots {
     private readonly recordVisibilityChange: (
       human: HumanContext,
       bot: { slug: string; displayName: string; ownerHumanId: string },
+      transaction: DatabaseSync,
     ) => void = () => {},
     private readonly memorySpaces?: () => WorkspaceSpaces,
   ) {
@@ -102,7 +114,7 @@ export class TeamBots {
         .get(slug, human.humanId),
     );
   }
-  private bot(slug: string): Bot {
+  private findBot(slug: string): Bot | undefined {
     const raw = this.db.read((db) =>
       db
         .prepare(
@@ -110,16 +122,20 @@ export class TeamBots {
         )
         .get(slug),
     );
-    if (!raw) throw new TeamError('bot-not-found', undefined, { slug });
+    if (!raw) return undefined;
     const bot = botRow.parse(raw);
-    if (bot.body.deletedAt) throw new TeamError('bot-not-found', undefined, { slug });
+    return bot.body.deletedAt ? undefined : bot;
+  }
+  private bot(slug: string): Bot {
+    const bot = this.findBot(slug);
+    if (!bot) throw new TeamError('bot-not-found', undefined, { slug });
     return bot;
   }
   private active(humanId: string): boolean {
     return !!this.db.read((db) =>
       db
         .prepare(`SELECT 1 FROM humans h, team_settings s
-      WHERE h.human_id = ? AND h.status = 'active' AND (s.enabled = 1 OR s.owner_human_id = h.human_id)`)
+      WHERE h.human_id = ? AND ${activeBotHumanSql({ human: 'h', settings: 's' })}`)
         .get(humanId),
     );
   }
@@ -129,17 +145,18 @@ export class TeamBots {
       throw new TeamError('bot-principal-inactive', undefined, { slug });
   }
   private audience(humanId: string, bot: Bot, visibility = bot.visibility): boolean {
-    if (!this.active(humanId) || !this.active(bot.owner)) return false;
-    if (humanId === bot.owner) return true;
-    if (visibility.kind === 'private') return false;
-    const audience = visibility.audience;
-    if (audience.kind === 'everyone') return true;
-    if (audience.kind === 'members') return audience.humanIds.includes(humanId);
     return !!this.db.read((db) =>
       db
-        .prepare(`SELECT 1 FROM human_roles WHERE human_id = ?
-      AND role_id IN (SELECT value FROM json_each(?)) LIMIT 1`)
-        .get(humanId, JSON.stringify(audience.roleIds)),
+        .prepare(`SELECT 1 FROM humans viewer, humans principal, team_settings s, (SELECT ? AS visibility) v
+          WHERE viewer.human_id = ? AND principal.human_id = ?
+          AND ${activeBotHumanSql({ human: 'viewer', settings: 's' })}
+          AND ${activeBotHumanSql({ human: 'principal', settings: 's' })}
+          AND ${botAudienceAccessSql({
+            visibility: 'v.visibility',
+            viewer: 'viewer.human_id',
+            principal: 'principal.human_id',
+          })}`)
+        .get(JSON.stringify(visibility), humanId, bot.owner),
     );
   }
   requireJoin(slug: string, channelId: string): void {
@@ -196,13 +213,14 @@ export class TeamBots {
     return { visibility: bot.visibility, switches: bot.switches, audienceDirectory };
   }
   private reachableRows(human: HumanContext, history = false) {
-    const reachable = `h.status='active' AND (s.enabled=1 OR h.human_id=s.owner_human_id)
+    const reachable = `${activeBotHumanSql({ human: 'h', settings: 's' })}
       AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
       AND json_extract(b.body,'$.deletedAt') IS NULL
-      AND (b.owner_human_id=viewer.human_id OR (json_extract(b.visibility_json,'$.kind')='public' AND (
-        json_extract(b.visibility_json,'$.audience.kind')='everyone'
-        OR EXISTS (SELECT 1 FROM json_each(b.visibility_json,'$.audience.humanIds') a WHERE a.value=viewer.human_id)
-        OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(b.visibility_json,'$.audience.roleIds') a ON a.value=r.role_id WHERE r.human_id=viewer.human_id))))`;
+      AND ${botAudienceAccessSql({
+        visibility: 'b.visibility_json',
+        viewer: 'viewer.human_id',
+        principal: 'b.owner_human_id',
+      })}`;
     return this.db.read((db) =>
       db
         .prepare(`
@@ -212,9 +230,8 @@ export class TeamBots {
         CASE WHEN EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug=b.slug)
           OR json_extract(b.body,'$.deletedAt') IS NOT NULL THEN 1 ELSE 0 END AS deleted
       FROM persona_bots b LEFT JOIN humans h ON h.human_id=b.owner_human_id CROSS JOIN team_settings s
-      JOIN humans viewer ON viewer.human_id=? AND viewer.status='active'
-      WHERE (s.enabled=1 OR viewer.human_id=s.owner_human_id)
-      AND ((${reachable}) OR (? AND EXISTS (
+      JOIN humans viewer ON viewer.human_id=? AND ${activeBotHumanSql({ human: 'viewer', settings: 's' })}
+      WHERE ((${reachable}) OR (? AND EXISTS (
         SELECT 1 FROM channel_records c WHERE json_extract(c.record_json,'$.type')='dm'
         AND json_extract(c.record_json,'$.botSlug')=b.slug
         AND json_extract(c.record_json,'$.dmHumanId')=viewer.human_id
@@ -222,6 +239,52 @@ export class TeamBots {
       ORDER BY b.slug`)
         .all(human.humanId, history ? 1 : 0),
     );
+  }
+
+  private eligiblePublicGroupMemberships(roleId: string) {
+    const participants = this.db.read((db) =>
+      z
+        .object({ channelId: z.string(), botSlug: z.string().nullable() })
+        .array()
+        .parse(
+          db
+            .prepare(`WITH role_holders AS (
+          SELECT h.human_id FROM human_roles r JOIN humans h USING (human_id)
+          CROSS JOIN team_settings s WHERE r.role_id = ? AND ${activeBotHumanSql({ human: 'h', settings: 's' })}
+        )
+        SELECT channel_id AS channelId, NULL AS botSlug FROM channel_human_members
+        JOIN role_holders USING (human_id) WHERE left_at IS NULL
+        UNION
+        SELECT channel_id, bot_slug FROM bot_channel_adders JOIN role_holders USING (human_id)`)
+            .all(roleId),
+        ),
+    );
+    const affected = new Map<string, Set<string | null>>();
+    for (const { channelId, botSlug } of participants) {
+      const slugs = affected.get(channelId);
+      if (slugs) slugs.add(botSlug);
+      else affected.set(channelId, new Set([botSlug]));
+    }
+    if (!affected.size) return [];
+    const groups = new Map<string, ChannelRecord[]>();
+    for (const channel of this.channels.list()) {
+      const slugs = affected.get(channel.id);
+      if (channel.type !== 'group' || !slugs) continue;
+      for (const slug of channel.members) {
+        if (!slugs.has(null) && !slugs.has(slug)) continue;
+        const memberships = groups.get(slug);
+        if (memberships) memberships.push(channel);
+        else groups.set(slug, [channel]);
+      }
+    }
+    return [...groups].flatMap(([botSlug, memberships]) => {
+      const bot = this.findBot(botSlug);
+      if (bot?.visibility.kind !== 'public' || bot.visibility.audience.kind === 'everyone')
+        return [];
+      return memberships
+        .filter((channel) => this.groupEligible(bot, channel))
+        .map((channel) => ({ bot, channel }));
+    });
   }
   reachable(human: HumanContext) {
     const bots = z
@@ -288,7 +351,11 @@ export class TeamBots {
         };
       });
   }
-  setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm?: boolean) {
+  private planVisibility(
+    human: HumanContext,
+    { slug, visibility }: VisibilityChange,
+    channels: readonly ChannelRecord[],
+  ) {
     const bot = this.bot(slug);
     this.requireManage(human, bot);
     if (!audienceContains(bot.visibility, visibility))
@@ -296,6 +363,13 @@ export class TeamBots {
     if (visibility.kind === 'public') {
       const a = visibility.audience;
       for (const id of a.kind === 'roles' ? a.roleIds : a.kind === 'members' ? a.humanIds : []) {
+        if (
+          a.kind === 'roles' &&
+          bot.visibility.kind === 'public' &&
+          bot.visibility.audience.kind === 'roles' &&
+          bot.visibility.audience.roleIds.includes(id)
+        )
+          continue;
         const exists = this.db.read((db) =>
           db
             .prepare(
@@ -310,8 +384,7 @@ export class TeamBots {
       }
     }
     const shrinking = !audienceContains(visibility, bot.visibility);
-    const dmsBecomingReadOnly = this.channels
-      .list()
+    const dmsBecomingReadOnly = channels
       .filter(
         (c) =>
           c.type === 'dm' &&
@@ -321,13 +394,7 @@ export class TeamBots {
           !this.audience(c.dmHumanId ?? bot.owner, bot, visibility),
       )
       .map((c) => ({ channelId: c.id, humanId: c.dmHumanId ?? bot.owner }));
-    const channelsLeaving = this.channels
-      .list()
-      .filter(
-        (c) =>
-          c.type === 'group' && c.members.includes(slug) && !this.groupEligible(bot, c, visibility),
-      )
-      .map((c) => ({ channelId: c.id }));
+    const channelsLeaving = this.channelsLeaving(bot, visibility, channels);
     const placement = this.memorySpaces?.().botMemory;
     const memory = placement?.plan(slug, bot.owner, visibility);
     const preview = {
@@ -335,45 +402,149 @@ export class TeamBots {
       channelsLeaving,
       ...(memory ? { memory: memory.preview } : {}),
     };
-    if (
-      JSON.stringify(bot.visibility) === JSON.stringify(visibility) &&
-      channelsLeaving.length === 0 &&
-      (!memory || memory.source === memory.target)
-    )
-      return { applied: true, visibility, preview };
-    if (confirm === false || (shrinking && !confirm)) return { applied: false, preview };
-    if (human.humanId !== bot.owner)
-      this.recordVisibilityChange(human, {
-        slug: bot.slug,
-        displayName: bot.body.displayName,
-        ownerHumanId: bot.owner,
-      });
-    const move = memory ? placement?.prepare(memory) : undefined;
+    const needsWrite =
+      JSON.stringify(bot.visibility) !== JSON.stringify(visibility) ||
+      channelsLeaving.length > 0 ||
+      memory?.needsPlacement === true;
+    return { bot, visibility, preview, shrinking, placement, memory, needsWrite };
+  }
+
+  planVisibilityChanges(human: HumanContext, changes: readonly VisibilityChange[]) {
+    const channels = changes.length ? this.channels.list() : [];
+    return changes.map((change) => this.planVisibility(human, change, channels));
+  }
+
+  private channelsLeaving(bot: Bot, visibility: BotVisibility, channels: readonly ChannelRecord[]) {
+    return channels
+      .filter(
+        (c) =>
+          c.type === 'group' &&
+          c.members.includes(bot.slug) &&
+          this.groupEligible(bot, c) &&
+          !this.groupEligible(bot, c, visibility),
+      )
+      .map((c) => ({ channelId: c.id }));
+  }
+
+  commitVisibilityChanges(
+    human: HumanContext,
+    plans: readonly VisibilityPlan[],
+    scope?: { write: (db: DatabaseSync) => void; revokeAllPublicForRole?: string },
+  ): void {
+    type Move = ReturnType<BotMemoryPlacement['prepare']>;
+    const prepared: { plan: VisibilityPlan; move: Move | undefined }[] = [];
+    let committingVisibility = false;
+    let publishDepartures: (() => void)[];
     try {
-      this.db.transaction(
+      for (const plan of plans) {
+        const move = plan.memory ? plan.placement?.prepare(plan.memory) : undefined;
+        prepared.push({ plan, move });
+      }
+      committingVisibility = true;
+      publishDepartures = this.db.transaction(
         (db) => {
-          move?.commit(db);
-          db.prepare('UPDATE persona_bots SET visibility_json=? WHERE slug=?').run(
-            JSON.stringify(visibility),
-            slug,
-          );
-          if (visibility.kind === 'public')
-            db.prepare(`UPDATE channel_records SET record_json=json_set(record_json,'$.dmHumanId',?)
-        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=? AND json_extract(record_json,'$.dmHumanId') IS NULL`).run(
-              bot.owner,
-              slug,
+          const revokeAllPublicForRole = scope?.revokeAllPublicForRole;
+          const eligible = revokeAllPublicForRole
+            ? this.eligiblePublicGroupMemberships(revokeAllPublicForRole)
+            : [];
+          const newVisibility = new Map(plans.map(({ bot, visibility }) => [bot.slug, visibility]));
+          scope?.write(db);
+          for (const {
+            plan: { bot, visibility },
+            move,
+          } of prepared) {
+            if (human.humanId !== bot.owner)
+              this.recordVisibilityChange(
+                human,
+                {
+                  slug: bot.slug,
+                  displayName: bot.body.displayName,
+                  ownerHumanId: bot.owner,
+                },
+                db,
+              );
+            move?.commit(db);
+            db.prepare('UPDATE persona_bots SET visibility_json=? WHERE slug=?').run(
+              JSON.stringify(visibility),
+              bot.slug,
             );
+            if (visibility.kind === 'public')
+              db.prepare(`UPDATE channel_records SET record_json=json_set(record_json,'$.dmHumanId',?)
+        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug')=? AND json_extract(record_json,'$.dmHumanId') IS NULL`).run(
+                bot.owner,
+                bot.slug,
+              );
+          }
+          const departures = revokeAllPublicForRole
+            ? eligible
+                .filter(
+                  ({ bot, channel }) =>
+                    !this.groupEligible(bot, channel, newVisibility.get(bot.slug)),
+                )
+                .map(({ bot, channel }) => ({ channelId: channel.id, botSlug: bot.slug }))
+            : plans.flatMap(({ bot, preview }) =>
+                preview.channelsLeaving.map(({ channelId }) => ({ channelId, botSlug: bot.slug })),
+              );
+          return departures.map(
+            ({ channelId, botSlug }) =>
+              this.channels.removeGroupMemberIn(db, channelId, botSlug).publish,
+          );
         },
-        ['team', 'bots', 'channels', 'bot-registry', 'workspace-spaces'],
+        [
+          'team',
+          'bots',
+          'channels',
+          'bot-registry',
+          'workspace-spaces',
+          'private-audit',
+          'channel',
+          'bot-inbox',
+        ],
       );
     } catch (error) {
-      if (!(error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted'))
-        move?.rollback();
+      if (error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted') {
+        if (committingVisibility)
+          throw new CommittedOperationInterruptedError(
+            'Bot visibility committed before notification was interrupted',
+            error,
+          );
+        throw error;
+      }
+      const rollbackErrors: unknown[] = [];
+      for (const { move } of prepared.reverse()) {
+        try {
+          move?.rollback();
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (rollbackErrors.length)
+        throw new AggregateError(rollbackErrors, 'Bot Memory rollback failed', { cause: error });
+      if (error instanceof OperationalDatabaseError && error.cause instanceof TeamError)
+        throw error.cause;
       throw error;
     }
-    move?.finish();
-    for (const c of channelsLeaving) this.channels.removeGroupMember(c.channelId, slug);
-    this.changed(true);
+    try {
+      try {
+        for (const { move } of prepared) move?.finish();
+      } finally {
+        try {
+          for (const publish of publishDepartures) publish();
+        } finally {
+          this.changed(true);
+        }
+      }
+    } catch (error) {
+      throw new CommittedOperationInterruptedError('Bot visibility publication failed', error);
+    }
+  }
+
+  setVisibility(human: HumanContext, slug: string, visibility: BotVisibility, confirm?: boolean) {
+    const plan = this.planVisibility(human, { slug, visibility }, this.channels.list());
+    const { preview } = plan;
+    if (!plan.needsWrite) return { applied: true, visibility, preview };
+    if (confirm === false || (plan.shrinking && !confirm)) return { applied: false, preview };
+    this.commitVisibilityChanges(human, [plan]);
     return { applied: true, visibility, preview };
   }
   switches(human: HumanContext, slug: string, patch: Partial<BotSwitches> = {}) {

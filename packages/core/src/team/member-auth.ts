@@ -801,16 +801,17 @@ export async function memberDeviceRevoke(
 }
 export async function disposePeers(
   this: MemberAuthHost,
-  humanId?: string,
+  target?: string | ReadonlySet<string>,
   keepGrant?: string,
 ): Promise<void> {
+  const humanIds = typeof target === 'string' ? new Set([target]) : target;
   const disposals: Promise<void>[] = [];
   for (const [id, peer] of this.peers) {
     if (id === keepGrant) continue;
     if (
-      humanId &&
+      humanIds &&
       peer.principal.kind === 'botharness-member' &&
-      peer.principal.humanId !== humanId
+      !humanIds.has(peer.principal.humanId)
     )
       continue;
     this.peers.delete(id);

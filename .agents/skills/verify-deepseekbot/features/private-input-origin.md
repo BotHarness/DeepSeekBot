@@ -26,12 +26,12 @@
 - Local Human DM and Group interaction can reuse an account with accepted IM context in the same turn.
 - Explicit IM selection retains source leases, same-account ambiguity and revocation checks.
 - Native approval waiting does not remove accepted local authority. Schedules reuse configured accounts in later turns.
-- IM-only multi-source refusals identify the `ask_secret` recovery path; configured reuse needs no Web notification address. Direct CLI calls retain the native approval pipeline and source checks.
+- IM-only multi-source refusals identify the `ask_secret` recovery path; configured reuse needs no Web notification address. A lookup miss returns saved account names without opening a card. An explicit collection can open a card, but repeating it in the same conversation within five minutes of cancellation is refused. Direct CLI calls retain the native approval pipeline and source checks.
 - A model-free private-tool execution approval uses the authenticated caller's DM and exact live Agent Session/call ID, including while the Agent is idle. Concurrent calls and an ordinary Group turn keep separate origins; cancellation releases only its own direct-call origin. Protected-input approval for a read-only `secret_http` GET uses the same routing; direct Reviewer requests omit the borrowed Session history.
 
 ## How to get to it (user POV)
 
-Open Messages, then a Bot DM. Request an account with `ask_secret`, fill its private card, and request `secret_cli`. While its native approval card is pending, accept two authorized IM requests for the same Bot. Approve the command once. The local operation should complete without demanding an IM selector.
+Open Channels, then a Bot DM. Request an account with `ask_secret` in `collect` mode, fill its private card, and request `secret_cli`. While its native approval card is pending, accept two authorized IM requests for the same Bot. Approve the command once. The local operation should complete without demanding an IM selector.
 
 For a local Group, mention the Bot and use the same card/consumer path. For IM-only work with several sources, first call `ask_secret` with an exact accepted `source_event_id`. Historical or unknown sources and revoked leases must refuse.
 

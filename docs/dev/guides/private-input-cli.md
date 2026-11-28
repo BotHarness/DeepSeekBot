@@ -6,7 +6,7 @@ Configure a generic private account in an interactive PersonaBot DM using the th
 
 Ask that real Bot to create a one-shot **Bot Schedule** with `bot_schedule_create`, a time at least three minutes ahead, and an explicit destination DM Channel ID. Its prompt should call `protected_cli` with `consumer: http-status-v1`, the nonsecret account and the three opaque references, then send only its status to that Channel. Stop the exact isolated Host PID and restart the same home before the due time. The naturally fired Schedule must authenticate, return 200 in the original DM and create no new private-input card. Inspect the existing Schedule history for its planned firing and actual Orchestrator Session.
 
-For a missing account, run a disabled test Bot Schedule once using the existing **Run now** action. Have it call `ask_secret` once and report the failure in its explicit destination DM. It must finish with an Owner-action error and no new private card. Historical Human messages in the same Session do not grant input interaction. Configure or replace the account in Web Chat before explicitly retrying.
+For a missing account, run a disabled test Bot Schedule once using **Run now**. Have it call `ask_secret` in the default `reuse` mode and report the `not-found` result in its destination DM. The Host opens no card. Explicit `collect` still requires live Human interaction. Configure or replace the account in Web Chat before retrying.
 
 Keep a copy of the old-reference Schedule, privately replace the account with fixture version B, and run that Schedule again. It must be refused before another fixture request. A new Schedule can obtain the current reference set through `ask_secret` without another input card and authenticate B. Revoke the account, restart the isolated Host and run it again: both direct old-reference execution and unattended `ask_secret` must fail safely. A configured reference does not grant execution or delivery to another Channel. See [ADR-0169](../../decisions/secrets.md#adr-0169).
 
@@ -33,7 +33,7 @@ node scripts/ask-secret-fixture.mjs 31381
 Open the authenticated Web URL printed by the helper, create/select a real PersonaBot with a working model, and send this through its visible DM composer:
 
 ```text
-Call ask_secret for account synthetic-1380, with three required fields:
+Call ask_secret with mode collect for account synthetic-1380 and these three required fields:
 endpoint labeled Private URL, api_key labeled API key,
 api_secret labeled API secret. After private submission, call protected_cli
 consumer http-status-v1 using the returned references and the same account.

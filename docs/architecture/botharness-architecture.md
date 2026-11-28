@@ -372,6 +372,8 @@ Memory Service 在 Host 启动、Orchestrator 回合前，以及本地 DM 或群
 
 Host Core 的包边界检查按模块统计向上导入和同层循环。每个 Feature 目录和顶层源文件单独计入，Runtime 仍是一个模块。详见 [同层依赖循环的检测规则](../decisions/core-architecture.md#same-layer-dependency-cycles)。
 
+Runtime 通过组合层传入的 Feature Contribution 调用 Feature 服务。运行时导入仅指向 Runtime 自己或更低层的模块。
+
 Operational Database 在 `bot_management_grants` 中保存每个 Bot 的 **App 管理授权**（`manage-app`、`manage-bots`），通过 RBAC 授权解析器读取。Host 创建内置 Tob 时为它打开两项授权。Owner Bridge 在同一事务中修改授权并写入该 Bot 自己 Human DM 的系统提示；Owner 变更时撤销全部授权并为新 Owner 的 Tob 打开两项。Shell broker 在捕获、准入和执行时校验授权，以及根 Orchestrator 已准入的 Owner DM 来源事件。参见 [Tob 决策 §11](../decisions/tob.md#app-management-grant)。
 
 ```mermaid
@@ -1821,6 +1823,8 @@ The [Team mode decisions](../decisions/team-mode.md) cover current member author
 Desktop and mobile share the pure `host-protocol` contracts and the framework-independent `host-client` session logic. Native storage and transports stay in the mobile app behind injected interfaces. The desktop remote-host adapter drives member sign-in without creating relationship grants; see [Desktop Team sign-in contract](team-mode-desktop-sign-in.md) for states, identity persistence and ownership boundaries.
 
 The application-defined Team member owner separates durable identity, password credentials and revocable grants from the DSH-native Peer lifetime. Member page resources render for that Peer, and unary/stream operations dispatch through the API Gateway with an explicit member principal and default-deny access policy. A disconnected member HTTP open or poll releases its stream slot and iterator. When the peer closes a keep-alive socket, the Host releases all streams still bound to it, including those between polls. Existing Owner devices retain `local-human`. Group public visibility reuses canonical Channel membership. See [Team mode M1 runtime boundaries](team-mode-m1-runtime.md) for persistence, transport, CLI and performance constraints; later Team slices remain separate.
+
+On a Channel policy write, Team Channels compares the old and new rules for connected members. Team Service refreshes access views and disposes the Peers of other members who lost a Channel capability. The device gateway can deliver the save reply on the caller's existing connection.
 
 M2 added application-defined private Bot ownership, scoped Activity projections and Human-bound push/Live Activity delivery. The member Peer remains the API Gateway principal. M13 limits Tob to the current Host Owner. See [Team mode M2 runtime boundaries](team-mode-m2-runtime.md) for persistence, authorization, CLI integration and regression budgets.
 

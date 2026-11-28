@@ -1,8 +1,5 @@
-import {
-  type DirectBotToolCall,
-  type DirectBotToolSpec,
-} from '../features/sessions/direct-tools.js';
-import { type TobCliAuthority } from '../features/tob/cli-runtime.js';
+import type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
+import type { TobCliAuthority } from '../features/tob/cli-runtime.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { lastTurnTarget, readTurnTargets, type TurnTargetSegment } from './turn-targets.js';
@@ -23,10 +20,9 @@ import type {
   ToolApprovalOriginQuery,
 } from '../workspaces/tool-approval.js';
 import { type BotContactQuery, type BotContactPage } from './bot-contact-discovery.js';
-import { BOT_BUSY } from '../features/sessions/runtime-orchestrator-sessions.js';
 import { createBotRuntimeFeatures } from './bot-runtime-features.js';
 import { createBotRuntimeState } from './bot-runtime-state.js';
-import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
+import { BOT_BUSY, type BotRuntime, type BotRuntimeOptions } from './bot-runtime-types.js';
 import type { RuntimeFeatureServices } from './feature-services.js';
 import type {
   BotHoldCause,
@@ -56,7 +52,7 @@ export type {
   ChannelQueryPage,
   OrchestratorChannelAccess,
 } from './runtime-access-types.js';
-export { DirectBotToolError } from '../features/sessions/direct-tools.js';
+export { DirectBotToolError } from '../kernel/direct-bot-tool.js';
 export type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
 export type { TobCliAuthority, TobCliRequestLease } from '../features/tob/cli-runtime.js';
 export { markSkillTokens, skillInvocationPrompt } from './channel-prompts.js';
@@ -68,7 +64,6 @@ export type {
   AssignmentReportState,
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
-export { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
 export {
   MAX_CREATED_BOT_BIO_LENGTH,
   MAX_CREATED_BOT_NAME_LENGTH,
@@ -78,7 +73,7 @@ export {
   type BotCreateInput,
   type BotCreateOutcome,
 } from '../bots/create-contract.js';
-export { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from '../features/assignments/runtime-types.js';
+export { DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT } from './assignment-approval-capacity.js';
 export type {
   AssignmentRequestMode,
   AssignmentOpenAsk,
@@ -408,7 +403,7 @@ class BotRuntimeImplementation implements BotRuntime {
 
   async replaceOrchestrator<T>(
     botSlug: string,
-    body: () => T,
+    body: () => T | Promise<T>,
     nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
     if (this.#features.tails.has(botSlug)) return BOT_BUSY;
@@ -586,8 +581,6 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#features.reconcileMemoryChangesOnStartup();
   }
 }
-
-export { callTimelineNote, callVisualNote } from '../features/voice/events.js';
 
 export function createBotRuntime(
   options: BotRuntimeOptions,

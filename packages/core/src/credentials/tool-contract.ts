@@ -1,5 +1,6 @@
 export const PRIVATE_INPUT_TOOLS: ReadonlySet<string> = new Set([
   'ask_secret',
+  'list_secret_accounts',
   'protected_cli',
   'secret_http',
   'secret_cli',

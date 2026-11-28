@@ -21,7 +21,8 @@ import type {
   TobCliTurn,
 } from '../../kernel/tob-cli-request.js';
 import { TobError, type TobService } from '../../tob/service.js';
-import { DirectBotToolError, type ActiveDirectTool } from '../sessions/direct-tools.js';
+import { DirectBotToolError } from '../../kernel/direct-bot-tool.js';
+import type { ActiveDirectTool } from '../sessions/direct-tools.js';
 
 export interface TobCliRequestLease {
   humanId: string;

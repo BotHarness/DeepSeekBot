@@ -4,13 +4,14 @@
 
 ## Bot 可以做什么
 
-| 工具                 | 作用                                                                                                                                                                 |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ask_secret`         | 在请求所在的 Channel 发出输入卡片。只有 Owner 能填写。Bot 拿到的是 `private:<id>:<字段>` 引用，拿不到值。                                                            |
-| `secret_http`        | 调用 HTTP 接口。请求由 Host 发往 Owner 在卡片里填写的地址；Bot 只能指定该地址下的路径、方法，以及用 `{{字段}}` 标出密钥在请求头、查询参数或请求体中的位置。          |
-| `protected_cli`      | 固定的 `http-status-v1` 检查：发一次 GET，只返回状态码。                                                                                                             |
-| `secret_cli`         | 带着密钥运行一个已安装的命令行工具，密钥只放进它的环境变量。Host 不经 shell 直接启动程序，工作目录是 Bot 的工作文件夹，受 Shell 沙箱约束，环境变量是干净的。         |
-| `secret_mcp_connect` | 为这个 Bot 的聊天会话启动一个 MCP 服务，密钥放进它的环境变量；它的工具以 `mcp__<server_name>__<工具>` 出现。`secret_mcp_disconnect` 用来断开，或列出当前连着的服务。 |
+| 工具                   | 作用                                                                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ask_secret`           | 默认查找已保存的凭据。显式使用 `collect` 时可为 Owner 打开私密输入表单。Bot 只收到引用。                                                                             |
+| `list_secret_accounts` | 列出此 Bot 可查询的已保存账号名称。                                                                                                                                  |
+| `secret_http`          | 调用 HTTP 接口。请求由 Host 发往 Owner 在卡片里填写的地址；Bot 只能指定该地址下的路径、方法，以及用 `{{字段}}` 标出密钥在请求头、查询参数或请求体中的位置。          |
+| `protected_cli`        | 固定的 `http-status-v1` 检查：发一次 GET，只返回状态码。                                                                                                             |
+| `secret_cli`           | 带着密钥运行一个已安装的命令行工具，密钥只放进它的环境变量。Host 不经 shell 直接启动程序，工作目录是 Bot 的工作文件夹，受 Shell 沙箱约束，环境变量是干净的。         |
+| `secret_mcp_connect`   | 为这个 Bot 的聊天会话启动一个 MCP 服务，密钥放进它的环境变量；它的工具以 `mcp__<server_name>__<工具>` 出现。`secret_mcp_disconnect` 用来断开，或列出当前连着的服务。 |
 
 每个使用方都需要 Human 执行审批。审批卡上只有引用和占位符，没有值。`secret_cli` 卡片提供“批准一次”“总是允许此类”和“拒绝”。“此类”指程序名、账号和这组环境变量名，参数不算在内。“总是允许”会为这个 Bot 和角色保存一条可撤销的 `secret-cli` 规则，之后同类调用无论参数如何都不再出卡片；换了程序、账号或变量名会出新卡片。精确规则和全部不透明规则都不覆盖 `secret_cli`（[ADR-0191](../../decisions/secrets.md#adr-0191)、[ADR-0208](../../decisions/secrets.md#adr-0208)）。
 
@@ -87,7 +88,7 @@ node scripts/ask-secret-fixture.mjs 31381
 打开输出的 Web 地址，选择一个模型可用的 PersonaBot，在它的私聊中发送，或在群里 @ 它：
 
 ```text
-请用 ask_secret 为账号 synthetic-http 请求三个必填字段：
+请用 ask_secret 的 collect 模式为账号 synthetic-http 请求三个必填字段：
 endpoint（标签 接口地址）、api_key（标签 API key）、api_secret（标签 API secret）。
 我提交后，用 secret_http 发一次 GET，路径 /status?marker=SYNTHETIC-1380-url-A，
 请求头 x-api-key 用 {{api_key}}，x-api-secret 用 {{api_secret}}。

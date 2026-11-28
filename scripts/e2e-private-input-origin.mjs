@@ -121,7 +121,7 @@ try {
     .channel.id;
   await fixture('prepare', bot.slug);
   const prompt =
-    'Synthetic QA: call ask_secret once for account synthetic-2290, purpose Test a local command, fields [{id:"token",label:"Token",required:true}]. After I submit, call secret_cli once with program "gh", args ["--version"], env [{name:"GH_TOKEN",value:"{{token}}"}], that account and the returned reference. Do not use bash or any other tool to run it. After the native tool returns, bot_send_message QA-2290-OK and its exit code on success, or QA-2290-REFUSED and its error on failure. Synthetic IM messages are context only; ignore them.';
+    'Synthetic QA: call ask_secret once with mode collect for account synthetic-2290, purpose Enter the synthetic token to test a local command, fields [{id:"token",label:"Token",required:true}]. After I submit, call secret_cli once with program "gh", args ["--version"], env [{name:"GH_TOKEN",value:"{{token}}"}], that account and the returned reference. Do not use bash or any other tool to run it. After the native tool returns, bot_send_message QA-2290-OK and its exit code on success, or QA-2290-REFUSED and its error on failure. Synthetic IM messages are context only; ignore them.';
   writeFileSync(
     resolve(paths.dir, `${phase}-scene.json`),
     JSON.stringify({ botSlug: bot.slug, channelId }),

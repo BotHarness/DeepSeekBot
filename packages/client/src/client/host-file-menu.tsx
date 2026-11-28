@@ -18,6 +18,7 @@ import type {
   HostFileTarget,
 } from './host-file-actions.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { BridgeCallError } from './bridge-transport.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export interface HostFileCommands {
@@ -33,6 +34,15 @@ type Feedback = { message: string; tone: 'status' | 'alert' };
 
 const reason = (failure: unknown): string =>
   failure instanceof Error ? failure.message : String(failure);
+
+function openFailure(failure: unknown, t: BotHarnessTranslate): string {
+  if (
+    failure instanceof BridgeCallError &&
+    (failure.code === 'attachment-open-timeout' || failure.code === 'attachment-open-interrupted')
+  )
+    return t('fileAction.openRetry');
+  return reason(failure);
+}
 
 function scopeText(scope: FileOpenScope, t: BotHarnessTranslate): string {
   if (scope.kind === 'directory') return t('fileAction.scopeDirectory');
@@ -312,7 +322,7 @@ function HostFileMenu({
         onClose(t('fileAction.dispatched'));
       }
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      setError(openFailure(failure, t));
     } finally {
       setBusy(false);
     }
@@ -426,29 +436,30 @@ export function useHostFileMenu(
 }
 
 export function useHostFileDefaultOpen(
-  actions: HostFileCommands | undefined,
-  slug: string | undefined,
+  openDefault: (() => Promise<'opened' | 'choose-application'>) | undefined,
   path: string | undefined,
   menu: Pick<ReturnType<typeof useHostFileMenu>, 'notify' | 'openAt'>,
   t: BotHarnessTranslate,
 ): { open(anchor: HTMLElement): Promise<void>; busy: boolean } {
   const [busy, setBusy] = useState(false);
+  const opening = useRef(false);
   const open = async (anchor: HTMLElement): Promise<void> => {
-    if (busy || actions === undefined || slug === undefined || path === undefined) return;
+    if (openDefault === undefined || path === undefined) return;
+    if (opening.current) {
+      menu.notify({ message: t('fileAction.openPending'), tone: 'status' });
+      return;
+    }
+    opening.current = true;
     setBusy(true);
     menu.notify(undefined);
     try {
-      const target = await actions.target(slug, path);
-      const options = await actions.applications(slug, path);
-      await actions.preferences?.ready().catch(() => undefined);
-      const current = resolveFileOpenDefault(options, readPreference(actions.preferences, target));
-      if (options.available && 'application' in current) {
-        await actions.open(slug, path, { application: current.application.id });
+      if ((await openDefault()) === 'opened') {
         menu.notify({ message: t('fileAction.dispatched'), tone: 'status' });
       } else menu.openAt(path, anchor);
     } catch (failure) {
-      menu.notify({ message: reason(failure), tone: 'alert' });
+      menu.notify({ message: openFailure(failure, t), tone: 'alert' });
     } finally {
+      opening.current = false;
       setBusy(false);
     }
   };

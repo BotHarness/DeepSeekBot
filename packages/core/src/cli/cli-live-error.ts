@@ -1,13 +1,16 @@
+import type { FeedbackFailure } from '@botharness/host-protocol/feedback-failure';
 import type { BotCreateStep } from './bot-create-cli.js';
 
 export class CliLiveError extends Error {
-  details?: {
-    permission?: string;
-    path?: string;
-    spaceId?: string;
-    route?: string;
-    sessionId?: string;
-  };
+  details?:
+    | FeedbackFailure
+    | {
+        permission?: string;
+        path?: string;
+        spaceId?: string;
+        route?: string;
+        sessionId?: string;
+      };
   operation?: string;
   status?: number;
   constructor(

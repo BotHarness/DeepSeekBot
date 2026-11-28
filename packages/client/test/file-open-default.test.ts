@@ -18,6 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
+    fileSizeText: (bytes: number) => `${bytes}B`,
     writeClipboard: vi.fn(async () => true),
   };
 });
@@ -33,6 +34,9 @@ import { zhTranslate } from '../src/client/locale.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { MemoryCurrentFileOpenButton } from '../src/client/memory-file-actions.js';
 import { MemoryDiffFile } from '../src/client/memory-reader-parts.js';
+import { createFileActions } from '../src/client/actions-files.js';
+import { MessageAttachment } from '../src/client/message-attachment.js';
+import { createAttachmentOpenRequests } from '../src/client/attachment-open-requests.js';
 
 function memoryStorage(failWrites = false) {
   const values = new Map<string, string>();
@@ -164,6 +168,87 @@ afterEach(async () => {
 const click = async (element: Element | null | undefined) => {
   await act(async () => element!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 };
+
+it.each(['connection reset', 'timeout'])('recovers a file card after %s', async (cause) => {
+  vi.useFakeTimers();
+  let complete: (() => void) | undefined;
+  let fail: ((failure: Error) => void) | undefined;
+  const reply = new Promise<void>((resolve, reject) => {
+    complete = resolve;
+    fail = reject;
+  });
+  const requests = createAttachmentOpenRequests();
+  const open = vi
+    .fn<NonNullable<import('../src/client/host-file-actions.js').NativeHostFiles['open']>>()
+    .mockReturnValueOnce(reply)
+    .mockResolvedValue(undefined);
+  const actions = createFileActions(
+    async () => ({
+      ok: true,
+      value: { target: { kind: 'file', path: '/host/report.md', relativePath: 'report.md' } },
+    }),
+    {
+      pickDirectory: async () => null,
+      createWorkspace: async () => ({ workspaceId: 'workspace' }),
+      attachmentOpenRequests: requests,
+      nativeFiles: {
+        applications: async () => ({ available: true, applications: [app('system', true)] }),
+        open,
+      },
+    },
+    undefined,
+  );
+  try {
+    await act(async () =>
+      root.render(
+        createElement(MessageAttachment, {
+          attachment: { fileId: 'report', name: 'report.md', size: 100, mime: 'text/markdown' },
+          channelId: 'dm-ada',
+          messageId: 'message',
+          actions,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    const card = container.querySelector('button.bh-message-file-main');
+    await click(card);
+    expect(open).toHaveBeenCalledOnce();
+    expect(card?.getAttribute('aria-busy')).toBe('true');
+    await click(card);
+    expect(open).toHaveBeenCalledOnce();
+    const repeatFeedback = container.querySelector('[role="status"]')?.textContent;
+    if (cause === 'connection reset') {
+      await act(async () => requests.reset());
+    } else {
+      await act(async () => vi.advanceTimersByTimeAsync(3999));
+      expect(card?.getAttribute('aria-busy')).toBe('true');
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+    }
+    const stuck = card?.getAttribute('aria-busy');
+    const failure = container.querySelector('[role="alert"]')?.textContent;
+    await click(card);
+    expect({
+      busyAfterConnectionLoss: stuck,
+      failure,
+      openRequests: open.mock.calls.length,
+    }).toEqual({
+      busyAfterConnectionLoss: null,
+      failure: zhTranslate('fileAction.openRetry'),
+      openRequests: 2,
+    });
+    expect(open.mock.calls[0]?.[2]?.aborted).toBe(true);
+    expect(repeatFeedback).toBe(zhTranslate('fileAction.openPending'));
+    await act(async () => fail?.(new Error('late failure')));
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      zhTranslate('fileAction.dispatched'),
+    );
+  } finally {
+    requests.dispose();
+    await act(async () => complete?.());
+    vi.useRealTimers();
+  }
+});
+
 const main = () => container.querySelector<HTMLButtonElement>('.bh-file-open-main')!;
 const more = () => container.querySelector<HTMLButtonElement>('.bh-file-open-more')!;
 const item = (id: string) => {

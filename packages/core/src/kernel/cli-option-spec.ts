@@ -288,6 +288,7 @@ export const TEAM_OPTIONS = {
   'join-channels': { type: 'string' },
   'speaker-context': { type: 'string' },
   'policy-stdin': { type: 'boolean' },
+  'expected-editable-bots-revision': { type: 'string' },
   'expected-revision': { type: 'string' },
   as: { type: 'string' },
   after: { type: 'string' },
