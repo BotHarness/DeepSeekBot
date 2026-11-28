@@ -2636,6 +2636,8 @@ deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expect
 deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
 deepseekbot bots access-directory
 deepseekbot bots access-roles <slug>
+deepseekbot --as <username> roles channels <roleId>
+deepseekbot --as <username> bots channels <slug>
 ```
 
 Use the revision from `roles bot-scope` when saving. For selected scope, also pass its `editableBotsRevision`. `selected:` replaces the editable selections on
@@ -2645,6 +2647,10 @@ The explicit selections stay saved. Each Bot row reports its `audience` (`everyo
 `members`) and whether it is `editable`; only role-audience Bots can be selected for a role.
 The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
 role sources. Active invitees are visible to callers with `members.manage`. A private Bot's access is visible to its owner only.
+
+Both Channel reads return JSON and accept `--as <username>`. `roles channels` requires `roles.manage` or `members.manage`. It returns `autoJoin` for public and matching role-visible Channels, and `overrides` for Channels with a policy row for the role. Entries can appear in both groups and identify the Channel and its `permissions` tab. Private Channels require an invitation.
+
+`bots channels` uses the same Bot owner and manager rules as `bots access-roles`. It returns readable `channels`, `dmMembers` who can currently DM the Bot, and `recentInteractions`. Callers without `members.manage` see only their own entry in `dmMembers`. Recent interactions are metadata from the caller’s readable internal DMs with the Bot. The result includes the latest non-notice message timestamp per DM from the past 30 days, newest first, up to 20 entries.
 
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 

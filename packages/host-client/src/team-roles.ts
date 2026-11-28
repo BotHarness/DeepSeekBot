@@ -1,5 +1,7 @@
 import type {
   BotAccessRolesView,
+  BotInternalMembersView,
+  RoleChannelsView,
   BotRoleAccessSource,
   HostRoleRevision,
   PublicBotAudience,
@@ -12,6 +14,8 @@ import { answer, count, record, type HostCall } from './host-answer';
 export { STALE_HOST_ROLE } from '@botharness/host-protocol/team-roles';
 export type {
   BotAccessRolesView,
+  BotInternalMembersView,
+  RoleChannelsView,
   BotRoleAccessSource,
   HostRoleRevision,
   HostRoleUpdatePrecondition,
@@ -129,5 +133,71 @@ export async function readBotAccessRoles(
     await host.call('botAccessRoles', { slug }),
     isBotAccessRolesView,
     'botAccessRoles',
+  );
+}
+
+export async function readRoleChannels(host: HostCall, roleId: string): Promise<RoleChannelsView> {
+  const isLink = (value: unknown) => {
+    const row = record(value);
+    return (
+      typeof row?.channelId === 'string' &&
+      typeof row.name === 'string' &&
+      row.tab === 'permissions'
+    );
+  };
+  return answer(
+    await host.call('roleChannels', { roleId }),
+    (value): value is RoleChannelsView => {
+      const row = record(value);
+      return (
+        row?.roleId === roleId &&
+        row.privateChannelsRequireInvitation === true &&
+        Array.isArray(row.autoJoin) &&
+        row.autoJoin.every(isLink) &&
+        Array.isArray(row.overrides) &&
+        row.overrides.every(isLink)
+      );
+    },
+    'roleChannels',
+  );
+}
+
+export async function readBotInternalMembers(
+  host: HostCall,
+  slug: string,
+): Promise<BotInternalMembersView> {
+  return answer(
+    await host.call('botInternalMembers', { slug }),
+    (value): value is BotInternalMembersView => {
+      const row = record(value);
+      return (
+        row?.slug === slug &&
+        isTeamAccessBot(row) &&
+        Array.isArray(row.dmMembers) &&
+        row.dmMembers.every((value: unknown) => {
+          const member = record(value);
+          return typeof member?.humanId === 'string' && typeof member.displayName === 'string';
+        }) &&
+        Array.isArray(row.recentInteractions) &&
+        row.recentInteractions.every((value: unknown) => {
+          const interaction = record(value);
+          return (
+            typeof interaction?.humanId === 'string' &&
+            typeof interaction.channelId === 'string' &&
+            typeof interaction.at === 'string'
+          );
+        }) &&
+        Array.isArray(row.channels) &&
+        row.channels.every((value: unknown) => {
+          const channel = record(value);
+          return (
+            typeof channel?.channelId === 'string' &&
+            typeof channel.name === 'string' &&
+            (channel.type === 'group' || channel.type === 'dm')
+          );
+        })
+      );
+    },
+    'botInternalMembers',
   );
 }

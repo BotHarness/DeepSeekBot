@@ -229,6 +229,7 @@ export async function runBotCreateCli(
           'proactive-opt-out',
           'access-directory',
           'access-roles',
+          'channels',
         ].includes(action)
       ) {
         command = 'bot-access';

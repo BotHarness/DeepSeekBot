@@ -2513,6 +2513,8 @@ deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expect
 deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
 deepseekbot bots access-directory
 deepseekbot bots access-roles <slug>
+deepseekbot --as <username> roles channels <roleId>
+deepseekbot --as <username> bots channels <slug>
 ```
 
 保存时使用 `roles bot-scope` 返回的版本号。保存指定 Bot 时还需传入该命令返回的 `editableBotsRevision`。`selected:` 替换当前可编辑的按角色公开 Bot 选择，空列表清除这些选择。
@@ -2520,6 +2522,10 @@ Host Owner 和已持有全部公开 Bot 授权的合格角色管理员可以选�
 显式选择仍会保留。每个 Bot 行会给出 `audience`（`everyone`、`roles` 或 `members`）和 `editable`；只有按角色公开的 Bot 能被选给角色。
 `access-directory` 列出调用者可查看访问权限的 Bot。`access-roles` 显示角色授权来源。具有 `members.manage` 权限的调用者还可查看仍活跃的点名邀请成员。
 私有 Bot 的访问配置仅对其负责人可见。
+
+两个频道查询命令均返回 JSON，支持 `--as <username>`。`roles channels` 需要 `roles.manage` 或 `members.manage`。它返回角色适用的公开或按角色可见频道（`autoJoin`），以及为该角色设置过权限覆盖的频道（`overrides`）。同一频道可以出现在两组中，每一项都可以定位到频道的「权限」标签。私有频道靠邀请加入。
+
+`bots channels` 沿用 `bots access-roles` 的 Bot 负责人和管理员规则，返回可读频道（`channels`）、当前可私聊 Bot 的成员（`dmMembers`）和最近互动（`recentInteractions`）。没有 `members.manage` 的调用者只能在成员列表中看到自己的条目。最近互动仅包含调用者可读的 Bot 内部私聊元数据。每个私聊取近 30 天内最后一条非通知消息的时间，按时间倒序最多返回 20 条。
 
 `--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 

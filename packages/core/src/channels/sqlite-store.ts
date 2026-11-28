@@ -468,6 +468,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   invitations.settleDecidedInvitations();
 
   return {
+    publishRecordChanged: records.publishRecordChanged,
     requireHumanPolicy(human, id, key) {
       humanAccess.current?.requirePolicy(human, id, key);
     },

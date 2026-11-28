@@ -27,7 +27,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'bot-access',
     description:
-      'bots visibility|visibility-set|switches|reachable|proactive-opt-out|access-directory|access-roles <slug>',
+      'bots visibility|visibility-set|switches|reachable|proactive-opt-out|access-directory|access-roles|channels <slug>',
   },
   { command: 'speaker-policy', description: '[--human-id] [--topic]' },
   { command: 'audit', description: 'list [--after] [--limit] | verify' },
@@ -49,7 +49,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | effective [<username>] | conflicts <username> | bot-scope <roleId> | bot-scope-set <roleId> --expected-revision <revision> --set all|selected:<slugs> [--expected-editable-bots-revision <token>] | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
+      'list | catalog | effective [<username>] | conflicts <username> | channels <roleId> | bot-scope <roleId> | bot-scope-set <roleId> --expected-revision <revision> --set all|selected:<slugs> [--expected-editable-bots-revision <token>] | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--expected-revision <revision>] [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -218,6 +218,8 @@ export async function runTeamCommand(
     if (action === 'reachable' && rest.length === 1) return rpc('reachableBots', {});
     if (action === 'access-directory' && rest.length === 1) return rpc('botAccessDirectory', {});
     if (!argument) return usage();
+    if (action === 'channels' && rest.length === 2)
+      return rpc('botInternalMembers', { slug: argument });
     if (action === 'access-roles' && rest.length === 2)
       return rpc('botAccessRoles', { slug: argument });
     if (action === 'visibility' && rest.length === 2)
@@ -366,6 +368,8 @@ export async function runTeamCommand(
     }
     if (values['expected-editable-bots-revision'] !== undefined) return usage();
     if (action !== 'update' && values['expected-revision'] !== undefined) return usage();
+    if (action === 'channels' && argument && rest.length === 2)
+      return rpc('roleChannels', { roleId: argument });
     if (action === 'bot-scope' && argument && rest.length === 2)
       return rpc('roleBotScope', { roleId: argument });
     const providers = values['model-providers'];
