@@ -113,6 +113,10 @@ Orchestrator 应保持轻量。仓库修改、大型 Tool output、深层 projec
 
 PersonaBot 与 Orchestrator Session 是 durable identity；live Orchestrator Agent object 可以按需 resume。
 
+DSH 自行恢复当前 Orchestrator 时，Bot Runtime 在串行 `agent/created` 事件中挂载
+该 Agent 的工具和提示词段落，随后 DSH 才为第一步建立快照。原生 Inbox 仍对每条
+输入检查发送者。Bot Runtime 主动恢复时，则在 Agent 工厂的 setup 回调中完成同样的注册。
+
 ## Assignment Session
 
 Assignment Session 是一条独立工作线对应的 root DSH Session。它的 DSH Session id 是 canonical identity；BotHarness 不再创建第二个 Assignment id。它可以带 PersonaBot-local Continuity Key、绑定 Workspace，并使用专门的 model/dependency configuration。

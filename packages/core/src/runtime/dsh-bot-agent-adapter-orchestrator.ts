@@ -121,10 +121,12 @@ type OrchestratorHandleContext = Pick<
   DshBotAgentAdapterState,
   | 'admitSession'
   | 'agents'
+  | 'assertOpen'
   | 'authorizeBorrow'
   | 'borrowedOrchestrators'
   | 'closed'
   | 'composePreset'
+  | 'configuredOrchestrators'
   | 'handles'
   | 'hasSession'
   | 'liveHandle'
@@ -619,8 +621,12 @@ export async function orchestratorHandle(
   adapter: OrchestratorHandleContext,
   run: OrchestratorAgentRun,
   signal?: AbortSignal,
+  resumedAgent?: Agent,
 ): Promise<AgentHandle> {
   signal?.throwIfAborted();
+  const id = SessionId(run.sessionId);
+  if (resumedAgent !== undefined && adapter.agents.get?.(id) !== resumedAgent)
+    throw new Error('The resumed Orchestrator Agent is no longer live');
   const existing = adapter.liveHandle(run.sessionId);
   if (existing !== undefined) return existing;
   const resolvedAgentOptions = orchestratorSelection(adapter, run);
@@ -635,8 +641,8 @@ export async function orchestratorHandle(
       botSlug: run.bot.slug,
       rootRole: 'orchestrator',
     });
-    if (!borrowed) {
-      await adapter.composePreset(agentCtx, agent, run);
+    if (!borrowed || resumedAgent !== undefined) {
+      await adapter.composePreset(agentCtx, agent, run, borrowed);
     }
     const disposeFiles = await adapter.onOrchestratorFileSetup?.(agentCtx, agent);
     if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
@@ -760,8 +766,10 @@ export async function orchestratorHandle(
       };
     }, 'botharness: Orchestrator bridge tools lifetime');
     if (borrowed) borrowedDisposers.push(disposeBridgeListing);
+    adapter.configuredOrchestrators.add(agent);
+    if (borrowed) borrowedDisposers.push(() => void adapter.configuredOrchestrators.delete(agent));
   };
-  const live = adapter.agents.get?.(SessionId(run.sessionId));
+  const live = resumedAgent ?? adapter.agents.get?.(id);
   if (live !== undefined) {
     assertOrchestratorWorkingDirectory(
       run.sessionId,
@@ -773,6 +781,7 @@ export async function orchestratorHandle(
       await setup(live.ctx, live, true);
       signal?.throwIfAborted();
       run.tobCliTurn?.signal.throwIfAborted();
+      adapter.assertOpen();
     } catch (error) {
       for (const dispose of borrowedDisposers.reverse()) await dispose();
       throw error;
@@ -800,7 +809,7 @@ export async function orchestratorHandle(
   else adapter.orchestratorModeChoices.set(run.sessionId, modeChoices);
   const handle = resume
     ? await adapter.agents.resume({
-        resumeSessionId: SessionId(run.sessionId),
+        resumeSessionId: id,
         ...options,
       })
     : await createOrchestrator(adapter, run, options);

@@ -1,7 +1,21 @@
 import type { Context } from '@deepseek-ai/cordis';
+import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { BotRuntime } from './bot-runtime.js';
 
-export function installNativeSubagentWake(ctx: Context, runtime: BotRuntime): void {
+export function installNativeSubagentWake(
+  ctx: Context,
+  runtime: Pick<BotRuntime, 'captureNativeOrchestratorModel' | 'prepareNativeOrchestratorStep'>,
+  attachResumedOrchestrator?: (agent: Agent, signal?: AbortSignal) => Promise<void>,
+): void {
+  if (attachResumedOrchestrator !== undefined) {
+    ctx.on(
+      'agent/created',
+      async ({ agent, source, signal }) => {
+        if (source === 'resume') await attachResumedOrchestrator(agent, signal);
+      },
+      { global: true },
+    );
+  }
   const claimed = new Map<string, Array<string | undefined>>();
   ctx.effect(() => () => claimed.clear(), 'botharness: native Subagent wake claims');
   ctx.on(
