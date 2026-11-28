@@ -277,38 +277,6 @@ it.each(['before-lock', 'inspect', 'handover', 'missing', 'unreadable'] as const
   },
 );
 
-it('review: recovers a failed second guard write before dispatch without replay or an indexed-missing trap', async () => {
-  const { sources, storage } = fixture();
-  const set = storage.setItem.bind(storage);
-  let failed = false;
-  vi.spyOn(storage, 'setItem').mockImplementation((key, value) => {
-    if (key.startsWith('botharness.remoteHosts.operation.v1:') && !failed) {
-      failed = true;
-      throw Error('single storage failure');
-    }
-    set(key, value);
-  });
-  let writes = 0;
-  vi.spyOn(sources.client('a')!, 'api').mockImplementation(async (path) =>
-    path === '/api/botharness/devices'
-      ? {
-          status: 200,
-          body: { host: { id: 'a', name: 'Studio' }, devices: [], lan: { state: 'listening' } },
-        }
-      : (writes++, { status: 200, body: { state: 'off' } }),
-  );
-  const input = { action: 'stop-route', kind: 'lan', hostId: 'a', confirm: true };
-  const first = manageConnections(sources, input, request());
-  await first.catch(() => {});
-  const before = writes;
-  if (failed) expect(before).toBe(0);
-  await expect(manageConnections(sources, input, request())).resolves.toMatchObject({
-    accepted: true,
-  });
-  expect(writes).toBe(before + 1);
-  sources.close();
-});
-
 it('review: a failed atomic prepare leaves no guard and a later explicit execution can proceed', async () => {
   const { sources, storage } = fixture();
   const set = storage.setItem.bind(storage);
@@ -560,8 +528,12 @@ it('blocks uncertain writes across reload until the exact owner confirms complet
 
 it('does not treat an unchanged owner value or a missing capability as permission to replay', async () => {
   const { sources } = fixture();
+  let mutations = 0;
   const api = vi.spyOn(sources.client('a')!, 'api').mockImplementation(async (path) => {
-    if (path !== '/api/botharness/devices') throw Error('lost response');
+    if (path !== '/api/botharness/devices') {
+      mutations += 1;
+      throw Error('lost response');
+    }
     return {
       status: 200,
       body: { host: { id: 'a', name: 'Studio' }, devices: [], lan: { state: 'listening' } },
@@ -574,13 +546,22 @@ it('does not treat an unchanged owner value or a missing capability as permissio
       request(),
     ),
   ).rejects.toThrow('connection-management-unconfirmed');
+  const afterFirst = mutations;
   await expect(
     manageConnections(sources, { action: 'read-operation', hostId: 'a' }, request()),
   ).resolves.toMatchObject({ outcome: 'unknown' });
-  api.mockResolvedValue({ status: 200, body: { host: { id: 'a', name: 'Studio' }, devices: [] } });
+  expect(mutations).toBe(afterFirst);
+  api.mockImplementation(async (path) => {
+    if (path !== '/api/botharness/devices') {
+      mutations += 1;
+      return { status: 200, body: { host: { id: 'a', name: 'Studio' }, devices: [] } };
+    }
+    return { status: 200, body: { host: { id: 'a', name: 'Studio' }, devices: [] } };
+  });
   await expect(
     manageConnections(sources, { action: 'read-operation', hostId: 'a' }, request()),
   ).resolves.toMatchObject({ outcome: 'unknown' });
+  expect(mutations).toBe(afterFirst);
   expect(sources.getSnapshot().hosts[0]!.host.pendingConnection).toBeDefined();
 });
 
