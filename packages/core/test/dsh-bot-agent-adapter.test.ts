@@ -731,8 +731,11 @@ describe('DSH Bot Agent adapter', () => {
     expect(rolePrompt).toContain('Respect requests for silence');
     expect(rolePrompt).toContain('Use the same tool for Group/Bot DM, attachments and external IM');
     expect(rolePrompt).toContain('do not retry uncertain sends blindly');
-    expect(rolePrompt).toContain('call ask_secret at once');
-    expect(rolePrompt).toContain('never ask them to paste a secret into a Channel');
+    expect(rolePrompt).toContain('Use list_secret_accounts to find the exact saved account name');
+    expect(rolePrompt).toContain(
+      'Use ask_secret with mode collect only when the Human requests new configuration',
+    );
+    expect(rolePrompt).toContain('ask the Human to paste a secret into a Channel');
     expect(rolePrompt.replace(/\{\{(?:provider|model|cwd)\}\}/g, '')).not.toContain('{{');
     expect(channelSend?.description).toContain('Ordinary assistant text is private');
     expect(channelSend?.description).toContain('Ordinary assistant text is private');
