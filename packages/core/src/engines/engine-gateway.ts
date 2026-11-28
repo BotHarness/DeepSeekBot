@@ -70,7 +70,7 @@ export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
   return { text: JSON.stringify(value) ?? 'null', isError: false };
 }
 
-const OUT_OF_SCOPE_ARGUMENTS = ['human_id', 'bot_id', 'binding_id', 'conversation_id', 'grant_id'];
+const OUT_OF_SCOPE_ARGUMENTS = ['human_id', 'bot_id', 'binding_id', 'conversation_id'];
 const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const MAX_BODY = 1_000_000;
 
