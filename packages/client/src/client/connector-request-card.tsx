@@ -1,7 +1,10 @@
 import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
 
-import type { ConnectorRequestView } from '@botharness/host-client/shared/connector-request';
+import {
+  connectorRequestView,
+  type ConnectorRequestView,
+} from '@botharness/host-client/shared/connector-request';
 import { MaskedEmail } from './account-quota.js';
 import { hooked } from './ds/hooked.js';
 import { requestCardStyles as styles } from './ds/request-card.js';
@@ -31,26 +34,7 @@ type Account = NonNullable<ConnectorRequestView['account']>;
 export function connectorRequestOf(
   request: Pick<ToolApprovalRequestCard, 'toolName' | 'input' | 'connectorRequest'>,
 ): ConnectorRequestView | undefined {
-  if (request.toolName !== 'connector_request') return undefined;
-  if (request.connectorRequest !== undefined) return request.connectorRequest;
-  let args: Record<string, unknown> = {};
-  try {
-    const parsed: unknown = JSON.parse(request.input);
-    if (typeof parsed === 'object' && parsed !== null) args = parsed as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
-  const service = typeof args['service'] === 'string' ? args['service'] : '';
-  const accountId = typeof args['account_id'] === 'string' ? args['account_id'] : undefined;
-  return {
-    service,
-    name: service,
-    access: args['access'] === 'write' ? 'write' : 'read',
-    reason: typeof args['reason'] === 'string' ? args['reason'] : '',
-    ...(accountId === undefined
-      ? {}
-      : { account: { accountId, label: '', holder: 'shared' as const } }),
-  };
+  return connectorRequestView(request);
 }
 
 export function ConnectorRequestSubject({

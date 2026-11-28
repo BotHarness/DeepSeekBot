@@ -7,6 +7,11 @@ import {
 import { parseToolEffects } from '../../core/src/kernel/tool-effects-contract';
 import { approvalShellCommand } from './shared/approval-diff';
 import {
+  parseConnectorRequest,
+  type ConnectorRequestChoice,
+  type ConnectorRequestView,
+} from './shared/connector-request';
+import {
   approveWorkspaceRequest,
   listHostFolders,
   loadWorkspaceOptions,
@@ -14,6 +19,7 @@ import {
   type WorkspaceGrant,
 } from './bot-settings';
 import { MethodRefused, type HostClient } from './client';
+import { decideConnectorRequestCall } from './connectors';
 import { readChannelTimeline, wireTimelineMessage } from './channel-messages';
 import { recordFeature } from './telemetry/features';
 import type { FeatureEntry } from './telemetry/schema';
@@ -52,11 +58,12 @@ export interface ApprovalRequest extends RequestRef {
   execution?: ApprovalExecution;
   shellSuggestions?: WireShellApprovalSuggestions;
   canDecide?: boolean;
+  connectorRequest?: ConnectorRequestView;
 }
 
 export type ApprovalContent = Pick<
   ApprovalRequest,
-  'toolName' | 'role' | 'cwd' | 'input' | 'allowAlways' | 'effects'
+  'toolName' | 'role' | 'cwd' | 'input' | 'allowAlways' | 'effects' | 'connectorRequest'
 >;
 
 export function approvalContent(value: unknown): ApprovalContent | undefined {
@@ -69,7 +76,12 @@ export function approvalContent(value: unknown): ApprovalContent | undefined {
   if (!('input' in value) || typeof value.input !== 'string') return undefined;
   if ('allowAlways' in value && typeof value.allowAlways !== 'boolean') return undefined;
   const effects = parseToolEffects('effects' in value ? value.effects : undefined);
+  const connectorRequest =
+    value.toolName === 'connector_request' && 'connectorRequest' in value
+      ? parseConnectorRequest(value.connectorRequest)
+      : undefined;
   return {
+    ...(connectorRequest === undefined ? {} : { connectorRequest }),
     toolName: value.toolName,
     ...(effects === undefined ? {} : { effects }),
     role: value.role,
@@ -140,6 +152,7 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
     cwd: card.cwd,
     input: card.input,
     allowAlways: card.allowAlways === true,
+    ...(card.connectorRequest === undefined ? {} : { connectorRequest: card.connectorRequest }),
     ...(approval?.masked === false && approval.canDecide === false ? { canDecide: false } : {}),
     status:
       decision !== undefined
@@ -190,6 +203,28 @@ export async function decideApproval(
     await decideToolApproval(client, ref.channelId, ref.messageId, outcome, rule);
     markHandled(ref);
     recordFeature('activity:approval_submit', { decision: APPROVAL_DECISIONS[outcome], entry });
+    return 'accepted';
+  } catch (error) {
+    if (!(error instanceof MethodRefused)) throw error;
+    const now = await loadApproval(client, ref);
+    if (now.status === 'pending') throw error;
+    return now.status === 'stopped' ? 'expired' : now.status;
+  }
+}
+
+export async function decideConnectorRequest(
+  client: HostClient,
+  ref: RequestRef,
+  choice: ConnectorRequestChoice,
+  entry: FeatureEntry = 'app',
+): Promise<DecisionResult> {
+  try {
+    await decideConnectorRequestCall(client, ref.channelId, ref.messageId, choice);
+    markHandled(ref);
+    recordFeature('activity:approval_submit', {
+      decision: choice === 'deny' ? 'reject' : choice === 'once' ? 'allow_once' : 'allow_always',
+      entry,
+    });
     return 'accepted';
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;

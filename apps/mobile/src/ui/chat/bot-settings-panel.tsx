@@ -18,6 +18,7 @@ import { useComposerContext } from './composer-context';
 import { modelLabel } from './composer-labels';
 import { DmActivitySettings } from './dm-activity-settings';
 import { BotNameSetting } from './bot-name-setting';
+import { BotConnectorSettings } from './bot-connector-settings';
 
 export function BotSettingsPanel({
   client,
@@ -155,6 +156,9 @@ export function BotSettingsPanel({
         <Text accessibilityRole="alert" tone="danger">
           {backgroundError}
         </Text>
+      )}
+      {saved == null || saved.member !== undefined ? null : (
+        <BotConnectorSettings client={client} botSlug={bot.slug} on="raised" />
       )}
       {saved == null ? null : (
         <DmActivitySettings

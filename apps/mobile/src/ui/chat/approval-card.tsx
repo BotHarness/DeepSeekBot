@@ -14,6 +14,10 @@ import {
 } from '@botharness/host-client/requests';
 import type { ShellPrefixApproval, ToolApprovalOutcome } from '@botharness/host-protocol/wire';
 import { approvalFileChange } from '@botharness/host-client/shared/approval-diff';
+import {
+  connectorRequestView,
+  type ConnectorRequestChoice,
+} from '@botharness/host-client/shared/connector-request';
 import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
@@ -45,6 +49,7 @@ import { ShellScopeSheet } from './shell-scope-sheet';
 export interface ApprovalCardPort {
   load(): Promise<ApprovalRequest>;
   decide(outcome: ApprovalChoice, rule?: ShellPrefixApproval): Promise<DecisionResult>;
+  decideConnector?(choice: ConnectorRequestChoice): Promise<DecisionResult>;
 }
 
 type Phase =
@@ -161,6 +166,8 @@ function ApprovalCardContent({
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
   const [customScope, setCustomScope] = useState<CustomShellScope>();
+  const [connectorChoice, setConnectorChoice] = useState<ConnectorRequestChoice>();
+  const [pendingChoice, setPendingChoice] = useState<ConnectorRequestChoice>();
 
   const load = useCallback(async () => {
     if (contentCleared) return;
@@ -256,6 +263,7 @@ function ApprovalCardContent({
     outcome: ApprovalChoice,
     rule?: ShellPrefixApproval,
     rethrow = false,
+    choice?: ConnectorRequestChoice,
   ): Promise<boolean> => {
     if (
       phase.kind !== 'pending' ||
@@ -268,9 +276,14 @@ function ApprovalCardContent({
     submission.pending = true;
     setPhase({ kind: 'pending', request: phase.request, busy: outcome });
     try {
-      const result = await (rule === undefined ? port.decide(outcome) : port.decide(outcome, rule));
+      const result = await (choice !== undefined && port.decideConnector !== undefined
+        ? port.decideConnector(choice)
+        : rule === undefined
+          ? port.decide(outcome)
+          : port.decide(outcome, rule));
       if (!submission.active || current.current !== submission) return true;
       if (result === 'accepted') {
+        if (choice !== undefined) setConnectorChoice(choice);
         haptic(outcome === 'rejected' ? 'deny' : 'approve');
         setPhase({
           kind: 'settled',
@@ -347,6 +360,116 @@ function ApprovalCardContent({
           })}
     />
   );
+  const connector = connectorRequestView(request);
+  if (connector !== undefined) {
+    const name = connector.name === '' ? t.connector.category : connector.name;
+    const account = connector.account;
+    const decideConnector = (choice: ConnectorRequestChoice) => {
+      setPendingChoice(choice);
+      void decide(choice === 'deny' ? 'rejected' : 'allowed-once', undefined, false, choice);
+    };
+    const connectorLine =
+      connectorChoice !== undefined && phase.kind === 'settled' && phase.mine
+        ? { text: t.connector.outcome[connectorChoice], tone: outcomeTone(phase.outcome) }
+        : line;
+    const canDecideHere = port.decideConnector !== undefined;
+    return (
+      <View ref={mount}>
+        <ActionCard
+          category={t.connector.category}
+          {...(actionable
+            ? { status: expiryLabel(live?.expiresAt, Date.now()) ?? t.needsYou }
+            : {})}
+          title={account === undefined ? t.connector.connect(name) : t.connector.use(name)}
+          focused={focused}
+          wide={wide}
+          {...(phase.kind === 'failed'
+            ? { error: t.cardLoadFailed }
+            : phase.kind === 'pending' && phase.error !== undefined
+              ? { error: phase.error }
+              : {})}
+          busy={phase.kind === 'loading' && resolution === undefined}
+          {...(account === undefined || account.label === ''
+            ? {}
+            : {
+                preview: (
+                  <CardPreview
+                    text={[
+                      account.label,
+                      account.identity,
+                      connector.access === 'write' ? t.connector.write : t.connector.read,
+                      account.holder === 'bot' ? t.connector.botOwn : t.connector.shared,
+                    ]
+                      .filter((part) => part !== undefined && part !== '')
+                      .join(' · ')}
+                  />
+                ),
+              })}
+        >
+          {connector.reason === '' ? null : (
+            <CardNote testID="connector-request-reason">{connector.reason}</CardNote>
+          )}
+          {account === undefined && actionable ? (
+            <CardNote>{t.connector.connectOnComputer}</CardNote>
+          ) : null}
+          {connectorLine === undefined ? null : (
+            <CardNote testID="approval-result" live>
+              {connectorLine.text}
+            </CardNote>
+          )}
+          {phase.kind !== 'failed' ? null : (
+            <CardButtons>
+              <Button
+                testID="approval-retry"
+                symbol="refresh"
+                label={t.tryAgain}
+                onPress={() => void load()}
+              />
+            </CardButtons>
+          )}
+          {viewOnly ? (
+            <CardNote testID="approval-view-only" live>
+              {t.viewOnly}
+            </CardNote>
+          ) : null}
+          {viewOnly || !canDecideHere || !actionable ? null : (
+            <CardButtons stack>
+              {account === undefined ? null : (
+                <>
+                  <Button
+                    label={t.connector.turnOn}
+                    testID="connector-turn-on"
+                    variant="card-solid"
+                    tone="primary"
+                    disabled={busy !== undefined}
+                    busy={busy !== undefined && pendingChoice === 'persistent'}
+                    onPress={() => decideConnector('persistent')}
+                  />
+                  <Button
+                    label={t.connector.once}
+                    testID="connector-once"
+                    variant="card-solid"
+                    disabled={busy !== undefined}
+                    busy={busy !== undefined && pendingChoice === 'once'}
+                    onPress={() => decideConnector('once')}
+                  />
+                </>
+              )}
+              <Button
+                label={t.connector.no}
+                testID="approval-deny"
+                variant="card-solid"
+                tone="danger"
+                disabled={busy !== undefined}
+                busy={busy !== undefined && pendingChoice === 'deny'}
+                onPress={() => decideConnector('deny')}
+              />
+            </CardButtons>
+          )}
+        </ActionCard>
+      </View>
+    );
+  }
   const rows = readableInput(request.input);
   const change = approvalFileChange(request.toolName, request.input);
   const shown = change === undefined ? approvalCommand(request.toolName, request.input) : undefined;

@@ -46,3 +46,28 @@ export function parseConnectorRequest(value: unknown): ConnectorRequestView | un
     ...(parsedAccount === undefined ? {} : { account: parsedAccount }),
   };
 }
+
+export function connectorRequestView(request: {
+  toolName: string;
+  input: string;
+  connectorRequest?: ConnectorRequestView | undefined;
+}): ConnectorRequestView | undefined {
+  if (request.toolName !== 'connector_request') return undefined;
+  if (request.connectorRequest !== undefined) return request.connectorRequest;
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(request.input);
+    args = record(parsed) ?? {};
+  } catch {
+    return undefined;
+  }
+  const service = typeof args['service'] === 'string' ? args['service'] : '';
+  const accountId = typeof args['account_id'] === 'string' ? args['account_id'] : undefined;
+  return {
+    service,
+    name: service,
+    access: args['access'] === 'write' ? 'write' : 'read',
+    reason: typeof args['reason'] === 'string' ? args['reason'] : '',
+    ...(accountId === undefined ? {} : { account: { accountId, label: '', holder: 'shared' } }),
+  };
+}

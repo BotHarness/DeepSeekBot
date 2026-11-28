@@ -73,6 +73,12 @@ export interface BotConnector {
 
 import type { InvokeAction } from '../../actions.js';
 import type { ConnectorRequestChoice } from '@botharness/host-client/shared/connector-request';
+import {
+  decideConnectorRequestCall,
+  readBotConnectors,
+  readConnectors,
+  writeConnectorGrant,
+} from '@botharness/host-client/connectors';
 
 export interface OnceGrant {
   accountId: string;
@@ -114,8 +120,11 @@ export interface ConnectorActions {
 }
 
 export function createConnectorActions(invoke: InvokeAction) {
+  const host = {
+    call: (method: string, args?: Record<string, unknown>) => invoke(method, args ?? {}),
+  };
   return {
-    connectors: () => invoke('connectors', {}),
+    connectors: () => readConnectors(host) as Promise<ConnectorsView>,
     connectorKeySet: (apiKey) => invoke('connectorKeySet', { apiKey }),
     connectorKeyClear: () => invoke('connectorKeyClear', {}),
     connectorConnect: (service, label) =>
@@ -129,10 +138,15 @@ export function createConnectorActions(invoke: InvokeAction) {
       invoke('connectorMcpSearch', cursor === undefined ? { query } : { query, cursor }),
     connectorMcpAdd: (input) => invoke('connectorMcpAdd', input),
     connectorGrantSet: (slug, accountId, access) =>
-      invoke('connectorGrantSet', { slug, accountId, access }),
+      writeConnectorGrant(host, slug, accountId, access) as Promise<{
+        changed: boolean;
+        connectors: BotConnector[];
+        once?: OnceGrant[];
+      }>,
     connectorAccountRemove: (accountId) => invoke('connectorAccountRemove', { accountId }),
-    botConnectors: (slug) => invoke('botConnectors', { slug }),
+    botConnectors: (slug) =>
+      readBotConnectors(host, slug) as Promise<{ connectors: BotConnector[]; once?: OnceGrant[] }>,
     connectorRequestDecide: (channelId, messageId, choice) =>
-      invoke('connectorRequestDecide', { channelId, messageId, choice }),
+      decideConnectorRequestCall(host, channelId, messageId, choice),
   } satisfies Required<ConnectorActions>;
 }

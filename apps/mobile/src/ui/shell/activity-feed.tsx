@@ -24,6 +24,7 @@ import {
   answerQuestion,
   approvalSummaryTool,
   decideApproval,
+  decideConnectorRequest,
   loadApproval,
   loadQuestion,
   type DecisionResult,
@@ -334,6 +335,10 @@ function Post({
         ) => {
           connected();
           return decideApproval(client, stableRef, outcome, 'app', rule);
+        },
+        decideConnector: (choice: Parameters<typeof decideConnectorRequest>[2]) => {
+          connected();
+          return decideConnectorRequest(client, stableRef, choice);
         },
       },
       preset: approvalPresetPort(client, botSlug, false),
