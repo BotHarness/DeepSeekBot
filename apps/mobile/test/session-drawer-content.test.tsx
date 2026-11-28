@@ -41,7 +41,9 @@ vi.mock('../src/features/sessions/session-drawer-state', () => ({
 }));
 
 import { SessionDrawerContent } from '../src/features/sessions/session-drawer-content';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
+interfacePreferences.setSystemLocales(['en']);
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const host = (hostId: string, status = 'connected') => ({
   saved: { hostId, hostName: hostId, deviceId: `${hostId}-d`, routes: [] as [], credential: 'c' },

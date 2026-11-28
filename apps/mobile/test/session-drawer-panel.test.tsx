@@ -78,6 +78,7 @@ import { SessionDrawerPanel } from '../src/features/sessions/session-drawer-pane
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { sessionQueries } from '../src/features/sessions/session-list-query';
 
+interfacePreferences.setSystemLocales(['en']);
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 afterEach(() => {
@@ -212,7 +213,10 @@ it('lists Sessions by day with the open one highlighted under the Environment na
     view.querySelector('[data-testid="host-session-fresh"]')?.getAttribute('aria-selected'),
   ).toBe('false');
   await act(async () => old.click());
-  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'old' }));
+  expect(onOpen).toHaveBeenCalledWith(
+    expect.objectContaining({ sessionId: 'old' }),
+    expect.any(String),
+  );
 });
 
 it('expands the Search pill into a field only when tapped, and starts a New Session', async () => {
@@ -409,7 +413,10 @@ it('renders the Stacked-style Session list with ✎ in the header and Search abo
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="host-session-fresh"]')!.click(),
   );
-  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'fresh' }));
+  expect(onOpen).toHaveBeenCalledWith(
+    expect.objectContaining({ sessionId: 'fresh' }),
+    expect.any(String),
+  );
 });
 
 it('hides ✎ from a member on the Stacked-style Session list', async () => {

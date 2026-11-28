@@ -177,6 +177,8 @@ Choosing a Session replaces the Sessions tab's content, so there is no Back: the
 
 The Session and Channel detail headers share their floating islands. Android uses the same Compose header, with 48dp circular actions, a title capsule centered vertically between the actions, and the same edge fade and spacing. The Session capsule grows to fit its Computer and folder line at larger text sizes. On iOS 26 and later, Session Back, ☰ and ✎ use the Channel header’s SwiftUI action circles, SF Symbol sizing and regular Liquid Glass. The Session title capsule follows the same row height. On earlier iOS, the controls use the shared opaque fill and hairline.
 
+The Computer and folder glyphs in the Session title capsule use the drawer’s palette. The Computer follows its chosen color. The folder follows its saved customization or the automatic color from the drawer row. A Session opened directly uses its saved folder color or the folder-name default. The metadata text stays neutral.
+
 The Session header has no ⋯ button (Human decision, 2026-11-24). Tapping the name capsule opens the Session options: on iOS a SwiftUI `Menu` whose label is the glass capsule, on Android the Material 3 `DropdownMenu` anchored to the identity island. The menu starts with the full Session name, because the capsule truncates it: on iOS this is the menu section's title, on Android a non-interactive header row. The items are the ones ⋯ used to hold (Stop, Archive or Unarchive, Model choice). The capsule's accessibility label is the full name, with the hint “Session options”. While the transcript is still loading, the capsule is a plain heading.
 
 ## Phone Sessions Stacked style and landing (#5110)

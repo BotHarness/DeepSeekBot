@@ -59,3 +59,5 @@ Long-press the text of a Bot message that contains a Session chip. Check that th
 - A historical Orchestrator can be read. The Host only accepts direct sends to the Bot's current Orchestrator.
 - Direct Session commands accept text. The Session composer displays an unavailable attachment control.
 - An iOS Simulator capture only covers that Simulator and its installed binary.
+
+For the Session header colors, choose distinct Computer and folder colors, then open the Session from the drawer and verify both small glyphs match their colors in the drawer while the metadata text stays neutral. Reset the folder to Automatic and reopen the Session to verify the assigned folder color. Open the same Session from outside the drawer to check the saved custom color, and repeat in light and dark appearance.

@@ -43,7 +43,7 @@ export type SessionDrawerPanelProps = {
   active: boolean;
   selected?: { hostId: string; sessionId: string } | undefined;
   canCreate: boolean;
-  onOpen(row: SessionQueryRow): void;
+  onOpen(row: SessionQueryRow, color: ReturnType<typeof folderColor> | undefined): void;
   onNew(): void;
   variant?: 'drawer' | 'page';
 };
@@ -259,7 +259,9 @@ export function SessionDrawerPanel({
               }
               showHost={showHost}
               selected={item.hostId === selected?.hostId && item.sessionId === selected.sessionId}
-              onPress={() => onOpen(item)}
+              onPress={() =>
+                onOpen(item, folderColors.get(folderColorKey(item.hostId, item.folderName)))
+              }
             />
           )}
         />

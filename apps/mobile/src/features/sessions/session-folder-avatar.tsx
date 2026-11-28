@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import {
-  HOST_COLOR_IDS,
   HOST_SYMBOL_IDS,
   hostColorInk,
   hostTileFill,
@@ -15,16 +14,10 @@ import { cornerBadge } from '../../ui/design/tokens';
 import { ResourceImage } from '../../ui/primitives/resource-image';
 import { Text } from '../../ui/primitives/text';
 import { HostGlyph } from '../../ui/shell/host-tile';
-import { folderColor, folderMonogram } from './session-query-model';
+import { folderMonogram, sessionColorId, sessionFolderColor } from './session-query-model';
 
 const FAVICON_SHARE = 0.62;
 const GLYPH_SHARE = 0.58;
-
-function lookColor(look: HostSessionFolderLook | undefined): HostColorId | undefined {
-  return (HOST_COLOR_IDS as readonly string[]).includes(look?.color ?? '')
-    ? (look!.color as HostColorId)
-    : undefined;
-}
 
 function lookSymbol(look: HostSessionFolderLook | undefined): HostSymbolId | undefined {
   const icon = look?.icon;
@@ -51,7 +44,7 @@ export function SessionFolderAvatar({
   testID?: string;
 }) {
   const theme = useDesignTheme();
-  const chosenColor = lookColor(look);
+  const chosenColor = sessionColorId(look?.color);
   const chosen = look?.icon !== undefined || chosenColor !== undefined;
   const source =
     !chosen && look?.favicon !== undefined ? client?.resource(look.favicon) : undefined;
@@ -59,7 +52,7 @@ export function SessionFolderAvatar({
   const sourceIdentity = useMemo(() => ({ client, uri }), [client, uri]);
   const [failedSource, setFailedSource] = useState<typeof sourceIdentity>();
   const favicon = sourceIdentity === failedSource ? undefined : source;
-  const colorId = chosenColor ?? assigned ?? folderColor(folderName);
+  const colorId = sessionFolderColor(folderName, chosenColor, assigned);
   const ink = hostColorInk(theme.scheme, theme.color, colorId);
   const symbol = lookSymbol(look);
   const emoji = look?.icon?.kind === 'emoji' ? look.icon.emoji : undefined;

@@ -14,7 +14,7 @@ import { showActionMenu } from '../../ui/primitives/app-dialog';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
 import { SessionFolderAvatar } from './session-folder-avatar';
-import type { SessionQueryRow } from './session-query-model';
+import { SESSION_HOST_COLOR, type SessionQueryRow } from './session-query-model';
 
 export type SessionRowStatus = 'working' | 'needs-you' | 'done';
 
@@ -60,7 +60,7 @@ export function SessionDrawerRow({
   const minutes = Math.max(0, Math.floor((now - (row.lastPromptAt ?? row.updatedAt)) / 60_000));
   const when = strings.ago(minutes);
   const brand = row.model === undefined ? undefined : modelBrand(row.model);
-  const hostColor = look.color ?? 'blue';
+  const hostColor = look.color ?? SESSION_HOST_COLOR;
   const badge = Math.round(clampScaledIconSize(theme.touch, theme.fontScale, theme.touch * 1.5));
   const avatar = Math.round(badge / 2);
   const metaIcon = Math.round(theme.type.meta.line * theme.fontScale);
