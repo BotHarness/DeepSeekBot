@@ -98,6 +98,7 @@ export function origin() {
   return {
     lease: {
       sourceEventId: 'im-source',
+      conversationKey: 'synthetic-conversation',
       signal: controller.signal,
       current: () => current && !controller.signal.aborted,
       applies: () => applies,

@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { createServer } from 'node:http';
 import { expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 import { PrivateInputs } from '../src/credentials/private-inputs.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -15,6 +16,7 @@ import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 import { createTempRoot } from './helpers.js';
 import { mountPrivateInputs } from '../src/credentials/mount.js';
+import { PrivateInputRefusal } from '../src/credentials/im-origin.js';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
@@ -26,7 +28,7 @@ const declaration = {
   fields: [{ id: 'token', label: 'Token', required: true }],
 };
 
-async function fixture(mounted = false) {
+async function fixture(mounted = false, platform: 'feishu' | 'qq' = 'feishu') {
   const home = createTempRoot('bh-private-origin-');
   const ctx = new Context();
   const fiber = ctx.plugin(LocalCredentialProvider, {
@@ -42,6 +44,7 @@ async function fixture(mounted = false) {
   let held = new Promise<void>((resolve) => {
     release = resolve;
   });
+  const steered: string[] = [];
   const core = createCore({
     dshHome: home,
     agents: {
@@ -49,7 +52,8 @@ async function fixture(mounted = false) {
         ready(run);
         await held;
       },
-      steerOrchestrator() {
+      steerOrchestrator(_botSlug, body) {
+        steered.push(body);
         return true;
       },
       async runAssignment() {},
@@ -93,23 +97,25 @@ async function fixture(mounted = false) {
     replyContextVersion: 1,
     replyReceiptVersion: 1,
     replyFenceVersion: 1,
-    listBots: async () => [{ botId: 'synthetic-im', channel: 'feishu' }],
+    listBots: async () => [{ botId: 'synthetic-im', channel: platform }],
     listTargets: async () => [
       {
         targetId: 'team',
         name: 'Synthetic group',
         kind: 'group',
-        route: { chatId: 'synthetic-group' },
+        route:
+          platform === 'qq' ? { groupOpenId: 'synthetic-group' } : { chatId: 'synthetic-group' },
       },
     ],
     describeBot: async () => ({
       version: 1,
       botId: 'synthetic-im',
-      channel: 'feishu',
+      channel: platform,
       connected: true,
       account: { fingerprint, name: 'Synthetic IM' },
       capabilities: [
         'proactive-text-checked',
+        ...(platform === 'qq' ? ['ordinary-text-consumer' as const] : []),
         'exclusive-text-consumer',
         'reply-text-checked',
         'reply-context-checked',
@@ -132,11 +138,12 @@ async function fixture(mounted = false) {
       };
     },
   };
-  core.externalMessaging.register(createDshImProvider(transport)!);
-  const target = (await core.externalMessaging.targets('dsh-im/feishu', 'synthetic-im'))[0]!;
+  const providerId = 'dsh-im/' + platform;
+  core.externalMessaging.register(createDshImProvider(transport, platform)!);
+  const target = (await core.externalMessaging.targets(providerId, 'synthetic-im'))[0]!;
   const grant = await core.externalMessaging.authorize({
     botSlug: 'ada',
-    providerId: 'dsh-im/feishu',
+    providerId,
     accountRef: 'synthetic-im',
     targetRef: 'team',
     fingerprint,
@@ -150,6 +157,7 @@ async function fixture(mounted = false) {
     privateInputs,
     grant,
     replies,
+    steered,
     mount(agent: Agent) {
       liveAgent = agent;
       const root = new Context();
@@ -196,37 +204,37 @@ async function fixture(mounted = false) {
       previous();
       return started;
     },
-    async local() {
+    async local(body = 'Use the configured account') {
       const id = 'local-' + ++next;
       await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
         id,
         at: new Date().toISOString(),
         author: { kind: 'human' },
-        body: 'Use the configured account',
+        body,
       });
       return core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: 'dm-ada',
         messageId: id,
-        body: 'Use the configured account',
+        body,
       });
     },
-    async im() {
+    async im(body = 'Use the configured account', mentioned = true) {
       const before = new Set(core.attention.list({ botSlug: 'ada' }).items.map((item) => item.id));
       const id = 'synthetic-' + ++next;
       await consumer!.onEvent(
         {
           version: 1,
-          channel: 'feishu',
+          channel: platform,
           botId: 'synthetic-im',
           fingerprint,
           eventId: id,
           messageId: id,
           actor: { kind: 'user', id: 'synthetic-human' },
           conversation: { kind: 'group', id: 'synthetic-group' },
-          mentions: [{ id: 'synthetic-bot', key: '@bot' }],
-          mentionedAccount: true,
-          at: new Date().toISOString(),
-          text: '@bot Use the configured account',
+          mentions: mentioned ? [{ id: 'synthetic-bot', key: '@bot' }] : [],
+          mentionedAccount: mentioned,
+          at: new Date(Date.now() + 1000).toISOString(),
+          text: mentioned ? '@bot ' + body : body,
           reply: { messageId: id, conversationId: 'synthetic-group', actorId: 'synthetic-human' },
           replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
         },
@@ -236,8 +244,9 @@ async function fixture(mounted = false) {
       const sources = core.attention
         .list({ botSlug: 'ada' })
         .items.filter((item) => item.sourceKind === 'bridge-message');
-      expect(sources.length).toBeGreaterThan(0);
-      return sources.find((item) => !before.has(item.id))!.id;
+      const source = sources.find((item) => !before.has(item.id));
+      if (mentioned) expect(source).toBeDefined();
+      return source?.id ?? '';
     },
     async configure(
       agent: Agent,
@@ -270,6 +279,138 @@ async function fixture(mounted = false) {
   };
 }
 
+it('reproduces a credential reuse miss and refuses repeat collection after cancellation in synthetic QQ', async () => {
+  const f = await fixture(true, 'qq');
+  let mounted: ReturnType<typeof f.mount> | undefined;
+  try {
+    await f.local();
+    const run = await f.started();
+    const agent = {
+      id: run.sessionId,
+      session: { id: run.sessionId, header: { cwd: f.home } },
+    } as Agent;
+    const tools = f.mount(agent);
+    mounted = tools;
+    await f.configure(agent);
+    await f.nextTurn();
+    const ordinaryBeforeRequest = await f.im('ordinary-before-request', false);
+    const source = await f.im();
+    await f.started();
+    const request = {
+      ...declaration,
+      account: 'wrong-cloudflare-account',
+      purpose: '复用已配置的 Cloudflare 凭据',
+      source_event_id: source,
+    };
+    const cards = () =>
+      f.core.channels
+        .readMessages('dm-ada')
+        .filter((message) => message.privateInputRequest?.account === request.account);
+
+    const miss = JSON.parse((await mounted.call('ask_secret', request)) as string);
+    expect(miss.status).toBe('not-found');
+    expect(miss.account).toBe(request.account);
+    expect(JSON.stringify(miss.accounts)).toBe(JSON.stringify([declaration.account]));
+    expect(Object.keys(miss).sort().join(',')).toBe('account,accounts,message,status');
+    expect(cards()).toHaveLength(0);
+    expect(f.replies).toHaveLength(0);
+    const listed = await mounted.call('list_secret_accounts', {});
+    expect(listed).toBe(JSON.stringify({ accounts: [declaration.account] }));
+
+    const collection = {
+      ...request,
+      mode: 'collect',
+      purpose: '请填写新的 Cloudflare API 令牌以更新 DNS 记录。',
+    };
+    const ask = mounted.call('ask_secret', collection);
+    await vi.waitFor(
+      () => {
+        expect(cards()).toHaveLength(1);
+        expect(f.privateInputs.status('dm-ada', cards()[0]!.id)).toBe('pending');
+        expect(f.replies).toHaveLength(1);
+      },
+      { timeout: 45_000 },
+    );
+    const card = cards()[0]!;
+    expect(card.privateInputRequest?.purpose).toBe(collection.purpose);
+    const ordinaryDefault = await f.im('ordinary-default', false);
+    await f.core.externalMessaging.inbound.setPolicy(
+      'ada',
+      f.grant.id,
+      { collection: 'all', wake: 'immediate', count: 1, intervalSeconds: 30 },
+      { kind: 'human' },
+    );
+    const ordinaryWithCollection = await f.im('ordinary-with-collection', false);
+    const ordinaryWithMention = await f.im('ordinary-with-mention');
+    const channel = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    const sent = await channel.channelSend({ channelId: 'dm-ada', body: 'ordinary-app-chat' });
+    const reply = await channel.channelSend({
+      channelId: 'dm-ada',
+      body: 'ordinary-app-reply',
+      replyTo: card.id,
+    });
+    const ordinaryLocal = f.core.channels
+      .readMessages('dm-ada')
+      .find((message) => message.body === 'ordinary-app-chat');
+    const cancelled = await f.privateInputs.cancel(true, 'dm-ada', card.id);
+    const result = JSON.parse((await ask) as string);
+    const privateInputRefusal = async (args: typeof collection) => {
+      try {
+        await tools.call('ask_secret', args);
+      } catch (error) {
+        if (error instanceof PrivateInputRefusal) return error.code;
+        throw error;
+      }
+      throw new Error('Repeated request opened after cancellation');
+    };
+    const repeat = await privateInputRefusal(collection);
+    expect(repeat).toBe('private-input-declined');
+    expect(cards()).toHaveLength(1);
+    expect(f.replies).toHaveLength(1);
+    await f.nextTurn();
+    const nextSource = await f.im('next-turn');
+    await f.started();
+    const later = await privateInputRefusal({
+      ...collection,
+      source_event_id: nextSource,
+      purpose: '为 DNS 更新填写新的 Cloudflare API 令牌。',
+    });
+    expect(later).toBe('private-input-declined');
+    expect(cards()).toHaveLength(1);
+    expect(f.replies).toHaveLength(1);
+
+    console.info('5097 synthetic QQ candidate', {
+      lookupStatus: miss.status,
+      lookupAccounts: miss.accounts,
+      missOpenedCard: false,
+      collectionOpenedCard: true,
+      collectionPurpose: card.privateInputRequest?.purpose,
+      ordinaryBeforeRequestAdmitted: ordinaryBeforeRequest !== '',
+      ordinaryDefaultAdmitted: ordinaryDefault !== '',
+      ordinaryWithCollectionAdmitted: ordinaryWithCollection !== '',
+      ordinaryWithMentionAdmitted: ordinaryWithMention !== '',
+      ordinaryAppMessageStored: ordinaryLocal !== undefined,
+      ordinaryAppMessageIsPrivateInput:
+        ordinaryLocal?.privateInputResolution !== undefined ||
+        ordinaryLocal?.privateInputRequest !== undefined,
+      ordinaryAppMessageSteered: f.steered.some((body) => body.includes('ordinary-app-chat')),
+      acceptedAppSend: sent.ok,
+      acceptedReplyToCard: reply.ok,
+      ordinaryAppReplySteered: f.steered.some((body) => body.includes('ordinary-app-reply')),
+      cancelled,
+      toolStatus: result.status,
+      repeatRefusal: repeat,
+      nextTurnRefusal: later,
+      repeatOpenedCard: false,
+    });
+    expect(cancelled).toBe(true);
+    expect(result.status).toBe('cancelled');
+  } finally {
+    await mounted?.close();
+    await f.close();
+  }
+}, 60_000);
+
 it('opens an IM-started card in Web Chat and accepts the Owner key without a configured Web URL', async () => {
   const f = await fixture(true);
   let mounted: ReturnType<typeof f.mount> | undefined;
@@ -281,7 +422,11 @@ it('opens an IM-started card in Web Chat and accepts the Owner key without a con
       session: { id: run.sessionId, header: { cwd: f.home } },
     } as Agent;
     mounted = f.mount(agent);
-    const asked = mounted.call('ask_secret', { ...declaration, source_event_id: source });
+    const asked = mounted.call('ask_secret', {
+      ...declaration,
+      source_event_id: source,
+      mode: 'collect',
+    });
     await vi.waitFor(() =>
       expect(f.core.channels.readMessages('dm-ada').some((m) => m.privateInputRequest)).toBe(true),
     );

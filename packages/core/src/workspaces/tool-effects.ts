@@ -26,6 +26,7 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   deepseekbot_cli: write,
   archive_assignment: write,
   ask_secret: { ...write, secrets: true },
+  list_secret_accounts: { ...read, secrets: true },
   ask_user_question: write,
   bot_create: { ...write, approval: 'always' },
   bot_schedule_create: write,

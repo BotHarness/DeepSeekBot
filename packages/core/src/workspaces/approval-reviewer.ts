@@ -64,7 +64,13 @@ function clip(text: string, limit: number): string {
   return characters.length > limit ? characters.slice(0, limit).join('') + ' …[truncated]' : text;
 }
 
-const SECRET_TOOLS = new Set(['secret_cli', 'secret_mcp_connect', 'secret_http', 'ask_secret']);
+const SECRET_TOOLS = new Set([
+  'secret_cli',
+  'secret_mcp_connect',
+  'secret_http',
+  'ask_secret',
+  'list_secret_accounts',
+]);
 
 function withoutSecretValues(value: unknown, key?: string): unknown {
   if (typeof value === 'string') {

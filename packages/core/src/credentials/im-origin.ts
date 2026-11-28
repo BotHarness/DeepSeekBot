@@ -15,6 +15,8 @@ const refusals = {
     'Credential grant is unavailable for this PersonaBot and account. The account may have been removed or replaced. Call ask_secret to check current configuration; do not retry stale references.',
   'private-input-notice-unavailable':
     'Private input IM handoff is unavailable. This account needs Owner input, but the Host has no Web notification address. Ask the Owner to configure the account in Web Chat; do not retry.',
+  'private-input-declined':
+    'The user recently declined this private input request. Ask them in chat whether they want to try again, and wait for their confirmation and for the five-minute cooldown to end.',
 } as const;
 
 export class PrivateInputRefusal extends HarnessError {
@@ -26,6 +28,7 @@ export class PrivateInputRefusal extends HarnessError {
 
 export interface PrivateInputOrigin {
   sourceEventId: string;
+  conversationKey: string;
   signal: AbortSignal;
   applies(): boolean;
   current(): boolean;
