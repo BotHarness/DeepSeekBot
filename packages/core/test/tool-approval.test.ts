@@ -2,7 +2,12 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import type { ToolExecution } from '@deepseek-ai/dsh-tools';
+import type { Context } from '@deepseek-ai/cordis';
+import type {
+  ToolDispatchExecution,
+  ToolExecution,
+  ToolExecutionResult,
+} from '@deepseek-ai/dsh-tools';
 
 import type { ChannelMessage, ChannelRecord } from '../src/channels/channel.js';
 import type { ChannelStore } from '../src/channels/store.js';
@@ -14,6 +19,9 @@ import { createToolApprovalRuleStore } from '../src/workspaces/tool-approval-rul
 import { createTempRoot } from './helpers.js';
 import { toolEffects } from '../src/workspaces/tool-effects.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
+import { mountConnectors } from '../src/connectors/mount.js';
+import type { ConnectorService } from '../src/connectors/service.js';
+import type { ConnectorAccess } from '../src/connectors/store.js';
 
 const botSlug = 'ada';
 const sessionId = 'botharness-assignment-test';
@@ -58,6 +66,86 @@ function fixture(
 }
 
 describe('Channel tool approval', () => {
+  it.each([
+    ['write', ['GMAIL_LIST_EMAILS', 'GMAIL_SEND_EMAIL'], 'allowed-once', 1, 'irreversible'],
+    ['write', ['GOOGLECALENDAR_CREATE_EVENT'], 'rejected', 0, 'reversible'],
+    ['write', ['GMAIL_SEND_EMAIL'], 'expired', 0, 'irreversible'],
+    ['read', ['GMAIL_LIST_EMAILS'], undefined, 1, undefined],
+  ] as const)(
+    'gates Composio %s calls for %j before dispatch (%s)',
+    async (access, slugs, decision, dispatched, changes) => {
+      const state = fixture();
+      type Dispatch = (
+        execution: ToolDispatchExecution,
+        next: () => Promise<ToolExecutionResult>,
+      ) => Promise<ToolExecutionResult>;
+      const hooks = vi.fn<(event: string, callback: Dispatch) => void>();
+      const ctx = { effect: vi.fn(), tools: { guard: vi.fn() }, on: hooks } as unknown as Context;
+      const forBot = () =>
+        ['gmail', 'googlecalendar'].map((service) => ({
+          accountId: service,
+          service,
+          status: 'active',
+          provider: 'composio',
+          access: access satisfies ConnectorAccess,
+        }));
+      const service = { forBot, account: () => ({ revision: 1 }) } as unknown as ConnectorService;
+      const toolName = 'mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL';
+      const execution = {
+        ...state.execution(AbortSignal.timeout(5000)),
+        name: toolName,
+        arguments: { tools: slugs.map((tool_slug) => ({ tool_slug })) },
+      };
+      const provider = vi.fn(async (): Promise<ToolExecutionResult> => ({
+        isError: false,
+        content: [],
+        value: null,
+      }));
+      if (decision === 'expired') vi.useFakeTimers();
+      try {
+        mountConnectors(
+          ctx,
+          { ownership: state.ownership, contributeBotAgentSetup: vi.fn() },
+          service,
+          undefined,
+          () => state.broker,
+        );
+        const hook = hooks.mock.calls.find(([event]) => event === 'tools/execute')?.[1];
+        const result = (hook === undefined ? provider() : hook(execution, provider)).catch(
+          (error: unknown) => error,
+        );
+        if (decision !== undefined) {
+          expect(provider).not.toHaveBeenCalled();
+          const card = state.messages.at(0);
+          expect(card?.toolApprovalRequest).toMatchObject({
+            toolName,
+            effects: { changes },
+            allowAlways: false,
+          });
+          if (card === undefined) throw new Error('Expected a Tool Approval card');
+          await Promise.resolve();
+          if (decision === 'expired') await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+          else
+            expect(await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, card.id, decision)).toBe(
+              true,
+            );
+          if (decision === 'allowed-once') expect(await result).toMatchObject({ isError: false });
+          else
+            expect(await result).toMatchObject({
+              message: expect.stringMatching(/Human Tool Approval/),
+            });
+        } else {
+          await result;
+          expect(state.messages).toHaveLength(0);
+        }
+        expect(provider).toHaveBeenCalledTimes(dispatched);
+      } finally {
+        state.broker.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it('uses a saved external-effect authorization before any Reviewer call and rechecks revocation', async () => {
     const state = fixture();
     const home = createTempRoot('bh-effect-rule-');
