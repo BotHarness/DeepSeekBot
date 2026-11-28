@@ -146,26 +146,60 @@ it('lists active and offline App Bindings for the Host Owner within the existing
     error: { code: 'bot-not-found' },
   });
 
-  const inspectionStarted = deferred<void>();
-  const releaseInspection = deferred<void>();
-  inspectAccount.mockImplementation(async (ref) => {
-    if (ref === offline.accountRef) {
-      inspectionStarted.resolve();
-      await releaseInspection.promise;
+  const refreshWhile = async (heldAccount: string, change: () => void | Promise<void>) => {
+    const inspectionStarted = deferred<void>();
+    const releaseInspection = deferred<void>();
+    inspectAccount.mockImplementation(async (ref) => {
+      if (ref === heldAccount) {
+        inspectionStarted.resolve();
+        await releaseInspection.promise;
+      }
+      return readAccount(ref);
+    });
+    const pending = methods(owner).messagingConnections({ mode: 'status' });
+    await inspectionStarted.promise;
+    await setImmediate();
+    try {
+      await change();
+    } finally {
+      releaseInspection.resolve();
     }
-    return readAccount(ref);
+    return pending;
+  };
+  let currentOwned = owned;
+  const setEnabled = async (enabled: boolean) => {
+    currentOwned = await core.externalMessaging.identity(owned.botSlug, {
+      kind: 'update',
+      id: owned.id,
+      expectedRevision: currentOwned.revision,
+      name: owned.name,
+      enabled,
+    });
+  };
+  expect(await refreshWhile(offline.accountRef, () => setEnabled(false))).toMatchObject({
+    ok: true,
+    value: {
+      checks: 'complete',
+      bindings: expect.arrayContaining([
+        expect.objectContaining({
+          id: owned.id,
+          enabled: false,
+          availability: 'paused',
+          reception: 'off',
+        }),
+      ]),
+    },
   });
-  const pending = methods(owner).messagingConnections({ mode: 'status' });
-  await inspectionStarted.promise;
-  await setImmediate();
-  disconnectProvider();
-  releaseInspection.resolve();
-  expect(await pending).toMatchObject({
+  await setEnabled(true);
+
+  const slow = await bind(revoked.botSlug, 'matrix', 'd'.repeat(64));
+  expect(await refreshWhile(slow.accountRef, disconnectProvider)).toMatchObject({
     ok: true,
     value: {
       checks: 'complete',
       bindings: expect.arrayContaining([
         expect.objectContaining({ id: owned.id, availability: 'unavailable' }),
+        expect.objectContaining({ id: offline.id, availability: 'unavailable' }),
       ]),
     },
   });

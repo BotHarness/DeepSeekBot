@@ -101,6 +101,24 @@ export function createOutboundSnapshot(context: {
     failureAlerts,
   } = context;
 
+  const statusFields = (
+    identity: MessagingIdentity,
+    availability: MessagingIdentityView['availability'],
+    mode?: MessagingReadMode,
+  ) => {
+    const recovery = inbound.pairingRecovery(identity.id);
+    return {
+      availability,
+      reception:
+        (mode === 'saved' && identity.enabled) || availability === 'available'
+          ? inbound.pairingReception(identity.id)
+          : availability === 'paused'
+            ? ('off' as const)
+            : ('unavailable' as const),
+      ...(recovery ? { recovery } : {}),
+    };
+  };
+
   const identityStatus = async (
     id: string,
     mode?: MessagingReadMode,
@@ -110,10 +128,10 @@ export function createOutboundSnapshot(context: {
     let availability: MessagingIdentityView['availability'] = value.enabled
       ? 'unavailable'
       : 'paused';
-    let providerToken: object | undefined;
+    const providerToken = providers.get(value.providerId)?.token;
     if (value.enabled && mode !== 'saved') {
       try {
-        providerToken = (await inspectIdentity(value, readAccount)).token;
+        await inspectIdentity(value, readAccount);
         availability = 'available';
       } catch (error) {
         if (error instanceof MessagingError && error.code === 'rebind-required')
@@ -123,21 +141,7 @@ export function createOutboundSnapshot(context: {
     const latest = binding(id);
     if (latest.revision !== value.revision)
       availability = latest.enabled ? 'unavailable' : 'paused';
-    const recovery = inbound.pairingRecovery(id);
-    return {
-      latest,
-      providerToken,
-      status: {
-        availability,
-        reception:
-          (mode === 'saved' && latest.enabled) || availability === 'available'
-            ? inbound.pairingReception(id)
-            : availability === 'paused'
-              ? ('off' as const)
-              : ('unavailable' as const),
-        ...(recovery ? { recovery } : {}),
-      },
-    };
+    return { latest, providerToken, status: statusFields(latest, availability, mode) };
   };
 
   return {
@@ -151,11 +155,16 @@ export function createOutboundSnapshot(context: {
       ) as { id: string }[];
       const statuses = await Promise.all(rows.map(({ id }) => identityStatus(id, mode)));
       return statuses.flatMap(({ latest, status, providerToken }) => {
-        if (latest.revokedAt !== undefined || binding(latest.id).revokedAt !== undefined) return [];
-        const { id, botSlug, providerId, platform, accountRef, name, enabled } = latest;
+        const currentBinding = binding(latest.id);
+        if (currentBinding.revokedAt !== undefined) return [];
+        const { id, botSlug, providerId, platform, accountRef, name, enabled } = currentBinding;
+        const changed = currentBinding.revision !== latest.revision || enabled !== latest.enabled;
+        const staleProvider =
+          mode === 'status' &&
+          (providerToken === undefined || providers.get(providerId)?.token !== providerToken);
         const currentStatus =
-          status.availability === 'available' && providers.get(providerId)?.token !== providerToken
-            ? { availability: 'unavailable' as const, reception: 'unavailable' as const }
+          !enabled || changed || staleProvider
+            ? statusFields(currentBinding, enabled ? 'unavailable' : 'paused', mode)
             : status;
         return [{ id, botSlug, providerId, platform, accountRef, name, enabled, ...currentStatus }];
       });
