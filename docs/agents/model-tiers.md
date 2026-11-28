@@ -6,11 +6,13 @@ As of 2026-11-16. Measured by giving each model the same one-paragraph task in i
 
 ## Merge gate by task tier
 
-Agents never merge a PR that carries `needs-human`.
+Vain approves and queues PRs labeled `needs-human`. GitHub's merge queue does not enforce labels.
+
+After the merge queue is enabled, queue an eligible PR for `main` with `gh pr merge <n> --merge --match-head-commit <sha>`. Use the verified PR head SHA. Run `gh pr view <n> --json state --jq .state` and confirm `MERGED` before reporting completion.
 
 | Tier                                                                                                                           | Example used                                          | Who can take it                                                                                         | Merge gate                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| S: one localized bug with a clear symptom and expected result                                                                  | Call keyframe grid rows (7 frames must be 3+2+2)      | Every model tested, including the cheapest flash and haiku tiers                                        | CI green and repository rules pass: merge                                               |
+| S: one localized bug with a clear symptom and expected result                                                                  | Call keyframe grid rows (7 frames must be 3+2+2)      | Every model tested, including the cheapest flash and haiku tiers                                        | CI green and repository rules pass: queue                                               |
 | M: a multi-file tool or feature with an acceptance-criteria list                                                               | #4214 verification report quotes acceptance criteria  | DeepSeek v4-pro and flash both delivered; stronger tiers not yet measured                               | CI green, plus check every issue, criterion or link the PR cites, one by one            |
 | H: any security change (fix or feature), or a property only a real browser, container or device can prove; H wins over S and M | #4184 Bot Browser exposes an unauthenticated CDP port | Neither DeepSeek tier was reliable; give it to the strongest tier and have a second strong model review | Never merge on CI alone; require evidence from the real runtime that the property holds |
 
