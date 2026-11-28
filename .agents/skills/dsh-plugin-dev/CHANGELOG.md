@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- The local development guide documents how to verify timed-question recovery against the installed DSH Agent Registry and native question Service. Restart the Host and answer the original durable `continued` call to check that it resumes the owning Session ([Timed-question recovery](../dsh-dev/SKILL.md#timed-question-recovery-registry-trap-4066), [#4066](https://github.com/BotHarness/DeepSeekBot/issues/4066)).
+
 - Documented the downstream model-free Tob CLI journey and pinned native approval audit boundary; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4212](https://github.com/BotHarness/DeepSeekBot/issues/4212)).
 - Added the downstream anonymous Bot token telemetry verification journey and snapshot query contract; stable DSH/Cordis Context, Decision Tree and upstream qualification are unchanged ([#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)).
 

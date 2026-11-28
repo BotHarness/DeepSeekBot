@@ -8,41 +8,917 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 Changes under development.
 
-## [1.7.1] - 2026-11-13
+## [1.8.0] - 2026-11-28
 
-Tobs 1.7.1 restores QQ-hotfix upgrades and timed-question answers after restart, supports QQ platform defaults, and makes failures easier to locate.
+Tobs 1.8.0 restores upgrades for QQ-hotfix Profiles and timed-question recovery after a restart, and adds subscription engines, Team controls, and phone Session management.
 
-Mobile entries describe changes to the separately versioned phone app; they do not announce an App Store or Play release.
+Candidate notes. The date is provisional until release approval. Mobile changes follow the phone app’s own version and store schedule.
 
 ### Added
 
-- Manage linked computers from the phone's Connect account screen, even before pairing a Host. Confirm unlinking an online or offline computer to free a slot; session-bound computers must sign in again, while older links explicitly warn that automatic reconnection may occur. Local Bots, chats, files and phone pairings remain ([#4039](https://github.com/BotHarness/DeepSeekBot/issues/4039)).
+- QQ platform defaults are available through the Host API and CLI. New groups can inherit all-message collection, and existing custom choices and historical hotfix defaults stay in effect ([#3419](https://github.com/BotHarness/DeepSeekBot/issues/3419)).
+
+- Manage linked computers from the phone’s Connect account screen before or after pairing a Host. Unlink an online or offline computer to free a slot while keeping local Bots, chats, files, and phone pairings. Session-bound computers must sign in again, and older links show a warning if automatic reconnection is possible. On iOS, tap anywhere on the computer row ([#4039](https://github.com/BotHarness/DeepSeekBot/issues/4039)).
+
+- Select and copy opens a full-screen source page with the original Markdown, literal GenUI HTML, system text selection, and Copy all on iOS and Android. On iOS it opens after the message sheet closes and uses the native Back action ([#4046](https://github.com/BotHarness/DeepSeekBot/issues/4046), [#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)).
+
+- Start phone pairing beside the mobile download links, using a standalone Connections dialog shared with Bot settings and reusing an available route ([#4071](https://github.com/BotHarness/DeepSeekBot/issues/4071)).
+
+- Connect a phone from an optional getting-started step. Every phone entry includes App installation guidance before connecting. Skip without publishing a connection, return from the shared Connections dialog, and continue after the paired phone loads the Host Feed ([#4073](https://github.com/BotHarness/DeepSeekBot/issues/4073)).
+
+- Inspect paired computers and their actual route status in Connections, with account groups matched by verified Host identity. Remove only a browser connection, revoke a target device, or stop a selected route with separate confirmations; the same actions are available through the selected-Client CLI ([#4076](https://github.com/BotHarness/DeepSeekBot/issues/4076)).
+
+- Choose one connection address for a paired computer in this browser or app, or keep automatic selection. Manual failures stay visible until you return to automatic; changes preserve active requests and do not affect other clients ([#4077](https://github.com/BotHarness/DeepSeekBot/issues/4077)).
+
+- Connect two computers with one explicitly approved reciprocal relationship, then read and message each other's Channels using separate client credentials. Disconnect revokes relationship-derived access while preserving independently paired devices. Relationship management remains current-Owner-only and respects Team/private-Bot boundaries and Owner transfer; member pages do not restore Owner-saved remote credentials ([#4110](https://github.com/BotHarness/DeepSeekBot/issues/4110)).
+
+- Use an existing computer relationship from another Web Client with a named, independently revocable grant. Enrollment checks the selected Host identity and keeps cancelled or disconnected relationships from issuing late access ([#4111](https://github.com/BotHarness/DeepSeekBot/issues/4111)).
+
+- Keep approved computer relationships when a return address is missing, check each direction separately, and recover prepared addresses without repeating approval or replacing Host identity ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
+
+- Keep an activated relationship when a cancelled Client loses its sync reply, retain accepted private-route admission across link expiry, and close phone pairing before preparing a return route ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
+
+- Preserve recovered routes when an older probe finishes late, retire authorization when a return probe confirms peer disconnection, and try both admitted private entrances during Client enrollment ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
+
+- Browse connected computers from an Environment panel, with one saved All or single-computer filter for Chats and Activity. All interleaves recent Channels by source while keeping pinned menus and selection in displayed order; scoped action indicators follow the same filter. Environment rows follow Channel-list hover, selection and contextual settings, with no extra panel-body inset and a centered computer picker. Offline computers retain loaded content and a reconnect action ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Document the verified, task-scoped recovery for an empty native credential writer lock after interrupted development startup ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Use the same Channel chat for connected computers, including Group avatars, Human authors, Bot reading indicators and the composer. Existing Human DMs appear in their computer's Channel list with the usual person icon. Human-only conversations omit Bot controls, and each computer keeps its own files, model and workspace state. Reconnect preserves the current chat, failed reads can be retried, and offline file drops keep the draft intact ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Keep approvals and question answers in remote chats bound to their owning conversation instead of the local Host's selected Channel ([#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)).
+
+- Keep account refresh cancellable, retain retry cooldowns at capacity, apply saved route changes to open Clients, preserve private enrollment files after write failures, and finish device resource cleanup after cancellation ([#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)).
+
+- Reannounce a verified official address after it changes or the account worker restarts, preserving the relationship, pinned identity, independent routes and Client grants. Rejected account offers now record a bounded validation category without response bodies or identity values ([#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)).
+
+- Discover same-account computers in Environments through verified reciprocal relationships and independently saved Client grants. Complete bilateral account proof can also qualify an existing manually approved active relationship while preserving its ID, approval, grants and routes. Automatic connections preserve the current view, respect explicit disconnect, and retain exact-key enrollment cleanup across cancellation or restart; unqualified manual relationships and native mobile keep explicit enrollment ([#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)).
+
+- Create Bots, Channels and Human DMs on an explicitly named environment, retaining the last creation target in All without falling back when it is offline. Human DM contacts and conversations stay on that Host; manage remote Sections only in that Host's view ([#4116](https://github.com/BotHarness/DeepSeekBot/issues/4116)).
+
+- Open an Environment’s More → Settings and choose one named Environment independently of Chats and Activity, edit its models and presets through its own Host, and resolve unsaved edits before switching. App preferences and environment appearance stay local to this app ([#4117](https://github.com/BotHarness/DeepSeekBot/issues/4117)).
+
+- Use the existing chat controls for remote Bot profiles, models, folder grants and approval templates on the original Host ([#4118](https://github.com/BotHarness/DeepSeekBot/issues/4118)).
+
+- Bind private-route stop confirmations to the inspected configuration so a concurrent replacement is preserved; require the same revision in CLI execution and unknown-result readback ([#4120](https://github.com/BotHarness/DeepSeekBot/issues/4120)).
+
+- Preserve connection-change protection when storage fails or browser authorization changes, reject unrecognized write acknowledgements, and keep trusted route addresses intact during handover. Clarify reauthorization after revocation and reading back old-grant results. While new-format records remain, reload older pages before managing connections ([#4120](https://github.com/BotHarness/DeepSeekBot/issues/4120)).
+
+- Manage the selected remote environment’s devices, individual routes and account sign-out from its settings, with explicit disconnection or verified route handover and persistent protection against repeating an uncertain write. Replacing the browser grant discards earlier connection confirmations. CLI private stops require `--connection-route-id`; self-disconnecting writes require `--handover` or `--confirm-disconnect` ([#4120](https://github.com/BotHarness/DeepSeekBot/issues/4120)).
+
+- Account environment connection failures on iOS and Android now offer View details and Copy diagnostics, retaining bounded request-stage, HTTP/network and timestamp information without credentials or private addresses ([#4128](https://github.com/BotHarness/DeepSeekBot/issues/4128)).
+
+- Added Team mode: the Host owner sets a password, adds members with a one-time password, and members sign in from another computer over HTTPS. Members see only Tobs, must choose a new password first, and can browse and join public channels; each person's messages show their own name ([#4140](https://github.com/BotHarness/DeepSeekBot/issues/4140)).
+
+- Team mode members can create their own private Bots, get their own Tob, and see only their own Activity and notifications; other members cannot find, open, message or mention them ([#4141](https://github.com/BotHarness/DeepSeekBot/issues/4141)).
+
+- Team mode now has roles: the Owner and Admins assign Admin, Member or custom roles built from a fixed list of permissions, see and sign out each member's devices, and the Owner can hand ownership to another member ([#4142](https://github.com/BotHarness/DeepSeekBot/issues/4142)).
+
+- Team mode Channels can be open to everyone, to chosen roles, or invite-only; Channel owners pick admins and decide who can add people, send messages, mention @all, add Bots and edit details, and members can message each other directly ([#4143](https://github.com/BotHarness/DeepSeekBot/issues/4143)).
+
+- In Team mode, a Bot's approval requests and questions stay in the conversation, but only people allowed to approve see their content and decide; others see a placeholder, and decided cards show who decided. Shell-like commands of a member's Bot can only be approved by Owner and Admins, sign-in and Team settings show a trial notice about isolation, and other people's messages show their avatars ([#4144](https://github.com/BotHarness/DeepSeekBot/issues/4144)).
+
+- Team mode gives each member their own folder and lets admins create shared folders for everyone, chosen roles or chosen people; Bots can only be given files in folders their audience may use, never another member's folder, Bot memory or the Host's data folder ([#4145](https://github.com/BotHarness/DeepSeekBot/issues/4145)).
+
+- The iOS and Android app can join a Team mode Host with an invitation link: sign in with the one-time password, choose a new password on the phone, and see which account you use on that Host. A signed-in member can show a one-time code to pair another of their phones without a password ([#4146](https://github.com/BotHarness/DeepSeekBot/issues/4146)).
+
+- Team mode now covers the rest of a member's lifecycle: reset a member's password (signing them out everywhere), sign out your other devices when you change your own, turn Team mode off without losing anyone's data, and offboard a member by deactivating them, transferring what they own and then deleting them permanently ([#4147](https://github.com/BotHarness/DeepSeekBot/issues/4147)).
+
+- Team mode shows token usage per member, broken down by Bot, to the Owner and anyone allowed to view usage, and roles can limit which models their members' Bots use; a Bot on a model its owner's role can't use stops with a clear message until another model is chosen ([#4148](https://github.com/BotHarness/DeepSeekBot/issues/4148)).
+
+- Team mode lets the Owner, and roles given permission to view private content, open a member's private Bots, Channels and DMs. Every view, with an optional reason, goes into an access log that admins can check for changes. Pausing, deleting or transferring a member's Bot is logged too, and members are told this can happen ([#4149](https://github.com/BotHarness/DeepSeekBot/issues/4149)).
+
+- Tobs Connect now checks this computer's public connection after sign-in and connector recovery. Connections shows the last check, actionable failure details and a retry button, with safe copyable diagnostics and the matching `connect-check` command ([#4170](https://github.com/BotHarness/DeepSeekBot/issues/4170)).
+
+- On Linux Hosts, Team mode now confines member Bots' commands. A member Bot's Shell sees only its own Memory and the folders its Session may use, cannot reach the Host's local services or private network addresses, and runs without secret environment variables. When bubblewrap, slirp4netns and nftables all work, the trial notice changes to "members are isolated"; otherwise the trial notice stays and `deepseekbot team-mode status` lists what is missing ([#4183](https://github.com/BotHarness/DeepSeekBot/issues/4183)).
+
+- Team mode has a re-runnable security suite, `node scripts/e2e-team-security.mjs`. It drives real model turns on an isolated Host that try to leak Role Policy-restricted figures, reach other members' folders, the Host data directory and the Host API through file tools, Shell and grants, and cross private Bots, Channels, DMs, offboarding and model allowlists. Pull requests that change Team mode permissions attach its report ([#4197](https://github.com/BotHarness/DeepSeekBot/issues/4197)).
+
+- Pinned in Settings has two connection cards by default, Connect phone and Connect another computer, which open those connection steps directly; their pin ids are `pair-phone` and `join-computer`. Each step of connecting a phone also has **Copy prompt for a Bot**, which copies an instruction naming the `deepseekbot` commands for that step (`phone-route`, `device-offer`, `device-requests` and `device-approve-key`), so a Bot can do it after checking the fingerprint with you. **Restore default pins** on Pinned brings back the default cards after you unpin them ([#4198](https://github.com/BotHarness/DeepSeekBot/issues/4198)).
+
+- The first time Settings opens, and whenever no section was viewed yet, it shows Pinned, a section of cards for the settings you use most. Select the star beside any section title to pin or unpin it; pins are saved on the Host, shared by every client of that Host, and follow the chosen environment, and `deepseekbot settings-set botharness-client` can set them as `settingsPins` ([#4198](https://github.com/BotHarness/DeepSeekBot/issues/4198)).
+
+- With a remote Host chosen in Settings, Chat now shows that Host's own settings: your default name, Bot collaboration (auto-accept group invites and the hop limit) and the default receiving behavior for external platforms. Changes are written to that Host and save only over LAN or Tailscale, because the Host refuses settings writes over Connect; send-key and display options stay on This Host ([#4198](https://github.com/BotHarness/DeepSeekBot/issues/4198)).
+
+- Exposed first-party tool effect declarations and missing-declaration lint for plugin developers, while preserving existing approval and Workspace Grant behavior ([#4205](https://github.com/BotHarness/DeepSeekBot/issues/4205)).
+
+- Type `/` in a PersonaBot DM to pick a Skill: commands come first, then Host Skills and the Skills in the Bot's Memory Repository `.agents/skills`, each with its owner and a one-line description. The picked Skill becomes a chip, its text is saved with the message, and the Bot reads that text with your message; `deepseekbot skills-list` and `send --skill` do the same from the CLI ([#4232](https://github.com/BotHarness/DeepSeekBot/issues/4232)).
+
+- Added owning Bot display name and slug matching to Skill search in Group Channels and `skills-list`, after Skill name matches and before description matches; invoking another Bot's Skill preserves normal routing and the shared text snapshot ([#4233](https://github.com/BotHarness/BotHarness/issues/4233)).
+
+- Bots can install Skills by writing their own capabilities into Memory or project conventions into an authorized Workspace, using the existing file tools and approvals ([#4235](https://github.com/BotHarness/BotHarness/issues/4235)).
+
+- The `/` menu, Skill chips and CLI sends now support Project Skills from readable Bots' active Workspace Grants, shown with a folder icon and the Workspace name, with root-only discovery, live refresh and reproducible snapshots that preserve existing file-access authority ([#4236](https://github.com/BotHarness/BotHarness/issues/4236)).
+
+- PersonaBot profiles have a **Skills** card that lists the Bot's own Memory Repository Skills, opens each SKILL.md and deletes one after an inline confirmation (committed to git so history can restore it). Marketplace details show the package's Skills, and `deepseekbot skills-memory`, `skills-show` and `skills-remove` match the card ([#4237](https://github.com/BotHarness/DeepSeekBot/issues/4237)).
+
+- A PersonaBot's Assignment Sessions now discover the Skills in its own Memory Repository and can load them with the `skill` tool. Only that PersonaBot's Assignments see them. A Workspace Project Skill with the same name wins, and a Memory Skill still beats a Host Skill ([#4239](https://github.com/BotHarness/DeepSeekBot/issues/4239)).
+
+- Anonymous Host telemetry can report daily token usage from Bot-owned Sessions, including derived Sessions, with explicit unknown-usage coverage and no conversation or Session identifiers ([#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)).
+
+- Brought `/` Skill Invocation to the mobile app: typing `/` in a Channel suggests Host, Bot and Workspace Skills with native owner icons, the chosen Skill is an atomic chip, and sent messages show it as a chip ([#4275](https://github.com/BotHarness/DeepSeekBot/issues/4275)).
+
+- Appearance settings gain a Style choice. Next to Default there is now Apple, modelled on macOS and iOS: settings rows sit in roomy white grouped cards with a hairline edge on a grey backdrop, the selected navigation item takes the accent colour with white text, and buttons, switches and highlights follow the accent while panels stay neutral. The style is saved per device and can also be set with `deepseekbot appearance-set` ([#4326](https://github.com/BotHarness/DeepSeekBot/issues/4326)).
+
+- The context ring in a Bot DM header now opens a breakdown of where the current context goes: system prompt, tool definitions, your messages, group mentions, schedules, Assignment reports, Bot replies, thinking and tool calls by tool. `deepseekbot bot-context` returns the same `sources` ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- Appearance adds the Material style, based on Material 3 Expressive. Panels, navigation, and hover states take a tint from the accent, and controls use larger rounded shapes. Choose it in Appearance → Style or with `deepseekbot appearance-set` ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- Settings → Account now has a **My uploaded Bots** entry when you are signed in. On the computer it opens the list of Bots you uploaded to the Marketplace, where you can update or delete them, and an open Market panel updates right away. On the phone, Profile → My uploaded Bots lists them and lets you view or delete each one. **Update** now starts from the local Bot you uploaded (or a copy you installed from the listing), says which Bot replaces which listing before you confirm, and warns when you picked a different Bot ([#4340](https://github.com/BotHarness/DeepSeekBot/issues/4340)).
+
+- Skill chips in the Web composer and in sent messages now show a card with the Skill name, owner and description on hover. Clicking a chip opens the full `SKILL.md`: the live Skill from the composer, or the snapshot that was sent from a message bubble ([#4345](https://github.com/BotHarness/BotHarness/issues/4345)).
+
+- The Sessions panel shows each Session's DSH goal and to-do progress (for example 3/6), uses the current to-do as the row's status line, and moves a running Session with no new event for 10 minutes into a Stuck section. Clicking a Session opens the full Session beside the messages, with the goal and to-dos as chips that expand in place, and a composer that sends a message straight into an Assignment while the Orchestrator gets an Inbox notice. Like DeepSeek Harness, each finished turn folds its thinking and tool steps behind one "Worked for …" line and keeps the replies, consecutive steps group under a summary such as "Ran commands (3)", the running step shows live, and the panel's width can be dragged. `deepseekbot session-progress` and `deepseekbot session-transcript` read the same data ([#4388](https://github.com/BotHarness/DeepSeekBot/pull/4388)).
+
+- Star models in the model menu: favorites are kept on the Host for each person, so the same account sees them on desktop and mobile. The menu opens on Favorites when you have any, lists favorites first in every family, and picks the first nine rows with Ctrl+1–9. `deepseekbot model-favorite-add` and `model-favorite-remove` do the same from the CLI. On mobile, the model chooser has a Favorites chip and a star on every row, and Settings → Interface can hide the model from the chat header ([#4399](https://github.com/BotHarness/DeepSeekBot/pull/4399)).
+
+- Quote several messages, or only part of one, in a single message. Reply and Quote are now one action: "Quote" on a message cites the whole message, and when text in it is selected it cites just that text. Selecting text also shows a small Quote button above it, and "Copy" in the menu copies only the selection. Each quote waits as a chip in the composer with an optional reply to that quote, and the sent message shows them above its text as quote cards; the bar a reply shows for the message it answers uses the same card, and a quote's reply sits right under its card. Bots see what you quoted and can cite several earlier messages in their own replies (`bot_send_message` `quotes`; CLI `deepseekbot send --quote` / `--quote-note`) ([#4400](https://github.com/BotHarness/DeepSeekBot/issues/4400)).
+
+- Quote text from an Assignment's Session detail. Select words in a Bot reply or in one of your requests and a Quote button appears above them; each quote waits as a chip in the Session composer with an optional reply, and sending puts the quotes and replies as Markdown blockquotes ahead of your request ([#4400](https://github.com/BotHarness/DeepSeekBot/issues/4400)).
+
+- Session detail now streams thinking, replies and running commands as they happen, with a timer on the running step. Opening a tool step shows its command and output, the file diff, the lines read, search matches or fetched links. Large step groups scroll inside a capped height. Each turn shows tokens and speed, each message shows what triggered it, and a rail jumps between turns. Bot settings → Sessions sets the detail level, when a turn folds and which replies stay visible. `deepseekbot session-live` and `deepseekbot session-tool` read the same data ([#4408](https://github.com/BotHarness/DeepSeekBot/pull/4408)).
+
+- Routing Groups: name an ordered list of models (or other groups) once and choose it as a Bot's Orchestrator model. The Bot runs on the first member its owner may use and whose provider is ready. Manage groups with `deepseekbot model-groups`, `model-group-create`, `model-group-update` and `model-group-delete`, and choose one with `model-plan-customize --orchestrator-group` ([#4415](https://github.com/BotHarness/DeepSeekBot/issues/4415)).
+
+- A Model Preset or a Bot's model settings can let Assignments and Subagents use any model the Bot owner may use whose provider has an API key, with the Assignment default still required; `list_assignment_models` lists that open set with catalog names, and `deepseekbot` sets it with `--assignment-models open|listed` ([#4416](https://github.com/BotHarness/DeepSeekBot/issues/4416)).
+
+- A Bot whose Orchestrator uses a Routing Group keeps working when its model runs out of quota, its credential is refused or it stays rate limited: it moves to the next usable model in the group and continues the reply. The chat shows one line naming the old and new model and when the old one resets, and other Bots on the group start on the next model directly. The Bot pauses only when every model in the group is unavailable, listing each one and its reset ([#4417](https://github.com/BotHarness/DeepSeekBot/issues/4417)).
+
+- After a Bot falls back to another model in its Routing Group, it returns to its preferred model at the start of the next turn once that model's quota resets, and the chat shows one line for the return. If the preferred model fails again, the Bot falls back again ([#4418](https://github.com/BotHarness/DeepSeekBot/issues/4418)).
+
+- Settings → Models now has Routing Groups: create a group, rename it, add models or other groups, reorder members with the up and down buttons, remove members or delete the group. Each member shows when it is resting after running out of quota, and the Host's reason is shown when a change is refused ([#4419](https://github.com/BotHarness/DeepSeekBot/issues/4419)).
+
+- Assignments can run on a Routing Group. `model-plan-assignments-set` takes `assignmentGroups` and a default group, `create_assignment` takes `group`, and an Assignment whose model runs out moves to the next member with one notice in the Bot's DM and keeps working. `list_assignment_models` shows which routes are resting and until when, and Subagents can start on a group's first usable member ([#4420](https://github.com/BotHarness/DeepSeekBot/issues/4420)).
+
+- The model picker in a Bot's DM header and the phone's model chooser now list Routing Groups in their own column. Each group shows the model currently in front; pick it to run the Bot on the group, or star it to keep it in Favorites. Models resting after running out of quota are greyed out with the time they come back, and a group is greyed out only when every member rests ([#4421](https://github.com/BotHarness/DeepSeekBot/issues/4421)).
+
+- The channel composer's `/` menu can cite an Assignment Session in DMs and group Channels: a bare `/` lists live Sessions with their Bot's avatar, a typed filter searches all of them, and the pick is sent as the same `session:` link Bots use. Assignment Sessions now share the Sessions panel icon everywhere, including the session chip inside messages, which no longer shows a globe ([#4430](https://github.com/BotHarness/DeepSeekBot/pull/4430)).
+
+- Set your own chat photo and name in Settings → Profile on the computer and the phone without signing in to Tobs. Your photo shows next to your messages and in member lists, including for every member of a Team Host, and on the phone you can set your nickname for each group under the group's settings. The Tobs account photo stays the one shown on Bots you share. A new Team member is asked once, after their first sign-in, to choose a name and photo; Later skips it on every device. The CLI adds `human-avatar-set`, `human-avatars` and `human-profile-setup-finish` ([#4444](https://github.com/BotHarness/DeepSeekBot/pull/4444)).
+
+- A PersonaBot's Orchestrator can now run on Codex with your own ChatGPT subscription on this computer. Against an authenticated local Host (`DEEPSEEKBOT_HOST` and its Host token), `deepseekbot engine login codex` starts the Bot's own Codex sign-in; after you finish it in the browser, `deepseekbot engine use <bot> codex --role orchestrator` switches the Bot, and the Bot answers DMs through `bot_send_message`. The Session list and Session detail name the engine and account, and a login that is not a ChatGPT subscription is refused ([#4486](https://github.com/BotHarness/DeepSeekBot/issues/4486)).
+
+- When a Bot running on Codex wants to run a command or change a file that needs permission, you now get the same approval card as for any other tool. Approve lets Codex go on, Deny tells Codex no, and "Always allow" saves a rule for that Codex tool that shows up with your other approval rules. Session detail says the engine is waiting for your approval while the card is open, and `deepseekbot engine approvals` lists the open cards so `tool-approval-decide` can answer them ([#4487](https://github.com/BotHarness/DeepSeekBot/issues/4487)).
+
+- A Bot on a Subscription Engine can now run on a model and effort of your choice. `deepseekbot engine models codex|claude` lists what your Codex or Claude subscription offers, with its effort levels, and `deepseekbot engine use <bot> claude --role orchestrator --model opus --effort high` switches the Bot's Orchestrator to it. The Host checks the choice against the list and resumes the same engine conversation on the new model ([#4488](https://github.com/BotHarness/DeepSeekBot/issues/4488)).
+
+- The model dialog now has a Subscription Engine section: it lists Codex and Claude Code with their sign-in state, starts the official sign-in, says why an engine that isn't installed can't be chosen, and runs the Orchestrator on the engine you pick. Cloud and VPS Hosts say engines run only on your own computer ([#4488](https://github.com/BotHarness/DeepSeekBot/issues/4488)).
+
+- Pick Codex or Claude Code subscription models and reasoning effort from a Bot’s Main model and Task model pickers on a local Host. Sign in from the picker and save either choice in a Model Preset. ([#4488](https://github.com/BotHarness/DeepSeekBot/issues/4488))
+
+- A PersonaBot's Assignments can now run on your Codex or Claude subscription, chosen separately from its Orchestrator: `deepseekbot engine use <bot> claude --role assignment [--model <id>] [--effort <level>]`. The engine works in the Assignment's Workspace Grant, asks through an approval card before anything outside it, and reports to the Orchestrator like any Assignment, with its final text forwarded when it forgets to report ([#4489](https://github.com/BotHarness/DeepSeekBot/issues/4489)).
+
+- A PersonaBot's Orchestrator can now run on Claude Code with your own Claude subscription on this computer. `deepseekbot engine login claude` starts the Bot's own Claude sign-in (separate from your own `claude` login, settings and CLAUDE.md), and `deepseekbot engine use <bot> claude --role orchestrator` switches the Bot. The Host runs your installed `claude` through the Claude Agent SDK with provider keys removed, and refuses a login that is not a Claude subscription ([#4490](https://github.com/BotHarness/DeepSeekBot/issues/4490)).
+
+- A Bot running on Codex can now use the rest of its Bot tools: memory, Channel actions, Assignments, Groups, schedules, to-dos, GenUI cards and, when you allow them, the Bot Browser and Computer. It sees only a few tools up front and finds the others with `tool_search`, so its context stays small. Each tool asks for approval and stays inside the current Channel exactly as it does for a Bot on a DSH model, and the DSH shell, file and web tools are never offered. `deepseekbot engine tools <bot>` shows the same catalog and `deepseekbot engine tool` runs the engine's Memory, to-do, Browser and Computer tools without the model ([#4492](https://github.com/BotHarness/DeepSeekBot/issues/4492)).
+
+- A Bot running on a Subscription Engine now shows how much of the subscription is left: the Session list chip and Session detail show the share used and the reset time Codex reports, and `deepseekbot engine status` lists the same `quota`. When the subscription runs out, the Bot stops instead of paying per token and posts a card with the reset time and a one-tap **Switch to API model**. If you chose a fallback beforehand (`deepseekbot engine use <bot> codex --role orchestrator --fallback on`), the Bot continues on its own Orchestrator Model Choice with a Model Switch Notice and returns to the subscription after the reset ([#4493](https://github.com/BotHarness/DeepSeekBot/issues/4493)).
+
+- On the phone, the allowed Assignment models list has a note field for each allowed Routing Group, so you can tell the Orchestrator when to use it without the desktop editor ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- Create, rename and delete Routing Groups from Models and presets on the phone, and change the order of their models and nested groups ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- A Model Preset can now hold Routing Groups: the Orchestrator, the Assignment default and the allowed Assignment list may each name a group. Applying the Preset gives the Bot the same groups, and later edits to a group reach every Bot that uses it. `deepseekbot model-preset-create` and `model-preset-update` take `--orchestrator-group`, `--assignment-groups` and `--assignment-default-group`. An older app that would drop a Preset's groups is asked to update instead ([#4499](https://github.com/BotHarness/DeepSeekBot/issues/4499)).
+
+- Settings → Models → Global default model, the onboarding model dialog and the phone's global default model picker now list Routing Groups beside models, so the default can be a group from the app. A group row shows the brand icon, short name and provider of the model it runs on now ([#4500](https://github.com/BotHarness/DeepSeekBot/issues/4500)).
+
+- The global default model can be a Routing Group. Bots that follow the default run on the group's first usable member and fall back within the group, and their Assignments use it too. Set it with `deepseekbot home-model-set --group <id>`; choosing a single model again clears it ([#4500](https://github.com/BotHarness/DeepSeekBot/issues/4500)).
+
+- The model editor on desktop, the Host model settings for remote Hosts, and the phone's Preset and Bot model screens now pick Routing Groups for the main model, the Assignment default and the allowed list. A Routing Group in the allowed list shows its name, how many models it has, the model it runs on now and its note, and on desktop its effort range and note are editable, with a button to clear a range its models no longer share. Saving a Preset or Bot model keeps the stored Assignment default and allowed models, and the phone keeps open Assignments. Save as Preset on a Bot that follows a default Routing Group keeps that group. `deepseekbot model-plan-set` takes `orchestratorGroupId` and the Assignment Routing Group fields ([#4501](https://github.com/BotHarness/DeepSeekBot/issues/4501)).
+
+- A Model Preset or Model Plan can give each Assignment Routing Group an allowed effort range, a default effort and a note. `list_assignment_models` now shows each group's members, its current member, its efforts and its note, and `create_assignment` accepts `reasoning_effort` for a group within that range. Only efforts that every member supports can be saved. Set them with `assignmentGroupOptions` in `deepseekbot preset-create`, `preset-update` or `model-plan-assignments-set` ([#4502](https://github.com/BotHarness/DeepSeekBot/issues/4502)).
+
+- The Bot model picker on desktop and the phone has a Presets column. Each row shows the Preset's main and Assignment models; choosing one applies the whole Preset, and the Preset the plan came from is checked until you change the main model. Choosing the checked Preset again re-applies it, so edits to the Preset take effect. Presets can be starred, also with `deepseekbot model-favorite-add preset:<id>` ([#4503](https://github.com/BotHarness/DeepSeekBot/issues/4503)).
+
+- Local Bots can run on a Codex or Claude Code member of a Routing Group and continue on the next ready target in the same Session when quota runs out. The Session remains readable after a Host restart ([#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)).
+
+- Added CLI support for saving Subscription Engines in Routing Groups alongside DSH models, with engine names shown in model settings ([#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)).
+
+- Add and reorder Codex and Claude Code subscription models in Routing Groups on desktop and phone. The model picker shows the current route ([#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)).
+
+- Model providers shows each subscription account's bound email, masked until you click it, and how much quota is left. Expand the quota to see the five-hour and weekly windows as simple bars with a reset countdown, and refresh them on demand. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657))
+
+- The Host tracks five-hour and weekly quota for each Codex and Claude Code subscription account. Use `deepseekbot engine quota <account-id> --refresh` to update the report. The Bot DM names the account and its reset time when quota runs out. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657))
+
+- The mobile app has a Model providers page in Settings. It lists API key providers and subscription accounts with their sign-in status and a masked email you can reveal. Tap an account to see the five-hour and weekly quota left with a reset countdown, refresh it, or start a sign-in and copy the link. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657))
+
+- Added Model Presets to Bot Settings and gave Admins permission to configure shared model choices. Bots keep their applied settings when a preset is deleted ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657)).
+
+- Add and manage API key providers in Bot Settings. Use multiple keys for the same service and choose each provider from the model picker. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657))
+
+- Add named Claude Code subscription accounts in Bot Settings, with separate sign-in, models and quota. Paste an authorization code when Claude Code prompts for one and the browser callback cannot reach the Host. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657), [#4653](https://github.com/BotHarness/DeepSeekBot/issues/4653))
+
+- Add named Codex subscription accounts in Bot Settings. Each account has its own sign-in and shows by name in the model picker. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657))
+
+- Host Roles can grant Bots access to a named local subscription account. Model providers shows which roles can use each account, and `engine accounts --grantable` lists the accounts available to delegate ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657)).
+
+- Voice settings can look up speech models and private or public voices before you save a service, and play a provider's sample for Fish Audio and ElevenLabs voices. Xiaomi MiMo also supports speech recognition ([#4729](https://github.com/BotHarness/DeepSeekBot/issues/4729)).
+
+- Choose from 36 Tilties avatars on Web and mobile, starting with AI Girls. The Web profile puts Pixel and Tilties presets next to the preview, with photo upload under it ([#4741](https://github.com/BotHarness/DeepSeekBot/issues/4741)).
+
+- Added `browser-profile-pair`, `browser-profile-forget`, `browser-daily-connect`, `browser-daily-grant`, `browser-daily-return`, `browser-borrow-pair` and `browser-borrow-return` CLI commands for the Browser panel's Chrome Profile, Daily Browser and borrowed Browser buttons; pairing codes are written only to a new private file. Tob refuses to change its own grants, access, approval policy or pending approvals (`self-escalation-refused`), and leaves Browser pairing codes and Daily Browser consent to the Human ([#4830](https://github.com/BotHarness/DeepSeekBot/issues/4830)).
+
+- `client-preferences-get/set`, `client-layout-get/set` and `client-shortcuts-get/set` read one selected Web or Desktop Client's theme and change its locale and alerts (theme stays with `appearance-set`), its global and per-Channel layout, and its navigation shortcuts through the Client's own settings owners. Writes need the revision from a read, refuse a shortcut that another action already uses (naming that action), never ask the browser for notification permission, and wait for the Human's approval card when Tob runs them ([#4831](https://github.com/BotHarness/DeepSeekBot/issues/4831), [#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832), [#4833](https://github.com/BotHarness/DeepSeekBot/issues/4833)).
+
+- `client-layout-set` now also changes a selected Client's Channel split tree (move a panel next to another, resize one split, replace or reset the tree), the members panel, the gap between panels and the Subpanel column heights, through the same Bot mode layout as dragging and resizing in the UI. A Channel with a saved split refuses the old `direction`/`ratio` fields and says to use `move` or `resize` instead ([#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832)).
+
+- Read or replace a Bot's Assignment choices with the CLI, and save the main route and Assignment choices together for a Bot Model Plan or Model Preset. ([#4860](https://github.com/BotHarness/DeepSeekBot/issues/4860))
+
+- Host Owners can enable password sign-in for desktop and Web Clients that connect to their Host over trusted HTTPS, including when Team mode is off. Existing QR pairing remains available ([#4898](https://github.com/BotHarness/DeepSeekBot/issues/4898)).
+
+- When Host Owners change their password, they can sign out other devices enrolled by password. The current device and QR-paired devices retain access ([#4899](https://github.com/BotHarness/DeepSeekBot/issues/4899)).
+
+- iOS and Android can add a Host with its trusted HTTPS address and Owner credentials during initial setup or when adding another Host ([#4900](https://github.com/BotHarness/DeepSeekBot/issues/4900)).
+
+- Edit names from mobile Bot and Group Profiles, choose a Bot avatar from Photos, presets, or Marketplace, and replace or restore its Banner ([#4903](https://github.com/BotHarness/DeepSeekBot/issues/4903)).
+
+- Select several Bots and team members from one avatar list when creating a Group or adding members on Desktop. Retry failed additions in the same Group ([#4908](https://github.com/BotHarness/DeepSeekBot/issues/4908)).
+
+- Create a child folder and register it as a Workspace with `deepseekbot folder-create`. Team mode members can create folders inside their granted folders when their Host Role allows it ([#4935](https://github.com/BotHarness/DeepSeekBot/issues/4935)).
+
+- **New folder** in the folder picker on desktop, iOS and Android: create a folder inside the one you are browsing from New Session, Bot Workspace grants or a Bot's folder request, and it is selected right away. Members see it only when their Host Role allows creating folders ([#4935](https://github.com/BotHarness/DeepSeekBot/issues/4935)).
+
+- Host Owners can answer native Session approvals and questions, stop running Sessions, and archive them from the phone or CLI. The CLI hides archived Sessions by default ([#4936](https://github.com/BotHarness/DeepSeekBot/issues/4936)).
+
+- Bot and native Session rows share the Host’s `running`, `needs-you`, and `idle` statuses. Approvals, questions, and a failed last turn count as `needs-you`. Owners can open native Session requests from Activity or notifications, filter Activity by source, and turn off native Session requests in Settings → Sessions or with the Host’s `nativeSessionAttention` setting. The CLI includes the requests with `deepseekbot activity --source all` ([#4937](https://github.com/BotHarness/DeepSeekBot/issues/4937)).
+
+- Hosts advertise password sign-in on HTTPS and can sign in Owners and Team members through one encrypted device flow. [#4962](https://github.com/BotHarness/DeepSeekBot/issues/4962)
+
+- The Host Owner can configure synchronous HTTP TTS and ASR request templates in Settings › Voice (**Custom request**, with starting examples, inline validation and editing) and through the CLI, including JSON, multipart and SSML requests and raw, encoded or URL audio results; existing voice presets use the same engine ([#5012](https://github.com/BotHarness/DeepSeekBot/issues/5012)).
+
+- The phone app has Settings › Voice for the Host owner: add, test and remove speech and speech-recognition services, choose the default service and voice, browse a service's account or public voices with search, and play voice samples ([#5026](https://github.com/BotHarness/DeepSeekBot/issues/5026)).
+
+- On the phone, the Sessions tab opens on a New Session screen: pick a computer and folder, write the first message, and the Session starts there. Existing Sessions live in a Session drawer that slides in from the left edge or the ☰ button, grouped by Today, Yesterday and Earlier, with search, sort and filter at hand; choosing one replaces the screen. `deepseekbot session-create` starts the same native Session from the command line ([#5109](https://github.com/BotHarness/DeepSeekBot/issues/5109), [#4934](https://github.com/BotHarness/DeepSeekBot/issues/4934)).
+
+- On the phone, Settings › This phone › Sessions can switch the Sessions tab to a Stacked style: the Session list comes first and a Session opens with Back. The same section chooses where the Sessions tab opens on launch (New Session, Session list or the last Session) and when you come back from another tab (where you were, New Session or Session list). Tapping the selected Sessions tab again goes back to its first screen ([#5110](https://github.com/BotHarness/DeepSeekBot/issues/5110)).
+
+- On the phone, long-pressing the Chats, Activity or Sessions tab opens a menu with the four most recent conversations, pending Activity items or Sessions, plus New Group or New Session; each row opens straight into that tab ([#5111](https://github.com/BotHarness/DeepSeekBot/issues/5111)).
+
+- Added **Use this computer’s desktop** for GNOME Wayland and X11. A paired Android viewer can watch the desktop and take control. Takeover pauses both Computer and Bot Browser until you resume Bots. ([#5135](https://github.com/BotHarness/DeepSeekBot/issues/5135))
+
+- A Host Owner can turn on **Allow sign-in by address** for the custom private route (Named Tunnel or HTTPS ingress), so Host Members sign in by typing its address with a username and password on phone, Desktop or Web. The setting is off by default, the Quick Tunnel and Docker private relay stay token-only, and turning it off closes the route again. The address becomes discoverable on the public internet and anyone can try a password. The route has its own sign-in rate limit, caps connections that have not signed in yet (signed-in devices never count) and closes them quickly, so it can't block Connect, other tunnels, the relay or SSH, even with a leaked pairing code ([#5212](https://github.com/BotHarness/DeepSeekBot/issues/5212)). It needs Team mode or Owner password sign-in, and it is unavailable on an HTTPS ingress that also listens on the local network. CLI: `deepseekbot private-route allow-address-sign-in custom --confirm` and `deny-address-sign-in` ([#5183](https://github.com/BotHarness/DeepSeekBot/issues/5183)).
+
+- The Owner can let any of their Bots manage the App. `deepseekbot bot-grant <bot> manage-app|manage-bots on|off` turns "Manage the App" and "Manage other Bots" on or off (turning one on needs `--confirm`), and `deepseekbot bot-grants` lists the holders. Tob has both by default and is now an ordinary Bot that can be archived, deleted and shared. Writes follow the Bot's Approval Template; deletion, other Bots' Memory, Profile Backup restore, credentials and pairing always ask ([#5193](https://github.com/BotHarness/DeepSeekBot/issues/5193)).
+
+- Bot settings on desktop and in the mobile app now have Management switches for "Manage the App" and "Manage other Bots". Turning one on asks for confirmation; only the Owner can change them ([#5197](https://github.com/BotHarness/DeepSeekBot/issues/5197)).
+
+- Answer Bot questions in Lark by text: reply `A`, `A C` for multiple choice, `1A 2B` for several questions, or your own words, quoting the form or starting with `#<reference>`. A reply made only of options answers the one waiting question without a quote, and an unreadable reply is refused with the reason ([#5240](https://github.com/BotHarness/DeepSeekBot/issues/5240)).
+
+- Bot questions and execution approvals raised from a Lark group are posted in that group, where anyone with an approved management pairing and the needed capability can answer or decide. This is on by default; set `groupInteractions: false` in the platform defaults, or run `deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --disabled` for one app, to keep them in the management DM ([#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)).
+
+- Create a Bot from your existing DeepSeek Sessions in the web Client or with `deepseekbot create --from-sessions`. Pick Sessions by Workspace, by hand or the latest N; the new Bot is granted the Workspaces they worked in and reads the Sessions itself to set up its role and Memory, without copying them ([#5273](https://github.com/BotHarness/DeepSeekBot/pull/5273), [ADR-0366](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/bots.md#adr-0366)).
+
+- Where cards aren't available, approvals and questions arrive in IM as text. Reply "allow" or "reject" to an approval, or the option letters to a question, and the Bot treats it like the card button. Only someone paired with that permission can decide ([#5293](https://github.com/BotHarness/DeepSeekBot/issues/5293)).
+
+- Send ` /pair` (with a leading space, so Slack does not treat it as a slash command) to your Bot in a Slack DM to ask for management pairing. Once you approve it in Web and route approvals to it, tool approvals and Bot questions reach that Slack DM as text, and you answer by replying ([#5295](https://github.com/BotHarness/DeepSeekBot/issues/5295)).
+
+- Send `/pair` to your Bot in a Discord DM to ask for management pairing. Once you approve it in Web and route approvals to it, tool approvals and Bot questions reach that Discord DM as text: reply `allow` or `reject` when only one approval is pending, or `#REF allow` to pick one when several are; answer a question with its option letter. Needs dsh-im with Discord DM support ([#5305](https://github.com/BotHarness/DeepSeekBot/issues/5305)).
+
+- The Bot can now block one person, or one group, channel or DM, from reaching it, and undo that, with its `bridge_source_block` tool. Every block or unblock asks you first. Your own IM accounts can never be blocked and still reach the Bot inside a blocked conversation. Blocked conversations appear in Blocked in IM settings next to blocked people ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- A Bot can now have a default approval role. When a reviewer replies only "approve" in IM, the request gets that role. In a group, the list of roles is no longer posted in the conversation; it is sent to the reviewer in a private message, and the reviewer can answer there. Set it under IM pairing → Roles, or with `deepseekbot sender-access` and `{"kind":"default-role",…}` ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- People who can review pairing can now grant or take away one permission, such as approve, for a paired person from Lark, Slack or Discord with `/grant @name approve` and `/revoke @name approve`, without changing their Role and without a Bot turn. Only permissions within the sender's own delegation can be changed ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- A pairing reviewer can add or remove a paired person in a permission group from Lark, Slack or Discord: `/group add @name <group>` or `/group remove @name <group>`. `/group` alone lists the groups you can change. It works only for groups whose permissions are all within what you can delegate, and it does not wake the Bot ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- People who can review pairing can now change a paired person's Role from Lark, Slack or Discord with `/role @name <role>`, list the Roles they can assign with `/roles`, and see someone's Role with `/role @name`, without a Bot turn. A paired member whose Role has approve or reject can now decide the approvals the Bot raises in their group. In a group, mention the Bot first; lists and a person's Role are sent to you privately ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325), [#5405](https://github.com/BotHarness/DeepSeekBot/pull/5405)).
+
+- When you approve a `/pair` management request, you can now let that person grant the capabilities you gave them to others. They can then use `/grant`, `/role`, or approve a pairing request with a Role from Lark, Slack or Discord without opening Tobs. In the CLI, add `--delegable` to `pairing-review` ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- A pairing request can now be reviewed in the IM conversation itself. The pairing notice in the original thread shows the request reference, and anyone whose Role allows pairing review can reply "approve [role]" or "reject". The approval route also receives the full review as text and can answer the same way. These replies are handled directly and never wake the Bot. Replies from people without pairing review are refused ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- You can block one sender of an IM app so the Bot never receives their messages there: in Tobs IM settings use Block on a person or request, or in Lark, Slack or Discord a pairing reviewer sends `/block @name` (`/unblock @name` to undo). A blocked sender gets no pairing notice, their commands are ignored, and the blocked list in settings lets you unblock them ([#5325](https://github.com/BotHarness/DeepSeekBot/issues/5325)).
+
+- App connections can now use remote MCP servers that connect by signing in, such as PostHog, Notion, Linear and Sentry, without a Composio key. Search featured servers and the public MCP Registry, or paste a server's https address, in Settings › App connections and the Marketplace; several accounts per server work, and each Bot gets Read or Read and write access to each account. The Host refreshes the sign-in on its own. CLI: `deepseekbot connector-mcp-search`, `connector-mcp-add <url>` and `connector-mcp-finish <url>` ([#5333](https://github.com/BotHarness/DeepSeekBot/issues/5333)).
+
+- During a desktop call with a Bot, press the ear button to share your computer's sound too: pick a meeting tab (Meet, Zoom or Teams on the web) or your system sound, and the Bot hears the meeting along with your microphone. Tell the Bot what to do with it, for example "just listen" or "send me a short text summary every minute". Press the ear again, or stop sharing in the browser, to go back to the microphone alone. When a call can't start because speech-to-text or a TTS voice is missing, the notice now has **Open Voice settings** ([#5369](https://github.com/BotHarness/DeepSeekBot/issues/5369), [decision](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/calls.md#meeting-attendance)).
+
+- Tool call details in the Session panel get an auto-wrap toggle; long input and result lines stay on one line by default ([#5386](https://github.com/BotHarness/DeepSeekBot/issues/5386)).
+
+- You can now delete an IM pairing Role that nobody uses, from the Roles tab or with `deepseekbot sender-access` and `--confirm`. While someone is paired with the Role or is requesting it, deleting is refused and the dialog says how many people still use it. Deleting the default approval Role clears the default ([#5409](https://github.com/BotHarness/DeepSeekBot/issues/5409)).
+
+- The Marketplace has a Skills section. It lists each `SKILL.md` folder from public GitHub repositories tagged `tobs-skill`, with its full text, files, scripts and safety-scan findings. **Add** reviews the files again, then writes the Skill into the Bots you pick, committed to each Memory Repository, or globally as a Host Skill for every Bot. Skills that download and run code are not listed. The CLI gains `marketplace-skill-list`, `marketplace-skill-detail` and `skills-add` ([#5439](https://github.com/BotHarness/DeepSeekBot/issues/5439)).
+
+- Long-press or right-click Always allow on a Shell approval card (or press Shift+F10) to choose how much to remember: every command, commands starting with `git` or `git status`, one rule per subcommand of a compound command, only this exact command, or a custom prefix. iPhone and Android open the same choices from a long press, and saved prefix rules read as "bash · starts with git status" in the rule list. A plain tap still allows every command ([#5459](https://github.com/BotHarness/DeepSeekBot/issues/5459)).
+
+- In Team mode, the Owner can let a member turn "Manage the App" and "Manage other Bots" on for the member's own Bots through the new Owner-only permission "Turn on management for own Bots". A member Bot's CLI acts as that member: it can create Bots, handle Share Drafts and edit the member's other Bots' PersonaBot Profiles and Memory, and its grant stops counting as soon as the Owner withdraws the permission ([#5461](https://github.com/BotHarness/DeepSeekBot/issues/5461)).
+
+- Added the Team workbench with an Internal roles page: each Host Permission can be allowed, left unset or denied per role, a deny on any role wins, and selecting a member shows every effective permission with the roles it comes from. `deepseekbot roles effective` and `--deny` give the same control on the CLI ([#5484](https://github.com/BotHarness/DeepSeekBot/issues/5484)).
+
+- Channel managers can use the CLI to choose who can read tool approval details and who can decide. Both new and upgraded Channels use legacy approval access until a manager enables or edits the new rules ([#5492](https://github.com/BotHarness/DeepSeekBot/issues/5492)).
+
+- Bots can run in any installed DSH mode, not only Tobs. Settings → Models sets the default mode for every Bot, and each Bot's settings can pick its own mode or follow the default; `deepseekbot bot-modes`, `bot-mode-default-set` and `bot-mode-set` do the same. A change applies from the Bot's next new Session. Mode templates limit which modes a Bot may use (every mode by default), and an Orchestrator can start an Assignment in any mode the Bot allows with `create_assignment`'s `mode`, which lists each allowed mode with its description and asks it to pick the lightest mode that covers the work. Three scenario modes derived from Tobs, Tobs 调研 (research), Tobs 编程 (coding) and Tobs 脚本 (scripts), keep only the tools their kind of work needs. The Sessions panel shows each Session's mode, and `deepseekbot bot-sessions` returns it as `agentPreset` ([#4461](https://github.com/BotHarness/DeepSeekBot/pull/4461)).
+
+- Sign in to a Codex subscription from another device using a one-time code in Model providers or `deepseekbot engine login codex --device-auth` ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559)).
+
+- In Team mode, `group-create` can add eligible Host members and Bots together when creating a group. ([#5033](https://github.com/BotHarness/DeepSeekBot/issues/5033))
+
+- Assignments can run on API models and Subscription Engines in the same Routing Group. When one member runs out, work continues on the next available member in the same Session. Mixed groups are available to the local Host owner ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657)).
+
+- The phone's Settings has **Prompt presets**: see the connected Host's presets, how many parts each changes and whether a built-in default moved underneath it, and choose the global preset. Desktop and phone now read the Host's Prompt Preset methods through one shared reader, so a malformed answer is dropped or refused the same way on both ([#4423](https://github.com/BotHarness/DeepSeekBot/pull/4423)).
+
+- Open Bot Sessions from a Bot profile or a linked chat message. See the Session title and the original messages, send a follow-up, and choose the model for the next turn on iOS and Android ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559)).
+
+- Set a default and multiple Assignment choices from API models, Subscription Engine account models, and Routing Groups on a Model Preset with the CLI. The Orchestrator can pick from that list; if the list is empty, Assignments follow the main choice ([#4860](https://github.com/BotHarness/DeepSeekBot/issues/4860)).
+
+- The first-run intro now asks which AI tools you have used. Claude Code and Codex sessions on your computer can be picked right there or in "Create Bot from Sessions", and `deepseekbot session-import-list` lists them; the new Bot reads them in place through its Workspace Grants, and `--add-workspaces` adds a session folder that is not a Workspace yet ([#2501](https://github.com/BotHarness/DeepSeekBot/issues/2501), [ADR-0367](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/bots.md#adr-0367)).
+
+- Turn on the Sessions tab in phone settings to open Bot and native Host Sessions in one list. Host Owners can continue native Sessions from the phone or CLI ([#4932](https://github.com/BotHarness/DeepSeekBot/issues/4932)).
+
+- On the phone, Settings now has IM apps: see each IM app on this computer and bind it to a Bot, move it to another Bot or unbind it. A Bot's profile adds External contacts, where you approve people who messaged the Bot and choose their Role, change a Role later, reject a request or remove a pairing ([#5454](https://github.com/BotHarness/DeepSeekBot/pull/5454)).
+
+- Search phone Sessions by title or Human message, filter by source, and choose a sort order saved on this device. The same options are available in `deepseekbot session-list` ([#4933](https://github.com/BotHarness/DeepSeekBot/issues/4933)).
+
+- Host Roles can grant a whole model provider, including models added later, alongside individual models. The Model providers page shows which roles have access ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657)).
+
+- On the desktop and Web Client, a remote Team Host you signed in to now shows "Signed in as …", or "Sign in again" / "Account deactivated" when the Host refuses you. Its ⋯ menu adds "Sign in again…", "Switch account…" and "Sign out". The switch prompt names the account being signed out, and the sign-in password field says "Password" with a first-time hint ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- Team owners now get an invitation QR code, "Copy invitation text" and "Copy invitation link" right after adding a member or resetting a password, and "Invite to sign in…" in a member's details sends a fresh invitation without changing the password. The text holds the phone link, the computer address, username, one-time password and Host fingerprint. Without an HTTPS address for members, the dialog says so instead of showing a link that cannot connect ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- A Team member's settings for a remote Host now show only their own sections (appearance, notifications, connection), not the owner's Host-wide pages that refused them with raw errors ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- Team members can view and remove the Skills of their own Bots ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- On the phone, a Team member who may not create Bots no longer sees "Create Bot", "Import" or "Marketplace" in the create menu ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- On the phone, a Team Host's menu in the drawer now has "Switch account", which signs in with another username and password, and "Sign out" instead of "Unpair", which says how to come back ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- On the phone, "Join as a member" now also signs in with a Host address and username, after comparing the Host fingerprint, so an existing member does not need a new invitation. "Sign out" on a Team Host says to come back this way ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
 
 - Diagnostic logs and bug reports now link a release update attempt to the next observed Host startup, including interrupted and failed restart evidence without storing installer output ([#4057](https://github.com/BotHarness/DeepSeekBot/issues/4057)).
 
-- Added an Android Select and copy page for native text selection of original Markdown and GenUI HTML, with a Copy all action ([#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)).
-
 ### Fixed
 
-- Fixed answers to durable timed questions after a Host restart: the original card resumes its owning native Session without treating the question as a new Memory admission ([#4066](https://github.com/BotHarness/DeepSeekBot/issues/4066), [#4067](https://github.com/BotHarness/DeepSeekBot/pull/4067)).
+- A forward migration restores the missing question-notification schema on Profiles affected by the generation-116 QQ hotfix, including Profiles where a later upgrade failed at generation 136. It preserves existing records and QQ preferences, and refuses incompatible schemas without replacing the original database ([#4040](https://github.com/BotHarness/DeepSeekBot/issues/4040)).
 
-- Fixed core startup after upgrading a Profile that ran the generation-116 QQ-default hotfix: a forward migration restores the missing question-notification schema while retaining existing records and QQ preferences. Incompatible existing structures refuse migration without replacing the original database; this is not a general official 1.6.1 upgrade failure ([#4040](https://github.com/BotHarness/DeepSeekBot/issues/4040)).
+- After a Host restart, answering a durable timed question on its original card resumes the owning native Session. The answer keeps its link to the original request and creates no new Memory admission ([#4066](https://github.com/BotHarness/DeepSeekBot/issues/4066), [#4067](https://github.com/BotHarness/DeepSeekBot/pull/4067)).
 
-- Align the mobile app with the SDK 58 Expo, development client and SQLite patch versions required by compatibility checks, retaining the Android activity shutdown fix. The message source page also uses the shared native loading control. Existing development builds must be rebuilt for the updated native dependencies ([#4050](https://github.com/BotHarness/DeepSeekBot/pull/4050)).
+- When an official Connect DNS lookup returns `ENOTFOUND`, Node Host and CLI requests retry IPv4 resolution with the configured DNS servers and keep TLS and Host key checks. It reports successful fresh resolution without changing system DNS or VPN settings. On the phone, same-account computers remain available to try, refresh on foreground return, and report directory errors with a retry action ([#4189](https://github.com/BotHarness/DeepSeekBot/issues/4189), [#4191](https://github.com/BotHarness/DeepSeekBot/pull/4191)).
 
-- Startup diagnostic reports now retain the database failure stage, bounded underlying error codes and observed writer identity, so lock contention can be distinguished from file access and migration failures. Correlated startup and close records are included in sanitized online and offline exports; writer metadata is explicitly a clue, not proof of a live process ([#4049](https://github.com/BotHarness/DeepSeekBot/issues/4049)).
+- On iOS, the message sheet scrolls at large accessibility text sizes and keeps native code menus from opening on top. Switching conversation or removing a message closes its source page, including when cleanup leaves a placeholder, and prevents delayed actions from reopening it ([#4046](https://github.com/BotHarness/DeepSeekBot/issues/4046), [#4052](https://github.com/BotHarness/DeepSeekBot/issues/4052)).
+
+- Kept iOS Channel speaker avatars on React Native's native scroll-listener lifecycle instead of observing UIKit scrolling properties, avoiding the native scrolling failure seen when opening a Channel ([#4052](https://github.com/BotHarness/DeepSeekBot/issues/4052)).
+
+- On iOS, interacting with GenUI pauses follow-latest scrolling, and the focused input stays above the chat input bar when the keyboard opens. At large accessibility text sizes, action buttons use the card width in one column ([#4052](https://github.com/BotHarness/DeepSeekBot/issues/4052)).
+
+- Updated the Expo SDK 58 development client and SQLite patches while retaining the Android activity shutdown fix. This restores iOS development builds on Xcode 27.0, keeps the default account toolbar when newer SDK modifiers are unavailable, and uses the shared native loading control on the message source page. Rebuild existing development apps to pick up the native dependency changes ([#4053](https://github.com/BotHarness/DeepSeekBot/issues/4053), [#4050](https://github.com/BotHarness/DeepSeekBot/pull/4050)).
+
+- Startup diagnostic exports now identify the failing database stage or Core initializer, retain bounded redacted error details, and correlate startup, close, and later successful restart records. They distinguish lock contention, file access and migration failures, and track Core readiness separately from DSH Host readiness. Writer identity is a diagnostic clue ([#4049](https://github.com/BotHarness/DeepSeekBot/issues/4049), [#4056](https://github.com/BotHarness/DeepSeekBot/issues/4056)).
 
 - Diagnostic log and bug-report exports now disclose missing evidence, dropped entries and unknown coverage. A bounded, metadata-only fallback retains log-store failures and recovery when its own storage is available; online and offline exports can produce clearly marked partial ZIPs when the log database cannot be read ([#4055](https://github.com/BotHarness/DeepSeekBot/issues/4055)).
-
-- Diagnostic exports now identify the Core initializer and stage that failed after database startup, retain bounded redacted causes, and distinguish a later successful restart. Core readiness is explicitly separate from DSH Host readiness ([#4056](https://github.com/BotHarness/DeepSeekBot/issues/4056)).
 
 - Diagnostic logs and problem reports now retain attachment migration attempts, bounded progress, safe failure codes and cancellation outcomes, so interrupted migrations can be distinguished from files needing repair ([#4058](https://github.com/BotHarness/DeepSeekBot/issues/4058)).
 
 - Restored Android message menus, code-block copying and long-press selection for rich Bot replies and the newest message ([#4044](https://github.com/BotHarness/DeepSeekBot/issues/4044)).
 
-- QQ now supports platform defaults through the Host API and CLI, so new groups can inherit all-message collection while preserving existing custom choices and historical hotfix defaults. Configuration remains separate from actual ordinary-message delivery evidence ([#3419](https://github.com/BotHarness/DeepSeekBot/issues/3419)).
+- Isolated GenUI preview startup failures retain bounded redacted browser diagnostics, and deployments can select an explicit preview executable through `genuiPreviewBrowserPath`; CI selects its pinned test browser with path-scoped OS sandbox permission, while opt-in comparison preserves both browser outcomes under existing budgets ([#4030](https://github.com/BotHarness/DeepSeekBot/issues/4030)).
+
+- Sharing an attachment from chat or profile Files now retains its Host connection until the system share closes. Temporarily disabling reply gestures preserves loaded message images instead of recreating them ([#4103](https://github.com/BotHarness/DeepSeekBot/issues/4103)).
+
+- Returning to the mobile app now checks the existing live connection before reconnecting, preserving healthy chat subscriptions. Android keeps the microphone control in place while temporarily disconnected ([#4103](https://github.com/BotHarness/DeepSeekBot/issues/4103)).
+
+- Disconnect computer relationships while the peer is offline: local access stops immediately, pending remote retirement survives restart with bounded retries, and explicit disconnect prevents automatic reenrollment. Removing a selected Host returns to All and protects unsaved settings ([#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)).
+
+- Selected-Host usage preserves its existing Human-scoped coverage, and Remote Host storage discards stale confirmations when the selected source changes and reads the same Host after an uncertain cleanup before another preview; loading and failed reads remain explicit ([#4119](https://github.com/BotHarness/DeepSeekBot/issues/4119)).
+
+- Aligned mobile Channel file icons with chat attachment tiles, including file-type colors and cleared-file indicators ([#4125](https://github.com/BotHarness/DeepSeekBot/issues/4125)).
+
+- Isolated development preparations copy new runtime and Profile dependencies to avoid shared package-file metadata churn. Unchanged legacy installations restart read-only; dependency or source-link changes require a fresh Home and preserve existing data ([#4135](https://github.com/BotHarness/BotHarness/issues/4135)).
+
+- Team members can sign in through the Host's managed Tailscale HTTPS route. Invitations include only routes that accept member passwords; manual proxy routes remain untrusted ([#4146](https://github.com/BotHarness/DeepSeekBot/issues/4146)).
+
+- Kept proactive messages to a Bot’s current owner working when proactive audience DMs are off or the owner has opted out, including Owner-only Hosts and ownership transfers ([#4150](https://github.com/BotHarness/DeepSeekBot/issues/4150)).
+
+- Isolated development Hosts can explicitly recover interrupted dependency preparation while keeping their database and credentials in place and preserving the old dependency tree for inspection ([#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)).
+
+- Allow phones to try same-account computers even when the service reports them offline; updated Connect services let the phone verify reachability directly while retaining encrypted, fingerprint-free account enrollment ([#4178](https://github.com/BotHarness/DeepSeekBot/issues/4178)).
+
+- Members can manage their own Bots' Memory through the existing controls and CLI, including history, restore, versions and image previews; own-Bot settings, Session history and file-target methods now pass the member carrier's ownership checks ([#4200](https://github.com/BotHarness/DeepSeekBot/issues/4200)).
+
+- Kept active global template protection tied to its real library, removed Reviewer text from diagnostics, refreshed inherited-source labels after selection, kept oversized custom files repairable, and separated custom template names from Off; CLI selection supports `--literal-template` for reserved-looking names ([#4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)).
+
+- Kept native approval results inside their platform view tree and made the disabled chosen action visibly selected after a decision ([#4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)).
+
+- Preserve a newly authorized remote Client when cleanup of a cancelled enrollment finishes after its older authorization was replaced ([#4216](https://github.com/BotHarness/DeepSeekBot/issues/4216)).
+
+- On a wide desktop window, a Team member's Web Client now shows that member's own sections instead of a flat list, matching the phone ([#4222](https://github.com/BotHarness/DeepSeekBot/issues/4222)).
+
+- The phone's Chats tab now lists direct messages with other people on the Host, named for the other person, next to Bot DMs and Channels; they can be pinned or moved into a section, and are never offered for disbanding. Opening one shows the other person's name and initial in the header, lets you reply, and puts their messages on the left under their name, including when you quote them ([#4222](https://github.com/BotHarness/DeepSeekBot/issues/4222)).
+
+- Activity uses the shared environment selector in its header and labels each item with its source instead of repeating Host sections. Add remote now lives in the Environment panel header and no longer appears in the Channels creation menu ([#4223](https://github.com/BotHarness/DeepSeekBot/issues/4223)).
+
+- Replaced the channel list's overflowing Create Bot submenu with a two-step dialog for choosing blank, GitHub or zip creation and continuing to the existing form ([#4224](https://github.com/BotHarness/DeepSeekBot/issues/4224)).
+
+- First-run Tob Memory preparation runs Git commands asynchronously, so lightweight settings queries can respond before preparation completes ([#4226](https://github.com/BotHarness/DeepSeekBot/issues/4226)).
+
+- Model pickers and approval settings read native configuration once per model catalog request and share credential checks within that request, reducing repeated work while still reading fresh settings on the next request ([#4226](https://github.com/BotHarness/DeepSeekBot/issues/4226)).
+
+- Fixed repeated Skill selection in the CLI, selected Skill and mention rendering in Bot prompts, oversized Skill sends being silently truncated, private or archived Bot Skills being accepted in Group sends, and Skill offsets after All Bots expansion ([#4232](https://github.com/BotHarness/BotHarness/issues/4232)).
+
+- Fixed oversized Skill snapshots blocking ordinary Group delivery by showing an excerpt and directing Bots to the complete snapshot through `channel_read` with its Channel and message IDs; the shared harvest budget allows only one oversized row and leaves omitted messages pending. Active Group mention steering now includes the full Skill snapshot ([#4233](https://github.com/BotHarness/BotHarness/issues/4233)).
+
+- Host Skill and Bot Memory Repository changes refresh the relevant conversation’s Skill menu and `skills-list` without polling. Refreshes also recover after Host read failures, Orchestrator Agent changes, and temporary filesystem watcher failures, including when the Memory Repository appears after startup ([#4234](https://github.com/BotHarness/BotHarness/issues/4234)).
+
+- IM reception now retries temporary startup failures with capped exponential backoff; connection settings show recovery progress and offer immediate reconnect ([#4242](https://github.com/BotHarness/DeepSeekBot/issues/4242)).
+
+- Improved approval-template rule lists with aligned numbers, clearer section spacing and surfaces, and top/bottom add actions that focus the new row ([#4244](https://github.com/BotHarness/DeepSeekBot/issues/4244)).
+
+- Fix model-free private-tool calls that fail to open execution approvals while their Orchestrator is idle; approvals, including policy-protected HTTP GET calls, follow each caller's DM and remain isolated from concurrent callers, Group turns and borrowed Session history ([#4245](https://github.com/BotHarness/BotHarness/issues/4245)).
+
+- Bot external identity and connector settings now show saved configuration before live connection checks, so slow or unrelated Providers do not delay opening the settings ([#4247](https://github.com/BotHarness/DeepSeekBot/issues/4247)).
+
+- Bots now recover from gateway token-limit errors that DSH reports as ordinary invalid requests: Tobs requests native context compaction and retries once after committed progress, instead of repeatedly failing until paused ([#4253](https://github.com/BotHarness/DeepSeekBot/issues/4253)).
+
+- Keep failed template deletions visible until the Host confirms removal, prevent older template reads from replacing newer settings, keep approval details in the requesting Human's DM, and preserve coded Team permission refusals. Confirmed template deletion shows its irreversible effect, and delegated calls retain native rejection policy. QA failures redact private Host login details ([#4266](https://github.com/BotHarness/DeepSeekBot/pull/4266)).
+
+- Keep pending Memory notifications for the next model turn during model-free CLI calls, and preserve completed tool results when resource cleanup fails ([#4266](https://github.com/BotHarness/DeepSeekBot/pull/4266)).
+
+- Align approval architecture documentation with the implemented owners, separate card rules from natural-language rows, and record the retained Human decision cards ([#4266](https://github.com/BotHarness/DeepSeekBot/pull/4266)).
+
+- Kept the pixel-avatar editor within the window and made its content scrollable, so every palette color and the drawing controls remain reachable in short windows; updated drawing controls to compact icon-and-label buttons with clear selected and disabled states ([#4268](https://github.com/BotHarness/DeepSeekBot/issues/4268)).
+
+- New Bot approvals distinguish preview labels from their values. Dialogs opened from the keyboard appear immediately ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- On Windows, the helper programs that Host features start in the background (the Connect and private tunnels, memory search, call video decoding, the daily browser, folder browsing, release identity and desktop zoom setup) no longer flash a console window; opening an export folder still shows Explorer ([#4296](https://github.com/BotHarness/DeepSeekBot/issues/4296)).
+
+- The Composer goes back to one line when Backspace removes the last line break, both with text left and when the draft is empty. A new empty line is one line tall right away instead of growing an extra line until you type ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- When the Composer grows or shrinks, the latest message moves with it instead of slipping under the Composer and jumping back, and shrinking is as smooth as growing ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- In the Material style, chat bubbles, code blocks and other cards no longer turn into giant pill shapes; small corners now have their own size, separate from pill-shaped controls ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- Bot sharing preserves custom character limits for `SOUL.md` and `MEMORY.md`. Importing a Bot from a ZIP or the Marketplace on the Web shows how much of each file will fit in the prompt. The Memory sidebar shows the number of characters excluded ([#4397](https://github.com/BotHarness/DeepSeekBot/issues/4397)).
+
+- The desktop and mobile model pickers now read the Host's model list the same way, so a provider or model without a display name shows under its id everywhere instead of appearing blank on desktop or missing on mobile, where the picker could show only the default model ([#4395](https://github.com/BotHarness/DeepSeekBot/pull/4395)).
+
+- The mobile chat header shows the Bot's model as a family logo and short name before its state, matching the desktop header chip ([#4395](https://github.com/BotHarness/DeepSeekBot/pull/4395)).
+
+- When a model's quota or balance runs out (for example an OpenCode Go weekly limit), the Bot no longer retries the same model for minutes and then stops after three failures. It pauses at once, says which model ran out and when it resets, and other Bots on that model pause without sending a request until the reset ([#4414](https://github.com/BotHarness/DeepSeekBot/issues/4414)).
+
+- The right sub panel follows the theme color and wallpaper like the other panels: its body no longer paints a fixed grey background, and its entry headers use the same header material as other panel headers ([#4431](https://github.com/BotHarness/DeepSeekBot/issues/4431)).
+
+- In light mode with a wallpaper, secondary text and icons such as channel previews, status lines and inactive rail icons are darker, so they stay readable over translucent panels ([#4431](https://github.com/BotHarness/DeepSeekBot/issues/4431)).
+
+- Clicking a Session link a person sent in a group Channel now opens that Bot's Session with its title, and Orchestrator rows in the Sessions panel show the Bot's avatar instead of a blank square. The `/` Session menu closes when a Skill is picked, keeps Skill references in place when a Session chip is deleted, and loads Sessions from the plain message box too ([#4457](https://github.com/BotHarness/DeepSeekBot/pull/4457)).
+
+- Changing the palette no longer hides a chosen wallpaper: the panels stay translucent. In the Apple and Material styles, the theme, style and wallpaper pickers and other non-row settings content no longer touch the edges of their group, and the selected palette chip has room around its swatch ([#4464](https://github.com/BotHarness/DeepSeekBot/issues/4464)).
+
+- On the phone, the Save button in the group rename, group nickname and Bot rename sheets now fits on screen. The Settings top row now shows a chat photo changed on another device the next time you open Settings. When you have no photo yet, the button reads Choose photo ([#4473](https://github.com/BotHarness/DeepSeekBot/pull/4473)).
+
+- Switch models from the Messages header when a Bot uses Codex or Claude Code, including named subscription accounts. Model settings, Model Presets and Routing Groups share the searchable picker with provider filters and Favorites. ([#4488](https://github.com/BotHarness/DeepSeekBot/issues/4488))
+
+- Codex and Claude Code processes close when idle and resume on the next request. Session detail shows when a lost engine session was rebuilt. Assignments with missing recovery records report failure to their Orchestrator. ([#4491](https://github.com/BotHarness/DeepSeekBot/issues/4491))
+
+- Assignments keep their chosen reasoning effort when a Routing Group falls back through a model without reasoning and later returns to a model that supports that effort ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- On the phone, Routing Group notes now sit right below the Routing Groups in the allowed models list instead of after every model, and models with a very short name, such as MiniMax-M3, show their full name ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- Saving the default model no longer replaces a default Routing Group that another device set in the meantime, and a Routing Group deleted while a Bot plan, Preset or the default model is being saved makes the save fail instead of keeping a missing Routing Group ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- Choosing the global default: refreshing the model list no longer swaps a model you picked back to the default Routing Group, Save stays off while the saved Routing Group is gone, and the Settings row no longer breaks when that Routing Group is missing. A Routing Group default now still shows on the phone when the Host has no usable default model ([#4500](https://github.com/BotHarness/DeepSeekBot/issues/4500)).
+
+- Setting the Host default model from Tob now stops the default from following a Routing Group, so Bots that follow the default run the model you chose. `deepseekbot home-model-set --group` also refuses an empty `--provider` or `--model` instead of ignoring it ([#4500](https://github.com/BotHarness/DeepSeekBot/issues/4500)).
+
+- The phone finishes pairing as soon as you approve it on the computer, without waiting for its next retry ([#4540](https://github.com/BotHarness/DeepSeekBot/issues/4540)).
+
+- When the phone cannot open a Bot's DM, it now retries after 1, 2, 4… seconds up to once a minute instead of asking the Host every second forever ([#4544](https://github.com/BotHarness/DeepSeekBot/issues/4544)).
+
+- A running Codex Orchestrator can receive new Group mentions and DMs in its current turn. Claude Code continues in the same Session, and replies follow each message's original Channel. ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
+
+- Bots carry recent Session context into a new Codex or Claude Code thread. Switching back to a DSH model continues the same Session, including the engine turns. ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
+
+- The Host's once-a-second relationship retry check no longer announces a relationship change when nothing expired, so open relationship and Devices views no longer re-read every second ([#4568](https://github.com/BotHarness/DeepSeekBot/pull/4568)).
+
+- Session replies and the phone message menu show the models and subscription engines that ran, including quota fallback and localized reasoning effort. The phone menu fits the path beside the time when there’s room. The model chip shows the Orchestrator Session’s running or last-used Routing Group target. ([#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574))
+
+- A new Tob's own files folder starts writable, so its Assignments can save files with the native write tool (a Tob created earlier asks for write access once), and a folder whose **Allow Bot to write** is off now refuses Assignment writes consistently: native file tools say the folder is read-only and point the Bot to the folder request instead of saying it is outside the workspace, and the Assignment Shell runs read-only too ([#4580](https://github.com/BotHarness/DeepSeekBot/issues/4580)).
+
+- A Codex Bot's shell approval card now reads like a Terminal card: the command and Codex's reason show inline, so you can decide without expanding it ([#4612](https://github.com/BotHarness/DeepSeekBot/issues/4612)).
+
+- Requests to running Codex and Claude Code Assignments now reach the same Session promptly, so the Orchestrator can redirect work in progress ([#4623](https://github.com/BotHarness/DeepSeekBot/issues/4623)).
+
+- Cancel pending Codex and Claude Code subscription sign-ins with `engine login-cancel` so you can retry after closing the browser tab ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657)).
+
+- The onboarding model step has its spacing back between the title, model, effort and advanced options ([#4673](https://github.com/BotHarness/DeepSeekBot/issues/4673)).
+
+- Fixed an iOS crash on launch or reload when the phone has several paired Hosts. Each Host's local store now opens without the concurrent native path in Expo SQLite that crashed ([#4678](https://github.com/BotHarness/DeepSeekBot/issues/4678)).
+
+- Fixed the Chinese handoff from the Model Choice picker to Harness Models settings ([#4703](https://github.com/BotHarness/DeepSeekBot/issues/4703)).
+
+- Add Xiaomi MiMo in Settings → Voice to synthesize speech with MiMo V2.5 TTS and built-in voices such as 冰糖 and Mia ([#4729](https://github.com/BotHarness/DeepSeekBot/issues/4729)).
+
+- Retrying a schedule creation after a lost result no longer adds a second schedule, and an approved schedule edit no longer overwrites a change made while its card was pending: `schedule-create --operation-key` reconciles a retry, every schedule shows a `revision`, and `schedule-update`/`schedule-delete --expected-revision` refuse a stale one. Tob always passes them ([#4829](https://github.com/BotHarness/DeepSeekBot/issues/4829)).
+
+- About one pairing receipt or device id in 64 started with `-`, so `device-offer-status <receipt>` and `device-revoke <device-id>` refused it as an unknown option. The Host no longer issues such ids; existing device ids keep working with `--` before them ([#4834](https://github.com/BotHarness/DeepSeekBot/issues/4834)).
+
+- Old mobile Task model picker links now open the Bot or preset editor and preserve the saved list. ([#4860](https://github.com/BotHarness/DeepSeekBot/issues/4860))
+
+- Fixed retries after a stalled model check and honored Stop while switching away from a Subscription Engine. Assignments now forward final text when their only report was a progress update ([#4877](https://github.com/BotHarness/DeepSeekBot/issues/4877)).
+
+- The offline Bot CLI can toggle Orchestrator write access on active BotHarness Space grants. It also preserves existing credential YAML indentation and coordinates Credential reference edits with the native credential store ([#4891](https://github.com/BotHarness/DeepSeekBot/issues/4891)).
+
+- Bots can check whether a QQ group message is replyable before sending. The reply tool explains failures and keeps the answer in the original group ([#4897](https://github.com/BotHarness/DeepSeekBot/issues/4897)).
+
+- Bot Channel searches keep the newest matches across joined Channels and continue budget-limited reads from the original page. Refused Group-owner invitations leave Team adder records intact, and keyed Group sends check access before saving the message. Ignoring a queued Human DM settles its Source Event, and a successful direct tool call still returns its result when the history preview cannot represent it. ([#4955](https://github.com/BotHarness/DeepSeekBot/issues/4955))
+
+- The Choose environments sheet on Android uses a consistent surface from its header through its bottom action ([#4966](https://github.com/BotHarness/DeepSeekBot/issues/4966)).
+
+- Tob CLI requests now keep the command output and report completion when cancellation arrives after the command finishes ([#4987](https://github.com/BotHarness/DeepSeekBot/issues/4987)).
+
+- After a Host Owner's password change signs out a phone, the Owner can sign in again on that phone by entering the same Host Connection Route and the new password, without removing the Host first ([#5000](https://github.com/BotHarness/DeepSeekBot/issues/5000)).
+
+- Entering a Host's private tunnel address to sign in now explains that the address is only for paired devices and points to a pairing code or sign-in link, instead of saying the Host could not be reached ([#5001](https://github.com/BotHarness/DeepSeekBot/issues/5001)).
+
+- On the phone's username and password sign-in, first-time password change and email sign-in forms, the keyboard's Next key now moves to the following field instead of closing the keyboard ([#5002](https://github.com/BotHarness/DeepSeekBot/issues/5002)).
+
+- On the phone's connect screen, Connect stays above the keyboard after pasting a pairing link, and the invitation and new-password fields keep their labels visible once filled ([#5007](https://github.com/BotHarness/DeepSeekBot/issues/5007)).
+
+- On Android, WebRTC now starts only once per app run, so opening several direct connections at the same moment (for example right after the first sign-in) can no longer crash the app ([#5029](https://github.com/BotHarness/DeepSeekBot/issues/5029)).
+
+- On Desktop, when signing in with a Team invitation link, or as another Host Member from a Host's menu, cannot start (for example, the Host cannot be reached, or the invitation does not match the saved Host), the error now shows next to the link or username field so it can be corrected and tried again, instead of a dialog with only the error ([#5030](https://github.com/BotHarness/DeepSeekBot/issues/5030)).
+
+- At large system text sizes, the chat activity avatar stays in its column, the pull-down button's icon stays inside the button, and the step-bar Back arrow keeps a balanced size in its round button instead of shrinking at the largest sizes. iOS settings row icons grow with the row text ([#5032](https://github.com/BotHarness/DeepSeekBot/issues/5032)).
+
+- The CLI accepts pairing receipts, base64url device public keys, and device IDs that start with `-`. `device-requests` now includes a copyable approval command for each key awaiting approval ([#5046](https://github.com/BotHarness/DeepSeekBot/issues/5046)).
+
+- At large and accessibility text sizes, Activity rows show the full name on up to two lines with the time on its own line, as Chats does, instead of cutting the name to a few characters ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On Android at large system text sizes, the Conversation screen top app bar keeps Back, ⋮, call and the message selection actions at their normal size. The Bot or group name now wraps to two lines instead of shrinking to "Ada …", and Share stays on screen in selection mode ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On Android at large system text sizes, the titles of the pairing sheet and the Environment customization sheet wrap instead of being cut off. The pairing fingerprint shows two groups per row, so each row can be compared at a glance. The step bar's main button grows when its label wraps ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- At large text sizes, the message composer returns to its one-line height after you send a long message, instead of staying several lines tall and hiding the conversation ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On iPhone at the largest text sizes, chips, reaction and delivery badges, status chips, the session model chip and React Native buttons become rounded rectangles when their labels wrap, instead of stretched pills ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On iPhone at large text sizes, list chevrons, row icons and model logos now grow with their labels. At the largest sizes, rows with an icon or picture put it above the name, so long names and details no longer squeeze into a narrow column or break mid-word. The Settings account picture now shows a visible circle ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On iOS at the largest text sizes, the Bot creation step bar no longer covers the name field or other fields at the bottom of a step, and Continue stays on one line. Buttons whose labels wrap at these sizes, including the pairing and sign-in buttons, become rounded rectangles instead of stretched capsules ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- At the largest accessibility text sizes on iOS, Bot and group profiles let the banner, name and description scroll away with the tab content, keeping the tab strip at the top, instead of a fixed header that filled most of the screen. The name becomes a rounded rectangle when it wraps, the full description is shown, and the tab strip is easier to tap ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On iOS at large text sizes, forms in sheets (New Group, Bot creation and others) can scroll their last field fully into view instead of leaving it under the bottom edge of the sheet ([#5053](https://github.com/BotHarness/DeepSeekBot/issues/5053)).
+
+- On iPhone, the + button now opens the create panel within 300 ms, faster than before and with no bounce ([#5059](https://github.com/BotHarness/DeepSeekBot/issues/5059)).
+
+- On Android at large system text sizes, the Conversation screen top app bar stays compact. The Bot or Channel name and "N selected" stay on one line at a capped size, about as tall as the Back and ⋮ buttons, and the status line is hidden. TalkBack still reads the full name and status, and tapping the name opens the PersonaBot Profile or Channel info ([#5096](https://github.com/BotHarness/DeepSeekBot/issues/5096)).
+
+- On Android, tapping Password in the phone's Tobs sign-in sheet no longer leaves the "Welcome to Tobs" heading half hidden under the "Sign in" header: when the keyboard opens, the form scrolls the heading either fully into view or fully out of view ([#5117](https://github.com/BotHarness/DeepSeekBot/issues/5117)).
+
+- On the phone's Tobs Connect email sign-in, Sign in, Send code and Verify stay fully above the keyboard while you type your email, password or code ([#5118](https://github.com/BotHarness/DeepSeekBot/issues/5118)).
+
+- The M15 Team security suite now retries and records inconclusive Full access checks instead of reporting skipped tools or malformed patches as sandbox failures ([#5158](https://github.com/BotHarness/DeepSeekBot/issues/5158)).
+
+- On iPhone, the first message you send in a new Session no longer lands under the message box: the conversation stays anchored above it from the first frame ([#5175](https://github.com/BotHarness/DeepSeekBot/issues/5175)).
+
+- On the phone, Session rows in the Session list and the Session drawer now line up: the status and time sit beside the Session name, and the model icon sits on the same line as the computer and folder ([#5178](https://github.com/BotHarness/DeepSeekBot/issues/5178)).
+
+- On iOS, pressing Next from Email to Password in the phone's Tobs sign-in sheet no longer leaves the heading's "Sign in or create an account." line under the "Sign in" header: the keyboard reveal now scrolls the heading fully out of view and never stops inside the Apple or Google button, as on Android ([#5184](https://github.com/BotHarness/DeepSeekBot/issues/5184)).
+
+- On Android, focusing Password in the phone's Tobs sign-in sheet no longer scrolls "Continue with Google" partly under the "Sign in" header. The form now scrolls only as far as Sign in and "Forgot password?" need, and at large text sizes it never stops with a sign-in button cut off ([#5185](https://github.com/BotHarness/DeepSeekBot/issues/5185)).
+
+- On Android, the Session title menu now has a visible raised surface in dark mode, and a long folder path wraps at its `/` separators instead of mid-word ([#5223](https://github.com/BotHarness/DeepSeekBot/issues/5223)).
+
+- A leaked pairing code can no longer keep Connect, private tunnels, the private relay and SSH busy while the Owner hasn't answered the pairing request. The Host now keeps only one connection waiting on each pairing code, and a newer one replaces the older ([#5231](https://github.com/BotHarness/DeepSeekBot/issues/5231)).
+
+- Someone who knows a Host's Connect address can no longer use up all of its connections without signing in. On every route, a connection that hasn't signed in a device, and isn't waiting for the Owner to approve a pairing code, closes after 30 seconds. Connect and the Host's own HTTPS address each allow at most 8 such connections at a time, so they can no longer take every connection away from private tunnels, the private relay and SSH. Holding 8 idle connections can still briefly refuse new Connect connections ([#5234](https://github.com/BotHarness/DeepSeekBot/issues/5234)).
+
+- The Sessions list on the phone now opens on the first try on a Host with hundreds of Sessions. Untitled Bot Sessions no longer make the Host re-read every transcript on each list, so the list stays fast ([#5248](https://github.com/BotHarness/DeepSeekBot/issues/5248)).
+
+- A Bot question or execution approval raised while the Bot is answering a Lark group message now goes to that group instead of the management DM. If Lark refuses the group card, it is sent to the DM so the question or approval doesn't hang ([#5271](https://github.com/BotHarness/DeepSeekBot/issues/5271)).
+
+- Answering a Lark question card by quoting it in a group now picks the option you typed. The @Bot mention Lark adds to the quote is ignored instead of turning the answer into free text ([#5275](https://github.com/BotHarness/DeepSeekBot/issues/5275)).
+
+- A tool approval the Bot needs while answering a Lark message is now requested from you, in the Lark group or DM it came from, instead of failing at once with "Human approval was unavailable" ([#5276](https://github.com/BotHarness/DeepSeekBot/issues/5276)).
+
+- Tool approval cards sent to an IM group no longer show the Host's working directory, the rule scope or the raw tool result. People in the group still see the tool and its input to decide; the DM card and Web keep the full detail ([#5281](https://github.com/BotHarness/DeepSeekBot/issues/5281)).
+
+- A Lark approval card in a DM now shows only the buttons the paired person may use: someone who can approve but not reject no longer sees Reject, and the reverse. Group cards still show both, since anyone paired may decide there ([#5282](https://github.com/BotHarness/DeepSeekBot/issues/5282)).
+
+- `deepseekbot list` against a running Host no longer shows deleted Bots, so a Bot you deleted stops appearing there as soon as deletion completes ([#5283](https://github.com/BotHarness/DeepSeekBot/issues/5283)).
+
+- Fixed an Android mobile app crash when a relaunch or reload tore down the React instance before Expo's native library had loaded ([#5317](https://github.com/BotHarness/DeepSeekBot/issues/5317)).
+
+- Made channel list unread counts true circles, with fully rounded pill ends for two or more digits, at the same 16px height as the round Bot state icons beside them ([#5352](https://github.com/BotHarness/DeepSeekBot/pull/5352)).
+
+- A native Session approval card on the phone now shows the command (or the tool's main argument) under "Run this command", with DSH's escalation reason under Details, in Session detail and in Activity. `session-transcript`, `session-live` and `activity --source all` include it as `preview` ([#5417](https://github.com/BotHarness/DeepSeekBot/issues/5417)).
+
+- Confirming the deletion of a Bot whose deletion was already accepted now says so and points to retry, instead of asking you to reopen the confirmation, which could never succeed ([#5437](https://github.com/BotHarness/DeepSeekBot/issues/5437)).
+
+- A Bot can no longer flood a conversation with status messages instead of working. When it sends a fourth message in a row to the same place without doing anything in between, that message is not sent and the turn ends ([#5447](https://github.com/BotHarness/DeepSeekBot/issues/5447)).
+
+- Aligned the Session header’s round actions and title capsule with the Channel header while keeping the Session’s Computer and folder visible ([#5549](https://github.com/BotHarness/DeepSeekBot/issues/5549)).
+
+- A text reply to an IM approval that can't be applied, for example "reject" from someone without the reject permission, now gets a short notice instead of no answer, and a bare "allow" or "reject" in a DM where a pairing request settled in the last 30 minutes now reaches the waiting tool approval instead of being answered "no longer waiting" ([#5394](https://github.com/BotHarness/DeepSeekBot/pull/5394)).
+
+- Fixed Assignment routing and execution races that could leave a wake pending, lose an approval wait, or start work on an invalid route. Inbox harvests now release claimed messages after an observation error and honor Group digest retry delays ([#4961](https://github.com/BotHarness/DeepSeekBot/issues/4961)).
+
+- Fixed the session rows in the composer's token usage popover, which showed a garbled 「路」 instead of a middle dot between the token count and the share ([#4294](https://github.com/BotHarness/DeepSeekBot/issues/4294)).
+
+- Report screenshots can use native window pixels when Desktop provides the window-capture capability, avoiding page rasterization and hiding the capture toolbar. Native failures end the wait instead of retrying page capture; older Desktop versions retain their existing capture path. This requires the companion DSH Desktop source change and is not enabled in existing Desktop releases ([#4105](https://github.com/BotHarness/DeepSeekBot/issues/4105)).
+
+- Browser sign-in on the Host no longer ends after three minutes. Like the Claude Code CLI, it waits until you finish or cancel it, so you can relay a Claude Code authorization code from another device. If the sign-in has ended, start it again to get a new code ([#5159](https://github.com/BotHarness/BotHarness/issues/5159)).
+
+- Kept unconfirmed Assignment stops retryable, preserved Assignments that start during an Orchestrator-only stop, and kept unseen Inbox Admissions open when a Routing Group switch is cancelled ([#4848](https://github.com/BotHarness/DeepSeekBot/issues/4848)).
+
+- A phone signed in to a Team Host as a member can now pair with that Host as its owner from a device pairing link or code. It used to fail with "Cannot reach your computer" because the member sign-in was used to refresh routes ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- A phone waiting for approval on your computer no longer gets stuck. If its connection drops or goes quiet while it waits (for example when you switch away to approve), it reconnects with the same key and finishes pairing once you approve. Retrying the same pairing link after an error also works now instead of failing with "invalid offer". When pairing succeeds, the page shows "Paired" with a Done button instead of the approval spinner ([#4525](https://github.com/BotHarness/DeepSeekBot/pull/4525)).
+
+- On iPhone, the chat profile setup prompt now waits until the Team sign-in sheet, including switching to another Host Member, has closed, instead of opening while that sheet is still closing ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- On iPhone, switching to another Host Member in Team mode no longer shows the "sheetPresentationController is null" error in development builds. The sign-in sheet could still lay itself out once after it was dismissed, and React Native Screens treated that as an error even though our sheets use fixed detents ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- Prompt presets now reread the Host when the phone app returns to the foreground; on both desktop and phone an older read that finishes late no longer overwrites a newer one, a failed refresh keeps the cached presets on screen with a Retry button, and resetting a part to built-in still removes the override when the built-in text changes while the editor is open ([#4508](https://github.com/BotHarness/DeepSeekBot/pull/4508)).
+
+- A Host can make more than one Bot public. Publishing a second Bot used to fail with an internal error because the hidden Memory folders of public Bots shared one name ([#4150](https://github.com/BotHarness/DeepSeekBot/issues/4150)).
+
+- Restored the approval behavior from before #4266: tool effect declarations again only label approval cards. Bot messages, Subagents, Assignments, Channel actions and CLI operations no longer wait for a card. Authorized Browser and Computer sessions no longer ask per action, and Full Access again answers ordinary calls. Secrets, Bot creation, attachment writes and protected management keep their approval ([#4334](https://github.com/BotHarness/DeepSeekBot/pull/4334), [#4210](https://github.com/BotHarness/DeepSeekBot/issues/4210)).
+
+- A message's Session links no longer stretch their connector curve across every expanded row: the curve stays beside the first row (the single link or the "N Sessions" toggle), new-Session rows below it carry no line, and the toggle's arrow points down while expanded ([#4589](https://github.com/BotHarness/DeepSeekBot/pull/4589)).
+
+- When reading storage usage fails, Storage settings on desktop and phone now show the error instead of the previous total, including after a cleanup ([#4522](https://github.com/BotHarness/DeepSeekBot/issues/4522)).
+
+- Signing in to a Team Host with a username from the desktop or Web Client now works for HTTPS and Tailscale addresses. The Client asks its own Host to send the sign-in and the first password change, because the Team Host refuses requests that carry a browser Origin. Team settings now also say that a public Bot's memory and Skills are shared by every member ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- When a Team member's password is reset, they are signed out, or their account is deactivated, the phone no longer shows the Host as offline and retries forever. It now says "Sign in again" or "Account deactivated", and "Sign in again" opens the sign-in for the same account with no new invitation. The password field now says "Password", with a hint for the one-time password on first sign-in ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- On the phone, a Team member who can create nothing no longer sees a "+" button that opens no menu, and "Sign out" on a Team Host now says a new invitation from the Host owner is needed to come back ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+### Changed
+
+- Name the account-free Quick Tunnel option directly in phone setup, keep other deployments expandable, and explain temporary-address recovery beside the connected route ([#4072](https://github.com/BotHarness/DeepSeekBot/issues/4072)).
+
+- Add remote now opens Connections with local QR-image import and name/icon customization after pairing. Keep the connection form mounted when the first remote Host tab appears. Connection preparation reports bounded retry progress and rechecks newly issued Quick Tunnel names against configured DNS after a system lookup miss ([#4074](https://github.com/BotHarness/DeepSeekBot/issues/4074), [#4079](https://github.com/BotHarness/DeepSeekBot/issues/4079)).
+
+- Simplify phone installation guidance with a full-width primary action, align advanced methods, and keep Back/Add actions in a fixed footer. Group existing connection cards separately from connection switches ([#4076](https://github.com/BotHarness/DeepSeekBot/issues/4076)).
+
+- Connect another computer from the shared Connections dialog: choose the computer icon, paste its pairing link, verify its identity and approve the requesting device there. Back returns to the connection choices; completion waits for the remote content to load ([#4074](https://github.com/BotHarness/DeepSeekBot/issues/4074)).
+
+- Phone setup now starts with Quick Tunnel and Tobs Connect, with LAN and Tailscale under Advanced methods. Explicitly sign in and connect this computer, manage linked computers when the account limit is reached, or switch to Quick Tunnel without signing out ([#4075](https://github.com/BotHarness/DeepSeekBot/issues/4075)).
+
+- Find fixed Cloudflare Tunnel, HTTPS ingress and Docker setup under Advanced methods in Connections, with deployment guides, actionable connection failures and clear replacement limits. Tailscale setup explains mobile VPN conflicts ([#4078](https://github.com/BotHarness/DeepSeekBot/issues/4078)).
+
+- Keep a Quick Tunnel alongside one private HTTPS or Named Tunnel connection, with independent stop, resume and explicit replacement. Updated phones retain both admitted addresses under the same Host identity. Existing Profiles require a protected backup before the credentials migration; rollback requires restoring that backup ([#4079](https://github.com/BotHarness/DeepSeekBot/issues/4079)).
+
+- Keep the pairing screen stable while it closes after a successful address update, avoiding a late iOS form-sheet layout error ([#4079](https://github.com/BotHarness/DeepSeekBot/issues/4079)).
+
+- Android message actions now group multiple downloads into one counted entry and a scrollable attachment sheet with filenames, types and sizes; direct file taps still share the selected original ([#4102](https://github.com/BotHarness/DeepSeekBot/issues/4102)).
+
+- Team mode now gives new members only the ability to message people. Admins grant everything else per role, and creating Bots is split into private and public. Only the Owner has Tob. The New menu shows only what a member may do, and a member with no channels is pointed to channels to browse ([#4187](https://github.com/BotHarness/DeepSeekBot/issues/4187)).
+
+- Channel invitations now grant access regardless of visibility; named invitations survive role revocation, while role-based joins end with their access. The CLI can search people available to add ([#4188](https://github.com/BotHarness/DeepSeekBot/issues/4188)).
+
+- Settings now separates preferences kept on this device from the current Host's options in the sidebar, shows where each page saves beside its title, and, when remote Hosts are paired, offers a top-right environment switcher that opens that Host's Models, auto-approval, prompts, voice, appearance, notifications, usage, storage and connections in the same dialog instead of a second modal; Settings from the environment panel or a Host tab opens the same dialog with that Host chosen ([#4198](https://github.com/BotHarness/DeepSeekBot/issues/4198)).
+
+- Desktop and mobile now share Host protocol and session modules. The desktop adapter recognizes Team invitations and exposes fingerprint confirmation, member sign-in and the first-password-change gate for the sign-in UI ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- Added optional global approval defaults managed in the Web Client, with Bot inheritance, specific selection or Off and inherited-source display in the Web Client and mobile app; each Review captures its template version and either allows this call or asks the Human, preserving deterministic authorization and management fences; Human decisions keep the full approval card and visibly selected result, with Reviewer handoffs recorded before the Human request ([#4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)).
+
+- Centralized CLI effect declarations for direct commands and Tob's broker, with dispatch coverage checks and an authenticated model-free Tob CLI request path through the real Human DM and approval owner; the typed request shows only the broker’s exact-operation approval card without revealing stdin, while caller authorization remains separate ([#4212](https://github.com/BotHarness/DeepSeekBot/issues/4212)).
+
+- In Team mode, people join every public Channel and every role Channel they can see automatically, when their account is created and whenever access is granted, and leave it at once when access ends, which also closes the Channel if it is open. The Browse channels dialog and the `channels browse`, `channels join`, `channels browse-public` and `channels join-public` CLI commands are removed ([#4222](https://github.com/BotHarness/DeepSeekBot/issues/4222)).
+
+- In Team mode, a direct message between two people appears in their Channel lists only once the first message is sent, by either side. Choosing someone in Message a person no longer adds an empty conversation to either list ([#4222](https://github.com/BotHarness/DeepSeekBot/issues/4222)).
+
+- Named database migrations keep parallel development branches from competing for generation numbers and refuse incompatible applied histories ([#4225](https://github.com/BotHarness/BotHarness/issues/4225)).
+
+- Added explicit blank or selected-source template creation, independent copies, three-part Reviewer guidance, and separate save/apply choices; shared-original edits disclose the Bots using them, and Always ask/Always allow use the same grouped card list as external identities and connectors. A partial save refreshes the canonical list before reopening; failed reads offer a read-only retry without repeating saves or applications ([#4244](https://github.com/BotHarness/DeepSeekBot/issues/4244)).
+
+- Bot permissions now show saved Always allow rules from approval cards, with their role, scope and revoke action, separately from template Reviewer guidance ([#4245](https://github.com/BotHarness/DeepSeekBot/issues/4245)).
+
+- Approval Template deletion now previews affected Bots and the resulting global choice, requires explicit confirmation, and moves specific users to global inheritance; deleting the global default clears it while preserving saved authorizations and private Bot identities ([#4246](https://github.com/BotHarness/DeepSeekBot/issues/4246)).
+
+- Oversized or unreadable custom files remain removable through a fresh explicit deletion preview; unreadable-content recovery uses bounded filesystem identity and leaves Reviewer read limits unchanged ([#4246](https://github.com/BotHarness/DeepSeekBot/issues/4246)).
+
+- Tobs design tokens now follow the W3C Design Tokens 2025.10 format, with a resolver over colour mode, style and accent. Tertiary text now reads at 4.5:1 on every surface, selected rows use a clearer fill, every accent preset gets its own tuned colours for buttons, links and focus rings, and icon strokes are a steady 1.5px on screen ([#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282)).
+
+- The Bot settings sidebar is the first surface drawn from Tobs's own design tokens: quieter colours, one icon size and stroke, and labels and group headings on a single column. It follows the Appearance light/dark preference only ([#4283](https://github.com/BotHarness/DeepSeekBot/issues/4283)).
+
+- Bot mode follows its own light or dark appearance. Color presets change the accent and keep saved panel colors, opacity and blur ([#4284](https://github.com/BotHarness/DeepSeekBot/issues/4284)).
+
+- All of Bot mode now takes its text, line, surface, hover, accent and status colours from Tobs's own design tokens instead of DeepSeek Harness's, so the whole workspace matches the quieter settings sidebar. Pages that DeepSeek Harness hosts keep following its theme ([#4284](https://github.com/BotHarness/DeepSeekBot/issues/4284)).
+
+- Bot mode now uses Tobs's own font families, popover shadows, radii and focus rings instead of DeepSeek Harness's. Keyboard focus on the composer's attachment, upload and mic buttons is visible again, and the code font no longer changes with DeepSeek Harness's font setting ([#4284](https://github.com/BotHarness/DeepSeekBot/issues/4284)).
+
+- Bot settings now open in Tobs's own dialog, built on Base UI and styled with Tobs tokens. It still stacks with DeepSeek Harness menus and dialogs: Escape and Tab go to whichever is on top ([#4285](https://github.com/BotHarness/DeepSeekBot/issues/4285)).
+
+- Menus preserve the focus chosen by their actions, return keyboard focus on dismissal, and release pending focus and pointer-leave work. Tooltips keep their anchors mounted and expose their text to assistive technology ([#4285](https://github.com/BotHarness/DeepSeekBot/issues/4285)).
+
+- Unified Bot-mode tags, checkboxes, segmented tabs and pills on Tobs controls, with Lucide icons across Bot, Browser and Computer surfaces ([#4286](https://github.com/BotHarness/DeepSeekBot/issues/4286)).
+
+- Wallpaper, Bot icon and panel color controls use the same appearance and focus styles as the rest of Bot settings ([#4287](https://github.com/BotHarness/DeepSeekBot/issues/4287)).
+
+- Profile, motion, notification and pinned settings use grouped rows and shared controls at narrow and wide window sizes ([#4287](https://github.com/BotHarness/DeepSeekBot/issues/4287)).
+
+- Host settings use shared Tobs controls for model choices, prompt presets, voice, IM apps, Computer and browser, Connections, Team, storage and updates ([#4287](https://github.com/BotHarness/DeepSeekBot/issues/4287)).
+
+- Bot settings open as a full-screen list on narrow windows. Select a page to edit settings, then use Back to return to the list ([#4287](https://github.com/BotHarness/DeepSeekBot/issues/4287)).
+
+- Bot profiles use shared Tobs cards, buttons and fields. Banner and avatar actions stay visible, and the profile layout wraps in narrow windows ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- Approval and question cards use shared Tobs controls, with recessed previews and a checkmark for selected answers. The sidebar opens immediately from the keyboard shortcut and still fades in when opened by pointer ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- Bot mode opens the sidebar as a drawer on narrow windows and docks it beside the conversation on medium windows. Dialogs open as bottom sheets on narrow windows ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- Pinned Channels, the collapsed Channel rail, section controls and Channel dialogs use shared Tobs styling. Section toggles and their menu buttons each have their own keyboard focus ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- Conversation rows and Bot-mode navigation use shared Tobs styles. Conversation rows keep unread counts next to the message preview and align Bot, Group, and person avatars on the same grid ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- Message bubbles, the hover action bar, and the composer use shared Tobs styles. Composer actions use shared icon buttons, and reply previews sit on a recessed surface ([#4288](https://github.com/BotHarness/DeepSeekBot/issues/4288)).
+
+- Mobile chat bubbles, cards and status colours follow the Tobs palette in light and dark mode ([#4289](https://github.com/BotHarness/DeepSeekBot/issues/4289)).
+
+- The docs site uses the Tobs palette for brand accents, status badges and callouts in light and dark mode ([#4290](https://github.com/BotHarness/DeepSeekBot/issues/4290)).
+
+- Slide decks and the promo video kit take brand, accent and status colours from the Tobs core palette, the same source as the app, the docs site and the product site ([#4290](https://github.com/BotHarness/DeepSeekBot/issues/4290)).
+
+- Navigation items, settings sections and rows, controls, dialogs and chat bubbles now read Tobs style tokens, so every panel can switch look together. Settings rows sit in one light grouped card per section with thin inset dividers, the selected navigation item gets a light grey fill and medium weight, settings search is a borderless field, and switches and primary buttons use the accent colour ([#4325](https://github.com/BotHarness/DeepSeekBot/issues/4325)).
+
+- The rounded composer and the jump-to-latest button use raised backgrounds with light shadows. Attach, voice, and send use round buttons, and text takes the full width when it wraps. The timeline fades above the floating composer. The jump button uses the accent color and shows the unread count up to 99+ ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327), [#4431](https://github.com/BotHarness/DeepSeekBot/issues/4431)).
+
+- The model, workspace and context usage controls under the message box now sit in one chip in the conversation header, right after the channel name, so the bottom of the message box is clear ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- The chip shows the model family's logo (DeepSeek, GPT, Claude, Gemini, Qwen, Kimi, GLM and more, whichever provider serves it) with a short model name, the number of workspaces, and a ring showing how full the context window is ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- Chat bubbles no longer show the time inside them; hover a message to see its time at the start of the action bar ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- Two new Chat settings show the Bot's avatar in direct messages and your own avatar beside your messages; both are off by default ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- A Bot's "reading" chip now waits 300ms before it appears, so a quick read no longer flashes, and once shown it stays for 800ms after reading ends ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- The theme, style and palette pickers in Appearance settings follow the selected style: corners stay concentric, Apple marks the choice with an accent ring, and Material uses a tonal fill. The settings search field keeps its full height, and in the Material style the switch shows a small grey knob when off ([#4327](https://github.com/BotHarness/DeepSeekBot/issues/4327)).
+
+- Desktop Settings reorganizes plugin updates under About, general language and motion under General, messaging under Chat, IM defaults under IM apps, Host name and icon under Profile, and Computer and Browser under one page. Connections keeps the sidebar visible during setup, Models and running groups its controls by purpose, and session-list switches move to Advanced → Developer. Existing Plugins, Computer, and Browser links continue to open the matching pages ([#4344](https://github.com/BotHarness/DeepSeekBot/issues/4344)).
+
+- Settings uses grouped rows across styles, including Connections and its paired devices. Appearance places palette presets inside the primary-color row and shows selected wallpapers and Bot icons with a checkmark. It provides labeled sliders for opacity, blur, and workspace spacing, plus action rows for appearance recovery and layout reset ([#4344](https://github.com/BotHarness/DeepSeekBot/issues/4344), [#4442](https://github.com/BotHarness/DeepSeekBot/issues/4442)).
+
+- Settings pick motion with a segmented control and save the Host name with Enter, with no separate Save button. The Prompts and Approval templates groups now sit like every other titled group ([#4344](https://github.com/BotHarness/DeepSeekBot/issues/4344)).
+
+- Buttons, switches, segmented controls, text fields, selects and number steppers are now Tobs's own controls. They follow the surface they sit on: inside a settings card, fields turn white with a fine edge, and on the page they use the soft well fill. Switches are smaller and use the accent colour, and settings rows can show an info icon for longer explanations ([#4344](https://github.com/BotHarness/DeepSeekBot/issues/4344)).
+
+- A custom primary colour now keeps text on primary buttons readable, switching between light and dark text as needed ([#4360](https://github.com/BotHarness/DeepSeekBot/pull/4360)).
+
+- Sending a message with a Workspace's Project Skill now reads only that Skill's file instead of rescanning every Skill folder, and listing a PersonaBot's Project Skills no longer scans the same folder twice. With 2000 Skills, resolve on send drops from about 540ms to under 1ms and a full workspace scan from about 550ms to 340ms ([#4355](https://github.com/BotHarness/DeepSeekBot/issues/4355)).
+
+- When the model, workspace and usage chips sit in the conversation header, their settings panel is now called Header bar settings and opens with `/header`; right-clicking anywhere on the header chip opens it on macOS too ([#4399](https://github.com/BotHarness/DeepSeekBot/pull/4399)).
+
+- Choosing a model now works the same everywhere: the conversation header chip, the default model and approval reviewer model in settings, presets and remote Hosts show the model's logo and short name and open one menu with a model-family rail (DeepSeek, GPT, Claude, Gemini and more), search that takes focus for arrow-key choice, each model's logo and full name, and a reasoning-effort column beside the list. On mobile, the model chooser gets family filter chips and the same logos ([#4399](https://github.com/BotHarness/DeepSeekBot/pull/4399)).
+
+- A Bot's Orchestrator now acts as a coordinator: it still answers quick questions, updates its Memory and replies itself, but hands web search, research, coding, file work and multi-step analysis to Assignments, splits independent parts into parallel Assignments, and ends its turn instead of waiting so it can take the next message. Each Orchestrator turn now lists its active Workspace Grants and running Assignments, and `create_assignment` uses the only active Grant when none is named, so dispatch takes fewer steps. Answers to real work arrive later than before and use more tokens; you can tune this behavior in the coordination Prompt Part ([#4403](https://github.com/BotHarness/DeepSeekBot/pull/4403)).
+
+- Completed Assignment reports are now batched like ordinary messages while another Assignment is still running: the Bot wakes after 10 reports or 30 seconds, whichever comes first, instead of once per report. With no other Assignment running it wakes at once; blocked, failed and question reports always wake at once ([#4404](https://github.com/BotHarness/DeepSeekBot/pull/4404)).
+
+- When an Assignment ends its turn without reporting, its final reply now goes to the Bot Inbox as its result and follows the normal Assignment wake policy, instead of the Assignment being marked failed ([#4404](https://github.com/BotHarness/DeepSeekBot/pull/4404)).
+
+- Resolving a request in the Bot Inbox also resolves the results it has already read from that request's finished Assignments and their Host completion notices, so no extra triage turn follows ([#4404](https://github.com/BotHarness/DeepSeekBot/pull/4404)).
+
+- The Open Inbox summary shown to the Bot each turn now adds a short status for open requests that have Assignments: each Assignment's title and whether it is still working, so the Bot does not close a request that is still being worked on ([#4404](https://github.com/BotHarness/DeepSeekBot/pull/4404)).
+
+- The context breakdown in the composer now counts Group digests, Group mentions, DM and external items and the harvest summary as Inbox content instead of Human messages, and shows unresolved Inbox reminders as their own row. With telemetry on, the Host also reports each Bot turn's token usage and context breakdown, without any message text. External messages in the Bot Inbox now state the reply rules once and drop fields the line already shows, so a wake with external messages costs about a fifth less ([#4404](https://github.com/BotHarness/DeepSeekBot/pull/4404)).
+
+- Ordinary Group and external IM messages now wake a Bot after 10 messages or 30 seconds by default, instead of 5 messages or 30 seconds. One wake costs about the same whatever it carries, so this cuts the cost per message by about 40%. Mentions and DMs still wake at once, WeChat routes stay immediate, and saved per-Channel or per-route settings are unchanged ([#4404](https://github.com/BotHarness/DeepSeekBot/pull/4404)).
+
+- Scrollbars across the plugin, including the settings dialog, channel list, timeline, dialogs and menus, stay hidden while idle and appear only while their own surface scrolls. Native DSH views are unchanged ([#4466](https://github.com/BotHarness/DeepSeekBot/issues/4466)).
+
+- In the light theme, the message composer uses the raised layer fill, so it stands apart from the white message panel the way it does in the dark theme ([#4483](https://github.com/BotHarness/DeepSeekBot/issues/4483)).
+
+- A newly allowed Assignment model now allows every reasoning effort it supports, keeping its usual effort as the default, on the phone and in the desktop Preset editor. Untick efforts to narrow the range ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- The global default model can now be a Routing Group with one reasoning effort, picked like a model's on desktop and on the phone, or with `deepseekbot home-model-set --group <id> --orchestrator-effort <effort>`. Bots and Assignments that follow the default run its reasoning members at that effort, and members without reasoning run without one ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- On the phone, a Bot's or Preset's model settings now list each allowed Assignment model and Routing Group under "Assignment reasoning levels". Open one to choose which reasoning levels the Orchestrator may use for it and which level is the default, as the desktop Advanced cards do ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- On the phone, the model and its reasoning effort are now one choice. Rows read like "V4.1 Flash · Max", and the model picker ends with an effort control for the chosen model. A new model keeps the same effort when it supports it. When a Routing Group is chosen, an effort row explains that each group member sets its own effort and lists them ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- On the phone, model settings and Preset rows show the model's brand icon and short name, such as "V4.1 Flash", instead of the full name and provider, so they no longer wrap ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- A Routing Group now takes one reasoning effort, chosen like a model's. Its choices are the efforts shared by members that support reasoning; members without reasoning don't narrow them and run without an effort. Bot plans and Presets store the Orchestrator group's effort, and `--orchestrator-effort` sets it together with `--orchestrator-group` in `deepseekbot model-plan-customize`, `model-preset-create` and `model-preset-update`. A member's own effort, set through the CLI, still wins ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- After a Model Fallback, a Session stays on the model it moved to until that model fails too, instead of going back to the first model of the Routing Group when its rest ends. Each switch discards the prompt cache, so this avoids paying for the whole context again. The choice survives a restart, and a new Session starts on the group's first usable model ([#4497](https://github.com/BotHarness/DeepSeekBot/issues/4497)).
+
+- Chinese model settings, Presets and pickers on desktop and the phone now call the Orchestrator model 主模型 and the Assignment model 副模型 ([#4504](https://github.com/BotHarness/DeepSeekBot/issues/4504)).
+
+- The Devices page, relationship settings, relationship sync and the Bot intro's phone check now refresh when the Host announces a device or relationship change on the live stream, instead of re-reading every 2–3 seconds; they fall back to the old interval only while the live stream is down, and network routes are re-checked every 15 seconds. `deepseekbot devices-watch` observes the same device events ([#4541](https://github.com/BotHarness/DeepSeekBot/issues/4541)).
+
+- The Web Client refreshes Computer, Browser, pending post requests and onboarding on Host resource changes. The same approach covers account sign-in and environments, approval and question cards, private input, device requests, and DM context ([#4542](https://github.com/BotHarness/DeepSeekBot/issues/4542), [#4609](https://github.com/BotHarness/DeepSeekBot/issues/4609), [#4639](https://github.com/BotHarness/DeepSeekBot/pull/4639)).
+
+- On the phone, an open private input form updates when the Host announces that private input requests changed, and when the app returns to the foreground, instead of re-reading every 2.5 seconds; a 15-second safety read remains while the request is pending. Bot creation recovery no longer re-checks every 10 seconds; it retries on a timer only while a submitted creation is unfinished ([#4543](https://github.com/BotHarness/DeepSeekBot/issues/4543)).
+
+- Overview usage, memory, channel activity and Bot schedules run their 30 s refresh only while the window is visible, and refresh once when it becomes visible again. The Bot dock inbox follows Host attention events instead of its own timer ([#4544](https://github.com/BotHarness/DeepSeekBot/issues/4544)).
+
+- Choose a Model Choice (a model or Routing Group) for an Orchestrator or Assignment Session in its desktop composer. A choice made during a Turn applies from the next Turn. Session timelines mark model changes and explain quota fallbacks. ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
+
+- In Team mode, members can read Session transcripts and set granted Session Model Choices for Bots they own when those Bots have no private DMs with other Humans. ([#4781](https://github.com/BotHarness/DeepSeekBot/pull/4781))
+
+- Choose Codex and Claude Code subscription models and reasoning effort directly in the Routing Group member picker on desktop and mobile. Subscription model rows show the provider logo with an external-engine badge in the editor and member picker. The phone editor gives member names more room and moves reorder and remove buttons below the text at large text sizes ([#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)).
+
+- When a Subscription Engine such as Codex runs a Bot's Orchestrator, the DM header now shows that engine and its subscription account instead of the unused DSH model, and Bot summaries carry it as `orchestratorRunner`. Engine Sessions get a readable title from the Human's message instead of the raw envelope, and Session detail shows each incoming message's text with a small source label (Direct message, Group message, Bot message, Inbox) instead of its Source Event, Channel and Message IDs ([#4597](https://github.com/BotHarness/DeepSeekBot/issues/4597), [#4598](https://github.com/BotHarness/DeepSeekBot/issues/4598)).
+
+- Connect an API key or sign in to a subscription during onboarding, then pick a model in the same step. You can open Model providers and return to your unsaved model choice. ([#4657](https://github.com/BotHarness/DeepSeekBot/issues/4657))
+
+- Install Tobs for Android from Google Play using the Mobile app or phone pairing guide. Discord and the QQ group remain available for Android beta questions ([#4737](https://github.com/BotHarness/DeepSeekBot/issues/4737)).
+
+- Browse all built-in Tilties in one gallery on Web and mobile, with a consistent avatar preview and larger, aligned avatars in the Web Channel list ([#4784](https://github.com/BotHarness/DeepSeekBot/issues/4784)).
+
+- `profile-backup-preview` no longer prints its export confirmation. Pass `--out <new file>` to save the reviewed preview privately, then export with `profile-backup-export --confirmation-file <that file> --out <backup>`; piping the saved file with `--confirmation-stdin` still works. When Tob backs up the environment for you, the confirmation stays out of its replies, approval cards and Session log ([#4835](https://github.com/BotHarness/DeepSeekBot/issues/4835)).
+
+- When you ask Tob for a new Bot, it now offers a custom Bot with a Soul and Core Memory draft next to live Marketplace candidates in the same reply, and tells you when the Marketplace could not be searched instead of reporting no matches. `deepseekbot marketplace-list` adds `search` (`matches` or `no-matches`) to each page ([#4836](https://github.com/BotHarness/DeepSeekBot/issues/4836)).
+
+- New Bots follow the pinned **Default** Model Preset. Existing Host default choices move into it once. A separate task model is optional ([#4860](https://github.com/BotHarness/DeepSeekBot/issues/4860)).
+
+- Bot Settings → Model Presets is now **Model configuration**. It holds every model choice: the pinned Default preset in its own section, your other presets, and Routing Groups. Models & execution is now **Bot runtime** and keeps only the default Bot mode, mode templates, context compaction and run limits. ([#4860](https://github.com/BotHarness/DeepSeekBot/issues/4860))
+
+- The iOS and Android Pair screen now has two ways in: scan or enter, and Tobs account sign-in. One field accepts a pairing link, an invitation link or a Host address. For an address, you choose between signing in with a username and password, where the Host decides whether you are its Owner or a member, and approving on the computer with a pairing code and fingerprints ([#4962](https://github.com/BotHarness/DeepSeekBot/issues/4962)).
+
+- Desktop Bot creation no longer shows a Shuffle button beside the Pixel/Tilties switch. Shuffle lives in the avatar Customize editor, and Tilties portraits are picked from the gallery there ([#5054](https://github.com/BotHarness/DeepSeekBot/issues/5054)).
+
+- On the phone, the tab bar shows icons only in the screen's background colour, with the selected tab's icon filled; pressing a tab briefly shows its name, and tabs cross-fade when switching. Chats has a Tob entry bar above the tab bar that opens Tob Mode ready to type, and pulling down on Chats now only refreshes ([#5106](https://github.com/BotHarness/DeepSeekBot/issues/5106)).
+
+- On the phone, use **+** beside Search in the Chats header to create a Bot or Group. Moving the button gives the Tob entry bar its full width. Host Owners can start a new Session from the Sessions header, and the list starts at the same position in English and Chinese ([#5107](https://github.com/BotHarness/DeepSeekBot/issues/5107), [#4974](https://github.com/BotHarness/DeepSeekBot/issues/4974)).
+
+- On the phone, the tab bar stays visible inside chats and Sessions, with the message box just above it; when the keyboard opens only the message box rises above the keyboard. Switching tabs from inside a chat and coming back returns to the same chat and place, and chats opened from Activity, notifications or a profile now open in Chats ([#5108](https://github.com/BotHarness/DeepSeekBot/issues/5108)).
+
+- On the phone, a new Session shows the first line of your message as a muted title the moment you send it, then morphs into the generated title when it arrives (an instant swap with Reduce Motion) ([#5175](https://github.com/BotHarness/DeepSeekBot/issues/5175)).
+
+- On the phone, a Session's header shows a second line under its title: the computer's icon, then the worktree folder name. The title menu names the full computer and folder path, so you can tell where a Session runs without leaving it ([#5187](https://github.com/BotHarness/DeepSeekBot/issues/5187)).
+
+- On the phone, Settings → Tab bar lets you drag the tabs into any order and choose which conversation the Pinned tab opens in each Environment ([#5196](https://github.com/BotHarness/DeepSeekBot/issues/5196)). Tob Mode and the Tob entry bar above the Chats list are gone; the Pinned tab opens Tob's DM by default ([#5198](https://github.com/BotHarness/DeepSeekBot/issues/5198)).
+
+- A Session's message box is now a single-line pill on the phone and the desktop, giving the conversation more room. The model shows as its logo beside Send; once the draft wraps, the model name and reasoning level come back next to the send button. Tap the logo, or "Model" in the Session title menu, to pick a model in a sheet. In a Bot Session a pick applies from the next turn; in a native DSH Session it applies to the next request, which can be within the turn that is running ([#5214](https://github.com/BotHarness/DeepSeekBot/issues/5214)).
+
+- The phone Sessions list now opens instantly after the first time: it shows the last list right away and refreshes it in the background, and it updates when Sessions change on the Host. Long lists load 50 Sessions at a time as you scroll, and a Session you opened before shows its last transcript while it reloads. `deepseekbot session-list` gains `--limit` and `--cursor` for paging ([#5256](https://github.com/BotHarness/DeepSeekBot/issues/5256)).
+
+- IM sender permissions, permission groups, behavior permissions and group and thread reception now form one module, and each platform declares who its people are. Lark and Slack behave as before; this prepares approvals and questions on more platforms ([#5290](https://github.com/BotHarness/DeepSeekBot/issues/5290)).
+
+- The bundled IM provider now includes Discord DM pairing, approvals and questions, Lark question and approval cards in group chats, and Lark approval cards that show only the decisions the viewer may make ([#5305](https://github.com/BotHarness/DeepSeekBot/issues/5305)).
+
+- With "Require pairing" on, an unpaired member who @mentions the Bot in a Slack channel or Discord server channel now gets a pairing request instead of waking the Bot, the same as in Lark groups. Approved channel members appear in People, and their Roles, permission groups and person exceptions apply as on Lark ([#5322](https://github.com/BotHarness/DeepSeekBot/issues/5322)).
+
+- A remote MCP App connection such as PostHog now shows whether its sign-in is Read or Read and write. You choose what to allow on the service's own consent page, and the Host records what the service actually granted; the service enforces it for every Bot that can use the account, and each such Bot gets all of the account's tools. To change it, sign in again in Settings › App connections or with `connector-reconnect`. An account connected before this change refuses Bots that have Read until you reconnect it once ([#5333](https://github.com/BotHarness/DeepSeekBot/issues/5333)).
+
+- You can now finish an App connection sign-in such as PostHog on your phone or any other device. When the Host has a public https address (Tobs Connect, a Tailscale HTTPS address, or your own https address), the sign-in returns to that address. Without a public address, sign-in returns to This Host over loopback. Sign-in links now stay valid for 60 minutes instead of 15 ([#5333](https://github.com/BotHarness/DeepSeekBot/issues/5333)).
+
+- The phone keeps the Sessions list on the device and fetches only changes since its last sync. Sort by last Human turn, creation, or last activity, and see title matches immediately while the Host searches earlier messages. Renamed Bots update in place and Bots made private disappear from member lists. `deepseekbot session-list-changes` reads the same cursor ([#5356](https://github.com/BotHarness/DeepSeekBot/issues/5356)).
+
+- You can call several Bots at once: each Bot takes one call, and a Host runs up to three. Calling a Bot that is already on a call says so, and a fourth call asks you to end one first ([#5368](https://github.com/BotHarness/DeepSeekBot/issues/5368), [Voice and call decisions §4](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/calls.md#adr-0281)).
+
+- The self-hosted private relay now runs as a single Go binary or Docker container with automatic HTTPS for a DNS name or public IP, and preserves existing Host claims and phone pairings on upgrade ([#5376](https://github.com/BotHarness/BotHarness/issues/5376)).
+
+- "Manage the App" on a member's Bot now says what it can do there: create Bots and share Bot drafts, not change settings, models or diagnostics. The member grant check now comes from the shared permission engine, so a role that denies "Turn on management for own Bots" also stops the grants ([#5485](https://github.com/BotHarness/DeepSeekBot/issues/5485)).
+
+- Your nickname in a group is now shown as your name on all your messages in that group, including older ones and quoted replies, on the computer and the phone. Clear the nickname and they show your chat name again. On the phone, the group's member list now shows the people in the group with their nickname and photo, above the Bots, and the member count includes them. Messages from people in a group show their photo too ([#4446](https://github.com/BotHarness/DeepSeekBot/issues/4446)).
+
+- New Group on desktop, iOS and Android lists Bots and People in two sections, so people join the group when it is created. ([#5033](https://github.com/BotHarness/DeepSeekBot/issues/5033))
+
+- Use `link_message_sessions` to attach one or more Assignments to an already sent DM, including work that starts later. If the Bot sends exactly one DM in the turn and leaves its new Assignments unlinked, the Host attaches them at turn end. The timeline distinguishes new Assignments from work sent to an existing Session. Use `[title](session:<id>)` for an inline link or a plain title on external IM. The `session_ids` parameter has moved out of `bot_send_message` ([#4548](https://github.com/BotHarness/DeepSeekBot/pull/4548), [#4388](https://github.com/BotHarness/DeepSeekBot/pull/4388), [#4550](https://github.com/BotHarness/DeepSeekBot/issues/4550)).
+
+- On mobile, open a message's actions to see its time and, for older messages, its date. Delivery and reading indicators stay visible in the conversation ([#4680](https://github.com/BotHarness/DeepSeekBot/issues/4680)).
+
+- Mobile Question cards use grouped rows with letter badges. An unselected badge has a dashed outline, and a selected badge fills with the accent colour. Single-choice answers send on tap. Action cards use solid, borderless capsule buttons ([#4679](https://github.com/BotHarness/DeepSeekBot/issues/4679)).
+
+- On the phone, a Host or phone fingerprint shows as four rows of four groups. Tap it to copy; it says "Fingerprint copied" on iOS and Android. After a member signs in to a Team Host, the phone opens that Host's chats instead of the workspace list ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- On the phone, IM apps and External contacts show each app's icon (Lark, Slack, Discord, WeChat, QQ) in a column on the left, so you can see at a glance which app a Bot or a person uses ([#5455](https://github.com/BotHarness/DeepSeekBot/issues/5455)).
+
+- On the phone, linked Sessions appear inside the Bot message. The Session transcript scrolls behind the header and composer like the Bot Conversation screen. The Session menu offers Stop, Model choice, and Archive or Unarchive for eligible Assignments ([#4931](https://github.com/BotHarness/DeepSeekBot/issues/4931)).
+
+- Prompt presets: the phone shows **Global** at the end of the global preset's row instead of inside its gray detail line, and a preset with no changes says **No edits** on both phone and desktop. The desktop Prompts settings page reads the presets again when you return to the window, so a global preset chosen on the phone shows up without reopening Settings ([#4508](https://github.com/BotHarness/DeepSeekBot/pull/4508)).
+
+- **Host and AX.** Type-aware lint reports new floating promises and other baselined rule violations in the Claude Code edit hook, in the staged-code pre-commit check, and in CI. Fixes can only lower the baseline ([#4296](https://github.com/BotHarness/DeepSeekBot/issues/4296), [#4299](https://github.com/BotHarness/DeepSeekBot/pull/4299)).
+
+- Local `pnpm lint` and CI check CLI counterparts for Host endpoints and Bot tools, migration names and ledger order, ToolEffects declarations, and shared desktop and mobile Host readers. The fast-poll check flags new short Host polling loops in client code. Shipped resource subscriptions already refresh devices and relationships, Web panels and prompts, and mobile private input, with reconnect or safety reads where needed ([#4402](https://github.com/BotHarness/DeepSeekBot/pull/4402), [#4624](https://github.com/BotHarness/DeepSeekBot/pull/4624), [#4639](https://github.com/BotHarness/DeepSeekBot/pull/4639), [#4541](https://github.com/BotHarness/DeepSeekBot/issues/4541), [#4543](https://github.com/BotHarness/DeepSeekBot/issues/4543), [#4609](https://github.com/BotHarness/DeepSeekBot/issues/4609)).
+
+- Pull request CI selects tests by changed paths and dependencies. UI PR checks require design review and light and dark evidence. The gallery job runs on affected UI changes and full runs to catch alignment, keyboard access, accessibility, zoom, and pixel-baseline regressions ([#4547](https://github.com/BotHarness/DeepSeekBot/pull/4547), [#4557](https://github.com/BotHarness/DeepSeekBot/pull/4557), [#4569](https://github.com/BotHarness/DeepSeekBot/pull/4569)).
+
+- The feature maps and verification inventory link runnable Host journeys to observable evidence. Lint audits their references. The CI static job uses TLA+ to check bounded models for repeat Outbox sends, Inbox replay after a side effect and missed Admissions, and live delivery of uncommitted, duplicate, or skipped messages ([#1967](https://github.com/BotHarness/DeepSeekBot/issues/1967), [#1971](https://github.com/BotHarness/DeepSeekBot/issues/1971), [#4590](https://github.com/BotHarness/DeepSeekBot/pull/4590), [#4599](https://github.com/BotHarness/DeepSeekBot/pull/4599), [#4601](https://github.com/BotHarness/DeepSeekBot/pull/4601)).
+
+### Security
+
+- Restricted voice service endpoint URLs to the Host Owner in Team mode ([#4197](https://github.com/BotHarness/DeepSeekBot/issues/4197)).
+
+- Remote Host credentials, device keys and private relay tokens move from browser storage into the local Host's credentials service; the browser keeps only opaque handles that work through Owner-only Host routes, existing pairings move once on start (a pairing the Host cannot take yet stays in the browser and is retried on the next start), and Member or Admin pages can neither read nor use them ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- When you remove a Remote Host and the local Host cannot drop its stored credential right away, the browser remembers the handle and asks the Host to drop it again on the next start, so no orphaned credential is left behind ([#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201)).
+
+- Claude Code and Codex now honor Workspace Grant write access, refresh it when a new turn starts, and show what Full access permits ([#4655](https://github.com/BotHarness/DeepSeekBot/issues/4655)).
+
+- The Bot CLI creates credential files with owner-only permissions from the first write ([#4891](https://github.com/BotHarness/DeepSeekBot/issues/4891)).
+
+- Team mode rechecks a Member's eligibility before purging their data. It also closes sessions from failed sign-ins and finishes committed Bot Memory transfers after shutdown errors ([#4906](https://github.com/BotHarness/DeepSeekBot/issues/4906)).
 
 ### Documentation
+
+- Added a qualified Container-only verification recipe and evidence row for start, actual desktop picture in the Computer panel and CLI frame, and stop, with task resource ownership, preserved first failures and evidence expiry ([#1977](https://github.com/BotHarness/DeepSeekBot/issues/1977)).
+
+- Record the confirmed Environment Panel and reciprocal Host authorization target, separating Client filtering/settings targets from durable Host relationships and existing implementation status ([#4069](https://github.com/BotHarness/DeepSeekBot/issues/4069)).
+
+- Added bilingual private deployment guides and copyable agent prompts for Cloudflare Named Tunnel, HTTPS ingress and Docker relay, with clearer method selection, verification and recovery ([#4180](https://github.com/BotHarness/DeepSeekBot/issues/4180)).
+
+- Documented the Human-confirmed Bot approval design: one effective shared template, explicit inheritance and deletion fallback, and a Reviewer that either approves once or asks the Human; runtime permissions and storage are unchanged ([#4203](https://github.com/BotHarness/DeepSeekBot/issues/4203), [#4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)).
+
+- Architecture decisions are now grouped by topic in [`docs/decisions/`](https://github.com/BotHarness/DeepSeekBot/tree/main/docs/decisions/): IM providers, Messaging, Sessions, Memory, Secrets, Calls, Approvals, Tob, Onboarding, Browser, Computer, Connections, Persistence, Inbox & attention, Workspaces & files, Marketplace, GenUI, Release, CLI, telemetry & diagnostics, Mobile app, Team mode, Bot identity & lifecycle, Mobile app UI, and Desktop & Web UI. Each section states the current decision, why it was made and which test enforces it (a decision that has not shipped yet says so instead), and links to a replaced ADR resolve to its section anchor. The last numbered records are folded in, `docs/adr/` is gone, and `pnpm lint` refuses new files there ([#4296](https://github.com/BotHarness/DeepSeekBot/issues/4296)).
 
 - Added the onboarding tutorial to the settings guide’s quick reference and documented when to start, continue, or restart it ([#3768](https://github.com/BotHarness/DeepSeekBot/issues/3768)).
 
