@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseSource } from '../check-ui-rules.mjs';
-import { mobileSheetSurface } from '../ui-rule-mobile-sheet.mjs';
+import { mobileSheetChoice, mobileSheetSurface } from '../ui-rule-mobile-sheet.mjs';
 
 const file = 'apps/mobile/src/ui/chat/example-sheet.tsx';
 const check = (source, path = file) =>
@@ -167,6 +167,106 @@ describe('mobile sheet surface', () => {
           return <Sheet><DrawerHeader title="x" /></Sheet>;
         }`,
         'apps/mobile/src/ui/primitives/sheet-header.tsx',
+      ),
+    ).toEqual([]);
+  });
+});
+
+const choices = (source, path = file) =>
+  mobileSheetChoice(path, parseSource(source, path)).map(({ rule, text, line }) => [
+    rule,
+    text,
+    line,
+  ]);
+
+describe('mobile choice sheets', () => {
+  it('rejects a React Native sheet of selectable rows', () => {
+    expect(
+      choices(`
+        function Row({ item }) {
+          return <SettingsRow title={item.name} control={{ kind: 'check' }} />;
+        }
+        export function Picker({ items }) {
+          return (
+            <>
+              <Sheet visible label="x" onClose={close}>
+                {items.map((item) => <CheckmarkRow key={item} label={item} selected />)}
+              </Sheet>
+              <SheetFrame visible label="y" onClose={close}>
+                <FlatList data={items} renderItem={({ item }) => <Row item={item} />} />
+              </SheetFrame>
+              <Sheet visible label="z" onClose={close}>
+                <ModelPickerRow selected={false} />
+              </Sheet>
+            </>
+          );
+        }
+      `),
+    ).toEqual([
+      ['sheetChoice', 'Sheet with selectable rows', 8],
+      ['sheetChoice', 'SheetFrame with selectable rows', 11],
+      ['sheetChoice', 'Sheet with selectable rows', 14],
+    ]);
+  });
+
+  it('requires a real reason in an exemption', () => {
+    expect(
+      choices(`
+        export function Picker({ items }) {
+          return (
+            <>
+              {/* sheet-choice-exempt: todo */}
+              <Sheet visible label="x" onClose={close}>
+                <CheckmarkRow label="a" selected />
+              </Sheet>
+              {/* sheet-choice-exempt: search field over a long virtualized list */}
+              <Sheet visible label="y" onClose={close}>
+                <CheckmarkRow label="b" selected />
+              </Sheet>
+            </>
+          );
+        }
+      `),
+    ).toEqual([['sheetChoice', 'Sheet exemption without a reason', 6]]);
+  });
+
+  it('accepts system list sheets, native Lists, their fallbacks and sheets without choices', () => {
+    expect(
+      choices(`
+        export function Native({ items }) {
+          return (
+            <BottomSheet isPresented>
+              <List>{items.map((item) => <Text key={item}>{item}</Text>)}</List>
+              <RowContent selected />
+            </BottomSheet>
+          );
+        }
+        export function Form() {
+          return (
+            <Sheet visible label="x" onClose={close}>
+              <SettingsRow title="Folder" accessory="chevron" />
+              <TextField value="" />
+            </Sheet>
+          );
+        }
+      `),
+    ).toEqual([]);
+    expect(
+      choices(`
+        export function Topics({ items }) {
+          if (SystemListSheet !== undefined) return <SystemListSheet visible sections={[]} />;
+          return (
+            <Sheet visible label="x" onClose={close}>
+              {items.map((item) => <CheckmarkRow key={item} label={item} selected />)}
+            </Sheet>
+          );
+        }
+      `),
+    ).toEqual([]);
+    expect(
+      choices(
+        `export function Primitive() { return <Sheet visible><CheckmarkRow selected /></Sheet>; }`,
+        'apps/mobile/src/ui/primitives/sheet-page.tsx',
       ),
     ).toEqual([]);
   });

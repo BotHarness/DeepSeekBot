@@ -445,7 +445,23 @@ The Sessions tab is opt-in: Settings → Interface → **Show Sessions tab**, of
 
 ## Bottom sheets
 
-Sheets keep the system's look (#5257, Vain 2026-11-25): on iOS the system paints the sheet (Liquid Glass at partial heights on iOS 26+), and on Android `ModalBottomSheet` keeps its Material container. Every bottom sheet, drawer page and sheet-like modal follows these three rules, and `pnpm lint` enforces them (`sheetSurface` and `sheetHeader` in `scripts/check-ui-rules.mjs`, implemented in `scripts/ui-rule-mobile-sheet.mjs`).
+Sheets keep the system's look (#5257, Vain 2026-11-25). The app-wide standard (#5682, Vain 2026-11-28) is the **Composer model picker** (`chat/session-model-native.ios.tsx`, shared as `SystemListSheet` in `primitives/system-list-sheet`). Copy it for every new or changed sheet:
+
+|           | iOS                                                                                                                                                                                                                                                                                                                                                          | Android                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Container | SwiftUI `BottomSheet` (`@expo/ui`) at `medium`/`large` with the system grabber, or a UIKit page sheet for long lists. No fill: no `presentationBackground`, and a React Native `pageSheet`/`formSheet` `Modal` passes `backdropColor={systemSheetBackdrop()}` (`primitives/sheet-backdrop`), so Liquid Glass (iOS 26+) or the system sheet background shows. | Material 3 `ModalBottomSheet` with its default container and content colours: no `containerColor` or `contentColor`. |
+| Rows      | A native SwiftUI `List` (`insetGrouped`, `scrollContentBackground('hidden')`) with system rows and semantic colours (`PlatformColor('label')`, `secondaryLabel`, `tertiaryLabel`, `systemRed`).                                                                                                                                                              | Material `ListItem` rows on a transparent container, `titleLarge` title, `labelLarge` section headings in `primary`. |
+| Header    | `NavigationStack` with an inline title and the native close button in the toolbar (`Button role="close"` on iOS 26+, an `xmark` button before; never `.inspector`, #5258). One confirm on the trailing edge.                                                                                                                                                 | Title row in the sheet with the confirm as a `TextButton`; the handle and Back close the sheet.                      |
+
+A choice or picker sheet (a list where one or more rows show a selection) uses `SystemListSheet`. Only where a native List can't host the content (a search field, text fields, a multi-page form, a slider, custom drawing) does a sheet keep React Native rows, still on the system background, and the line before it says why: `// sheet-choice-exempt: <reason>` (or `{/* sheet-choice-exempt: <reason> */}` inside JSX). This is the only comment the source policy allows in mobile sources.
+
+`pnpm lint` enforces the standard in `scripts/check-ui-rules.mjs` (implemented in `scripts/ui-rule-mobile-sheet.mjs`, tests in `scripts/test/ui-rule-mobile-sheet.test.mjs`). The sheet rules have **no baseline**: a finding always fails CI, and `--write` cannot record one.
+
+- `sheetSurface`: page tokens, colour literals, `on="canvas"`/`well`/`field`, `presentationBackground`, a `ModalBottomSheet` colour override, a page- or form-sheet `Modal` without `backdropColor`, or `theme.overlay.fill` that no `Platform.OS` check limits to Android.
+- `sheetHeader`: a bare `DrawerHeader` in a sheet.
+- `sheetChoice`: a `Sheet`, `SheetFrame` or `BottomSheet` with selectable rows (`CheckmarkRow`, `RadioMark`, or any `*Row` with `selected` or a check control) and no native `List`, unless the file branches to `SystemListSheet` or a `Native*Sheet` slot (then the React Native sheet is the web or Android fallback) or the sheet carries a reasoned exemption.
+
+Every bottom sheet, drawer page and sheet-like modal also follows these three rules.
 
 **1. Sheet background: the system's.**
 

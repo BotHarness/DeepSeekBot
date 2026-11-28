@@ -213,3 +213,107 @@ function sheetBody(file, ast) {
   }
   return found;
 }
+
+const CHOICE_SHEETS = new Set(['Sheet', 'SheetFrame', 'BottomSheet']);
+const CHOICE_ROWS = new Set(['CheckmarkRow', 'RadioMark']);
+const NATIVE_SLOT = /^(?:SystemListSheet|Native\w*Sheet)$/u;
+const EXEMPT = /^\s*sheet-choice-exempt:\s*(.*?)\s*$/u;
+const REASON = 12;
+
+function selectableRow(opening) {
+  const name = opening.get('name');
+  if (!name.isJSXIdentifier()) return false;
+  if (CHOICE_ROWS.has(name.node.name)) return true;
+  if (!/Row$/u.test(name.node.name)) return false;
+  return opening.get('attributes').some((attr) => {
+    if (!attr.isJSXAttribute()) return false;
+    if (attr.node.name.name === 'selected') return true;
+    if (attr.node.name.name !== 'control') return false;
+    let check = false;
+    attr.traverse({
+      StringLiteral(text) {
+        if (text.node.value === 'check') check = true;
+      },
+    });
+    return check;
+  });
+}
+
+function systemListTest(test) {
+  if (!test.isBinaryExpression() || !['!==', '===', '!=', '=='].includes(test.node.operator))
+    return false;
+  const sides = [test.node.left, test.node.right];
+  return (
+    sides.some((side) => side.type === 'Identifier' && NATIVE_SLOT.test(side.name)) &&
+    sides.some((side) => side.type === 'Identifier' && side.name === 'undefined')
+  );
+}
+
+function systemListFallback(program) {
+  let covered = false;
+  program.traverse({
+    'IfStatement|ConditionalExpression'(branch) {
+      if (systemListTest(branch.get('test'))) covered = true;
+    },
+  });
+  return covered;
+}
+
+export function mobileSheetChoice(file, ast) {
+  if (PRIMITIVES.test(file)) return [];
+  const components = new Map();
+  traverse(ast, {
+    'FunctionDeclaration|VariableDeclarator'(path) {
+      const id = path.node.id;
+      if (id?.type !== 'Identifier' || !/^[A-Z]/u.test(id.name)) return;
+      const fn = path.isFunctionDeclaration() ? path : path.get('init');
+      if (fn.isFunction()) components.set(id.name, fn);
+    },
+  });
+  const comments = ast.comments ?? [];
+  const found = [];
+  let covered = false;
+  traverse(ast, {
+    Program(program) {
+      covered = systemListFallback(program);
+      program.stop();
+    },
+  });
+  traverse(ast, {
+    JSXElement(element) {
+      const name = nameOf(element);
+      if (!CHOICE_SHEETS.has(name)) return;
+      let choice = false;
+      let native = false;
+      const seen = new Set();
+      const scan = (path) =>
+        path.traverse({
+          JSXOpeningElement(opening) {
+            const tag = opening.get('name');
+            if (tag.isJSXIdentifier({ name: 'List' })) native = true;
+            if (selectableRow(opening)) choice = true;
+            const inner = tag.isJSXIdentifier() ? components.get(tag.node.name) : undefined;
+            if (inner !== undefined && !seen.has(inner.node)) {
+              seen.add(inner.node);
+              scan(inner);
+            }
+          },
+        });
+      scan(element);
+      if (!choice || native || covered) return;
+      const line = element.node.loc.start.line;
+      const exemption = comments
+        .filter((comment) => comment.loc.end.line >= line - 1 && comment.loc.end.line <= line)
+        .map((comment) => EXEMPT.exec(comment.value.replace(/^\s*\*?\s*/u, '')))
+        .find((match) => match !== null);
+      if (exemption && exemption[1].length >= REASON) return;
+      found.push({
+        rule: 'sheetChoice',
+        file,
+        line,
+        text: exemption ? `${name} exemption without a reason` : `${name} with selectable rows`,
+      });
+    },
+  });
+  return found;
+}

@@ -123,6 +123,7 @@ function ChoiceSheet({
       />
     );
   return (
+    // sheet-choice-exempt: custom voice ID text field and save action under the choices
     <Sheet visible title={title} label={title} onClose={onClose} avoidKeyboard>
       <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
         {rows.map((row, index) => (

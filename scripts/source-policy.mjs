@@ -87,6 +87,13 @@ function isException(path, item) {
     item.token === '/* @vite-ignore */'
   )
     return true;
+  if (
+    path.startsWith('apps/mobile/src/') &&
+    /^(?:\/\/ sheet-choice-exempt: \S.{11,}|\/\* sheet-choice-exempt: \S.{11,}? \*\/)$/u.test(
+      item.token,
+    )
+  )
+    return true;
   if (item.line === 1 && item.column === 1 && item.hash === licenseHeaderHashes.get(path))
     return true;
   return false;
