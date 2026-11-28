@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { channel } from 'node:diagnostics_channel';
+import * as processRunner from '../src/process/exec-off-thread.js';
 import {
   SCHEDULING_DIAGNOSTIC_CHANNEL,
   type SchedulingDiagnostic,
@@ -88,6 +89,95 @@ function deferred() {
 }
 
 describe('Memory turn Host responsiveness', () => {
+  it('releases Memory and runs the next DM when Git hangs during turn reconciliation', async () => {
+    const stuckStep = deferred();
+    const ran = vi.fn();
+    const warn = vi.fn();
+    const runCommand = processRunner.execFileBuffer;
+    const commands = vi.spyOn(processRunner, 'execFileBuffer');
+    const core = createCore({
+      dshHome: createTempRoot('memory-git-timeout-'),
+      warn,
+      agents: {
+        async runOrchestrator(run) {
+          ran();
+          if (ran.mock.calls.length !== 1) {
+            await run.channels.send({ body: 'The next turn ran.' });
+            return;
+          }
+          commands.mockImplementationOnce((_file, _args, options) => {
+            stuckStep.resolve();
+            return runCommand(process.execPath, ['-e', 'setTimeout(() => {}, 8000)'], {
+              ...options,
+              ...(options?.timeout ? { timeout: 750 } : {}),
+            });
+          });
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('Unexpected assignment');
+        },
+        async close() {},
+      },
+    });
+    try {
+      expect(core.registry.create({ slug: 'atlas', displayName: 'Atlas' }).ok).toBe(true);
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'atlas', 'Atlas');
+      if (dm === undefined) throw new Error('Missing DM');
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
+      const send = (messageId: string, body: string) =>
+        methods.channelSend({ channelId: dm.id, messageId, body });
+      const first = await send(`human-${randomUUID()}`, 'First turn');
+      expect(first, JSON.stringify(first)).toMatchObject({ ok: true });
+      await stuckStep.promise;
+      expect(core.memory.snapshot('atlas').observing).toBe(true);
+      await expect(core.memory.pendingCommitsAsync('atlas')).rejects.toMatchObject({
+        code: 'memory-conflict',
+      });
+      const nextId = `human-${randomUUID()}`;
+      const second = await send(nextId, 'Next turn');
+      expect(second, JSON.stringify(second)).toMatchObject({ ok: true });
+
+      const database = attachOperationalModule(core.operationalDatabase, 'memory-git-timeout-test');
+      const nextAdmission = () =>
+        database.read((db) =>
+          db
+            .prepare(`
+              SELECT a.attempt_state, a.side_effect_started_at
+              FROM inbox_admissions a JOIN source_events e USING (source_event_id)
+              WHERE a.bot_slug = 'atlas' AND e.message_id = ?
+            `)
+            .get(nextId),
+        );
+      await vi.waitFor(
+        () =>
+          expect(warn, JSON.stringify(nextAdmission())).toHaveBeenCalledWith(
+            expect.stringMatching(/memory-git-timeout .*bot=atlas/u),
+          ),
+        { timeout: 6_000 },
+      );
+      await core.runtime.whenIdle();
+      expect(nextAdmission()).toMatchObject({
+        attempt_state: 'handled',
+        side_effect_started_at: expect.any(String),
+      });
+      expect(ran).toHaveBeenCalledTimes(2);
+      expect(core.memory.snapshot('atlas').observing).toBeUndefined();
+      expect(core.channels.readMessages(dm.id)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            sessionFailure: expect.objectContaining({ detail: 'Memory Git operation timed out' }),
+          }),
+          expect.objectContaining({ body: 'The next turn ran.' }),
+        ]),
+      );
+    } finally {
+      commands.mockRestore();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  }, 60_000);
+
   it('stops preparation before an adapter run exists and permits a later fresh turn', async () => {
     const gate = deferred();
     const entered = deferred();
