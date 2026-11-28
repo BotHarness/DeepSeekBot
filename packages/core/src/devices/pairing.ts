@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import { storedDeviceRelayToken } from '@botharness/host-protocol/private-relay';
 
 export const PAIRING_OFFER_TTL_MS = 10 * 60 * 1000;
 const LAST_SEEN_RESOLUTION_MS = 60 * 1000;
@@ -140,6 +141,7 @@ export interface DevicePairing {
   check(deviceId: string): Admission;
   acknowledgeFeed(deviceId: string): Admission;
   list(): PairedDevice[];
+  relayTokens(origin: string): string[];
   revoke(deviceId: string): { revoked: boolean; closedStreams: number };
   closeStreams(): number;
   attachStream(deviceId: string, close: () => void): () => void;
@@ -825,6 +827,19 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
             .all(),
         ) as unknown as Row[]
       ).map(device);
+    },
+
+    relayTokens(origin) {
+      const grants = database.read((connection) =>
+        connection
+          .prepare(
+            'SELECT device_id, secret_hash FROM paired_devices WHERE public_key IS NOT NULL AND revoked_at IS NULL ORDER BY device_id',
+          )
+          .all(),
+      ) as unknown as Pick<Row, 'device_id' | 'secret_hash'>[];
+      return grants.map((grant) =>
+        storedDeviceRelayToken(origin, grant.device_id, grant.secret_hash),
+      );
     },
 
     revoke(deviceId) {

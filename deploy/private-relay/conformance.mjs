@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { pathToFileURL } from 'node:url';
@@ -6,6 +6,8 @@ import { parseArgs } from 'node:util';
 import { WebSocket } from 'ws';
 
 const PROTOCOL_V2 = 'botharness-private-v2';
+const PROTOCOL_V3 = 'botharness-private-v3';
+const protocolHeader = 'X-BotHarness-Relay-Protocol';
 const CHANNEL = '/botharness-device/channel';
 const token = () => randomBytes(32).toString('hex');
 
@@ -33,16 +35,20 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
       body: JSON.stringify(body),
     });
   const ws = origin.replace(/^http/u, 'ws');
-  const open = async (path, headers) => {
+  const upgrade = async (path, headers) => {
     const socket = new WebSocket(ws + path, { headers, followRedirects: false });
     sockets.push(socket);
-    const [event] = await Promise.race([
+    const [event, status] = await Promise.race([
       once(socket, 'open').then(() => ['open']),
-      once(socket, 'unexpected-response').then(() => ['refused']),
+      once(socket, 'unexpected-response').then(([, response]) => {
+        response.resume();
+        return ['refused', response.statusCode];
+      }),
       once(socket, 'error').then(() => ['refused']),
     ]);
-    return event === 'open' ? socket : undefined;
+    return event === 'open' ? { socket } : { status };
   };
+  const open = async (path, headers) => (await upgrade(path, headers)).socket;
   const next = (socket, ms = 3000) =>
     Promise.race([
       once(socket, 'message').then(([data]) => data.toString()),
@@ -50,13 +56,14 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
     ]);
   const a = { owner: token(), phone: token() };
   const b = { owner: token(), phone: token() };
-  let hostA, hostB, phoneA, phoneB;
+  let hostA, hostB, phoneA, phoneB, v3;
   try {
     await check('health advertises v2', async () => {
       const response = await fetch(`${origin}/health`, { redirect: 'error' });
       const value = await response.json();
       expect(response.ok, `status ${response.status}`);
       expect(Array.isArray(value.protocols) && value.protocols.includes(PROTOCOL_V2), 'no v2');
+      v3 = value.protocols.includes(PROTOCOL_V3);
     });
     await check('unknown claim key is refused', async () => {
       const response = await claim(token(), { ownerToken: token(), phoneToken: token() });
@@ -145,6 +152,62 @@ export async function runConformance({ origin, keyA, keyB, log = () => {} }) {
       expect(replay.status === 409, `released key reused: ${replay.status}`);
       expect(phoneB.readyState === WebSocket.OPEN, 'phone B closed');
     });
+    if (v3) {
+      await check('v3 revokes phone A and preserves phone B on the same Host', async () => {
+        const legacyClosed = once(phoneB, 'close');
+        hostB.close();
+        await legacyClosed;
+        const control = await open('/host', {
+          Authorization: `Bearer ${b.owner}`,
+          [protocolHeader]: PROTOCOL_V3,
+        });
+        expect(control, 'v3 control refused');
+        const registration = async (...tokens) => {
+          const id = randomBytes(16).toString('hex');
+          const ack = next(control);
+          control.send(
+            JSON.stringify({
+              type: 'admissions',
+              id,
+              entries: tokens.map((value) => ({
+                hash: createHash('sha256').update(value).digest('hex'),
+              })),
+            }),
+          );
+          const result = JSON.parse((await ack) ?? '{}');
+          expect(
+            result.type === 'admissions-ack' && result.id === id,
+            'registration not acknowledged',
+          );
+        };
+        const first = token();
+        const second = token();
+        const dial = (value) => upgrade(CHANNEL, { Authorization: `Bearer ${value}` });
+        await registration(first, second);
+        expect((await dial(b.phone)).status === 403, 'legacy pairing token was not retired');
+        const opened = next(control);
+        const { socket: revoked } = await dial(first);
+        expect(revoked, 'phone A was refused before revocation');
+        expect(JSON.parse((await opened) ?? '{}').type === 'open', 'no open for A');
+        const revokedClosed = once(revoked, 'close');
+        await registration(second);
+        await revokedClosed;
+        expect((await dial(first)).status === 403, 'phone A was not refused with 403');
+        const surviving = next(control);
+        const { socket: approved } = await dial(second);
+        expect(approved, 'phone B was refused');
+        let message = JSON.parse((await surviving) ?? '{}');
+        if (message.type === 'close') message = JSON.parse((await next(control)) ?? '{}');
+        expect(message.type === 'open', 'no open for B');
+        const inbound = next(control);
+        approved.send('approved-phone');
+        const data = JSON.parse((await inbound) ?? '{}');
+        expect(data.data === 'approved-phone' && data.id === message.id, 'phone B lost');
+        const outbound = next(approved);
+        control.send(JSON.stringify({ type: 'data', id: data.id, data: 'approved-reply' }));
+        expect((await outbound) === 'approved-reply', 'phone B reply lost');
+      });
+    }
   } finally {
     for (const socket of sockets) socket.terminate();
   }

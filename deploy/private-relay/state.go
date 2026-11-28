@@ -39,9 +39,11 @@ func randomHex(size int) string {
 }
 
 type ownerState struct {
-	Owner    string `json:"owner,omitempty"`
-	Phone    string `json:"phone,omitempty"`
-	Released bool   `json:"released,omitempty"`
+	Owner      string      `json:"owner,omitempty"`
+	Phone      string      `json:"phone,omitempty"`
+	Released   bool        `json:"released,omitempty"`
+	Managed    bool        `json:"managed,omitempty"`
+	Admissions []admission `json:"admissions,omitempty"`
 }
 
 func slotPath(directory, name string) string {
@@ -78,7 +80,8 @@ func loadSlots(directory string) (map[string]ownerState, error) {
 		}
 		var state ownerState
 		if json.Unmarshal(data, &state) != nil ||
-			(!state.Released && (!secretPattern.MatchString(state.Owner) || !secretPattern.MatchString(state.Phone))) {
+			(!state.Released && (!secretPattern.MatchString(state.Owner) || !secretPattern.MatchString(state.Phone) ||
+				!validAdmissions(state.Admissions) || (!state.Managed && len(state.Admissions) != 0))) {
 			return nil, fmt.Errorf("owner-state-invalid: %s", name)
 		}
 		if !state.Released {

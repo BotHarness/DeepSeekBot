@@ -8,6 +8,8 @@ import {
 import { parsePairingLink, pairingLinkMode, redeemPairing } from '@botharness/host-client/pairing';
 import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import { learnedRoutes } from '@botharness/host-client/learned-routes';
+import { createHash, createHmac } from 'node:crypto';
+import { deviceRelayToken, PRIVATE_RELAY_V3 } from '@botharness/host-protocol/private-relay';
 
 const admission = { origin: 'https://relay.example.com', token: 'ab'.repeat(32) };
 const encryption = {
@@ -17,6 +19,23 @@ const encryption = {
   privateRelay: admission,
 };
 describe('private relay trust boundary', () => {
+  it('derives different relay credentials from existing saved pairings without another scan', () => {
+    const id = 'A'.repeat(22);
+    const secret = 'z'.repeat(42) + 'A';
+    const credential = id + '.' + secret;
+    const expected = createHmac('sha256', createHash('sha256').update(secret).digest())
+      .update(JSON.stringify([PRIVATE_RELAY_V3, admission.origin, id]))
+      .digest('hex');
+    expect(deviceRelayToken(admission.origin, credential)).toBe(expected);
+    expect(deviceRelayToken(admission.origin, 'B'.repeat(22) + '.' + secret)).not.toBe(expected);
+    expect(deviceRelayToken('https://other.example', credential)).not.toBe(expected);
+    expect(
+      parseEncryption({
+        ...encryption,
+        privateRelay: { ...admission, protocol: PRIVATE_RELAY_V3 },
+      })?.privateRelay,
+    ).toEqual({ ...admission, protocol: PRIVATE_RELAY_V3 });
+  });
   it('persists two explicitly admitted private origins without learning a third route', () => {
     const second = 'https://second.example.com';
     const privateRelay = { ...admission, additionalOrigins: [second] };

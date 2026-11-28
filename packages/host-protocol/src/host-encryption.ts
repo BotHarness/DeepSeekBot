@@ -1,10 +1,12 @@
 import { isPrivateRoute } from './route';
 import { teamRecord as record } from './team-invitation';
+import { PRIVATE_RELAY_V3 } from './private-relay';
 
 export interface PrivateAdmission {
   origin: string;
   token: string;
   additionalOrigins?: string[];
+  protocol?: typeof PRIVATE_RELAY_V3;
 }
 
 export interface HostEncryption {
@@ -59,6 +61,7 @@ export function parsePrivateAdmission(input: unknown): PrivateAdmission | undefi
     return {
       origin: url.origin,
       token: value['token'],
+      ...(value['protocol'] === PRIVATE_RELAY_V3 ? { protocol: PRIVATE_RELAY_V3 } : {}),
       ...(Array.isArray(additional) && additional.length ? { additionalOrigins: additional } : {}),
     };
   } catch {

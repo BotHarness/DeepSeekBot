@@ -14,6 +14,8 @@ import (
 const (
 	protocolV1      = "botharness-private-v1"
 	protocolV2      = "botharness-private-v2"
+	protocolV3      = "botharness-private-v3"
+	protocolHeader  = "X-BotHarness-Relay-Protocol"
 	browserProtocol = "botharness-private-channel-v1"
 	channelPath     = "/botharness-device/channel"
 	maxHosts        = 16
@@ -33,10 +35,12 @@ type relay struct {
 }
 
 type liveHost struct {
-	ready         chan struct{}
-	control       *relaySocket
-	phones        map[string]*relaySocket
-	pendingPhones int
+	ready          chan struct{}
+	control        *relaySocket
+	phones         map[string]*relaySocket
+	pendingPhones  int
+	admissionReady bool
+	managedControl bool
 }
 
 func (h *liveHost) connected() bool {
@@ -60,10 +64,7 @@ func newRelay(directory, bootstrap, keysPath string) (*relay, error) {
 func (r *relay) find(hash string, phone bool) string {
 	for name, slot := range r.slots {
 		candidate := slot.Owner
-		if phone {
-			candidate = slot.Phone
-		}
-		if sameHash(hash, candidate) {
+		if phone && slot.admits(hash) || !phone && sameHash(hash, candidate) {
 			return name
 		}
 	}
@@ -109,7 +110,7 @@ func (r *relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, 200, struct {
 			Protocol  string   `json:"protocol"`
 			Protocols []string `json:"protocols"`
-		}{protocolV1, []string{protocolV1, protocolV2}})
+		}{protocolV1, []string{protocolV1, protocolV2, protocolV3}})
 	case req.Method == http.MethodGet && req.RequestURI == "/status":
 		r.status(w, req)
 	case req.Method == http.MethodDelete && req.RequestURI == "/claim":

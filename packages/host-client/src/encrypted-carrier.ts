@@ -115,6 +115,63 @@ function sendFailure(error: unknown): string {
   return /(?:channel|lan)-[a-z-]{1,40}/u.exec(message)?.[0] ?? 'send-failed';
 }
 
+function openWithAdmission(
+  raw: HostCarrier,
+  url: string,
+  events: Parameters<HostCarrier['openSocket']>[1],
+  tokens: readonly string[],
+  admitted?: (token: string) => void,
+): HostSocket {
+  if (tokens.length === 0) return raw.openSocket(url, events);
+  let active: HostSocket;
+  let generation = 0;
+  let stopped = false;
+  const connect = (index: number) => {
+    const token = tokens[index]!;
+    const attempt = ++generation;
+    let opened = false;
+    let candidate: HostSocket;
+    candidate = raw.openSocket(
+      url,
+      {
+        open() {
+          if (stopped || generation !== attempt) return;
+          opened = true;
+          admitted?.(token);
+          events.open();
+        },
+        message(wire) {
+          if (!stopped && generation === attempt) events.message(wire);
+        },
+        closed(reason) {
+          if (stopped || generation !== attempt) return;
+          if (!opened && index + 1 < tokens.length) {
+            try {
+              connect(index + 1);
+              candidate.close();
+              return;
+            } catch {}
+          }
+          events.closed(reason);
+        },
+      },
+      { Authorization: 'Bearer ' + token, 'X-BotHarness-Admission': token },
+    );
+    active = candidate;
+  };
+  connect(0);
+  return {
+    send: (wire) => active.send(wire),
+    close() {
+      stopped = true;
+      active.close();
+    },
+    get bufferedAmount() {
+      return active.bufferedAmount ?? 0;
+    },
+  };
+}
+
 export function openNoiseSocket(options: {
   origin: string;
   hostId: string;
@@ -122,6 +179,8 @@ export function openNoiseSocket(options: {
   trustedHttpsOrigins?: readonly string[];
   raw: HostCarrier;
   timeoutMs?: number;
+  admissionTokens?: readonly string[];
+  relayOpened?: (token: string) => void;
   message(value: Record<string, unknown>): void;
   closed(reason: string): void;
 }) {
@@ -167,7 +226,8 @@ export function openNoiseSocket(options: {
   const timer = setTimeout(() => fail('channel-timeout'), options.timeoutMs ?? 10_000);
   let socket: HostSocket;
   try {
-    socket = options.raw.openSocket(
+    socket = openWithAdmission(
+      options.raw,
       `${socketOrigin(options.origin)}${CONNECT_CHANNEL_PATH}`,
       {
         open: () => {
@@ -224,11 +284,9 @@ export function openNoiseSocket(options: {
       },
       options.encryption.privateRelay &&
         hasPrivateOrigin(options.encryption.privateRelay, options.origin)
-        ? {
-            Authorization: 'Bearer ' + options.encryption.privateRelay.token,
-            'X-BotHarness-Admission': options.encryption.privateRelay.token,
-          }
-        : undefined,
+        ? (options.admissionTokens ?? [options.encryption.privateRelay.token])
+        : [],
+      options.relayOpened,
     );
   } catch (error) {
     clearTimeout(timer);
@@ -316,6 +374,7 @@ export function encryptedCarrier(options: {
   const sessions = new Map<string, Session>();
   const directs = new Map<string, Session>();
   const retries = new Map<string, DirectRetry>();
+  const migratedRelays = new Set<string>();
   let next = 0;
   let closedCarrier = false;
   const session = (origin: string): Session => {
@@ -338,11 +397,26 @@ export function encryptedCarrier(options: {
       reject = no;
     });
     let settled = false;
+    const privateRelay = options.encryption.privateRelay;
+    const deviceToken =
+      registry === sessions && privateRelay?.origin === origin
+        ? deviceRelayToken(origin, options.credential)
+        : undefined;
+    const useDeviceToken =
+      privateRelay?.protocol === PRIVATE_RELAY_V3 || migratedRelays.has(origin);
     const socket = openNoiseSocket({
       ...options,
       raw,
       origin,
       encryption: options.encryption,
+      ...(privateRelay && deviceToken
+        ? {
+            admissionTokens: useDeviceToken ? [deviceToken] : [privateRelay.token, deviceToken],
+            relayOpened: (token: string) => {
+              if (token === deviceToken) migratedRelays.add(origin);
+            },
+          }
+        : {}),
       closed: (reason) => {
         if (registry.get(origin) === current) registry.delete(origin);
         if (registry === directs) {
@@ -636,3 +710,4 @@ export function encryptedCarrier(options: {
     },
   };
 }
+import { deviceRelayToken, PRIVATE_RELAY_V3 } from '@botharness/host-protocol/private-relay';
