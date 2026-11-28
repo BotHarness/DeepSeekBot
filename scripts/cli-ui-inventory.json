@@ -1381,6 +1381,13 @@
       ]
     },
     {
+      "id": "team-external-contacts",
+      "description": "List external contacts for managed Bots, filter by Bot and status, and set or remove a Bot-wide person block.",
+      "scope": "Host",
+      "surfaces": [],
+      "commands": ["external-contacts", "external-contact-block", "external-contact-unblock"]
+    },
+    {
       "id": "team-external-roles",
       "description": "Host-level external roles in the Team workbench. List roles, their Bot scope, pairing capabilities and behavior rules with external-roles; create one with external-role-create --input-stdin and change its name, Bot scope, capabilities or behavior rules with external-role-update --input-stdin. Read a contact's live status and effective capabilities on a Bot with external-contact-access <bot-id> --binding <binding-id> --actor <actor-id>; list a Bot's pairings and their role with pairing-list <bot-id>.",
       "scope": "Host",

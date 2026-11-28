@@ -1,3 +1,7 @@
+import {
+  externalContactStatuses,
+  type ExternalContactList,
+} from '@botharness/host-protocol/external-contacts';
 import type {
   ExternalContactAccess,
   HostExternalRole,
@@ -104,6 +108,14 @@ export type MessagingBridgeMethods = {
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
   externalRoles(): Promise<BridgeResult<{ roles: HostExternalRole[] }>>;
   externalRoleChange(payload: unknown): Promise<BridgeResult<{ role: HostExternalRole }>>;
+  externalContacts(
+    payload: unknown,
+    managedSlugs?: string[],
+  ): Promise<BridgeResult<ExternalContactList>>;
+  externalContactBlock(
+    payload: unknown,
+    managedSlugs?: string[],
+  ): Promise<BridgeResult<{ blocked: boolean }>>;
   externalContactAccess(payload: unknown): Promise<BridgeResult<ExternalContactAccess>>;
   senderAccess(payload: unknown): Promise<BridgeResult<void>>;
   channelBridges(payload: unknown): Promise<BridgeResult<ChannelBridgeSnapshot>>;
@@ -334,6 +346,46 @@ export function createMessagingBridgeMethods(
           error: { code: 'bot-unavailable', message: 'bot-unavailable' },
         });
       return messagingCall(async (service) => ({ role: service.externalRoleChange(input.data) }));
+    },
+    externalContacts(payload, managedSlugs) {
+      const input = z
+        .object({
+          botSlugs: z.array(z.string().min(1).max(128)).max(500).optional(),
+          status: z.enum(externalContactStatuses).optional(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid contact filters'));
+      if (!managedSlugs)
+        return Promise.resolve({
+          ok: false,
+          error: { code: 'permission-required', message: 'permission-required' },
+        });
+      const selected = new Set(input.data.botSlugs);
+      const slugs = selected.size
+        ? managedSlugs.filter((slug) => selected.has(slug))
+        : managedSlugs;
+      if (!slugs.length) return Promise.resolve({ ok: true, value: { contacts: [] } });
+      return messagingCall(async (service) =>
+        service.listExternalContacts(slugs, input.data.status),
+      );
+    },
+    externalContactBlock(payload, managedSlugs) {
+      const input = z
+        .object({
+          slug: z.string().min(1).max(128),
+          contactId: z.string().regex(/^[a-f0-9]{64}$/u),
+          blocked: z.boolean(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid contact block'));
+      if (!managedSlugs?.includes(input.data.slug))
+        return Promise.resolve({
+          ok: false,
+          error: { code: 'permission-required', message: 'permission-required' },
+        });
+      return messagingCall(async (service) => service.changeExternalContactBlock(input.data));
     },
     externalContactAccess(payload) {
       const input = z

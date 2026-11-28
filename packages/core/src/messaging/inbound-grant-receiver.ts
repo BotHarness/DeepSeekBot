@@ -1,3 +1,4 @@
+import { observeContact } from './contact-identity.js';
 import { ReceiverRecovery } from './receiver-recovery.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { ConversationIngest } from './conversation-ingest.js';
@@ -331,10 +332,12 @@ export function createInboundGrantReceiver(wiring: {
             event.conversation.id !== value.receiveScope!.conversationId
           )
             return skip('other-conversation');
-          if (database.read((db) => senderAdmission(db, value.botSlug, event)) === 'refused')
-            return skip('sender-not-allowed');
           if (latest.receiveAfter && Date.parse(event.at) < Date.parse(latest.receiveAfter))
             return skip('before-grant-receive-after');
+          if (event.actor.kind === 'user')
+            transaction((db) => observeContact(db, identity.id, value.botSlug, event));
+          if (database.read((db) => senderAdmission(db, value.botSlug, event)) === 'refused')
+            return skip('sender-not-allowed');
           if (event.conversation.kind === 'dm' && !latest.bridgeRoutes) {
             if (latest.receiveTargetChannelId || latest.channelBridge || latest.bridgeRoutes)
               throw new MessagingError('capability-unavailable');

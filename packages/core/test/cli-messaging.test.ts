@@ -732,3 +732,30 @@ it('returns the Host refusal when a CLI external role edit is stale', async () =
   expect(result.code).not.toBe(0);
   expect(result.json).toMatchObject({ error: { code: 'role-stale' } });
 });
+
+it('lists contacts with Bot and status filters and changes the same block through both CLI commands', async () => {
+  const contactId = 'c'.repeat(64);
+  const live = await host((method, args) => {
+    if (method === 'externalContacts') return { ok: true, value: { contacts: [] } };
+    return { ok: true, value: { blocked: args['input'] !== undefined } };
+  });
+  expect(
+    await invoke(
+      ['external-contacts', '--bot-slugs', 'support,sales', '--contact-status', 'requested'],
+      live.url,
+    ),
+  ).toMatchObject({ code: 0, json: { contacts: [] } });
+  for (const command of ['external-contact-block', 'external-contact-unblock']) {
+    expect(await invoke([command, BOT, '--contact', contactId], live.url)).toMatchObject({
+      code: 0,
+    });
+  }
+  expect(live.calls).toEqual([
+    {
+      method: 'externalContacts',
+      args: { query: { botSlugs: ['support', 'sales'], status: 'requested' } },
+    },
+    { method: 'externalContactBlock', args: { input: { slug: BOT, contactId, blocked: true } } },
+    { method: 'externalContactBlock', args: { input: { slug: BOT, contactId, blocked: false } } },
+  ]);
+});

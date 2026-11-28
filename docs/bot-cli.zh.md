@@ -9,6 +9,16 @@
 
 ## 用法
 
+### 外部联系人
+
+```sh
+deepseekbot external-contacts --bot-slugs support,sales --contact-status requested --json
+deepseekbot external-contact-block support --contact <contact-id> --json
+deepseekbot external-contact-unblock support --contact <contact-id> --json
+```
+
+省略 `--bot-slugs` 时包含你可以管理的所有 Bot。状态支持 `all`、`paired`、`blocked` 和 `requested`。使用列表返回的联系人 ID。添加 `--as <member>` 可用该团队成员的身份执行。Host Owner 和具有 `bots.manageAll` 权限的成员可以管理所有 Bot。具有 `im.bind` 权限的成员可以管理自己 Bot 的联系人。取消屏蔽只移除该 Bot 的人员屏蔽。现有 App 级屏蔽继续生效，由原有入口解除。
+
 ### 电脑双向关系
 
 `relationships cancel <关系ID> --confirm` 仅在所属 Host 仍将关系视为待批准时取消提议。同步回复丢失但关系已激活时，返回 `relationship-already-active`，保留已批准关系及授权。浏览器取消登记时使用相同条件；清理回复不可用时不改为无条件重试。

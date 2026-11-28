@@ -1,3 +1,5 @@
+import { contactId, observeContact, personBlocked } from './contact-identity.js';
+import { ownerActor } from './permissions/sender-blocks.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { admissionBound, conversationName, hold, readBlock, removeHeld } from './conversations.js';
 import type { ConversationIngest } from './conversation-ingest.js';
@@ -190,6 +192,16 @@ export function createInboundDefaultTraffic(wiring: {
       throw new MessagingError('untrusted-source');
     if (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
       return { accepted: true };
+    if (event.actor.kind === 'user') {
+      const blocked = transaction((db) => {
+        observeContact(db, identity.id, identity.botSlug, event);
+        return (
+          personBlocked(db, identity.botSlug, contactId(identity, event.actor.id)) &&
+          !ownerActor(db, identity.botSlug, identity.fingerprint, event.actor.id)
+        );
+      });
+      if (blocked) return { accepted: true };
+    }
     if (await wiring.commandIntake(entry.provider, event, signal, true)) return { accepted: true };
     if (event.conversation.kind === 'group' && !event.mentionedAccount) {
       wiring.placeIngests(identity, event);

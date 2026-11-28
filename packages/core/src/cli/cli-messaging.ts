@@ -1,3 +1,4 @@
+import { externalContactStatuses } from '@botharness/host-protocol/external-contacts';
 import { messagingPlatformIds } from '../messaging/platforms/types.js';
 export { MESSAGING_OPTIONS } from '../kernel/cli-option-spec.js';
 import { randomUUID } from 'node:crypto';
@@ -5,6 +6,9 @@ import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const MESSAGING_COMMANDS = [
+  { command: 'external-contacts', description: 'list external contacts and their Bot access' },
+  { command: 'external-contact-block', description: 'block a contact across one Bot’s Apps' },
+  { command: 'external-contact-unblock', description: 'remove a Bot-wide contact block' },
   { command: 'external-roles', description: 'list Host external roles and their Bot scopes' },
   {
     command: 'external-role-create',
@@ -148,6 +152,9 @@ export const MESSAGING_COMMANDS = [
 export type MessagingCommand = (typeof MESSAGING_COMMANDS)[number]['command'];
 
 export interface MessagingValues {
+  'bot-slugs'?: string;
+  'contact-status'?: string;
+  contact?: string;
   'read-mode'?: string;
   'input-stdin'?: boolean;
   confirm?: boolean;
@@ -262,6 +269,7 @@ export async function prepareMessaging(
           ? 'a Channel id'
           : 'a Bot id';
   const hostCommand =
+    command === 'external-contacts' ||
     command === 'external-roles' ||
     command === 'external-role-create' ||
     command === 'external-role-update';
@@ -305,6 +313,18 @@ export async function prepareMessaging(
   if (requestId !== undefined && !/^[A-Za-z0-9_:.-]{8,128}$/u.test(requestId))
     usage('--request-id must be 8–128 letters, digits, _ : . or -.');
   switch (command) {
+    case 'external-contacts':
+      if (
+        values['contact-status'] !== undefined &&
+        !externalContactStatuses.some((status) => status === values['contact-status'])
+      )
+        usage('--contact-status must be all, paired, blocked or requested.');
+      break;
+    case 'external-contact-block':
+    case 'external-contact-unblock':
+      if (!/^[a-f0-9]{64}$/u.test(required(values.contact, '--contact')))
+        usage('--contact must be a contact ID from external-contacts.');
+      break;
     case 'external-contact-access':
       uuid(values.binding, '--binding');
       required(values.actor, '--actor');
@@ -408,6 +428,26 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
   };
   const requestId = values['request-id'] ?? `cli-${randomUUID()}`;
   switch (command) {
+    case 'external-contacts':
+      return rpc('externalContacts', {
+        query: {
+          botSlugs:
+            values['bot-slugs']
+              ?.split(',')
+              .map((slug) => slug.trim())
+              .filter(Boolean) ?? [],
+          status: values['contact-status'] ?? 'all',
+        },
+      });
+    case 'external-contact-block':
+    case 'external-contact-unblock':
+      return rpc('externalContactBlock', {
+        input: {
+          slug: target,
+          contactId: required(values.contact, '--contact'),
+          blocked: command === 'external-contact-block',
+        },
+      });
     case 'external-roles':
       return rpc('externalRoles', {});
     case 'external-role-create':

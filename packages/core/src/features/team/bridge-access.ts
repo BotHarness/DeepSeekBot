@@ -100,6 +100,17 @@ export function guardHumanBridge(
           if (deps.team.member(human.humanId)?.status !== 'active')
             return refuse('member-suspended');
         }
+        if (property === 'externalContacts' || property === 'externalContactBlock') {
+          const permissions = deps.team?.roles.permissions(human) ?? [];
+          const manageAll = owner || permissions.includes('bots.manageAll');
+          if (human.caller === 'bot' || (!manageAll && !permissions.includes('im.bind')))
+            return refuse('permission-required');
+          const slugs = deps.registry
+            .listHistorical()
+            .filter((bot) => manageAll || ownsBot(human, bot))
+            .map((bot) => bot.slug);
+          return Reflect.apply(operation, target, [payload, slugs]);
+        }
         const input = object(payload);
         if (!owner && MODEL_CONFIGURATION_METHODS.has(property)) {
           if (

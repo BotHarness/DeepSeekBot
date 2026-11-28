@@ -1,3 +1,4 @@
+import { contactId, personBlocked } from '../contact-identity.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { ConversationRef } from '../conversations.js';
@@ -203,8 +204,39 @@ export function sourceBlocked(
     fingerprint: string;
     actor: { kind: string; id: string };
     conversation: ConversationRef;
+    botId?: string;
+    channel?: string;
   },
 ): boolean {
+  if (event.actor.kind === 'user' && event.botId && event.channel) {
+    const providerId = `dsh-im/${event.channel}`;
+    const binding = db
+      .prepare(`SELECT id, contact_workspace_id FROM messaging_bindings
+      WHERE provider_id = ? AND platform = ? AND account_ref = ? AND fingerprint = ?
+        AND revoked_at IS NULL
+        AND EXISTS (SELECT 1 FROM messaging_person_blocks WHERE bot_slug = ?)`)
+      .get(providerId, event.channel, event.botId, event.fingerprint, botSlug);
+    if (
+      binding &&
+      personBlocked(
+        db,
+        botSlug,
+        contactId(
+          {
+            id: String(binding.id),
+            providerId,
+            platform: event.channel,
+            ...(typeof binding.contact_workspace_id === 'string'
+              ? { contactWorkspaceId: binding.contact_workspace_id }
+              : {}),
+          },
+          event.actor.id,
+        ),
+      ) &&
+      !ownerActor(db, botSlug, event.fingerprint, event.actor.id)
+    )
+      return true;
+  }
   if (senderBlocked(db, botSlug, event)) return true;
   return (
     readConversationSourceBlock(db, botSlug, event.fingerprint, event.conversation) !== undefined &&

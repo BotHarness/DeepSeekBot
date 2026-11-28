@@ -401,6 +401,10 @@ Module migrations use stable ids in an append-only list; generation is computed 
 
 ## 4 · Messaging 事务与外部副作用
 
+### 外部联系人和人员屏蔽
+
+Host 从已验证的 IM 入站事件、配对记录和 Inbox Admission 建立外部联系人目录。Host Owner 和有 `bots.manageAll` 权限的成员可以管理所有 Bot 的联系人。有 `im.bind` 权限的成员可以管理自己 Bot 的联系人。Team 和 Bot 入口共用一条按联系人和 Bot 保存的人员屏蔽。原有 App 级屏蔽继续由各自的记录和入口管理。见[消息决策 §17](../decisions/messaging.md#17-the-contact-directory-and-bot-settings-share-person-blocks)。
+
 ```mermaid
 sequenceDiagram
   participant P as Provider adapter

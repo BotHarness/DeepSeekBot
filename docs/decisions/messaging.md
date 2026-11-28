@@ -332,3 +332,9 @@ An App is bound to at most one PersonaBot. Receiving is per App: each App in an 
 Why: a reply must say who is speaking. One App shared by several internal Bots would make every outside reply anonymous between them, and registering one App per Bot on the platform is the price of keeping that identity. Deduplicating across Apps was rejected because different identities really receive different messages, may wake differently, and merging them risks dropping one Bot's message.
 
 Enforced by: the `messaging_binding_principal` unique index (one active Binding per App fingerprint). The one-App-per-Channel ingest rule is not enforced yet (planned in #5665).
+
+## 17. The contact directory and Bot settings share person blocks
+
+An external contact uses the provider's verified platform, workspace and actor identity where available. Slack uses the same workspace and provider match as Host external roles. Without a verified workspace identity, observations stay Binding-scoped. The pinned Lark adapter exposes App-scoped actor IDs, so cross-App Lark identity requires additional adapter metadata.
+
+Both Clients and the CLI use one Host operation to change the person block for a contact and Bot. A block with Bot scope applies to matching contacts across the Bot's Apps. The schema also reserves External conversation and Tobs Channel scopes. The existing App-scoped sender and conversation records retain their scope and keep their original controls.

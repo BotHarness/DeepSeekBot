@@ -23,6 +23,8 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 export const MEMBER_GLOBAL_METHODS = [
+  'externalContacts',
+  'externalContactBlock',
   'managementGrants',
   'managementGrantSet',
   'marketplaceAvatarList',

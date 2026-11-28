@@ -1,3 +1,4 @@
+import { listExternalContacts, changeExternalContactBlock } from './external-contacts.js';
 import { createApprovalText } from './interactions/approval-text.js';
 import { createFailureAlerts } from './failure-alerts.js';
 import { createApprovalMessaging } from './approval-messaging.js';
@@ -650,6 +651,16 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     pairing,
     externalRoles: outboundConversations.externalRoles,
     externalRoleChange: outboundConversations.externalRoleChange,
+    listExternalContacts: (slugs, status) =>
+      database.read((db) =>
+        listExternalContacts(db, slugs, status, (options.now?.() ?? new Date()).toISOString()),
+      ),
+    changeExternalContactBlock: (input) =>
+      transaction(
+        (db) =>
+          changeExternalContactBlock(db, input, (options.now?.() ?? new Date()).toISOString()),
+        ['external-contacts'],
+      ),
     externalContactAccess: outboundConversations.externalContactAccess,
     senderAccess: outboundConversations.senderAccess,
     toolRuleCreatorAuthorized: outboundConversations.toolRuleCreatorAuthorized,
