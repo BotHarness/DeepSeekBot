@@ -1,4 +1,5 @@
 import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
+import type { DiagnosticEvents } from '../../diagnostics/diagnostic-log.js';
 import type { TobAgentHooks } from '../tob/plugin.js';
 import type { ModelFreeTobCliInvocation } from '../../runtime/tob-cli-invocation.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
@@ -582,6 +583,7 @@ export function createHostAgentAdapter(
       engineHost: ReturnType<typeof models.mountEngines>['engineHost'];
       engineToolGate: ReturnType<typeof createEngineToolGate>;
       featureContributions: readonly AgentFeatureContribution[];
+      diagnosticEvents: DiagnosticEvents;
       turnRefusals: Map<string, string | TeamError>;
       botModes: ReturnType<typeof appearanceFeature.createBotModes>;
       publishDraft(event: ChannelDraftEvent): void;
@@ -612,6 +614,7 @@ export function createHostAgentAdapter(
     releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => deps.core.prompts.textForSession(sessionId),
     defaultModel,
+    botMessageDiagnostics: deps.diagnosticEvents,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
     observeDirectToolCleanupFailure: ({ sessionId, durationMs }) =>
       ctx.logger.warn(

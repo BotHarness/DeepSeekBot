@@ -262,6 +262,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
   });
   const agentAdapter = personabotsFeature.createHostAgentAdapter(ctx, config, {
+    diagnosticEvents,
     engineHost,
     engineToolGate,
     tobCliInvocation,

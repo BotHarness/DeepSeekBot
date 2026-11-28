@@ -92,6 +92,7 @@ export class DshBotAgentAdapterState {
   readonly #preparationTimeoutMs: number;
   readonly observePreparation: DshBotAgentAdapterOptions['observePreparation'];
   readonly observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
+  readonly botMessageDiagnostics: DshBotAgentAdapterOptions['botMessageDiagnostics'];
   readonly engines: DshBotEngines | undefined;
   readonly enginePersona: DshBotAgentAdapterOptions['enginePersona'];
   readonly engineWorkspaceMode: DshBotAgentAdapterOptions['engineWorkspaceMode'];
@@ -151,6 +152,7 @@ export class DshBotAgentAdapterState {
     this.#preparationTimeoutMs = options.preparationTimeoutMs ?? PREPARATION_TIMEOUT_MS;
     this.observePreparation = options.observePreparation;
     this.observeDirectToolCleanupFailure = options.observeDirectToolCleanupFailure;
+    this.botMessageDiagnostics = options.botMessageDiagnostics;
     this.preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
     this.engines = options.engines;
     this.enginePersona = options.enginePersona;

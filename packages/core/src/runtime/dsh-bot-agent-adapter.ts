@@ -1,6 +1,7 @@
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import type { AgentFeatureContribution } from './agent-feature-context.js';
+import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import type { ModelFreeTobCliInvocation } from './tob-cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
@@ -143,6 +144,7 @@ export interface DshBotAgentAdapterOptions {
 
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
+  botMessageDiagnostics?: DiagnosticEvents;
   engines?: DshBotEngines;
   engineWorkspaceMode?(
     slug: string,

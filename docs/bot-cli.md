@@ -965,8 +965,17 @@ does not resolve Inbox or conclude the turn. `bot-trace --session direct` record
 `action: "inspect" | "drop" | "react"` and explicit `channel_id`, with the required draft or
 reaction references. It is available through `bot-tool` as well. The model sees only
 `bot_send_message` for delivery; old send names remain direct-CLI compatibility commands.
-Proactive colleague text uses `bot_id`; reachable external posting uses `binding_id` with
+Proactive colleague messages use `bot_id`; reachable external posting uses `binding_id` with
 `conversation_id`. These target forms are exclusive with the other destination fields.
+
+For a local `bot_id`, pass up to ten references returned by `channel_attachment_import` in
+`attachments`. Set `body` to an empty string for a file-only message. The import limit is 25 MiB
+per file. Remote Bot DMs accept text. A `committed` receipt with `notWoken` means the Channel
+message was saved and the listed Bots did not receive an Inbox admission. A `send-streak`
+refusal ends a turn after three consecutive sends to the same destination without other work.
+`collaboration-hop-limit` reports the attempted hop and the configured depth limit. A new Human
+DM or @-mention can start a new chain. Use `diagnostic-logs --kind error` to find
+`bot-send-message` entries with the reason and applicable limit.
 
 `bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen. A Bot-to-Bot send requires `--cause-event <source-event-id>` naming a real Source Event admitted to this Bot; the Host checks admission ownership, current Channel membership and the source-effect fence. A missing cause still fails, and another Bot's source returns `source-unavailable`. The flag supplies causation separately from the tool's single destination. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (waiting on an Assignment, question cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
