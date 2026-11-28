@@ -165,6 +165,7 @@ export const INBOX_OPTIONS = {
 } as const;
 
 export const MESSAGING_OPTIONS = {
+  actor: { type: 'string' },
   'input-stdin': { type: 'boolean' },
   'read-mode': { type: 'string' },
   confirm: { type: 'boolean' },

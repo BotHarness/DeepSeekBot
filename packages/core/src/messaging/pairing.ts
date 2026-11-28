@@ -1,3 +1,7 @@
+import {
+  pairingCapabilities,
+  type PairingCapability,
+} from '@botharness/host-protocol/external-roles';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
@@ -10,7 +14,9 @@ import {
   type MessagingReplyRoute,
 } from './provider.js';
 import {
-  externalUserRoles,
+  canDelegateExternalRole,
+  externalContactRoles,
+  readExternalRoleForBot,
   chatSenderIdentity,
   platformPeople,
   effectivePairingPermissions,
@@ -18,14 +24,10 @@ import {
   type EffectivePermissions,
 } from './permissions/index.js';
 
-export const pairingCapabilities = [
-  'approve',
-  'reject',
-  'answer',
-  'save-rules',
-  'review-pairing',
-] as const;
-export type PairingCapability = (typeof pairingCapabilities)[number];
+export {
+  pairingCapabilities,
+  type PairingCapability,
+} from '@botharness/host-protocol/external-roles';
 export const pairingReviewInput = z.discriminatedUnion('kind', [
   z
     .object({
@@ -162,9 +164,7 @@ export function createBotPairing(
         return { ...value, status: 'revoked' };
     }
     if (value.status === 'approved' && value.purpose === 'conversation') {
-      const role = database.read((db) =>
-        externalUserRoles(db, value.botSlug).find((item) => item.id === value.roleId),
-      );
+      const role = database.read((db) => readExternalRoleForBot(db, value.botSlug, value.roleId));
       if (!role) return { ...value, status: 'unavailable', capabilities: [] };
       const effectivePermissions = database.read((db) =>
         effectivePairingPermissions(db, value.botSlug, value.bindingId, value.actorId),
@@ -367,19 +367,17 @@ export function createBotPairing(
           )
             throw new MessagingError('pairing-unauthorized');
           if (input.kind === 'approve') {
-            const role = externalUserRoles(db, botSlug).find((item) => item.id === input.roleId);
+            const role = readExternalRoleForBot(db, botSlug, input.roleId);
             if (
               !role ||
-              [...role.capabilities, ...(role.delegableCapabilities ?? [])].some(
-                (cap) => !(permissions.delegableCapabilities ?? []).includes(cap),
-              )
+              !canDelegateExternalRole(role, botSlug, permissions.delegableCapabilities ?? [])
             )
               throw new MessagingError('pairing-delegation-denied');
           }
         }
         if (input.kind === 'approve') {
           if (value.purpose === 'conversation') {
-            const role = externalUserRoles(db, botSlug).find((role) => role.id === input.roleId);
+            const role = readExternalRoleForBot(db, botSlug, input.roleId);
             if (
               !role ||
               role.revision !== input.expectedRoleRevision ||
@@ -494,14 +492,21 @@ export function createBotPairing(
             .sort(
               (a, b) => Number(a.purpose === 'conversation') - Number(b.purpose === 'conversation'),
             );
-          if (
-            !rows.length ||
-            !effectivePairingPermissions(db, botSlug, bindingId, actorId).capabilities.includes(
-              capability,
-            )
-          )
-            return undefined;
-          return rows[0];
+          const permissions = effectivePairingPermissions(db, botSlug, bindingId, actorId);
+          if (!permissions.capabilities.includes(capability)) return undefined;
+          if (rows[0]) return rows[0];
+          const binding = readMessagingIdentity(db, bindingId);
+          const grant = externalContactRoles(db, binding, actorId, undefined).find(({ role }) =>
+            role.capabilities.includes(capability),
+          );
+          return (
+            grant && {
+              ...grant.pairing,
+              capabilities: permissions.capabilities,
+              effectivePermissions: permissions,
+              roleRevision: grant.role.revision,
+            }
+          );
         });
         if (!shared) throw new MessagingError('pairing-unauthorized');
         return shared;

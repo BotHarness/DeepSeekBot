@@ -206,6 +206,13 @@ describe('bridge typert service', () => {
     ).toEqual([...bridgeMethodInventory].sort());
   });
 
+  it('marks the external role and contact methods with their public argument names', () => {
+    const { service } = setup();
+    expect(parameterNames(service.externalRoles)).toEqual([]);
+    expect(parameterNames(service.externalRoleChange)).toEqual(['input']);
+    expect(parameterNames(service.externalContactAccess)).toEqual(['slug', 'bindingId', 'actorId']);
+  });
+
   it('marks the live stream methods whose final parameter is the injected signal', () => {
     const { service } = setup();
 

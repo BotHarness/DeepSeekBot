@@ -804,6 +804,10 @@
     "sha256": "952697044a5c515fe7cde3271f66907563463642db9b382565623687793a3d14"
   },
   {
+    "id": "host-external-roles",
+    "sha256": "0e8130fb66b84cdfde484667ebf8eb940afec2ddf63e10a8d3871ea751747833"
+  },
+  {
     "id": "connector-google-workspace",
     "sha256": "78e5673de1abef804fdb925d49f324edc6cc0f51e57e042e39bf0dbfd1c4edf8"
   }

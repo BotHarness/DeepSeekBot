@@ -1,3 +1,4 @@
+import { HOST_EXTERNAL_ROLES_MIGRATION } from './migrations/external-roles.js';
 import { CHANNEL_BOT_RECEPTION_MIGRATION } from './migrations/channel-bot-reception.js';
 import { CHANNEL_APPROVAL_POLICY_MIGRATION } from './migrations/channel-approval-policy.js';
 import { CHANNEL_PERMISSION_TABLE_MIGRATION } from './migrations/channel-permission-table.js';
@@ -471,5 +472,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PERSONABOT_PROTECTION_MIGRATION,
   HOST_ROLE_REVISION_MIGRATION,
   CHANNEL_APPROVAL_POLICY_MIGRATION,
+  HOST_EXTERNAL_ROLES_MIGRATION,
   CONNECTOR_GOOGLE_WORKSPACE_MIGRATION,
 ]);

@@ -226,7 +226,7 @@ function readBaselineAtBase(root, path, errors) {
     windowsHide: true,
     shell: false,
   });
-  if (prior.status === 0) return { baseline: JSON.parse(prior.stdout) };
+  if (prior.status === 0) return { baseline: JSON.parse(prior.stdout), ref: base };
   if (/does not exist in|exists on disk, but not in/u.test(prior.stderr))
     return { missingAt: base };
   const message = `${path}: cannot read the baseline at ${base} to check that it only shrinks; fetch it or set BASELINE_BASE to the PR base commit`;
@@ -272,15 +272,19 @@ function coreBaselineFromSource(root, base) {
   return coreLayerInventory(importsByFile);
 }
 
-function checkCoreLayerBaseline(root, current, errors, update) {
+function checkCoreLayerBaseline(root, importsByFile, errors, update) {
   const path = resolve(root, CORE_LAYER_BASELINE);
   const prior = readBaselineAtBase(root, CORE_LAYER_BASELINE, errors);
-  const base = prior.baseline ?? (prior.missingAt && coreBaselineFromSource(root, prior.missingAt));
+  const sourceBase = prior.baseline?.feedbackEdges ? undefined : (prior.ref ?? prior.missingAt);
+  const base = sourceBase ? coreBaselineFromSource(root, sourceBase) : prior.baseline;
   const updateHint = 'node scripts/check-package-boundaries.mjs --update';
   const local = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined;
-  if (!local && (!update || !base)) {
-    errors.push(`${CORE_LAYER_BASELINE}: missing; fetch the base commit and run ${updateHint}`);
-    return;
+  const current = coreLayerInventory(importsByFile, (base ?? local)?.feedbackEdges);
+  if ((!local?.feedbackEdges || !local.cyclicImports) && (!update || !base)) {
+    errors.push(
+      `${CORE_LAYER_BASELINE}: missing or outdated; fetch the base commit and run ${updateHint}`,
+    );
+    return current;
   }
   for (const section of Object.keys(current)) {
     const actual = countsByRule(current[section]);
@@ -305,6 +309,7 @@ function checkCoreLayerBaseline(root, current, errors, update) {
       }
     }
   }
+  return current;
 }
 
 export function checkPackageBoundaries(root, { update = false } = {}) {
@@ -360,8 +365,7 @@ export function checkPackageBoundaries(root, { update = false } = {}) {
       throw new Error(`${file}: ${error.message}`, { cause: error });
     }
   }
-  const coreInventory = coreLayerInventory(coreImportsByFile);
-  checkCoreLayerBaseline(root, coreInventory, errors, update);
+  const coreInventory = checkCoreLayerBaseline(root, coreImportsByFile, errors, update);
   const { grown, shrunk } = compareClientHostImports(current, baseline);
   errors.push(...grown.map(({ message }) => describeClientHostGrowth(message)));
   if (!update) {
@@ -378,7 +382,7 @@ export function checkPackageBoundaries(root, { update = false } = {}) {
       `${JSON.stringify(coreInventory, null, 2)}\n`,
     );
   }
-  return errors;
+  return [...new Set(errors)];
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
