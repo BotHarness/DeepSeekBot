@@ -150,7 +150,7 @@ export function createBotMessageTool(
       { sessionId: run.sessionId, ...fields },
       {
         bot: run.bot.slug,
-        level: 'warn',
+        includeInErrors: true,
       },
     );
   }

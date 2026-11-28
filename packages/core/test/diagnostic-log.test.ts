@@ -11,6 +11,7 @@ import {
   DIAGNOSTIC_LOG_LIMITS,
   DIAGNOSTIC_LOGS_EXPORT_PATH,
   DIAGNOSTIC_LOGS_PATH,
+  diagnosticEventRecorder,
   diagnosticLogView,
   hostLogExporter,
   parseClientLogBatch,
@@ -280,6 +281,28 @@ describe('Host logger sink', () => {
 });
 
 describe('module log rows', () => {
+  it('returns opted-in module warnings in the error filter with their source and code', async () => {
+    const { http, writer, now } = harness();
+    const events = diagnosticEventRecorder((rows) => writer.write(rows), { now });
+    events.record(
+      'bot-send-message',
+      'refused',
+      { reason: 'collaboration-hop-limit', hop: 3, hopLimit: 2 },
+      { includeInErrors: true },
+    );
+    events.record('unrelated-module', 'refused', { reason: 'other' }, { level: 'warn' });
+    const response = await http(get(`${DIAGNOSTIC_LOGS_PATH}?filter=error`));
+    expect((await response.json()).entries).toMatchObject([
+      {
+        source: 'bot-send-message',
+        category: 'module',
+        code: 'refused',
+        level: 'warn',
+        fields: { reason: 'collaboration-hop-limit', hop: 3, hopLimit: 2 },
+      },
+    ]);
+  });
+
   it('lifts a JSON lifecycle detail into fields and flags refusals', () => {
     expect(
       diagnosticLogView({

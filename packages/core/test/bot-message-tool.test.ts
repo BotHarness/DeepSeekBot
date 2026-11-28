@@ -149,14 +149,14 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
           'bot-send-message',
           'refused',
           expect.objectContaining({ reason: 'send-streak', limit: 3 }),
-          { bot: 'ada', level: 'warn' },
+          { bot: 'ada', includeInErrors: true },
         );
         for (const reason of ['attachment-invalid-ref', 'destination-required']) {
           expect(record).toHaveBeenCalledWith(
             'bot-send-message',
             'failed',
             expect.objectContaining({ reason }),
-            { bot: 'ada', level: 'warn' },
+            { bot: 'ada', includeInErrors: true },
           );
         }
         f.core.registry.setPaused('bea', true);
@@ -169,7 +169,7 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
           'bot-send-message',
           'failed',
           expect.objectContaining({ reason: 'recipient-paused' }),
-          { bot: 'ada', level: 'warn' },
+          { bot: 'ada', includeInErrors: true },
         );
       } finally {
         await f.close();

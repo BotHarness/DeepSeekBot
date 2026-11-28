@@ -91,7 +91,7 @@ describe('Bot-to-Bot hop limit across a Bot DM relay', () => {
       'bot-send-message',
       'refused',
       expect.objectContaining({ reason: 'collaboration-hop-limit', hop: 3, hopLimit: 2 }),
-      { bot: 'cea', level: 'warn' },
+      { bot: 'cea', includeInErrors: true },
     );
   });
 });

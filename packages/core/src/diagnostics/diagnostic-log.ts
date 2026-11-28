@@ -263,12 +263,18 @@ const EVENT_TROUBLE =
 
 export type DiagnosticEventFields = Record<string, string | number | boolean | null | undefined>;
 
+interface DiagnosticEventOptions {
+  bot?: string;
+  level?: 'info' | 'warn';
+  includeInErrors?: true;
+}
+
 export interface DiagnosticEvents {
   record(
     source: string,
     phase: string,
     fields: DiagnosticEventFields,
-    options?: { bot?: string; level?: 'info' | 'warn' },
+    options?: DiagnosticEventOptions,
   ): void;
 }
 
@@ -287,7 +293,7 @@ export function diagnosticEventRow(
   source: string,
   phase: string,
   fields: DiagnosticEventFields,
-  options: { bot?: string; level?: 'info' | 'warn'; ts?: number; home?: string } = {},
+  options: DiagnosticEventOptions & { ts?: number; home?: string } = {},
 ): LogEntryInput | undefined {
   if (!EVENT_SOURCE.test(source) || !EVENT_PHASE.test(phase)) return;
   const clean: Record<string, DiagnosticFieldValue> = {};
@@ -327,9 +333,13 @@ export function diagnosticEventRow(
     ...(options.ts === undefined ? {} : { ts: options.ts }),
     plugin: source,
     owner: bot === undefined ? 'profile-shared' : `bot:${bot}`,
-    kind: phase,
+    kind: options.includeInErrors ? 'host.warn' : phase,
     detail,
-    payload: JSON.stringify({ level: options.level ?? eventLevel(phase, clean) }),
+    payload: JSON.stringify(
+      options.includeInErrors
+        ? { level: 'warn', phase }
+        : { level: options.level ?? eventLevel(phase, clean) },
+    ),
     ...(bot === undefined ? {} : { bot }),
   };
 }
