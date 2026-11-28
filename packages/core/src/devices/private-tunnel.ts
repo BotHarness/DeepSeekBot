@@ -770,7 +770,9 @@ export function createPrivateTunnelRuntime(
     const lan = next.mode === 'ingress' && next.lan === true;
     const bound =
       (await listen(origin, next.originPort, lan)) ??
-      (next.mode === 'quick' && next.originPort !== 0 ? await listen(origin, 0, lan) : undefined);
+      ((next.mode === 'quick' || next.mode === 'direct') && next.originPort !== 0
+        ? await listen(origin, 0, lan)
+        : undefined);
     const base = {
       mode: next.mode,
       ...(next.mode === 'named' && next.hostname ? { origin: `https://${next.hostname}` } : {}),
