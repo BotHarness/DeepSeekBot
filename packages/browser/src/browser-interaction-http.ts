@@ -1,4 +1,4 @@
-import type { coalesce } from '../../core/src/runtime/coalesce.js';
+import type { coalesce } from '../../core/src/kernel/coalesce.js';
 import type { BrowserConfig } from './browser-config.js';
 import type { createBorrowService } from './borrow.js';
 import type { createDailyControl } from './daily.js';

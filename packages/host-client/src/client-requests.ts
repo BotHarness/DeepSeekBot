@@ -3,7 +3,7 @@ import { isConnectRoute, isEncryptedRoute, isLanRoute } from '@botharness/host-p
 import type { AttachmentRef, ClientRequest } from '@botharness/host-protocol/wire';
 import { COMPUTER_UNLOCK_PATH } from '../../computer/src/unlock-contract';
 import { LOCAL_VIDEO_PATH } from '../../computer/src/local-video-contract';
-import { secretRouteRefusal } from '../../core/src/bridge/secret-route';
+import { secretRouteRefusal } from '../../core/src/devices/secret-route';
 import { VOICE_CALL_CONNECT_REFUSAL, VOICE_CALL_PATH } from '../../core/src/voice/call-contract';
 import type { HostApiAnswer, HostApiInit, HostClientOptions } from './client-contract';
 import {
