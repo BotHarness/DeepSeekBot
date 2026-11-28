@@ -441,7 +441,7 @@ it('uses the refreshed selection when the editable Bot set changes after a confl
   await act(async () => toggle('dispatch').click());
   await act(async () => save()!.click());
   expect(row('newly-editable').dataset['teamBotScopeOn']).toBe('true');
-  expect(host.textContent).toContain('Bot 访问范围已变化，已重新载入。请检查选项后再保存。');
+  expect(host.textContent).toContain('Bot 访问范围已变化，已重新载入。检查选项后再保存。');
   expect(save()).toBeNull();
 });
 

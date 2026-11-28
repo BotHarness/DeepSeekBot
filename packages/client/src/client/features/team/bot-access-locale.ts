@@ -46,7 +46,7 @@ export const zh = {
   'team.workbench.botScope.reason.all': '已包含在「全部 Bot」里。',
   'team.workbench.botScope.unavailable': '成员暂时用不了',
   'team.workbench.botScope.discard': '放弃',
-  'team.workbench.botScope.stale': 'Bot 访问范围已变化，已重新载入。请检查选项后再保存。',
+  'team.workbench.botScope.stale': 'Bot 访问范围已变化，已重新载入。检查选项后再保存。',
   'team.workbench.botScope.loadFailed': '没能载入这个角色能访问的 Bot。',
   'team.error.botNotEditable': '其中有 Bot 你不能修改，刷新后再试。',
   'team.error.botNotFound': '这个 Bot 不存在，或者你看不到它。',
