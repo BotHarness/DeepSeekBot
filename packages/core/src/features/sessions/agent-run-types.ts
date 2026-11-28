@@ -233,6 +233,7 @@ export interface BotAgentAdapter {
   stopBot?(botSlug: string, sessionIds: string[]): Promise<void>;
   abandonSession?(sessionId: string): Promise<void>;
   releaseSession?(sessionId: string): Promise<void>;
+  isNativeDirectTool?(name: string): boolean;
   directTools?(): DirectBotToolSpec[];
   runDirectTool?(
     run: OrchestratorAgentRun,

@@ -5,10 +5,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
-import { COMPOSIO_EXECUTE_TOOL } from '../kernel/composio-tool-effects.js';
-import type { BotHarnessCore } from '../plugin-types.js';
-import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
-import { CONNECTOR_CATALOG, matchesCatalog } from './catalog.js';
+import { CONNECTOR_CATALOG, matchesCatalog } from '../../connectors/catalog.js';
+import { GOOGLE_STATE_PREFIX, googleRedirectUri } from '../../connectors/google-oauth.js';
 import {
   CONNECTOR_MCP_SERVER,
   CONNECTOR_TOOL_PREFIX,
@@ -20,10 +18,18 @@ import {
   remoteMcpServerName,
   remoteMcpServerNames,
   remoteMcpToolDenial,
-} from './policy.js';
-import { FEATURED_MCP_SERVERS } from './remote.js';
-import { ConnectorError, type ConnectorApp, type ConnectorService } from './service.js';
-import type { ConnectorAccess } from './store.js';
+} from '../../connectors/policy.js';
+import { FEATURED_MCP_SERVERS } from '../../connectors/remote.js';
+import {
+  ConnectorError,
+  type ConnectorApp,
+  type ConnectorService,
+} from '../../connectors/service.js';
+import type { ConnectorAccess } from '../../connectors/store.js';
+import { COMPOSIO_EXECUTE_TOOL } from '../../kernel/composio-tool-effects.js';
+import type { BotHarnessCore } from '../../plugin-types.js';
+import type { ChannelToolApproval } from '../../workspaces/tool-approval.js';
+import { googleToolNames, mountGoogleTools } from './google-tools.js';
 
 type Fiber = ReturnType<Context['plugin']>;
 
@@ -63,6 +69,13 @@ export function connectorCallback(publicOrigins: () => Promise<string[]> = async
       return reachable === undefined
         ? `${origin()}${CONNECTOR_CALLBACK_PATH}`
         : `${reachable}${CONNECTOR_DEVICE_CALLBACK_PATH}`;
+    },
+    googleUrl(): string | undefined {
+      try {
+        return googleRedirectUri(origin?.(), CONNECTOR_CALLBACK_PATH);
+      } catch {
+        return undefined;
+      }
     },
     attach(next: (() => string) | undefined) {
       origin = next;
@@ -110,7 +123,16 @@ function mountCallback(
         let status = 200;
         let page: string;
         try {
-          const account = await service.remote.finish(params);
+          const google = params.get('state')?.startsWith(GOOGLE_STATE_PREFIX) === true;
+          if (
+            google &&
+            (new URL(request.url ?? '/', 'http://callback').pathname !== CONNECTOR_CALLBACK_PATH ||
+              callback.googleUrl() === undefined)
+          )
+            throw new ConnectorError('invalid', 'Finish Google sign-in in a browser on the Host.');
+          const account = google
+            ? await service.google.finish(params)
+            : await service.remote.finish(params);
           page = callbackPage(
             `${account.label} is connected`,
             'You can close this tab and go back to Tobs.',
@@ -161,7 +183,7 @@ export function connectorAccessMap(
 }
 
 export function connectorCatalogFor(
-  service: Pick<ConnectorService, 'forBot' | 'available' | 'appName'>,
+  service: Pick<ConnectorService, 'forBot' | 'available' | 'appName' | 'googleForBot'>,
   botSlug: string,
   configured: boolean,
   query?: string,
@@ -169,6 +191,11 @@ export function connectorCatalogFor(
 ) {
   const granted = service.forBot(botSlug);
   const grantedIds = new Set(granted.map((connector) => connector.accountId));
+  const google = new Map(
+    service
+      .googleForBot(botSlug)
+      .map((connector) => [connector.accountId, googleToolNames(connector.access)]),
+  );
   const requestable = service
     .available()
     .filter((account) => !grantedIds.has(account.accountId) && account.status === 'active');
@@ -199,6 +226,7 @@ export function connectorCatalogFor(
         ]
       : []),
     ...(remote.length > 0 ? [`Use the MCP tools named ${remote.join(', ')}.`] : []),
+    ...(google.size > 0 ? ['Use the Google Workspace tools listed for the account.'] : []),
   ];
   return {
     configured,
@@ -213,6 +241,7 @@ export function connectorCatalogFor(
       ...(servers.has(connector.accountId)
         ? { tools: `mcp__${servers.get(connector.accountId)}__*` }
         : {}),
+      ...(google.has(connector.accountId) ? { tools: google.get(connector.accountId) } : {}),
     })),
     requestable: requestable.map((account) => ({
       account_id: account.accountId,
@@ -247,7 +276,8 @@ export function mountConnectors(
   core: Pick<BotHarnessCore, 'contributeBotAgentSetup' | 'ownership'>,
   service: ConnectorService,
   callback?: ReturnType<typeof connectorCallback>,
-  approval?: () => Pick<ChannelToolApproval, 'ask' | 'track' | 'executionGuard'> | undefined,
+  approval: () => Pick<ChannelToolApproval, 'ask' | 'track' | 'executionGuard'> | undefined = () =>
+    undefined,
 ): void {
   const mounted = new Map<Agent, Mounted>();
   if (callback !== undefined) mountCallback(ctx, service, callback);
@@ -415,7 +445,7 @@ export function mountConnectors(
       const input = composioWriteInput(name, args, access);
       if (input === undefined) return next();
 
-      const broker = approval?.();
+      const broker = approval();
       const authorizationScope = () =>
         JSON.stringify(
           service
@@ -454,6 +484,10 @@ export function mountConnectors(
         if (info.rootRole !== 'orchestrator') return;
         const live = (call: { agent?: Agent }) =>
           call.agent === agent && ctx.agents.get(agent.id) === agent;
+        agentCtx.effect(
+          () => mountGoogleTools({ agentCtx, service, botSlug: info.botSlug, live, approval }),
+          'botharness: Google Workspace tools',
+        );
         agentCtx.tools.register(
           defineTool({
             name: 'connector_catalog',
@@ -483,7 +517,7 @@ export function mountConnectors(
           defineTool({
             name: 'connector_request',
             description:
-              'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval its tools appear under mcp__composio__ or the mcp__app_… name it returns.',
+              'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval use the tool names it returns. A Google Workspace account may need the Owner to sign in again to approve Write access at Google.',
             parameters: {
               account_id: {
                 type: 'string',
@@ -529,9 +563,15 @@ export function mountConnectors(
                   service.forBot(info.botSlug).find((c) => c.accountId === account.accountId)
                     ?.access ?? args.access,
                 tools:
-                  account.provider === 'mcp'
-                    ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
-                    : `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
+                  account.provider === 'google'
+                    ? googleToolNames(
+                        service
+                          .googleForBot(info.botSlug)
+                          .find((grant) => grant.accountId === account.accountId)?.access ?? 'read',
+                      )
+                    : account.provider === 'mcp'
+                      ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
+                      : `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
               });
             },
           }),

@@ -38,7 +38,7 @@ describe('mobile sheet surface', () => {
     expect(
       check(`
         function Surface({ children }) {
-          return <Modal visible presentationStyle="pageSheet">{children}</Modal>;
+          return <Modal visible presentationStyle="pageSheet" backdropColor="transparent">{children}</Modal>;
         }
         function Content() {
           return <View style={{ backgroundColor: theme.layer.sheet.fill }} />;
@@ -109,6 +109,32 @@ describe('mobile sheet surface', () => {
     ).toEqual([
       ['sheetSurface', 'ModalBottomSheet containerColor', 4],
       ['sheetSurface', 'ModalBottomSheet contentColor', 4],
+    ]);
+  });
+
+  it('rejects a page sheet Modal that keeps the React Native white backdrop', () => {
+    const source = `
+      export function Frame({ children }) {
+        return (
+          <>
+            <Modal visible presentationStyle="pageSheet">{children}</Modal>
+            <Modal visible presentationStyle="formSheet" backdropColor={theme.color.base} />
+            <Modal visible presentationStyle="pageSheet" backdropColor={systemSheetBackdrop()} />
+            <Modal visible presentationStyle="overFullScreen" />
+            <Modal visible presentationStyle="pageSheet" transparent={false} />
+            <Modal visible presentationStyle="pageSheet" transparent />
+          </>
+        );
+      }
+    `;
+    expect(check(source)).toEqual([
+      ['sheetSurface', 'Modal pageSheet without backdropColor', 5],
+      ['sheetSurface', 'Modal pageSheet without backdropColor', 9],
+      ['sheetSurface', 'backdropColor: theme.color.base', 6],
+    ]);
+    expect(check(source, 'apps/mobile/src/ui/chat/sheet-frame.ios.tsx')).toEqual([
+      ['sheetSurface', 'Modal pageSheet without backdropColor', 5],
+      ['sheetSurface', 'Modal pageSheet without backdropColor', 9],
     ]);
   });
 

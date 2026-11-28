@@ -5,6 +5,11 @@ import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { ConnectorLogo, type FetchLogos } from './features/connectors/logos.js';
 import { composioKeyProblem, pastedMcpUrl } from './features/connectors/mcp-url.js';
+import {
+  GoogleConnectDialog,
+  googleActions,
+  googleApp,
+} from './features/connectors/google-connect.js';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
@@ -16,7 +21,11 @@ import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { SettingsRow } from './ds/settings-row.js';
-import type { ConnectorApp, ConnectorsView } from './features/connectors/bridge.js';
+import {
+  GOOGLE_SERVICE,
+  type ConnectorApp,
+  type ConnectorsView,
+} from './features/connectors/bridge.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -77,7 +86,7 @@ export interface PickedApp {
   url?: string | undefined;
 }
 
-type Source = 'apps' | 'mcp';
+type Source = 'apps' | 'mcp' | 'google';
 
 interface Listed {
   service: string;
@@ -242,6 +251,7 @@ export function AppCatalog({
   keys,
   onView,
   disabled,
+  google = false,
   onPick,
 }: {
   view: ConnectorsView;
@@ -252,6 +262,7 @@ export function AppCatalog({
   keys?: ComposioKeyActions | undefined;
   onView?: ((view: ConnectorsView) => void) | undefined;
   disabled?: boolean;
+  google?: boolean;
   onPick: (app: PickedApp) => void;
 }): ReactElement {
   const id = useId();
@@ -264,6 +275,7 @@ export function AppCatalog({
   const latest = useRef(0);
 
   const fetchPage = (from: Source, text: string, cursor?: string) => {
+    if (from === 'google') return undefined;
     if (from === 'mcp') return mcpSearch === undefined ? undefined : mcpSearch(text, cursor);
     return search === undefined || !view.configured ? undefined : search(text, cursor);
   };
@@ -351,20 +363,54 @@ export function AppCatalog({
       ? appSummary({ service: app.service, name: app.name, summary: app.summary }, t)
       : app.summary;
   const locked = source === 'apps' && !view.configured;
+  const sources: Array<{ value: Source; label: string }> = [
+    ...(mcpSearch === undefined
+      ? []
+      : [{ value: 'mcp' as const, label: t('connectors.catalog.sourceMcp') }]),
+    { value: 'apps', label: t('connectors.catalog.sourceApps') },
+    ...(google ? [{ value: 'google' as const, label: t('connectors.catalog.sourceGoogle') }] : []),
+  ];
+  const segments =
+    sources.length < 2 ? null : (
+      <SegmentedControl<Source>
+        id={`${id}-source`}
+        label={t('connectors.catalog.source')}
+        value={source}
+        options={sources}
+        onChange={switchSource}
+      />
+    );
+  if (source === 'google') {
+    const app = googleApp(t);
+    const count = view.accounts.filter(
+      (account) => account.service === GOOGLE_SERVICE && account.status === 'active',
+    ).length;
+    return (
+      <div ref={mount} {...stylex.props(styles.stack)}>
+        {segments}
+        <Note inset>{t('connectors.google.about')}</Note>
+        <CatalogGrid label={t('connectors.connect.pick')} data={{ 'data-app-catalog': source }}>
+          <CatalogCard
+            title={app.name}
+            summary={t('connectors.google.summary')}
+            meta={
+              count > 0
+                ? t('connectors.catalog.connected', { count })
+                : t('connectors.catalog.available')
+            }
+            leading={<ConnectorLogo service={app.service} size={40} logos={logos} />}
+            actionLabel={t('connectors.catalog.connect')}
+            disabled={disabled === true}
+            data={{ 'data-connector-service': app.service }}
+            onClick={() => onPick(app)}
+          />
+        </CatalogGrid>
+      </div>
+    );
+  }
   return (
     <div ref={mount} {...stylex.props(styles.stack)}>
-      {mcpSearch === undefined ? null : (
-        <SegmentedControl<Source>
-          id={`${id}-source`}
-          label={t('connectors.catalog.source')}
-          value={source}
-          options={[
-            { value: 'mcp', label: t('connectors.catalog.sourceMcp') },
-            { value: 'apps', label: t('connectors.catalog.sourceApps') },
-          ]}
-          onChange={switchSource}
-        />
-      )}
+      {segments}
       {source !== 'apps' ? null : keys !== undefined && onView !== undefined ? (
         <ComposioKey view={view} t={t} keys={keys} onView={onView} />
       ) : locked ? (
@@ -457,6 +503,9 @@ export function ConnectAppDialog({
     | 'connectorMcpAdd'
     | 'connectorKeySet'
     | 'connectorKeyClear'
+    | 'connectorGoogleSetup'
+    | 'connectorGoogleAdd'
+    | 'connectorGoogleLogin'
   >;
   view: ConnectorsView;
   t: BotHarnessTranslate;
@@ -470,6 +519,19 @@ export function ConnectAppDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const google = googleActions(actions);
+
+  if (picked?.service === GOOGLE_SERVICE && google !== undefined)
+    return (
+      <GoogleConnectDialog
+        actions={google}
+        logos={actions.connectorLogos}
+        t={t}
+        onCancel={onClose}
+        onBack={initial === undefined ? () => setPicked(undefined) : undefined}
+        onLinked={onLinked}
+      />
+    );
 
   if (picked === undefined)
     return (
@@ -490,6 +552,7 @@ export function ConnectAppDialog({
           logos={actions.connectorLogos}
           keys={composioKeys(actions)}
           onView={onView}
+          google={google !== undefined}
           onPick={setPicked}
         />
       </FormDialog>
@@ -573,6 +636,9 @@ export function MarketAppConnections({
     | 'connectorMcpAdd'
     | 'connectorKeySet'
     | 'connectorKeyClear'
+    | 'connectorGoogleSetup'
+    | 'connectorGoogleAdd'
+    | 'connectorGoogleLogin'
   >;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -611,6 +677,7 @@ export function MarketAppConnections({
             logos={actions.connectorLogos}
             keys={composioKeys(actions)}
             onView={setView}
+            google={googleActions(actions) !== undefined}
             onPick={setService}
           />
         )}

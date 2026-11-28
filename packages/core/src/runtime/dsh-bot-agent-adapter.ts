@@ -50,7 +50,7 @@ import {
   requestAssignment,
   stopAssignment,
 } from './dsh-bot-agent-adapter-assignment.js';
-import { directTools, runDirectTool } from './dsh-bot-agent-adapter-tools.js';
+import { directTools, isNativeDirectTool, runDirectTool } from './dsh-bot-agent-adapter-tools.js';
 import { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 export { TURN_ONLY_BOT_TOOLS } from './dsh-bot-agent-adapter-shared.js';
 export { hostWorkContext } from './dsh-bot-agent-adapter-orchestrator.js';
@@ -280,6 +280,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       (preparationSignal) => orchestratorHandle(this.#state, run, preparationSignal, agent),
       signal,
     );
+  }
+
+  isNativeDirectTool(name: string): boolean {
+    return isNativeDirectTool(this.#state, name);
   }
 
   directTools(): DirectBotToolSpec[] {

@@ -6,3 +6,9 @@ export interface InboxWakeSource {
 export interface RuntimeHost {
   registerInboxWakeSource(source: InboxWakeSource): void;
 }
+
+export interface NativeDirectToolSpec {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+}

@@ -15,7 +15,6 @@
 - `packages/client/src/client/standing-import-usage.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
-- `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
 - `apps/mobile/app/marketplace*.tsx`
 
 ## Terms
