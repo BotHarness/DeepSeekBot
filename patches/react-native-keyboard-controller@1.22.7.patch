@@ -1,0 +1,272 @@
+diff --git a/ios/views/ClippingScrollViewDecoratorViewManager.mm b/ios/views/ClippingScrollViewDecoratorViewManager.mm
+index 44571a2ef51e68fa0d30720a0df9a92770b94b5a..c2e18190f87ecacfcb281837519269fcf18c1ffc 100644
+--- a/ios/views/ClippingScrollViewDecoratorViewManager.mm
++++ b/ios/views/ClippingScrollViewDecoratorViewManager.mm
+@@ -26,6 +26,15 @@
+ 
+ #pragma mark - Helpers
+ 
++// The decorator changes two methods of the views it decorates, and only for those views. It used
++// to swap each view's class to a runtime subclass (object_setClass). When KVO had already
++// swapped the view's class, that subclass landed on top of KVO's class, and KVO's next
++// notifying setter read a corrupt lock and aborted the app. Instead, each method is replaced once
++// on the view's own class and only acts for views marked with an associated object, so the
++// view's class never changes and KVO stays valid in any order.
++static const void *KCNoScrollRectKey = &KCNoScrollRectKey;
++static const void *KCFixedHitTestKey = &KCFixedHitTestKey;
++
+ static UIScrollView *KCFindFirstScrollView(UIView *view)
+ {
+   for (UIView *subview in view.subviews) {
+@@ -41,115 +50,116 @@
+   return nil;
+ }
+ 
+-static void KCApplyNoopScrollRectToVisible(UIScrollView *scrollView)
++// KVO and other runtime subclasses report the class the view was created as from -class.
++static Class KCDeclaredClass(id object)
+ {
+-  if (!scrollView) {
+-    return;
++  Class declared = [object class];
++  for (Class cls = object_getClass(object); cls; cls = class_getSuperclass(cls)) {
++    if (cls == declared) {
++      return declared;
++    }
+   }
++  return object_getClass(object);
++}
+ 
+-  Class originalClass = object_getClass(scrollView);
+-  NSString *originalClassName = NSStringFromClass(originalClass);
+-
+-  // Already patched — nothing to do
+-  if ([originalClassName hasPrefix:@"KC_NoScrollRect_"]) {
+-    return;
++static BOOL KCClaimHook(Class cls, SEL selector)
++{
++  static NSMutableSet<NSString *> *hooked;
++  if (!hooked) {
++    hooked = [NSMutableSet set];
+   }
+-
+-  NSString *subclassName = [@"KC_NoScrollRect_" stringByAppendingString:originalClassName];
+-  Class subclass = NSClassFromString(subclassName);
+-
+-  if (!subclass) {
+-    subclass = objc_allocateClassPair(originalClass, subclassName.UTF8String, 0);
+-    if (!subclass) {
+-      return;
+-    }
+-
+-    Method original =
+-        class_getInstanceMethod(originalClass, @selector(scrollRectToVisible:animated:));
+-    if (original) {
+-      IMP noopImp = imp_implementationWithBlock(
+-          ^(__unused UIScrollView *self, __unused CGRect rect, __unused BOOL animated){
+-              // no-op
+-          });
+-      class_addMethod(
+-          subclass,
+-          @selector(scrollRectToVisible:animated:),
+-          noopImp,
+-          method_getTypeEncoding(original));
+-    }
+-
+-    objc_registerClassPair(subclass);
++  NSString *key = [NSString stringWithFormat:@"%s %s", class_getName(cls), sel_getName(selector)];
++  if ([hooked containsObject:key]) {
++    return NO;
+   }
++  [hooked addObject:key];
++  return YES;
++}
+ 
+-  object_setClass(scrollView, subclass);
++// Puts `hook` on `cls` itself. Returns the implementation `cls` declared before, or NULL when it
++// inherited one, which the hook then looks up on the superclass at call time.
++static IMP KCInstallHook(Class cls, SEL selector, Method method, IMP hook)
++{
++  if (class_addMethod(cls, selector, hook, method_getTypeEncoding(method))) {
++    return NULL;
++  }
++  return method_setImplementation(class_getInstanceMethod(cls, selector), hook);
+ }
+ 
+-// Workaround for https://github.com/facebook/react-native/issues/54123
+-// RN 0.81+ ScrollView contentInset area doesn't respond to touch events.
+-// Can be removed once the upstream fix lands.
+-static void KCApplyFixedHitTest(UIScrollView *scrollView)
++static void KCHookScrollRectToVisible(Class cls)
+ {
+-  if (!scrollView || !scrollView.superview) {
++  SEL selector = @selector(scrollRectToVisible:animated:);
++  Method method = class_getInstanceMethod(cls, selector);
++  if (!method || !KCClaimHook(cls, selector)) {
+     return;
+   }
++  typedef void (*ScrollRectToVisible)(id, SEL, CGRect, BOOL);
++  __block IMP declared = NULL;
++  IMP hook = imp_implementationWithBlock(
++      ^(__unsafe_unretained UIScrollView *self, CGRect rect, BOOL animated) {
++        if (objc_getAssociatedObject(self, KCNoScrollRectKey)) {
++          return;
++        }
++        IMP next = declared ?: class_getMethodImplementation(class_getSuperclass(cls), selector);
++        ((ScrollRectToVisible)next)(self, selector, rect, animated);
++      });
++  declared = KCInstallHook(cls, selector, method, hook);
++}
+ 
+-  UIView *container = scrollView.superview;
+-  Class originalClass = object_getClass(container);
+-  NSString *originalClassName = NSStringFromClass(originalClass);
+-
+-  // Already patched — nothing to do
+-  if ([originalClassName hasPrefix:@"KC_FixedHitTest_"]) {
++static void KCApplyNoopScrollRectToVisible(UIScrollView *scrollView)
++{
++  if (!scrollView) {
+     return;
+   }
++  KCHookScrollRectToVisible(KCDeclaredClass(scrollView));
++  objc_setAssociatedObject(scrollView, KCNoScrollRectKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
++}
+ 
+-  NSString *subclassName = [@"KC_FixedHitTest_" stringByAppendingString:originalClassName];
+-  Class subclass = NSClassFromString(subclassName);
+-
+-  if (!subclass) {
+-    subclass = objc_allocateClassPair(originalClass, subclassName.UTF8String, 0);
+-    if (!subclass) {
+-      return;
+-    }
+-
+-    Method original = class_getInstanceMethod(originalClass, @selector(hitTest:withEvent:));
+-    if (original) {
+-      // Get the original implementation to call it
+-      IMP originalImp = method_getImplementation(original);
+-      UIView *(*originalHitTest)(id, SEL, CGPoint, UIEvent *) =
+-          (UIView * (*)(id, SEL, CGPoint, UIEvent *)) originalImp;
+-
+-      IMP fixedHitTestImp = imp_implementationWithBlock(
+-          ^UIView *(__unsafe_unretained UIView *self, CGPoint point, UIEvent *event) {
+-            // Call the original implementation
+-            UIView *result = originalHitTest(self, @selector(hitTest:withEvent:), point, event);
+-
+-            // This is the fix: when RN's betterHitTest returns self (the container),
+-            // return the scrollView instead so touches can reach it
+-            if (result == self) {
+-              // Dynamically find the scrollView at hit-test time to handle RN refreshes
+-              // where the scrollView instance is recreated but the swizzled class persists
+-              for (UIView *subview in self.subviews) {
+-                if ([subview isKindOfClass:[UIScrollView class]] &&
+-                    ![subview isKindOfClass:[UITextView class]]) {
+-                  return subview;
+-                }
+-              }
++static void KCHookHitTest(Class cls)
++{
++  SEL selector = @selector(hitTest:withEvent:);
++  Method method = class_getInstanceMethod(cls, selector);
++  if (!method || !KCClaimHook(cls, selector)) {
++    return;
++  }
++  typedef UIView *(*HitTest)(id, SEL, CGPoint, UIEvent *);
++  __block IMP declared = NULL;
++  IMP hook = imp_implementationWithBlock(
++      ^UIView *(__unsafe_unretained UIView *self, CGPoint point, UIEvent *event) {
++        IMP next = declared ?: class_getMethodImplementation(class_getSuperclass(cls), selector);
++        UIView *result = ((HitTest)next)(self, selector, point, event);
++
++        // This is the fix: when RN's betterHitTest returns self (the container),
++        // return the scrollView instead so touches can reach it
++        if (result == self && objc_getAssociatedObject(self, KCFixedHitTestKey)) {
++          // Dynamically find the scrollView at hit-test time to handle RN refreshes
++          // where the scrollView instance is recreated but the container stays marked
++          for (UIView *subview in self.subviews) {
++            if ([subview isKindOfClass:[UIScrollView class]] &&
++                ![subview isKindOfClass:[UITextView class]]) {
++              return subview;
+             }
++          }
++        }
+ 
+-            return result;
+-          });
+-
+-      class_addMethod(
+-          subclass,
+-          @selector(hitTest:withEvent:),
+-          fixedHitTestImp,
+-          method_getTypeEncoding(original));
+-    }
++        return result;
++      });
++  declared = KCInstallHook(cls, selector, method, hook);
++}
+ 
+-    objc_registerClassPair(subclass);
++// Workaround for https://github.com/facebook/react-native/issues/54123
++// RN 0.81+ ScrollView contentInset area doesn't respond to touch events.
++// Can be removed once the upstream fix lands.
++static UIView *KCApplyFixedHitTest(UIScrollView *scrollView)
++{
++  if (!scrollView || !scrollView.superview) {
++    return nil;
+   }
+ 
+-  object_setClass(container, subclass);
++  UIView *container = scrollView.superview;
++  KCHookHitTest(KCDeclaredClass(container));
++  objc_setAssociatedObject(container, KCFixedHitTestKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
++  return container;
+ }
+ 
+ #pragma mark - Manager
+@@ -183,7 +193,10 @@ @interface ClippingScrollViewDecoratorView ()
+ #endif
+ @end
+ 
+-@implementation ClippingScrollViewDecoratorView
++@implementation ClippingScrollViewDecoratorView {
++  __weak UIScrollView *_scrollView;
++  __weak UIView *_container;
++}
+ 
+ #ifdef RCT_NEW_ARCH_ENABLED
+ - (instancetype)initWithFrame:(CGRect)frame
+@@ -194,6 +207,21 @@ - (instancetype)initWithFrame:(CGRect)frame
+   }
+   return self;
+ }
++
++- (void)prepareForRecycle
++{
++  UIScrollView *scrollView = _scrollView;
++  if (scrollView) {
++    objc_setAssociatedObject(scrollView, KCNoScrollRectKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
++  }
++  UIView *container = _container;
++  if (container) {
++    objc_setAssociatedObject(container, KCFixedHitTestKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
++  }
++  _scrollView = nil;
++  _container = nil;
++  [super prepareForRecycle];
++}
+ #endif
+ 
+ #ifdef RCT_NEW_ARCH_ENABLED
+@@ -230,9 +258,10 @@ - (void)didMoveToWindow
+     return;
+ #else
+     UIScrollView *scrollView = KCFindFirstScrollView(self);
++    _scrollView = scrollView;
+     KCApplyNoopScrollRectToVisible(scrollView);
+     if (self.applyWorkaroundForContentInsetHitTestBug) {
+-      KCApplyFixedHitTest(scrollView);
++      _container = KCApplyFixedHitTest(scrollView) ?: _container;
+     }
+ #endif
+   }
