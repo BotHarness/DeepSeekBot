@@ -117,6 +117,7 @@ Usage:
   tobs skills publish <name> --bot <slug>  Publish a Project Skill / 发布 Bot 的 Project Skill
   tobs skills replace <id> <name> --bot <slug> --confirm  Replace a Marketplace Skill's files / 替换市场 Skill 的文件
   tobs skills delete <id> --confirm  Delete a Marketplace Skill / 删除市场 Skill
+  tobs market skills sections [--section hot|new|rising]  Skill rankings / Skill 榜单
   tobs skills mine  List your Skill uploads / 列出我发布的 Skill
   tobs marketplace-skill-report <id> [--reason <text>]  Report a Marketplace Skill / 举报市场 Skill
   tobs marketplace-blocklist <block|restore> <bot|avatar> <id-or-url>  Moderate a Marketplace entry / 封禁或恢复市场条目

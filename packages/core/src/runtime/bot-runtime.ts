@@ -27,6 +27,7 @@ import type { RuntimeFeatureServices } from './feature-services.js';
 import type {
   BotHoldCause,
   BotStopOutcome,
+  OrchestratorAgentRun,
   OrchestratorReplacement,
   SessionStopOutcome,
 } from '../features/sessions/agent-run-types.js';
@@ -158,6 +159,14 @@ class BotRuntimeImplementation implements BotRuntime {
 
   compactOrchestrator<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T> {
     return this.#features.continuation.compactOrchestrator(botSlug, compact);
+  }
+
+  attachResumedOrchestrator(
+    botSlug: string,
+    sessionId: string,
+    attach: (run: OrchestratorAgentRun) => Promise<void>,
+  ): Promise<void> {
+    return this.#features.continuation.attachResumedOrchestrator(botSlug, sessionId, attach);
   }
 
   tobCli(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus> {

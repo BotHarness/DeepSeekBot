@@ -1324,7 +1324,7 @@
     },
     {
       "id": "team-bot-access",
-      "description": "Team workbench Bot access by Host Role. List the Bots in the Bot section with bots access-directory and read the roles and invited members that can use one with bots access-roles <slug>. Read a role's Bots this role can use with roles bot-scope <roleId> and change it with roles bot-scope-set <roleId> --expected-revision <n> --set all or --expected-editable-bots-revision <token> --set selected:<slugs>.",
+      "description": "Team workbench Bot access by Host Role. List the Bots in the Bot section with bots access-directory and read the roles and invited members that can use one with bots access-roles <slug>. Read a role's Bots this role can use with roles bot-scope <roleId> and change it with roles bot-scope-set <roleId> --expected-revision <n> --set all or --expected-editable-bots-revision <token> --set selected:<slugs>. Read a role’s Channel links with roles channels <roleId> and a Bot’s internal members, recent DMs and Channels with bots channels <slug>.",
       "scope": "Host / Human",
       "surfaces": [
         "setting:packages/client/src/client/team-workbench/bot-roles-tab.tsx:{member.displayName}",
@@ -1335,7 +1335,7 @@
         "setting:packages/client/src/client/team-workbench/role-bot-scope.tsx:{t('team.workbench.botScope.mode')}",
         "setting:packages/client/src/client/team-workbench/role-bot-scope.tsx:{t('team.workbench.botScope.none')}"
       ],
-      "commands": ["access-directory", "access-roles", "bot-scope", "bot-scope-set"]
+      "commands": ["access-directory", "access-roles", "bot-scope", "bot-scope-set", "channels"]
     },
     {
       "id": "team-members",

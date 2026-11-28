@@ -522,10 +522,11 @@ it('unified messaging preserves an unknown external outcome without concluding o
   let conclusions = 0;
   let result: unknown;
   let sourceId = '';
+  const record = vi.fn();
   const fx = await fixture({
     onRun: async (run) => {
       sourceId = run.triage!.current()[0]!;
-      const tool = createBotMessageTool(() => run);
+      const tool = createBotMessageTool(() => run, undefined, undefined, undefined, { record });
       const args = {
         source_event_id: sourceId,
         body: 'Result',
@@ -551,6 +552,12 @@ it('unified messaging preserves an unknown external outcome without concluding o
   await fx.idle();
   expect(result).toMatchObject({ status: 'unknown-outcome' });
   expect(conclusions).toBe(0);
+  expect(record).toHaveBeenCalledWith(
+    'bot-send-message',
+    'delivery-unknown',
+    expect.objectContaining({ reason: expect.any(String) }),
+    { bot: 'ada', includeInErrors: true },
+  );
   expect(fx.replies).toHaveLength(1);
   expect(
     fx.core.attention.list({ botSlug: 'ada' }).items.find((item) => item.id === sourceId)?.state,

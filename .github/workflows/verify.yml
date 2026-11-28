@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: '0 18 * * *'
   workflow_dispatch:
@@ -24,7 +26,7 @@ on:
 concurrency:
   # Main/release commits keep their own verification; only superseded PR runs cancel.
   # github.workflow separates a release caller from the normal verify run on the same SHA.
-  group: verify-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'schedule' && 'nightly' || 'run' }}
+  group: verify-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -73,6 +75,11 @@ jobs:
           "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files?per_page=100"
           --jq '.[] | [.status, .filename, (.previous_filename // "")] | @tsv'
           > "$RUNNER_TEMP/changes.tsv"
+      - name: Fetch merge group base
+        if: github.event_name == 'merge_group'
+        env:
+          BASE: ${{ github.event.merge_group.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE"
       - id: plan
         run: node scripts/ci-plan.mjs --github --changes "$RUNNER_TEMP/changes.tsv"
       - id: select
@@ -110,7 +117,7 @@ jobs:
           cache: pnpm
       - name: Reject Git-hosted PR evidence
         env:
-          EVIDENCE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          EVIDENCE_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           if [ -n "$EVIDENCE_BASE" ] && [ "$EVIDENCE_BASE" != "0000000000000000000000000000000000000000" ]; then
             git fetch --no-tags --depth=1 origin "$EVIDENCE_BASE"
@@ -121,7 +128,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Reject a raised lint baseline
         env:
-          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          BASELINE_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
             node scripts/lint-ratchet.mjs --base="$BASELINE_BASE"
@@ -130,7 +137,7 @@ jobs:
           fi
       - name: Reject a raised UI rules baseline
         env:
-          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          BASELINE_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
             node scripts/check-ui-rules.mjs --base="$BASELINE_BASE"
@@ -139,7 +146,7 @@ jobs:
           fi
       - name: Reject a raised host-reader baseline
         env:
-          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          BASELINE_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
             node scripts/check-host-readers.mjs --base="$BASELINE_BASE"
@@ -148,7 +155,7 @@ jobs:
           fi
       - name: Report codebase health against the base
         env:
-          HEALTH_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          HEALTH_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           if [ -n "$HEALTH_BASE" ] && [ "$HEALTH_BASE" != "0000000000000000000000000000000000000000" ]; then
             node scripts/health.mjs --base="$HEALTH_BASE"
@@ -160,7 +167,7 @@ jobs:
         run: exec node scripts/ci-with-deadline.mjs 90 2 node scripts/verify-tla.mjs
       - name: Report the features this change touches
         env:
-          HEALTH_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          HEALTH_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           if [ -n "$HEALTH_BASE" ] && [ "$HEALTH_BASE" != "0000000000000000000000000000000000000000" ]; then
             node scripts/feature-impact.mjs --base="$HEALTH_BASE" --summary
@@ -171,7 +178,7 @@ jobs:
         timeout-minutes: 7
         run: exec node scripts/ci-with-deadline.mjs 160 2 pnpm lint
         env:
-          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
+          BASELINE_BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
       - name: Run pnpm format:check
         timeout-minutes: 3
         run: exec node scripts/ci-with-deadline.mjs 40 2 pnpm format:check
@@ -717,7 +724,7 @@ jobs:
           if-no-files-found: ignore
 
   verify:
-    name: lint, format, typecheck, test, build, docs
+    name: required
     needs:
       [
         plan,
@@ -767,9 +774,11 @@ jobs:
                 (Number(count) === 0) !== (shards === '0')) throw new Error('Invalid affected test shards');
             if (shards === '4') required.push('test-affected');
           }
+          const switches = ['mobile', 'private-relay', 'android-native', 'docs-site', 'perf', 'ui-visual', 'confinement'];
           if (!['none', 'affected', 'full'].includes(plan.tests) ||
-              !['true', 'false'].includes(plan.mobile) ||
-              !['true', 'false'].includes(plan['private-relay'])) throw new Error('Invalid CI plan');
+              switches.some((name) => !['true', 'false'].includes(plan[name]))) {
+            throw new Error('Invalid CI plan');
+          }
           const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result));
           const missing = required.filter((name) => needs[name]?.result !== 'success');
           if (failed.length || missing.length) {

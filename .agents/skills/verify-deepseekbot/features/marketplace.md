@@ -89,6 +89,10 @@ The Worker indexes public repositories tagged `tobs-skill`; each folder with a `
 3. **Add…** downloads and re-scans the files on the Host. Tick a Bot and **Global (every Bot)**, then **Add**. Prove canonical state: one commit `skills: add <name> from Marketplace` in the Bot's memory repository, `metadata.tobs-source/tobs-repository/tobs-hash` in its `SKILL.md`, `<DSH home>/skills/<name>/` for global, `rpc botharness/botSkills '{"slug":"<slug>"}'` lists it, typing `/<name>` in the Bot's composer offers it, and the Worker install count rises by one per target.
 4. Add again: the targets show the name conflict and the dialog asks to add renamed (`<name>-2`) or replace. `deepseekbot skills-add <id> --bot <slug> --confirm --on-conflict rename` gives the same result.
 
+### Read Skill rankings from the CLI
+
+With the Host pointed at a task-local Worker, run `deepseekbot market skills sections` before the daily job and expect three sections with empty entries. Seed listed Skills and receipts in both seven-day windows, then run the daily job. Compare each section's ordered Skills and scores with the corresponding `GET /v1/skills/sections/{section}` response. Run `deepseekbot market skills sections --section rising` and expect only Rising in the JSON array.
+
 ## All tab, Yours and the wide view
 
 1. Point the Host at a task-local Marketplace (Worker or a stub serving `/v1/sections/hot`, `/v1/skills`, `/v1/skills/<id>` with uploaded files, and `/v1/avatars/sections/hot`). Add one Skill to a Bot and globally, and a second Skill to the Bot only, with `marketplaceSkillReview` and `marketplaceSkillAdd`. Seed one `connector_accounts` row with status `expired` and one `active`.

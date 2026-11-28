@@ -34,9 +34,10 @@ export {
 };
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const REQUIRED_CHECK = 'lint, format, typecheck, test, build, docs';
+export const REQUIRED_CHECK = 'required';
 export const FULL_LABEL = 'ci:full';
 export const SHARDS = 4;
+const SELECTIVE_EVENTS = new Set(['pull_request', 'merge_group']);
 const PLANNED_MATRIX = '${{ fromJSON(needs.plan.outputs.matrix) }}';
 export const MAX_CHANGED_FILES = 3000;
 export const DOCS_SITE_TEST = 'apps/docs/test/changelog-public-surfaces.test.ts';
@@ -398,7 +399,7 @@ export function plan({ event, labels = [], changes = [], truncated = false, inde
     related: [],
     ...extra,
   });
-  if (event !== 'pull_request') return result('full', `${event} always runs the full suite`);
+  if (!SELECTIVE_EVENTS.has(event)) return result('full', `${event} always runs the full suite`);
   if (labels.includes(FULL_LABEL))
     return result('full', `the ${FULL_LABEL} label asks for a full run`);
   if (truncated || changes.length >= MAX_CHANGED_FILES)
@@ -574,6 +575,8 @@ export function checkWorkflow(workflow) {
       );
   for (const event of ['pull_request', 'push', 'schedule', 'workflow_dispatch'])
     if (!(event in triggers)) problems.push(`${WORKFLOW} must run on ${event}`);
+  if (!triggers.merge_group?.types?.includes('checks_requested'))
+    problems.push(`${WORKFLOW} must run on merge_group checks_requested`);
   if (!triggers.pull_request?.types?.includes('labeled'))
     problems.push(`pull_request must include the labeled type so ${FULL_LABEL} starts a full run`);
   if (jobs['test-full']?.strategy?.matrix !== PLANNED_MATRIX)
@@ -749,7 +752,7 @@ function mobileInputs(index) {
 
 export function mobileVerification({ event, labels = [], changes = [], truncated = false, index }) {
   const yes = (reason) => ({ run: true, reason });
-  if (event !== 'pull_request') return yes(`${event} verifies mobile`);
+  if (!SELECTIVE_EVENTS.has(event)) return yes(`${event} verifies mobile`);
   if (labels.includes(FULL_LABEL)) return yes(`${FULL_LABEL} verifies mobile`);
   if (truncated || changes.length >= MAX_CHANGED_FILES) return yes('incomplete changed file list');
   const changed = [];
@@ -774,19 +777,38 @@ export function mobileVerification({ event, labels = [], changes = [], truncated
   return { run: false, reason: 'no changed mobile or shared bundle input' };
 }
 
+function mergeGroupChanges({ base_sha: base, head_sha: head }) {
+  const entries = execFileSync(
+    'git',
+    ['diff', '--name-status', '-z', '--no-renames', base, head, '--'],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+      maxBuffer: 1 << 26,
+      shell: false,
+      windowsHide: true,
+    },
+  ).split('\0');
+  const changes = [];
+  for (let i = 0; i < entries.length - 1; i += 2)
+    changes.push({ status: entries[i].toLowerCase(), path: entries[i + 1] });
+  return changes;
+}
+
 function githubPlan(changesFile) {
   const event = process.env.GITHUB_EVENT_NAME;
   const payload = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const labels = (payload.pull_request?.labels ?? []).map((label) => label.name);
   const text = changesFile && existsSync(changesFile) ? readFileSync(changesFile, 'utf8') : '';
-  const changes = parseChanges(text);
+  const changes =
+    event === 'merge_group' ? mergeGroupChanges(payload.merge_group) : parseChanges(text);
   const changedCount = payload.pull_request?.changed_files ?? changes.length;
   const files = trackedFiles();
   const index = createIndex(files, (file) => readFileSync(join(ROOT, file), 'utf8'));
   const input = { event, labels, changes, truncated: changedCount > changes.length, index };
   const result = { ...plan(input), mobile: mobileVerification(input) };
   const relay =
-    event !== 'pull_request' ||
+    !SELECTIVE_EVENTS.has(event) ||
     input.truncated ||
     labels.includes(FULL_LABEL) ||
     changes.some(({ path, previous }) =>

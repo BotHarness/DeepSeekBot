@@ -111,6 +111,7 @@ export interface OrchestratorChannelAccess extends ChannelFileAccess, VoiceChann
   };
   react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
   sendToBot(input: {
+    attachments?: ChannelAttachmentRef[];
     botSlug: string;
     body: string;
     replyTo?: string;

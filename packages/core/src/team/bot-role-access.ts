@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import type { DatabaseSync } from 'node:sqlite';
+import type { ChannelStore } from '../channels/store.js';
+import type { TeamChannels } from './channels.js';
 import {
   STALE_HOST_ROLE,
   type BotAccessRolesView,
+  type BotInternalMembersView,
   type RoleBotScopeUpdate,
   type RoleBotScopeView,
   type TeamAccessBot,
@@ -27,6 +31,9 @@ const botRow = botSummary.extend({
   visibility: z.string(),
   availableToMembers: z.coerce.boolean(),
 });
+const memberSummary = z.object({ humanId: z.string(), displayName: z.string() });
+const RECENT_DM_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const RECENT_DM_LIMIT = 20;
 const roleSource = z.enum(['everyone', 'all', 'selected']);
 
 const manageableBotSql = `(b.owner_human_id = viewer.human_id
@@ -55,6 +62,9 @@ export class TeamBotRoleAccess {
     private readonly db: OperationalDatabaseModulePort,
     private readonly roles: TeamRoles,
     private readonly bots: TeamBots,
+    private readonly channels: ChannelStore,
+    private readonly channelAccess: TeamChannels,
+    private readonly now: () => number,
     private readonly replaceBotMemory?: ReplaceBotMemory,
   ) {}
 
@@ -75,18 +85,81 @@ export class TeamBotRoleAccess {
     );
   }
 
+  private manageableBot(db: DatabaseSync, human: HumanContext, slug: string, manageAll: boolean) {
+    const raw = db
+      .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName,
+        b.owner_human_id AS ownerHumanId, b.visibility_json AS visibility,
+        s.enabled = 1 AND principal.status = 'active' AS availableToMembers
+        ${visibleBotFrom} WHERE b.slug = ? AND ${liveBotSql} AND ${manageableBotSql}`)
+      .get(human.humanId, slug, Number(manageAll));
+    if (!raw) throw new TeamError('bot-not-found');
+    return botRow.parse(raw);
+  }
+
+  internalMembers(human: HumanContext, slug: string): BotInternalMembersView {
+    const permissions = this.permissions(human);
+    const { displayName, ownerHumanId, dmMembers } = this.db.read((db) => {
+      const bot = this.manageableBot(db, human, slug, permissions.includes('bots.manageAll'));
+      const dmMembers = memberSummary.array().parse(
+        db
+          .prepare(`
+        SELECT candidate.human_id AS humanId, candidate.display_name AS displayName
+        FROM humans candidate CROSS JOIN team_settings s
+        JOIN humans principal ON principal.human_id = ?
+        CROSS JOIN (SELECT ? AS visibility) input
+        WHERE (? = 1 OR candidate.human_id = ?)
+          AND ${activeBotHumanSql({ human: 'candidate', settings: 's' })}
+          AND ${activeBotHumanSql({ human: 'principal', settings: 's' })}
+          AND ${botAudienceAccessSql({
+            visibility: 'input.visibility',
+            viewer: 'candidate.human_id',
+            principal: 'principal.human_id',
+          })}
+        ORDER BY candidate.human_id
+      `)
+          .all(
+            bot.ownerHumanId,
+            bot.visibility,
+            Number(permissions.includes('members.manage')),
+            human.humanId,
+          ),
+      );
+      return { displayName: bot.displayName, ownerHumanId: bot.ownerHumanId, dmMembers };
+    });
+
+    const visible = this.channelAccess.visibleIds(human, false);
+    const channels = this.channels
+      .list()
+      .filter((channel) => visible.has(channel.id) && channel.members.includes(slug))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const now = this.now();
+    const cutoff = now - RECENT_DM_WINDOW_MS;
+    const recentInteractions = channels.flatMap((channel) => {
+      if (channel.type !== 'dm' || channel.botSlug !== slug || channel.remoteBot) return [];
+      const humanId = channel.dmHumanId ?? ownerHumanId;
+      if (humanId !== human.humanId) return [];
+      const at = this.channels.latestMessage(channel.id)?.at;
+      if (!at) return [];
+      const time = Date.parse(at);
+      return time >= cutoff && time <= now ? [{ humanId, channelId: channel.id, at, time }] : [];
+    });
+    recentInteractions.sort((a, b) => b.time - a.time);
+    return {
+      slug,
+      displayName,
+      dmMembers,
+      recentInteractions: recentInteractions
+        .slice(0, RECENT_DM_LIMIT)
+        .map(({ humanId, channelId, at }) => ({ humanId, channelId, at })),
+      channels: channels.map(({ id, name, type }) => ({ channelId: id, name, type })),
+    };
+  }
+
   botRoles(human: HumanContext, slug: string): BotAccessRolesView {
     const permissions = this.permissions(human);
     const manageAll = permissions.includes('bots.manageAll');
     return this.db.read((db) => {
-      const raw = db
-        .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName,
-        b.owner_human_id AS ownerHumanId, b.visibility_json AS visibility,
-        s.enabled = 1 AND principal.status = 'active' AS availableToMembers
-        ${visibleBotFrom} WHERE b.slug = ? AND ${liveBotSql} AND ${manageableBotSql}`)
-        .get(human.humanId, slug, Number(manageAll));
-      if (!raw) throw new TeamError('bot-not-found');
-      const { visibility, ...bot } = botRow.parse(raw);
+      const { visibility, ...bot } = this.manageableBot(db, human, slug, manageAll);
       const access = botVisibilitySchema.parse(JSON.parse(visibility));
       if (access.kind === 'private')
         return {

@@ -1,7 +1,7 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
@@ -13,6 +13,7 @@ const NEXT: Record<string, string> = { ada: 'bea', bea: 'cea', cea: 'bea' };
 async function relay(botHopLimit: number) {
   const receipts: { bot: string; receipt: Record<string, unknown> }[] = [];
   const runs: string[] = [];
+  const record = vi.fn();
   let calls = 0;
   const core = createCore({
     dshHome: createTempRoot('bh-hop-relay-'),
@@ -21,7 +22,7 @@ async function relay(botHopLimit: number) {
       async runOrchestrator(run: OrchestratorAgentRun) {
         runs.push(run.bot.slug);
         if (runs.filter((slug) => slug === run.bot.slug).length > 1) return;
-        const tool = createBotMessageTool(() => run);
+        const tool = createBotMessageTool(() => run, undefined, undefined, undefined, { record });
         const result = await tool.execute(
           { bot_id: NEXT[run.bot.slug]!, body: `relay from ${run.bot.slug}` },
           {
@@ -55,7 +56,7 @@ async function relay(botHopLimit: number) {
       body: 'Relay this along the chain',
     });
     await core.runtime.whenIdle();
-    return { runs, receipts };
+    return { runs, receipts, record };
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -74,7 +75,7 @@ describe('Bot-to-Bot hop limit across a Bot DM relay', () => {
   });
 
   it('refuses the third hop under a limit of two without delivering it', async () => {
-    const { runs, receipts } = await relay(2);
+    const { runs, receipts, record } = await relay(2);
     expect(runs).toEqual(['ada', 'bea', 'cea']);
     expect(receipts.at(-1)).toEqual({
       bot: 'cea',
@@ -86,5 +87,11 @@ describe('Bot-to-Bot hop limit across a Bot DM relay', () => {
       }),
     });
     expect(receipts.at(-1)?.receipt['messageId']).toBeUndefined();
+    expect(record).toHaveBeenCalledWith(
+      'bot-send-message',
+      'refused',
+      expect.objectContaining({ reason: 'collaboration-hop-limit', hop: 3, hopLimit: 2 }),
+      { bot: 'cea', includeInErrors: true },
+    );
   });
 });

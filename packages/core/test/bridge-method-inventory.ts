@@ -1,6 +1,7 @@
 export const bridgeMethodInventory = [
   'botAccessDirectory',
   'botAccessRoles',
+  'botInternalMembers',
   'botVisibility',
   'botVisibilitySet',
   'botSwitches',
@@ -32,6 +33,7 @@ export const bridgeMethodInventory = [
   'permissionCatalog',
   'roles',
   'roleBotScope',
+  'roleChannels',
   'roleBotScopeSet',
   'roleCreate',
   'roleUpdate',
@@ -449,6 +451,7 @@ export const bridgeMethodInventory = [
   'marketplaceInstall',
   'marketplaceSkillList',
   'marketplaceSkillDetail',
+  'marketplaceSkillSections',
   'marketplaceSkillAddCandidates',
   'marketplaceSkillReview',
   'marketplaceSkillAdd',

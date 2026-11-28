@@ -165,7 +165,7 @@ const candidate: DigestCandidate = {
 };
 
 describe('Marketplace Digest', () => {
-  it('finishes both rankings and a bilingual digest in the 100 requests reserved after discovery', async () => {
+  it('finishes all rankings and a bilingual digest in the 100 requests reserved after discovery', async () => {
     const { writer, calls } = stubModel(article);
     const market = createMarket({ digestWriter: writer });
     for (const index of [1, 2, 3, 4, 5, 6]) {
@@ -194,6 +194,7 @@ describe('Marketplace Digest', () => {
     expect(logs).toEqual([
       expect.objectContaining({ phase: 'rankings', day: '2026-10-05', hot: 6 }),
       expect.objectContaining({ phase: 'avatar-rankings', day: '2026-10-05' }),
+      expect.objectContaining({ phase: 'skill-rankings', day: '2026-10-05' }),
       expect.objectContaining({ phase: 'digest', outcome: 'written', written: ['zh', 'en'] }),
     ]);
     expect(calls.map((call) => ids(call).length)).toEqual([6, 6]);

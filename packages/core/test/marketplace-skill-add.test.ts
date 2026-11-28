@@ -95,6 +95,17 @@ it('publishes a folder named skills through the Host and CLI and preserves insta
     { id, upload: { author: { name: 'Alice', id: author.id } } },
   ]);
   expect(await runSkillCommand('skills-mine', [], {}, connect)).toMatchObject({ skills: [{ id }] });
+  expect(value(await bridge.marketplaceSkillSections({}))).toEqual([
+    { section: 'hot', entries: [] },
+    { section: 'new', entries: [] },
+    { section: 'rising', entries: [] },
+  ]);
+  await market.daily();
+  expect(value(await caller.marketplaceSkillSections({}))).toEqual([
+    { section: 'hot', entries: [] },
+    { section: 'new', entries: [{ skill: detail.skill, score: 0 }] },
+    { section: 'rising', entries: [] },
+  ]);
 
   const add = async (bot: string) => {
     const reviewed = value(await bridge.marketplaceSkillReview({ id }));

@@ -57,6 +57,12 @@ describe('release verification protection', () => {
     expect(group(github)).not.toBe(group({ ...github, workflow: 'npm release' }));
     expect(expression(verify.concurrency['cancel-in-progress'], { github })).toBe(false);
   });
+  it('isolates each merge group head from other queue heads and main pushes', () => {
+    const queue = { ...github, event_name: 'merge_group' };
+    expect(group(queue)).not.toBe(group(github));
+    expect(group(queue)).not.toBe(group({ ...queue, sha: 'b' }));
+    expect(expression(verify.concurrency['cancel-in-progress'], { github: queue })).toBe(false);
+  });
   it('still replaces obsolete runs for the same PR', () => {
     const pr = { ...github, event_name: 'pull_request', event: { pull_request: { number: 42 } } };
     expect(group(pr)).toBe(group({ ...pr, sha: 'b' }));

@@ -5,6 +5,8 @@ import {
   withoutMentionMarkup,
 } from '../messaging/mention-text.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
+import { ChannelAttachmentError } from '../attachments/store.js';
+import type { DiagnosticEventFields, DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import { createHash } from 'node:crypto';
 import { parseGenuiContent } from '../channels/genui.js';
 import { GENUI_DOCUMENT_LIMITS } from '../channels/genui-document.js';
@@ -41,39 +43,33 @@ function unsupportedVoice(): VoiceAttachOutcome {
 }
 
 export class BotMessageError extends HarnessError {
-  constructor(code: string, message: string) {
+  constructor(
+    code: string,
+    message: string,
+    readonly limit?: number,
+  ) {
     super(message, code);
     this.name = 'BotMessageError';
   }
 }
 
 const SEND_STREAK_NOTICE = `Not sent, and this turn has ended: this would be message ${SEND_STREAK_LIMIT + 1} in a row to the same destination with no other work in between. Do not post status updates in place of work. This request is closed: do not reply to it or continue it later. Answer only new messages. If something you need, such as a tool, is unavailable, say so once instead of promising it.`;
+const EXPLICIT_SEND_STREAK_NOTICE = `Not sent. This turn ended after ${SEND_STREAK_LIMIT} calls to the same destination without other work in between. Continue only from a new request. Do not retry this send.`;
 
 const CLOSED_SOURCE_NOTICE =
   'Not sent: this request was closed after repeated messages in a row. Do not reply to it or finish it; answer only new messages.';
 
 const NOT_WOKEN_NOTICE =
-  'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
+  'The message was saved, but these colleagues did not receive an Inbox admission. Tell the Humans in this conversation what is needed to continue; do not resend the same message.';
 
 const HOP_LIMIT_NOTICE =
-  'Not sent: this Bot-to-Bot chain used its whole hop budget since the last Human message, so no colleague was messaged or woken. Tell the Humans in this conversation where the work stands: a Human can continue by messaging you directly or @-mentioning you, which starts a new chain, or raise the limit in Settings → Messaging. Do not retry the same @.';
+  'Not sent: the next Bot-to-Bot hop exceeds the chain depth limit. A new Human DM or @-mention can start a fresh chain. Humans can change the limit in Settings → Messaging. Do not retry from the same source.';
 
 function notWoken(message: ChannelMessage, targets: readonly string[]) {
   const woken = new Set((message.deliveries ?? []).map((delivery) => delivery.botSlug));
   return [...new Set(targets)]
     .filter((botSlug) => !woken.has(botSlug) && !botSlug.startsWith('remote:'))
     .map((botId) => ({ botId, reason: 'not-admitted' as const }));
-}
-
-function hopLimitRefusal(error: BotHopLimitReached, channelId: string | undefined): string {
-  return JSON.stringify({
-    status: 'refused',
-    ...(channelId === undefined ? {} : { channelId }),
-    reason: error.code,
-    hop: error.hop,
-    hopLimit: error.limit,
-    notice: HOP_LIMIT_NOTICE,
-  });
 }
 
 const DESTINATION_FIELDS = [
@@ -144,9 +140,35 @@ export function createBotMessageTool(
   },
   sentToHumanDm?: (messageId: string) => void,
   previews?: GenuiPreviewStore,
+  diagnostics?: DiagnosticEvents,
 ) {
   const runsWithFailedQqReply = new WeakSet<OrchestratorAgentRun>();
-  return defineTool({
+  function record(run: OrchestratorAgentRun, phase: string, fields: DiagnosticEventFields) {
+    diagnostics?.record(
+      'bot-send-message',
+      phase,
+      { sessionId: run.sessionId, ...fields },
+      {
+        bot: run.bot.slug,
+        includeInErrors: true,
+      },
+    );
+  }
+  function hopLimitRefusal(
+    run: OrchestratorAgentRun,
+    error: BotHopLimitReached,
+    channelId: string | undefined,
+  ): string {
+    const details = { reason: error.code, hop: error.hop, hopLimit: error.limit };
+    record(run, 'refused', details);
+    return JSON.stringify({
+      status: 'refused',
+      ...(channelId === undefined ? {} : { channelId }),
+      ...details,
+      notice: HOP_LIMIT_NOTICE,
+    });
+  }
+  const tool = defineTool({
     name: 'bot_send_message',
     description:
       'Send a message to a Channel or external IM. Ordinary assistant text is private. Give exactly one destination: a trusted source_event_id to reply, or channel_id, human_id, bot_id, grant_id, or binding_id with conversation_id. After delivery-unknown, check that conversation history and report the uncertainty; never resend or switch destinations. unable-to-deliver and network-denied are refusals. A finished reply passes resolve_inbox_ids and end_turn.',
@@ -184,7 +206,8 @@ export function createBotMessageTool(
       recover: { type: 'boolean', description: 'Recover draft_id after a restart.' },
       attachments: {
         type: 'array',
-        description: 'Imported Attachments. External replies take one file with an empty body.',
+        description:
+          'Up to ten imported Attachments for local Channels or local bot_id. External replies take one file with an empty body.',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -271,7 +294,7 @@ export function createBotMessageTool(
       if (destinations.length !== 1)
         throw new BotMessageError(
           'destination-required',
-          `Choose exactly one trusted reply source or explicit destination (got: ${destinations.join(', ') || 'none'}).`,
+          `Choose exactly one trusted reply source or explicit destination (got: ${destinations.join(', ') || 'none'}). For a Bot DM, provide bot_id from list_bot_contacts.`,
         );
       if ((args.binding_id === undefined) !== (args.conversation_id === undefined))
         throw new BotMessageError(
@@ -283,13 +306,15 @@ export function createBotMessageTool(
       if (
         args.source_event_id !== undefined &&
         isStreakSourceClosed(run.sessionId, args.source_event_id)
-      )
+      ) {
+        record(run, 'refused', { reason: 'source-closed', limit: SEND_STREAK_LIMIT });
         return JSON.stringify({
           status: 'refused',
           reason: 'source-closed',
           notice: CLOSED_SOURCE_NOTICE,
           inboxResolution: { outcome: 'not-requested' },
         });
+      }
       const destination = destinations[0]!;
       if (
         recordSend(
@@ -298,6 +323,8 @@ export function createBotMessageTool(
           String(exec.callId),
         ) > SEND_STREAK_LIMIT
       ) {
+        const details = { reason: 'send-streak', limit: SEND_STREAK_LIMIT };
+        record(run, 'refused', details);
         exec.concludeTurn();
         let ignored = false;
         if (args.source_event_id !== undefined)
@@ -315,8 +342,9 @@ export function createBotMessageTool(
           }
         return JSON.stringify({
           status: 'refused',
-          reason: 'send-streak',
-          notice: SEND_STREAK_NOTICE,
+          ...details,
+          notice:
+            args.source_event_id === undefined ? EXPLICIT_SEND_STREAK_NOTICE : SEND_STREAK_NOTICE,
           inboxResolution: ignored
             ? { outcome: 'ignored', resolved: [args.source_event_id] }
             : { outcome: 'not-requested' },
@@ -431,7 +459,11 @@ export function createBotMessageTool(
               return parsed;
             })();
       if ((args.attachments?.length ?? 0) > 10)
-        throw new BotMessageError('invalid-attachments', 'At most ten attachments are supported.');
+        throw new BotMessageError(
+          'invalid-attachments',
+          'At most ten attachments are supported.',
+          10,
+        );
       if (
         external &&
         args.attachments?.length &&
@@ -449,11 +481,6 @@ export function createBotMessageTool(
         throw new BotMessageError(
           'invalid-attachments',
           'Use trusted imported Attachment references.',
-        );
-      if (args.bot_id !== undefined && args.attachments?.length)
-        throw new BotMessageError(
-          'unsupported-attachment-send',
-          'Discover the existing Bot DM Channel to send attachments.',
         );
       const unknown = sessionMentionIds(args.body).filter(
         (sessionId) => run.assignments.inspect(sessionId) === undefined,
@@ -483,9 +510,10 @@ export function createBotMessageTool(
             botSlug: args.bot_id,
             body: withoutSessionMentions(args.body),
             deliveryKey: String(exec.callId),
+            ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
           });
         } catch (error) {
-          if (error instanceof BotHopLimitReached) return hopLimitRefusal(error, undefined);
+          if (error instanceof BotHopLimitReached) return hopLimitRefusal(run, error, undefined);
           throw error;
         }
         messageId = sent.message.id;
@@ -507,6 +535,7 @@ export function createBotMessageTool(
         const qqReply = source === undefined ? undefined : sourceReplyCapability(source);
         if (qqReply?.state === 'unavailable') {
           runsWithFailedQqReply.add(run);
+          record(run, 'refused', { reason: qqReply.reason });
           return JSON.stringify({
             status: 'refused',
             reason: qqReply.reason,
@@ -555,6 +584,7 @@ export function createBotMessageTool(
         } catch (error) {
           if (qqReply === undefined || !(error instanceof MessagingError)) throw error;
           runsWithFailedQqReply.add(run);
+          record(run, 'refused', { reason: error.code });
           return JSON.stringify({
             status: 'refused',
             reason: error.code,
@@ -565,6 +595,13 @@ export function createBotMessageTool(
         }
         if (result.state !== 'provider-accepted' || result.receipt === undefined) {
           if (qqReply !== undefined) runsWithFailedQqReply.add(run);
+          record(
+            run,
+            result.state === 'unknown-outcome' || result.state === 'provider-accepted'
+              ? 'delivery-unknown'
+              : 'failed',
+            { reason: result.reason ?? result.state },
+          );
           return JSON.stringify({
             status: result.state,
             intentId: result.id,
@@ -645,7 +682,7 @@ export function createBotMessageTool(
           }
           if (error instanceof BotHopLimitReached) {
             drafts?.discard(channelId!);
-            return hopLimitRefusal(error, channelId);
+            return hopLimitRefusal(run, error, channelId);
           }
           if (error instanceof ChannelQuoteError)
             throw new BotMessageError(error.code, error.message);
@@ -688,6 +725,8 @@ export function createBotMessageTool(
         ['not-requested', 'resolved'].includes(inboxResolution.outcome)
       )
         exec.concludeTurn();
+      if (unwoken.length > 0)
+        record(run, 'not-woken', { reason: 'not-admitted', count: unwoken.length });
       return JSON.stringify({
         status: 'committed',
         channelId,
@@ -699,4 +738,27 @@ export function createBotMessageTool(
       });
     },
   });
+  return {
+    ...tool,
+    async execute(...args: Parameters<typeof tool.execute>) {
+      try {
+        return await tool.execute(...args);
+      } catch (error) {
+        const failure =
+          error instanceof ChannelAttachmentError
+            ? new BotMessageError(`attachment-${error.code}`, error.message)
+            : error;
+        if (diagnostics !== undefined && !args[1].signal.aborted) {
+          const reason = failure instanceof HarnessError ? failure.code : 'send-failed';
+          try {
+            record(current(), reason === 'delivery-unknown' ? 'delivery-unknown' : 'failed', {
+              reason,
+              limit: failure instanceof BotMessageError ? failure.limit : undefined,
+            });
+          } catch {}
+        }
+        throw failure;
+      }
+    },
+  };
 }
