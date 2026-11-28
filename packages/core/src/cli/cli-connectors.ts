@@ -189,9 +189,11 @@ export async function runConnectorCommand(
       'one https address, for example https://mcp.posthog.com/mcp',
     );
     return (await connect())('connectorMcpAdd', {
-      url,
-      ...(values.name === undefined ? {} : { name: values.name }),
-      ...(values.label === undefined ? {} : { label: values.label }),
+      input: {
+        url,
+        ...(values.name === undefined ? {} : { name: values.name }),
+        ...(values.label === undefined ? {} : { label: values.label }),
+      },
     });
   }
   if (command === 'connector-mcp-finish') {
