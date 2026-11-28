@@ -102,7 +102,7 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
-import { TEAM_WORKBENCH_PANEL, createTeamWorkbenchPanel } from './team-workbench.js';
+import { createTeamWorkbenchPanel } from './team-workbench.js';
 import { createEnvironmentPanel, openEnvironmentJoin } from './environment-panel.js';
 import { mountHostSettingsOpener } from './environment-settings-source.js';
 import { createMarketPanel } from './market-panel.js';
@@ -836,10 +836,7 @@ export function apply(ctx: ClientContext): void {
     companion,
     releaseNotes,
     updateRuns,
-    openTeamWorkbench: () => {
-      botSettings.close();
-      dockPanels.open(TEAM_WORKBENCH_PANEL);
-    },
+    dockPanels,
   });
 
   registerNativeSessionModelSwitch(ctx, actions);

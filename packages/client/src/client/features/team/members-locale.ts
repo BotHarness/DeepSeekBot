@@ -1,0 +1,46 @@
+export const zh = {
+  'team.mode.on': '已开启',
+  'team.mode.openWorkbench': '在 Team 工作台中管理',
+  'team.workbench.membersOff': '未开启',
+  'team.workbench.membersOffBody':
+    '开启内部成员模式后，你可以邀请成员用自己的账号登录这台 Host，再用内部角色和频道决定他们能做什么。',
+  'team.workbench.copyInvite': '复制邀请链接',
+  'team.workbench.inviteMember': '邀请成员',
+  'team.workbench.memberSettings': '内部成员设置',
+  'team.workbench.back': '返回',
+  'team.memberSettings.invite': '邀请',
+  'team.memberSettings.lifetime': '邀请链接有效期',
+  'team.memberSettings.lifetimeHint': '只影响之后生成的链接。链接过期后，成员的账号仍然可以登录。',
+  'team.memberSettings.minutes': '分钟',
+  'team.memberSettings.defaultRole': '新成员默认角色',
+  'team.memberSettings.defaultRoleHint': '创建成员时没有指定角色，就使用这个角色。',
+  'team.memberSettings.unavailable': '这台 Host 的版本较旧，不能修改邀请设置。',
+  'team.memberSettings.isolation': '执行隔离',
+  'team.memberSettings.turnOff': '关闭内部成员模式',
+  'team.memberSettings.turnOffHint': '暂停所有成员，并吊销他们的授权。',
+  'team.memberSettings.turnOffAction': '关闭',
+} as const;
+
+export const en = {
+  'team.mode.on': 'On',
+  'team.mode.openWorkbench': 'Manage in Team workbench',
+  'team.workbench.membersOff': 'Off',
+  'team.workbench.membersOffBody':
+    'Turn on internal member mode to invite people to sign in to this Host with their own accounts. Internal roles and Channels then decide what they can do.',
+  'team.workbench.copyInvite': 'Copy invite link',
+  'team.workbench.inviteMember': 'Invite member',
+  'team.workbench.memberSettings': 'Internal member settings',
+  'team.workbench.back': 'Back',
+  'team.memberSettings.invite': 'Invitations',
+  'team.memberSettings.lifetime': 'Invite link expiry',
+  'team.memberSettings.lifetimeHint':
+    'Applies to links created from now on. Accounts keep working after a link expires.',
+  'team.memberSettings.minutes': 'min',
+  'team.memberSettings.defaultRole': 'Default role for new members',
+  'team.memberSettings.defaultRoleHint': 'Used when you create a member without choosing a role.',
+  'team.memberSettings.unavailable': 'This Host is too old to change invitation settings.',
+  'team.memberSettings.isolation': 'Execution isolation',
+  'team.memberSettings.turnOff': 'Turn off internal member mode',
+  'team.memberSettings.turnOffHint': 'Suspends every member and revokes their grants.',
+  'team.memberSettings.turnOffAction': 'Turn off',
+} satisfies Record<keyof typeof zh, string>;
