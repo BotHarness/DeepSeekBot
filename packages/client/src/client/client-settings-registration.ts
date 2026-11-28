@@ -58,6 +58,7 @@ export function registerClientSettings(
     companion,
     releaseNotes,
     updateRuns,
+    openTeamWorkbench,
   }: {
     t: BotHarnessTranslate;
     prefs: BotModePrefs;
@@ -72,6 +73,7 @@ export function registerClientSettings(
     companion: WindowCompanions;
     releaseNotes: ReleaseNotesController;
     updateRuns: UpdateRunsController;
+    openTeamWorkbench(): void;
   },
 ): void {
   ctx.inject(['configForms'], (settingsCtx) => {
@@ -279,7 +281,7 @@ export function registerClientSettings(
           order: 44,
           label: () => t('botSettings.section.team'),
           locale: LOCALE_NS,
-          inject: () => ({ call }),
+          inject: () => ({ call, openTeamWorkbench }),
         },
         TeamSection,
       ),

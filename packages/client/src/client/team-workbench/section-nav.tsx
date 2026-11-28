@@ -37,7 +37,8 @@ export function SectionNav({
           {compact ? null : <NavGroupHeading first={index === 0} label={t(group.label)} />}
           {items.map((section) => {
             const label = t(section.label);
-            const count = section.count(context);
+            const status = section.status?.(context);
+            const count = status === undefined ? section.count(context) : t(status);
             const item = (
               <NavItem
                 icon={<Icon name={section.icon} />}

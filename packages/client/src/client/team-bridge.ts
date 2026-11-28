@@ -1,4 +1,8 @@
-import { readTeamMode } from '@botharness/host-client/people';
+import { readTeamMode, setTeamMemberSettings } from '@botharness/host-client/people';
+import type {
+  TeamMemberSettings,
+  TeamMemberSettingsPatch,
+} from '@botharness/host-protocol/team-member-settings';
 import { STALE_HOST_ROLE } from '@botharness/host-client/team-roles';
 import { BridgeCallError, bridgeHost, type BridgeCall } from './bridge.js';
 
@@ -20,6 +24,7 @@ export interface TeamModeView {
   readonly insecureHttpAllowed: boolean;
   readonly memberUrls: readonly string[];
   readonly isolation: 'trial' | 'enforced';
+  readonly memberSettings?: TeamMemberSettings | undefined;
   readonly viewer: TeamViewer;
 }
 
@@ -210,8 +215,15 @@ export function list<T>(value: unknown, parse: (item: unknown) => T | undefined)
 }
 
 export async function loadTeamMode(call: BridgeCall, signal?: AbortSignal): Promise<TeamModeView> {
-  const { enabled, ownerPasswordSet, insecureHttpAllowed, memberUrls, isolation, viewer } =
-    await readTeamMode(bridgeHost(call, signal));
+  const {
+    enabled,
+    ownerPasswordSet,
+    insecureHttpAllowed,
+    memberUrls,
+    isolation,
+    memberSettings,
+    viewer,
+  } = await readTeamMode(bridgeHost(call, signal));
   const { humanId, kind, displayName, mustChangePassword, owner, permissions, roleIds } = viewer;
   return {
     enabled,
@@ -219,12 +231,20 @@ export async function loadTeamMode(call: BridgeCall, signal?: AbortSignal): Prom
     insecureHttpAllowed,
     memberUrls,
     isolation,
+    memberSettings,
     viewer: { humanId, kind, displayName, mustChangePassword, owner, permissions, roleIds },
   };
 }
 
 export async function setTeamMode(call: BridgeCall, enabled: boolean): Promise<TeamModeView> {
   return parseTeamMode(await unwrap(call, 'teamModeSet', { enabled }));
+}
+
+export async function saveMemberSettings(
+  call: BridgeCall,
+  patch: TeamMemberSettingsPatch,
+): Promise<TeamMemberSettings> {
+  return setTeamMemberSettings(bridgeHost(call), patch);
 }
 
 export async function setOwnerPassword(

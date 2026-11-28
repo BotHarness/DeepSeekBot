@@ -33,7 +33,8 @@
 
 ## Sub-features
 
-- S1: Owner turns on Team mode in Bot settings › Team; with no Owner password the switch first asks for one ("Save and turn on"). The Owner can allow plain HTTP only through a warned confirmation.
+- S1: Owner turns on internal member mode (formerly Team mode) in the Team workbench › People › Internal members; with no Owner password the switch first asks for one ("Save and turn on"). Bot settings › Team keeps only a "Manage in Team workbench" link. The Owner can allow plain HTTP only through a warned confirmation in Internal member settings.
+- S14 (#5489): Off, the Internal members nav item reads "Off", the page is an empty state with the switch, and Internal roles and Channels are hidden. On, the list shows "Copy invite link" (copies the first `memberUrls` entry) and "Invite member" (the add-member dialog). The gear opens Internal member settings in the detail column (back arrow returns): HTTP sign-in, invite link expiry, default role for new members, execution isolation and Turn off. Opening the page never writes settings; unset values show 10 minutes and `member`. Canonical state: `team-mode status` → `memberSettings`, `team-mode member-settings --invite-lifetime-minutes <m> --default-role <roleId>`; after Turn off, `members list` shows members `suspended`.
 - S2: Owner adds a member (name + username); the one-time password is shown once with a Copy button and is never shown again. A group's settings show a "Public channel" switch to the Owner.
 - S3: A member opens `/botharness-device/team/` over Host-known HTTPS in another browser, signs in, and must replace the one-time password before anything else (the dialog cannot be dismissed; the Host refuses other calls with `password-change-required`).
 - S4: A member sees only Tobs: the page enters Bot mode with no exit to the native shell; Bot settings lists Profile, General, Appearance, Notifications, Keyboard shortcuts and Team; the New menu offers channel and channel section, with no Browse channels entry. DSH-native calls are refused (`remote-access/denied`). Team › Account offers Sign out, which ends only that grant.
@@ -55,7 +56,7 @@
 
 ## How to get to it (user POV)
 
-Owner: Bot settings › Team. Member: open the address under Team › Sign-in › Address in a browser on another machine, sign in, choose a new password, then open the public channel from the list.
+Owner: Team workbench › People › Internal members (Bot settings › Team links there). Member: open the address under Team › Sign-in › Address in a browser on another machine, sign in, choose a new password, then open the public channel from the list.
 
 ## Driving it with verify-app
 
