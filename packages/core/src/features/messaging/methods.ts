@@ -367,7 +367,7 @@ export function createMessagingBridgeMethods(
         : managedSlugs;
       if (!slugs.length) return Promise.resolve({ ok: true, value: { contacts: [] } });
       return messagingCall(async (service) =>
-        service.listExternalContacts(slugs, input.data.status),
+        service.listExternalContacts(slugs, managedSlugs, input.data.status),
       );
     },
     externalContactBlock(payload, managedSlugs) {

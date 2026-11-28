@@ -651,9 +651,15 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     pairing,
     externalRoles: outboundConversations.externalRoles,
     externalRoleChange: outboundConversations.externalRoleChange,
-    listExternalContacts: (slugs, status) =>
+    listExternalContacts: (slugs, managedSlugs, status) =>
       database.read((db) =>
-        listExternalContacts(db, slugs, status, (options.now?.() ?? new Date()).toISOString()),
+        listExternalContacts(
+          db,
+          slugs,
+          managedSlugs,
+          status,
+          (options.now?.() ?? new Date()).toISOString(),
+        ),
       ),
     changeExternalContactBlock: (input) =>
       transaction(

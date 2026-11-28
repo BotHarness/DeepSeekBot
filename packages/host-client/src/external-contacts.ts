@@ -28,6 +28,7 @@ function isContact(value: unknown): value is ExternalContact {
     text(row['actorId']) &&
     (row['workspaceId'] === null || text(row['workspaceId'])) &&
     (row['name'] === null || text(row['name'])) &&
+    strings(row['accessibleBotSlugs']) &&
     Array.isArray(row['bots']) &&
     row['bots'].every(isContactBot)
   );

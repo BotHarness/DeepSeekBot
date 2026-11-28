@@ -23,6 +23,7 @@ export interface ExternalContact {
   actorId: string;
   name: string | null;
   bots: ExternalContactBot[];
+  accessibleBotSlugs: string[];
 }
 
 export interface ExternalContactBlockChange {

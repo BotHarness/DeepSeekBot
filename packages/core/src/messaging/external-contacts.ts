@@ -64,6 +64,7 @@ function knownContacts(db: DatabaseSync, slugs: string[], now: string) {
         actorId: row.actor_id,
         name: row.name,
         bots: [],
+        accessibleBotSlugs: [],
       },
       observations: [row],
     });
@@ -71,12 +72,12 @@ function knownContacts(db: DatabaseSync, slugs: string[], now: string) {
   return groups;
 }
 
-function contactBindings(db: DatabaseSync, slug: string, contact: ExternalContact) {
+function contactBindings(db: DatabaseSync, slugs: string[], contact: ExternalContact) {
   const rows = db
     .prepare(`SELECT id FROM messaging_bindings
-    WHERE bot_slug = ? AND platform = ? AND revoked_at IS NULL
+    WHERE bot_slug IN (SELECT value FROM json_each(?)) AND platform = ? AND revoked_at IS NULL
       AND contact_workspace_id IS ? ORDER BY id`)
-    .all(slug, contact.platform, contact.workspaceId);
+    .all(JSON.stringify(slugs), contact.platform, contact.workspaceId);
   return rows
     .map((row) => readMessagingIdentity(db, String(row.id)))
     .filter((binding) => contactId(binding, contact.actorId) === contact.id);
@@ -85,21 +86,36 @@ function contactBindings(db: DatabaseSync, slug: string, contact: ExternalContac
 export function listExternalContacts(
   db: DatabaseSync,
   slugs: string[],
+  managedSlugs: string[],
   filter: ExternalContactListQuery['status'],
   now: string,
 ): ExternalContactList {
   const contacts: ExternalContact[] = [];
   for (const { contact, observations } of knownContacts(db, slugs, now).values()) {
+    const byBot = new Map<
+      string,
+      Array<{
+        binding: ReturnType<typeof readMessagingIdentity>;
+        access: ReturnType<typeof externalContactAccess>;
+      }>
+    >();
+    const accessible = new Set<string>();
+    for (const binding of contactBindings(db, managedSlugs, contact)) {
+      const slug = binding.botSlug;
+      const access = externalContactAccess(db, slug, binding.id, contact.actorId);
+      const apps = byBot.get(slug) ?? [];
+      apps.push({ binding, access });
+      byBot.set(slug, apps);
+      if (access.canSpeak) accessible.add(slug);
+    }
+    contact.accessibleBotSlugs = [...accessible].sort();
     for (const slug of slugs) {
       const local = observations.filter((row) => row.bot_slug === slug);
       if (!local.length) continue;
-      const bindings = contactBindings(db, slug, contact);
+      const apps = byBot.get(slug) ?? [];
       const blocked = personBlocked(db, slug, contact.id);
-      const access = bindings.map((binding) =>
-        externalContactAccess(db, slug, binding.id, contact.actorId),
-      );
-      const paired = access.some((item) => item.status === 'paired');
-      const hasLegacyBlock = bindings.some((binding) =>
+      const paired = apps.some(({ access }) => access.status === 'paired');
+      const hasLegacyBlock = apps.some(({ binding }) =>
         senderBlocked(db, slug, {
           fingerprint: binding.fingerprint,
           actor: { kind: 'user', id: contact.actorId },
@@ -111,7 +127,7 @@ export function listExternalContacts(
           : paired
             ? 'paired'
             : local.some(
-                  (row) => row.pending && bindings.some((binding) => binding.id === row.binding_id),
+                  (row) => row.pending && apps.some(({ binding }) => binding.id === row.binding_id),
                 )
               ? 'requested'
               : 'unpaired';
@@ -122,17 +138,19 @@ export function listExternalContacts(
         hasLegacyBlock,
         roleIds: [
           ...new Set(
-            bindings.flatMap((binding) =>
-              externalContactRoles(
-                db,
-                binding,
-                contact.actorId,
-                approvedConversationPairing(db, slug, binding.id, contact.actorId),
-              ).map(({ role }) => role.id),
+            apps.flatMap(({ binding, access }) =>
+              access.status !== 'blocked'
+                ? access.roleIds
+                : externalContactRoles(
+                    db,
+                    binding,
+                    contact.actorId,
+                    approvedConversationPairing(db, slug, binding.id, contact.actorId),
+                  ).map(({ role }) => role.id),
             ),
           ),
         ],
-        canSpeak: access.some((item) => item.canSpeak),
+        canSpeak: accessible.has(slug),
       });
     }
     if (!filter || filter === 'all' || contact.bots.some((bot) => bot.status === filter))
@@ -151,7 +169,7 @@ export function changeExternalContactBlock(
   if (!group) throw new MessagingError('contact-not-found');
   if (blocked) {
     if (
-      contactBindings(db, slug, group.contact).some((binding) =>
+      contactBindings(db, [slug], group.contact).some((binding) =>
         ownerActor(db, slug, binding.fingerprint, group.contact.actorId),
       )
     )

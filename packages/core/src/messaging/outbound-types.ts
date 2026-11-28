@@ -218,6 +218,7 @@ export interface OutboundMessaging {
   externalRoleChange(input: HostExternalRoleChange): HostExternalRole;
   listExternalContacts(
     slugs: string[],
+    managedSlugs: string[],
     status: ExternalContactListQuery['status'],
   ): ExternalContactList;
   changeExternalContactBlock(input: ExternalContactBlockChange): { blocked: boolean };

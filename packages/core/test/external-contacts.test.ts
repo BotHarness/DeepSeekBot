@@ -90,6 +90,8 @@ it('observes ordinary inbound users and shares one Bot-wide block across list sc
   const read = await fx.methods.externalContacts({ botSlugs: ['ada'] });
   if (!read.ok || !read.value.contacts[0]) throw new Error('Contact missing');
   const contactId = read.value.contacts[0].id;
+  expect(read.value.contacts[0].accessibleBotSlugs).toEqual(['ada', 'bea']);
+  expect(read.value.contacts[0].bots.map(({ slug }) => slug)).toEqual(['ada']);
   const change = (blocked: boolean) =>
     fx.methods.externalContactBlock({ slug: 'ada', contactId, blocked });
 
