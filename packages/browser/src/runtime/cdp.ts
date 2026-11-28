@@ -21,7 +21,11 @@ interface WebSocketLike {
 
 type WebSocketCtor = new (url: string) => WebSocketLike;
 
-export async function connectCdp(url: string, ctor?: WebSocketCtor): Promise<CdpClient> {
+export async function connectCdp(
+  url: string,
+  ctor?: WebSocketCtor,
+  timeoutMs = 10_000,
+): Promise<CdpClient> {
   const Impl = ctor ?? (globalThis as { WebSocket?: WebSocketCtor }).WebSocket;
   if (Impl === undefined) {
     throw new Error('This Node.js runtime has no WebSocket support; Node 22 or newer is required');
@@ -41,8 +45,8 @@ export async function connectCdp(url: string, ctor?: WebSocketCtor): Promise<Cdp
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       socket.close();
-      reject(new Error('The DevTools websocket did not open within 10s'));
-    }, 10_000);
+      reject(new Error(`The DevTools websocket did not open within ${timeoutMs / 1_000}s`));
+    }, timeoutMs);
     const fail = (): void => {
       clearTimeout(timer);
       reject(new Error('The DevTools websocket failed to open'));
