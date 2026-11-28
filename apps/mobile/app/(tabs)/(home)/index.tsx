@@ -35,6 +35,7 @@ import type { DeletionTarget } from '../../../src/host/deletion';
 import { ItemMenu } from '../../../src/ui/primitives/item-menu';
 import {
   conversations,
+  hiddenConversations,
   searchKey,
   PINNED_SECTION,
   type Conversation,
@@ -82,6 +83,7 @@ import {
   type EnvironmentChatItem,
 } from '../../../src/ui/chat/environment-chat-list';
 import { SectionHeader } from '../../../src/ui/chat/section-header';
+import { HiddenChatsEntry } from '../../../src/ui/chat/hidden-chats-entry';
 import { MessageSearchHeading, MessageSearchRow } from '../../../src/ui/chat/message-search-row';
 import { conversationHref } from '../../../src/ui/shell/open-conversation';
 import { navigateChannel } from '../../../src/ui/shell/channel-navigation';
@@ -458,6 +460,16 @@ const HomeContent = memo(function HomeContent({
         : undefined;
   const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
   const loadingHosts = selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [];
+  const hiddenEntries =
+    query.trim() === ''
+      ? loadingHosts.flatMap((host) => {
+          const count =
+            host.snapshot.connection.status === 'connected'
+              ? hiddenConversations(host.snapshot.roster).length
+              : 0;
+          return count > 0 ? [{ host, count }] : [];
+        })
+      : [];
   const coldLoading =
     loadingHosts.some(
       (host) =>
@@ -783,6 +795,33 @@ const HomeContent = memo(function HomeContent({
                       />
                     )}
                   </>
+                }
+                ListFooterComponent={
+                  hiddenEntries.length === 0 ? undefined : (
+                    <>
+                      {hiddenEntries.map(({ host, count }) => (
+                        <HiddenChatsEntry
+                          key={host.saved.hostId}
+                          testID={`hidden-chats-entry-${host.saved.hostId}`}
+                          count={count}
+                          hostName={
+                            selectedHost === undefined && hosts.length > 1
+                              ? shownHostName(
+                                  hostLooks.look(host.saved.hostId),
+                                  host.saved.hostName,
+                                )
+                              : undefined
+                          }
+                          onPress={() =>
+                            router.push({
+                              pathname: '/hidden-chats',
+                              params: { hostId: host.saved.hostId },
+                            })
+                          }
+                        />
+                      ))}
+                    </>
+                  )
                 }
                 ListEmptyComponent={
                   coldLoading ? (

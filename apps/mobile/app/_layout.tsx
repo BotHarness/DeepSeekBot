@@ -219,6 +219,7 @@ function RootNavigator() {
                     }}
                   />
                   <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
+                  <Stack.Screen name="hidden-chats" options={{ title: t.hiddenChats.title }} />
                   <Stack.Screen
                     name="conversation-section"
                     options={{

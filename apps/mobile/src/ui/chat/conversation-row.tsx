@@ -36,7 +36,12 @@ import {
   CONVERSATION_AVATAR as AVATAR,
   CONVERSATION_RING as RING,
 } from './avatar-slot';
-import type { ConversationAction, ConversationActionKey } from './conversation-actions';
+import {
+  conversationActionGlyph,
+  conversationActionSymbol,
+  type ConversationAction,
+  type ConversationActionKey,
+} from './conversation-actions';
 import { ConversationPeek, type ConversationPeekAction } from '../shell/conversation-peek';
 import { showActionMenu } from '../primitives/app-dialog';
 
@@ -86,16 +91,7 @@ export function ConversationRow({
     availableActions.map((action) => ({
       key: action.key,
       label: action.label,
-      icon:
-        action.key === 'section'
-          ? 'folder'
-          : action.key === 'read'
-            ? 'checkmark'
-            : action.key === 'pin' || action.key === 'unpin'
-              ? 'pin'
-              : action.key === 'mute'
-                ? 'bell.slash'
-                : 'bell',
+      icon: conversationActionSymbol(action.key),
       run: () => act(action.key),
     }));
   const avatar = <ConversationAvatar row={row} />;
@@ -125,12 +121,7 @@ export function ConversationRow({
                   .filter((action) => action.key !== 'read')
                   .map((action) => ({
                     text: action.label,
-                    icon:
-                      action.key === 'read'
-                        ? ('check' as const)
-                        : action.key === 'section'
-                          ? ('folder' as const)
-                          : action.key,
+                    icon: conversationActionGlyph(action.key),
                     onPress: () => act(action.key),
                   })),
                 avatar,

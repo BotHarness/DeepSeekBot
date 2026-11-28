@@ -323,7 +323,7 @@ export async function setRosterHidden(
   hidden: readonly string[],
   signal?: AbortSignal,
 ): Promise<void> {
-  await unwrap(call, 'hiddenSet', { hidden }, signal);
+  await rosterReaders.setRosterHidden(bridgeHost(call, signal), hidden);
 }
 
 export async function setChannelMute(

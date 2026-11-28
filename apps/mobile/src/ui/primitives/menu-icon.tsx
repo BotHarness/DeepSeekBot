@@ -37,6 +37,8 @@ export const menuSymbols = {
   unpin: { ios: 'pin.slash', android: 'keep_off' },
   mute: { ios: 'bell.slash', android: 'notifications_off' },
   unmute: { ios: 'bell', android: 'notifications_active' },
+  hide: { ios: 'eye.slash', android: 'visibility_off' },
+  unhide: { ios: 'eye', android: 'visibility' },
   archive: { ios: 'archivebox', android: 'archive' },
   unarchive: { ios: 'arrow.uturn.backward', android: 'unarchive' },
   model: { ios: 'cpu', android: 'memory' },

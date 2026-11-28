@@ -182,7 +182,7 @@ describe('Chats row actions share the Host path', () => {
       const props = rowProps.get('conversation-row-bot:ada')!;
       expect(typeof props.onLongPress).toBe(platform === 'android' ? 'function' : 'undefined');
       expect(props.accessibilityActions).toEqual([
-        ...['pin', 'section', 'mute', 'read'].map((key) => ({
+        ...['pin', 'section', 'mute', 'hide', 'read'].map((key) => ({
           name: key,
           label: t.rowActions[key as keyof typeof t.rowActions],
         })),
@@ -230,7 +230,7 @@ describe('Chats row actions share the Host path', () => {
           '[data-testid="conversation-row-bot:ada"]',
         )!.parentElement!;
         expect(preview.querySelector('[data-testid="native-preview"]')).not.toBeNull();
-        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(5);
+        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(6);
       }
     },
   );
@@ -246,6 +246,7 @@ describe('Chats row actions share the Host path', () => {
       t.rowActions.pin,
       t.rowActions.section,
       t.rowActions.mute,
+      t.rowActions.hide,
       t.rowActions.read,
       t.deletion.deleteBot,
     ]);
@@ -259,6 +260,39 @@ describe('Chats row actions share the Host path', () => {
       params: { hostId: 'h1', channelId: 'dm-ada' },
     });
   });
+  it.each(['android', 'ios'] as const)(
+    'Hide on %s removes the chat through the hidden roster and offers Hidden chats to restore it',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      let hidden: string[] = [];
+      call.mockImplementation(async (method: unknown, args: unknown) => {
+        if (method === 'rosterGet') return { pins: [], hidden, sections: [], sectionOrder: [] };
+        if (method === 'hiddenSet') {
+          hidden = (args as { hidden: string[] }).hidden;
+          return { hidden };
+        }
+        return {};
+      });
+      const view = await home();
+      expect(view.querySelector('[data-testid="hidden-chats-entry-h1"]')).toBeNull();
+      await rowMenuAction(view, 'hide');
+      expect(call).toHaveBeenLastCalledWith('hiddenSet', { hidden: ['dm-ada'] });
+      roster.arrangement = { pins: [], hidden, sections: [], sectionOrder: [] };
+      act(() => root!.unmount());
+      host?.remove();
+      const shown = await home();
+      expect(shown.querySelector('[data-testid="conversation-row-bot:ada"]')).toBeNull();
+      const entry = shown.querySelector<HTMLElement>('[data-testid="hidden-chats-entry-h1"]')!;
+      expect(entry.getAttribute('aria-label')).toBe(t.hiddenChats.label(t.hiddenChats.title, 1));
+      await act(async () => entry.click());
+      expect(push).toHaveBeenLastCalledWith({
+        pathname: '/hidden-chats',
+        params: { hostId: 'h1' },
+      });
+      call.mockImplementation(async () => ({}));
+    },
+  );
   it('iOS rows have no swipe actions; the context menu keeps pin, section, mute and read', async () => {
     Platform.OS = 'ios';
     hostState.actions = true;

@@ -45,3 +45,15 @@ export async function applyRosterBatch(
 ): Promise<WireRosterSnapshot> {
   return answer(await host.call('rosterBatch', args), isRoster, 'rosterBatch');
 }
+
+function isHidden(value: unknown): value is { hidden: string[] } {
+  return strings(record(value)?.['hidden']);
+}
+
+export async function setRosterHidden(
+  host: HostCall,
+  hidden: readonly string[],
+): Promise<string[]> {
+  return answer(await host.call('hiddenSet', { hidden: [...hidden] }), isHidden, 'hiddenSet')
+    .hidden;
+}
