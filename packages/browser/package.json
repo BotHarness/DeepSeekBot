@@ -19,7 +19,6 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-mcp-client": "0.2.2-rc.1",
     "@puppeteer/browsers": "3.2.2",
     "playwright-core": "1.64.0-alpha-1790635538000"
   },

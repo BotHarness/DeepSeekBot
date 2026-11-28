@@ -149,6 +149,21 @@ function fixture(productVersion = '0.1.0-alpha.1') {
 }
 
 describe('reviewed npm prerelease', () => {
+  it.each(['dependencies', 'optionalDependencies'])(
+    'rejects DSH packages in packed %s that pnpm would install into the Profile',
+    (field) => {
+      const artifact = { name: '@botharness/browser', version: '1.8.0-rc.1' };
+      const manifest = {
+        ...artifact,
+        license: 'MIT',
+        [field]: { '@deepseek-ai/dsh-mcp-client': productDsh },
+      };
+      expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [])).toThrow(
+        'Packed @botharness/browser would install @deepseek-ai/dsh-mcp-client into the DSH Profile',
+      );
+    },
+  );
+
   it('pins the published product Provider separately from historical standalone publication', () => {
     expect(publishedProductProvider).toMatchObject({
       name: productImProvider.name,
