@@ -83,14 +83,16 @@ export function nativeTimedQuestions(
     async load(sessionIds) {
       const query = record(ctx.get('sessionQuery'));
       const projections = record(ctx.get('sessionProjections'));
-      if (
-        typeof query?.['readSession'] !== 'function' ||
-        typeof projections?.['restore'] !== 'function'
-      )
-        return new Set(sessionIds);
       const unavailable = new Set<string>();
       for (const sessionId of sessionIds) {
         if (liveRoot(sessionId) !== undefined || sessions.get(sessionId) !== undefined) continue;
+        if (
+          typeof query?.['readSession'] !== 'function' ||
+          typeof projections?.['restore'] !== 'function'
+        ) {
+          unavailable.add(sessionId);
+          continue;
+        }
         try {
           const snapshot = record(await query['readSession'].call(query, sessionId));
           remember(sessionId, snapshot?.['events']);
