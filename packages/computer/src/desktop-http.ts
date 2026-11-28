@@ -31,11 +31,17 @@ export function createDesktopHandlers({
   diagnostics,
 }: DesktopOptions) {
   const desktopRefusal = (error: unknown): Response => {
-    if (error instanceof DesktopViewError)
+    if (error instanceof DesktopViewError) {
+      if (error.code === 'preparing') {
+        const response = json({ ok: false, code: error.code, error: error.message }, 503);
+        response.headers.set('retry-after', '1');
+        return response;
+      }
       return json(
         { ok: false, code: error.code, error: error.message },
         error.code === 'not-running' || error.code === 'not-paused' ? 409 : 502,
       );
+    }
     return json({ ok: false, code: 'capture-failed', error: String(error) }, 502);
   };
 

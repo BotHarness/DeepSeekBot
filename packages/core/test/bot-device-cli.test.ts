@@ -425,6 +425,24 @@ describe('Agent Browser and Computer commands', () => {
     expect(result.json.error).toMatchObject({ code: 'no-frame' });
   });
 
+  it('preserves the preparing refusal from Container frame and input routes', async () => {
+    const message = 'The desktop driver is preparing. Try again shortly.';
+    const live = await host(() => ({
+      status: 503,
+      json: { ok: false, code: 'preparing', error: message },
+    }));
+    for (const { args, stdin } of [
+      { args: ['computer-frame', '--out', '/tmp/never.png'] },
+      { args: ['computer-input', '--args-stdin'], stdin: '{"kind":"key","key":"Return"}' },
+    ]) {
+      const result = await (stdin === undefined
+        ? invoke(args, live.url)
+        : invokeWithStdin(args, live.url, stdin));
+      expect(result.code).toBe(1);
+      expect(result.json.error).toEqual({ code: 'preparing', message });
+    }
+  });
+
   it('reports a Host refusal from a browser or Computer route as a coded error', async () => {
     const live = await host(() => ({
       status: 409,

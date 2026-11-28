@@ -5,6 +5,7 @@ import type { ComputerRuntimeRunner, ComputerStatus } from './provider.js';
 import type { ComputerService } from './service.js';
 import type { ComputerTarget } from './target.js';
 import { missingDesktopPackages } from './tool/local-display.js';
+import type { DesktopDriverPreparation } from './tool/driver.js';
 import type { createComputerToolProvider } from './tool/provider.js';
 
 interface DesktopInstallState {
@@ -31,6 +32,7 @@ interface DesktopProvisioningOptions {
   onStart(language: unknown): void;
   toolProvider: Pick<ReturnType<typeof createComputerToolProvider>, 'reconcileAll'>;
   target(): ComputerTarget;
+  desktopPreparation(): DesktopDriverPreparation | undefined;
   resolveExportDir(): string;
   config: Pick<ComputerConfig, 'resolution'>;
   statusChanged: Pick<Coalesced, 'schedule'>;
@@ -45,6 +47,7 @@ export function createDesktopProvisioningHandlers({
   onStart,
   toolProvider,
   target,
+  desktopPreparation,
   resolveExportDir,
   config,
   statusChanged,
@@ -76,8 +79,10 @@ export function createDesktopProvisioningHandlers({
             });
         }
       }
+      const driverPreparation = status.state === 'running' ? desktopPreparation() : undefined;
       return json({
         target: target(),
+        ...(driverPreparation === undefined ? {} : { driverPreparation }),
         platform: process.platform,
         unlock: (await service.unlock?.status()) ?? { code: 'unavailable' },
         provider: service.providerName ?? null,

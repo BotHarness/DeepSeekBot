@@ -128,7 +128,8 @@ export function computerProblems(run, read) {
       problems.push(`${phase}: wrong target UI`);
     if (phase === 'authorized' && !v.text?.includes('Authorize and start'))
       problems.push('Explicit start confirmation missing');
-    if (phase === 'stopped' && !v.text?.includes('Stopped')) problems.push('Stopped panel missing');
+    if (phase === 'stopped' && (!v.text?.includes('Stopped') || v.viewers?.length !== 0))
+      problems.push('Stopped panel missing or viewer still mounted');
     if (
       phase === 'running' &&
       (!v.text?.includes('Running') ||
@@ -147,41 +148,11 @@ export function computerProblems(run, read) {
   }
   const consoleErrors = read('console');
   const httpErrors = read('http-errors');
-  if (!Array.isArray(consoleErrors) || consoleErrors.some((e) => !knownViewerTransient(e)))
+  if (!Array.isArray(consoleErrors) || consoleErrors.length !== 0)
     problems.push('Client console errors or missing observation');
-  if (!Array.isArray(httpErrors) || httpErrors.some((e) => !knownViewerTransient(e)))
+  if (!Array.isArray(httpErrors) || httpErrors.length !== 0)
     problems.push('HTTP failures or missing observation');
   return problems;
-}
-
-export const knownIssues = [
-  {
-    issue: 5274,
-    summary:
-      'The desktop web client inside the docked viewer polls and reconnects while the Container boots and after panel Stop, logging 404/503 and websocket errors.',
-  },
-];
-
-const viewerLifecycleStages = [
-  'start-from-panel',
-  'prepare-test-picture',
-  'observe-real-frame',
-  'stop-from-panel',
-];
-const viewerResource =
-  /\/botharness-computer\/viewer\/(?:api\/status|api\/websockets|manifest\.json)$/u;
-const viewerDocument = /\/botharness-computer\/viewer\/$/u;
-const viewerScript = /\/botharness-computer\/viewer\/selkies-core\.js$/u;
-
-export function knownViewerTransient(entry) {
-  if (entry?.source === 'pageerror' || !viewerLifecycleStages.includes(entry?.stage)) return false;
-  const url = entry.url ?? '';
-  if (entry.stage === 'stop-from-panel' && viewerDocument.test(url))
-    return entry.status === 503 || /status of 503/u.test(entry.message ?? '');
-  if (entry.status !== undefined)
-    return viewerResource.test(url) && (entry.status === 404 || entry.status === 503);
-  if (viewerResource.test(url)) return /status of (404|503)/u.test(entry.message ?? '');
-  return viewerScript.test(url) && /^\[websockets\] Error/u.test(entry.message ?? '');
 }
 
 export function coverageRow(directory, commit, dirty = false) {

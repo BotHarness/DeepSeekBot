@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { createMcpCuaDriver } from '../src/tool/driver.js';
+import { createCuaDriver, createMcpCuaDriver } from '../src/tool/driver.js';
+import { fail, ok } from './support/docker-provider.js';
+import { deferred } from './local-video-owner-fixture.js';
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(async () => undefined),
@@ -34,6 +36,58 @@ function driver(beforeOpen?: () => Promise<void>, retryReadOnly = true) {
 }
 
 describe('Computer MCP process lifecycle', () => {
+  it('shares one Container installation and connection while preparing', async () => {
+    const installing = deferred<void>();
+    const install = deferred<void>();
+    const connecting = deferred<void>();
+    const connect = deferred<void>();
+    let installed = false;
+    const run = vi.fn(async (args: readonly string[]) => {
+      if (args.includes('uname')) return ok('aarch64');
+      if (args.includes('--version')) return installed ? ok('cua-driver') : fail('missing');
+      installing.resolve();
+      await install.promise;
+      installed = true;
+      return ok();
+    });
+    mocks.connect.mockImplementationOnce(async () => {
+      connecting.resolve();
+      await connect.promise;
+    });
+    const container = createCuaDriver({ containerName: 'test', runner: { run } });
+
+    expect(container.desktopPreparation?.()).toBe('idle');
+    expect(container.prepareDesktop?.()).toBe(false);
+    await installing.promise;
+    const tools = container.tools();
+    expect(container.desktopPreparation?.()).toBe('preparing');
+    expect(mocks.connect).not.toHaveBeenCalled();
+    expect(container.prepareDesktop?.()).toBe(false);
+    install.resolve();
+
+    await connecting.promise;
+    expect(container.prepareDesktop?.()).toBe(false);
+    connect.resolve();
+    await tools;
+    expect(container.prepareDesktop?.()).toBe(true);
+    expect(container.desktopPreparation?.()).toBe('ready');
+    expect(run.mock.calls.filter(([args]) => args.includes('sh'))).toHaveLength(1);
+    expect(mocks.connect).toHaveBeenCalledTimes(1);
+    await container.close();
+    expect(container.desktopPreparation?.()).toBe('idle');
+  });
+
+  it('surfaces a failed Container preparation instead of retrying it silently', async () => {
+    const install = new Error('download failed');
+    const run = vi.fn().mockRejectedValueOnce(install);
+    const container = createCuaDriver({ containerName: 'test', runner: { run } });
+    expect(container.prepareDesktop?.()).toBe(false);
+    await expect(container.tools()).rejects.toBe(install);
+    expect(container.desktopPreparation?.()).toBe('failed');
+    expect(() => container.prepareDesktop?.()).toThrow('download failed');
+    await container.close();
+  });
+
   it.each(['session_ended', 'permission_denied', 'stale_element_token'])(
     'leaves %s renewal/refusal to the owning driver without replaying a Local observation',
     async (code) => {

@@ -603,6 +603,10 @@ iPhone 上打开 Computer。
 
 对于使用旧版帧查看器的 Computer 目标，`computer-frame` 把当前桌面画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
 
+对于 Container Computer，桌面驱动安装或连接期间，这两个命令都可能返回可重试的
+`preparing`。请等待一秒后重试。返回此拒绝时不会发送输入。容器运行期间，
+`computer-status` 通过 `driverPreparation` 报告驱动状态。
+
 ### 使用当前 Linux 桌面
 
 从当前登录的 GNOME Wayland 或 X11 桌面启动 Host。选中此目标后，Bot 和已配对的手机都能看到所共享的整块屏幕。

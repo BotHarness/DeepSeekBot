@@ -221,6 +221,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       const driver = createCuaDriver({
         runner,
         containerName: config.containerName,
+        onPreparationChanged: onStatusChanged,
         onEvent: (detail) => diagnostics.record('lifecycle', `target=container ${detail}`),
       });
       return { provider, driver };
@@ -503,6 +504,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       log,
       toolProvider,
       target,
+      desktopPreparation: () => driver.desktopPreparation?.(),
       resolveExportDir,
       onStart(language) {
         requestedLanguage =

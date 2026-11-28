@@ -25,9 +25,12 @@ export interface DriverToolDescriptor {
   readonly outputSchema?: unknown;
 }
 
+export type DesktopDriverPreparation = 'idle' | 'preparing' | 'ready' | 'failed';
+
 export interface CuaDriverOptions {
   readonly runner: ComputerRuntimeRunner;
   readonly containerName: string;
+  readonly onPreparationChanged?: () => void;
   readonly onEvent?: (detail: string) => void;
 }
 
@@ -39,6 +42,8 @@ export interface CuaDriver {
   tools(signal?: AbortSignal): Promise<readonly DriverToolDescriptor[]>;
   call(rawName: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;
+  prepareDesktop?(): boolean;
+  desktopPreparation?(): DesktopDriverPreparation | undefined;
 }
 
 const READ_ONLY_TOOLS = new Set([
@@ -108,31 +113,37 @@ export function createCuaDriver(options: CuaDriverOptions): CuaDriver {
     return runner.run(insideArgs(argv, user));
   };
 
+  const install: CuaDriver['ensure'] = async (signal) => {
+    const machine = await runInside(['uname', '-m'], 'root', signal);
+    if (machine.code !== 0) throw new Error('the Computer is not running');
+    const arch = driverAssetArch(machine.stdout);
+    const present = await runInside([CUA_DRIVER_PATH, '--version'], DESKTOP_USER, signal);
+    if (present.code === 0) {
+      log(`driver present: ${present.stdout.trim()}`);
+      return { status: 'present', arch };
+    }
+    log(`driver missing; installing ${CUA_DRIVER_VERSION} (${arch})`);
+    const installed = await runInside(['sh', '-c', driverInstallScript(arch)], 'root', signal);
+    if (installed.code !== 0) {
+      throw new Error(`Cua Driver install failed: ${installed.stderr.trim().slice(0, 300)}`);
+    }
+    const verified = await runInside([CUA_DRIVER_PATH, '--version'], DESKTOP_USER, signal);
+    if (verified.code !== 0) throw new Error('Cua Driver install did not verify');
+    log(`driver installed: ${verified.stdout.trim()}`);
+    return { status: 'installed', arch };
+  };
+
   return createMcpCuaDriver({
     onEvent,
+    desktopPreparationChanged: options.onPreparationChanged ?? (() => undefined),
     transport: {
       command: 'docker',
       args: execArgs([CUA_DRIVER_PATH, 'mcp'], DESKTOP_USER),
       env: { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin' },
     },
-    async ensure(signal) {
-      const machine = await runInside(['uname', '-m'], 'root', signal);
-      if (machine.code !== 0) throw new Error('the Computer is not running');
-      const arch = driverAssetArch(machine.stdout);
-      const present = await runInside([CUA_DRIVER_PATH, '--version'], DESKTOP_USER, signal);
-      if (present.code === 0) {
-        log(`driver present: ${present.stdout.trim()}`);
-        return { status: 'present', arch };
-      }
-      log(`driver missing; installing ${CUA_DRIVER_VERSION} (${arch})`);
-      const installed = await runInside(['sh', '-c', driverInstallScript(arch)], 'root', signal);
-      if (installed.code !== 0) {
-        throw new Error(`Cua Driver install failed: ${installed.stderr.trim().slice(0, 300)}`);
-      }
-      const verified = await runInside([CUA_DRIVER_PATH, '--version'], DESKTOP_USER, signal);
-      if (verified.code !== 0) throw new Error('Cua Driver install did not verify');
-      log(`driver installed: ${verified.stdout.trim()}`);
-      return { status: 'installed', arch };
+    ensure: install,
+    async beforeOpen() {
+      await install();
     },
   });
 }
@@ -143,12 +154,15 @@ export function createMcpCuaDriver(options: {
   onEvent?: ((detail: string) => void) | undefined;
   retryReadOnly?: boolean;
   beforeOpen?: () => Promise<void>;
+  desktopPreparationChanged?: () => void;
 }): CuaDriver {
   const log = (detail: string): void => options.onEvent?.(detail.slice(0, 300));
   let epoch = 0;
   let client: Client | undefined;
   let opening: Promise<Client> | undefined;
   let catalog: readonly DriverToolDescriptor[] | undefined;
+  let refusal: { readonly error: unknown } | undefined;
+  const preparationChanged = options.desktopPreparationChanged;
 
   const dropClient = async (): Promise<void> => {
     epoch += 1;
@@ -157,6 +171,8 @@ export function createMcpCuaDriver(options: {
     client = undefined;
     opening = undefined;
     catalog = undefined;
+    refusal = undefined;
+    preparationChanged?.();
     try {
       await current?.close();
       await pending?.catch(() => undefined);
@@ -177,7 +193,14 @@ export function createMcpCuaDriver(options: {
       { capabilities: {}, versionNegotiation: { mode: 'auto' } },
     );
     created.onerror = (error) => log(`driver connection error: ${String(error)}`);
-    created.onclose = () => log('driver connection closed');
+    created.onclose = () => {
+      log('driver connection closed');
+      if (preparationChanged !== undefined && client === created) {
+        client = undefined;
+        catalog = undefined;
+        preparationChanged();
+      }
+    };
     transport.onclose = () => log(`driver child exited (pid ${String(transport.pid ?? '?')})`);
     transport.onerror = (error) => log(`driver transport error: ${String(error)}`);
     let listed;
@@ -197,21 +220,55 @@ export function createMcpCuaDriver(options: {
     }));
     client = created;
     log(`driver connected: ${catalog.length} tools`);
+    refusal = undefined;
     return created;
   };
 
   const ensureClient = async (): Promise<Client> => {
     if (client !== undefined) return client;
-    const pending = (opening ??= openClient());
+    if (opening === undefined) {
+      opening = openClient();
+      preparationChanged?.();
+    }
+    const pending = opening;
     try {
       return await pending;
+    } catch (error) {
+      if (opening === pending && preparationChanged !== undefined) {
+        refusal = { error };
+      }
+      throw error;
     } finally {
-      if (opening === pending) opening = undefined;
+      if (opening === pending) {
+        opening = undefined;
+        preparationChanged?.();
+      }
     }
   };
 
   return {
     ensure: options.ensure,
+    ...(preparationChanged === undefined
+      ? {}
+      : {
+          desktopPreparation(): DesktopDriverPreparation {
+            if (client !== undefined) return 'ready';
+            if (opening !== undefined) return 'preparing';
+            return refusal === undefined ? 'idle' : 'failed';
+          },
+          prepareDesktop(): boolean {
+            if (client !== undefined) return true;
+            if (opening !== undefined) return false;
+            if (refusal !== undefined) {
+              const { error } = refusal;
+              refusal = undefined;
+              preparationChanged();
+              throw error;
+            }
+            void ensureClient().catch(() => undefined);
+            return false;
+          },
+        }),
 
     async tools(signal) {
       await ensureClient();

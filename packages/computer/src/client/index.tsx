@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 import { setComputerAccess, type ConnectionRpcLike } from './bridge.js';
 import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
 import { cancelled, watchComputerStatus } from './status-live.js';
@@ -38,6 +39,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client';
 
 import { COMPUTER_SETTINGS_NAMESPACE, type ComputerSettings } from '../settings.js';
 import type { ComputerStorage } from '../provider.js';
+import type { DesktopDriverPreparation } from '../tool/driver.js';
 import {
   ComputerSettingsPrefs,
   ComputerSettingsRows,
@@ -99,6 +101,7 @@ interface ComputerStatusPayload {
   readonly target?: 'local' | 'container' | 'current-desktop';
   resolution?: string;
   readonly provider: string | null;
+  readonly driverPreparation?: DesktopDriverPreparation;
   readonly probe: { readonly available: boolean; readonly detail?: string };
   readonly exportDir?: string;
   readonly status: {
@@ -252,14 +255,12 @@ function RunningCard({
   t,
   botSlug,
   busy,
-  stopping,
   resolution,
   onStop,
 }: {
   readonly t: ComputerTranslate;
   readonly botSlug: string | undefined;
   readonly busy: boolean;
-  readonly stopping: boolean;
   readonly resolution?: string;
   readonly onStop: () => void;
 }): ReactElement {
@@ -273,7 +274,7 @@ function RunningCard({
       src={VIEWER_SRC}
       design={designOf(resolution)}
       busy={busy}
-      stopping={stopping}
+      stopping={false}
       onStop={onStop}
       footer={<RecentLogs t={t} />}
       onEvent={onEvent}
@@ -285,6 +286,7 @@ export interface ComputerEntryViewProps {
   readonly t: ComputerTranslate;
   readonly state: ComputerState;
   readonly phase?: ComputerPhase;
+  readonly driverPreparation?: DesktopDriverPreparation;
   readonly detail?: string;
   readonly progress?: ComputerProgress;
   readonly runtimeAvailable: boolean;
@@ -388,7 +390,7 @@ export function ComputerEntryView(props: ComputerEntryViewProps): ReactElement {
     phase === 'exporting' ||
     phase === 'importing';
 
-  if (state === 'running') {
+  if (state === 'running' && !inProgress) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {card(<Tag tone="success">{t('entry.chip.running')}</Tag>, {
@@ -398,7 +400,6 @@ export function ComputerEntryView(props: ComputerEntryViewProps): ReactElement {
           t={t}
           botSlug={botSlug}
           busy={busy}
-          stopping={phase === 'stopping'}
           {...(resolution === undefined ? {} : { resolution })}
           onStop={onStop}
         />
@@ -684,6 +685,8 @@ function ComputerEntry({
   const [payload, setPayload] = useState<ComputerStatusPayload | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const statusReads = useRef({ requested: 0, applied: 0 });
   const [confirming, setConfirming] = useState(false);
   const [approved, setApproved] = useState(
     () => globalThis.sessionStorage?.getItem(APPROVED_KEY) === '1',
@@ -691,25 +694,32 @@ function ComputerEntry({
   const [elapsed, setElapsed] = useState(0);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const refresh = useCallback(async (signal?: AbortSignal) => {
+    const reads = statusReads.current;
+    const revision = ++reads.requested;
     try {
       const next = await requestJson<ComputerStatusPayload>(
         STATUS_ENDPOINT,
         signal === undefined ? undefined : { signal },
       );
-      if (signal?.aborted) return;
+      if (signal?.aborted || revision < reads.applied) return;
+      reads.applied = revision;
       setPayload(next);
       setError(undefined);
     } catch (cause) {
-      if (!cancelled(signal)) setError(String(cause));
+      if (!cancelled(signal) && revision >= reads.applied) setError(String(cause));
     }
   }, []);
 
   const statusResource = useMountedResource<HTMLDivElement>(() => {
     recordViewerOpen(connectionRpc, 'computer');
-    return watchComputerStatus(observeResource, refresh);
-  }, [observeResource, refresh]);
+  }, []);
 
-  const phase = payload?.status.phase;
+  const phase = stopping ? 'stopping' : payload?.status.phase;
+  const waitingForViewer = payload?.status.state === 'running' && phase === 'starting';
+  const statusWatch = useMountedResource<HTMLSpanElement>(
+    () => watchComputerStatus(observeResource, refresh, waitingForViewer),
+    [observeResource, refresh, waitingForViewer],
+  );
   const inProgress =
     phase === 'pulling' ||
     phase === 'starting' ||
@@ -729,7 +739,14 @@ function ComputerEntry({
 
   const act = useCallback(
     async (endpoint: string) => {
+      const stopsViewer = endpoint === STOP_ENDPOINT;
+      const reads = statusReads.current;
+      if (stopsViewer) {
+        reads.applied = reads.requested + 1;
+        flushSync(() => setStopping(true));
+      }
       setBusy(true);
+      let actionError: string | undefined;
       try {
         await requestJson(endpoint, {
           method: 'POST',
@@ -741,12 +758,21 @@ function ComputerEntry({
               : {}),
           }),
         });
-        await refresh();
       } catch (cause) {
-        setError(String(cause));
-      } finally {
-        setBusy(false);
+        actionError = String(cause);
       }
+      if (stopsViewer) {
+        reads.applied = reads.requested + 1;
+        setPayload((current) => {
+          if (current === undefined || actionError !== undefined) return undefined;
+          const { driverPreparation: _driverPreparation, ...rest } = current;
+          return { ...rest, status: { state: 'stopped' } };
+        });
+      }
+      if (stopsViewer || actionError === undefined) await refresh(AbortSignal.timeout(10_000));
+      if (actionError !== undefined) setError(actionError);
+      setBusy(false);
+      setStopping(false);
     },
     [refresh],
   );
@@ -773,6 +799,7 @@ function ComputerEntry({
 
   return (
     <div ref={statusResource} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span hidden ref={statusWatch} />
       {inProgress ? <span hidden ref={progressResource} /> : null}
       {payload?.target === 'local' || payload?.target === 'current-desktop' ? (
         <LocalComputerStatus
@@ -786,6 +813,9 @@ function ComputerEntry({
           t={t}
           state={payload?.status.state ?? 'absent'}
           {...(phase === undefined ? {} : { phase })}
+          {...(payload?.driverPreparation === undefined
+            ? {}
+            : { driverPreparation: payload.driverPreparation })}
           {...(payload?.status.detail === undefined ? {} : { detail: payload.status.detail })}
           {...(payload?.status.progress === undefined ? {} : { progress: payload.status.progress })}
           runtimeAvailable={payload?.probe.available ?? true}

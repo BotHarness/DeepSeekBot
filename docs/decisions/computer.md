@@ -44,6 +44,11 @@ _Formerly ADR-0055 and ADR-0082._
 
 The **Computer Target** is a profile setting. `local` (the default) drives the Human's own Mac, Windows or Linux desktop through a host `cua-driver` installed under `~/.botharness/`, using the operating system's Screen Recording and Accessibility grants. `container` runs the upstream `lscr.io/linuxserver/webtop:ubuntu-xfce` image for headless hosts, pulled as is, with these bounds: 2 CPUs, 4 GiB memory with swap equal to memory (no extra swap), 512 MiB shared memory, 4096 pids, and an idle stop after 30 minutes (configurable). The Host checks a running container against the bounds and recreates it when they differ. The local target has no container, no volume and no export.
 
+The Host probes Selkies' upstream `/api/status` before the Web Client mounts its docked
+viewer. The panel commits the stopping state and removes the iframe before requesting Stop.
+Cua driver preparation is independent of Selkies readiness. Frame reads and authorized
+desktop input return the retryable `preparing` code while the shared driver connection is opening.
+
 Why: most Humans want a Bot to use the apps and sign-ins they already have, so local is the default. The container exists for VPS hosts and for Humans who want the Bot off their own screen. The upstream image avoids maintaining a desktop image of our own. The hard bounds stop a runaway browser from taking down the Host. Memory rose from the original 2 GiB because Chromium and XFCE ran near that limit.
 
 Enforced by: `packages/computer/test/docker-provider.test.ts`, `local-computer.test.ts`, `idle.test.ts`, `local-display.test.ts`.

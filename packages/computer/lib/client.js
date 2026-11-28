@@ -27,12 +27,12 @@ window.__ModuleLoader__.load({
 			enumerable: true
 		}) : target, mod));
 		//#endregion
+		let react_dom = require("react-dom");
+		react_dom = __toESM(react_dom, 1);
 		let react = require("react");
 		react = __toESM(react, 1);
 		let react_jsx_runtime = require("react/jsx-runtime");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
-		let react_dom = require("react-dom");
-		react_dom = __toESM(react_dom, 1);
 		//#region packages/computer/src/client/bridge.ts
 		function setComputerAccess(rpc, botSlug, next) {
 			return rpc.call("/api", "botharness/computerAccessSet", { args: {
@@ -66,7 +66,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/computer/src/client/status-live.ts
 		const cancelled = (signal) => signal?.aborted === true && signal.reason?.name !== "TimeoutError";
-		function watchComputerStatus(observe, refresh) {
+		function watchComputerStatus(observe, refresh, waitingForViewer = false) {
 			const controller = new AbortController();
 			let reading = false;
 			const read = async () => {
@@ -78,11 +78,13 @@ window.__ModuleLoader__.load({
 					reading = false;
 				}
 			};
-			const stop = observe?.("computer", read) ?? visibleInterval(() => void read(), 15e3);
-			if (observe === void 0) read();
+			const stop = observe?.("computer", read);
+			const stopPoll = waitingForViewer || stop === void 0 ? visibleInterval(() => void read(), waitingForViewer ? 1e3 : 15e3) : void 0;
+			if (stop === void 0) read();
 			return () => {
 				controller.abort();
-				stop();
+				stop?.();
+				stopPoll?.();
 			};
 		}
 		//#endregion
@@ -16049,7 +16051,7 @@ window.__ModuleLoader__.load({
 				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RecentLogsList, { entries }) : null
 			] });
 		}
-		function RunningCard({ t, botSlug, busy, stopping, resolution, onStop }) {
+		function RunningCard({ t, botSlug, busy, resolution, onStop }) {
 			const onEvent = (0, react.useCallback)((event) => {
 				reportViewerEvent(void 0, viewerEventText(event));
 			}, []);
@@ -16059,7 +16061,7 @@ window.__ModuleLoader__.load({
 				src: VIEWER_SRC,
 				design: designOf(resolution),
 				busy,
-				stopping,
+				stopping: false,
 				onStop,
 				footer: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RecentLogs, { t }),
 				onEvent
@@ -16152,7 +16154,7 @@ window.__ModuleLoader__.load({
 				]
 			}) });
 			const inProgress = phase === "pulling" || phase === "starting" || phase === "stopping" || phase === "exporting" || phase === "importing";
-			if (state === "running") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			if (state === "running" && !inProgress) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				style: {
 					display: "flex",
 					flexDirection: "column",
@@ -16165,7 +16167,6 @@ window.__ModuleLoader__.load({
 					t,
 					botSlug,
 					busy,
-					stopping: phase === "stopping",
 					...resolution === void 0 ? {} : { resolution },
 					onStop
 				})]
@@ -16389,25 +16390,38 @@ window.__ModuleLoader__.load({
 			const [payload, setPayload] = (0, react.useState)();
 			const [error, setError] = (0, react.useState)();
 			const [busy, setBusy] = (0, react.useState)(false);
+			const [stopping, setStopping] = (0, react.useState)(false);
+			const statusReads = (0, react.useRef)({
+				requested: 0,
+				applied: 0
+			});
 			const [confirming, setConfirming] = (0, react.useState)(false);
 			const [approved, setApproved] = (0, react.useState)(() => globalThis.sessionStorage?.getItem(APPROVED_KEY) === "1");
 			const [elapsed, setElapsed] = (0, react.useState)(0);
 			const [nowTs, setNowTs] = (0, react.useState)(() => Date.now());
 			const refresh = (0, react.useCallback)(async (signal) => {
+				const reads = statusReads.current;
+				const revision = ++reads.requested;
 				try {
 					const next = await requestJson(STATUS_ENDPOINT, signal === void 0 ? void 0 : { signal });
-					if (signal?.aborted) return;
+					if (signal?.aborted || revision < reads.applied) return;
+					reads.applied = revision;
 					setPayload(next);
 					setError(void 0);
 				} catch (cause) {
-					if (!cancelled(signal)) setError(String(cause));
+					if (!cancelled(signal) && revision >= reads.applied) setError(String(cause));
 				}
 			}, []);
 			const statusResource = useMountedResource(() => {
 				recordViewerOpen(connectionRpc, "computer");
-				return watchComputerStatus(observeResource, refresh);
-			}, [observeResource, refresh]);
-			const phase = payload?.status.phase;
+			}, []);
+			const phase = stopping ? "stopping" : payload?.status.phase;
+			const waitingForViewer = payload?.status.state === "running" && phase === "starting";
+			const statusWatch = useMountedResource(() => watchComputerStatus(observeResource, refresh, waitingForViewer), [
+				observeResource,
+				refresh,
+				waitingForViewer
+			]);
 			const inProgress = phase === "pulling" || phase === "starting" || phase === "stopping" || phase === "exporting" || phase === "importing";
 			const progressResource = useMountedResource(() => {
 				const startedAt = Date.now();
@@ -16419,7 +16433,14 @@ window.__ModuleLoader__.load({
 				return () => clearInterval(timer);
 			}, [inProgress]);
 			const act = (0, react.useCallback)(async (endpoint) => {
+				const stopsViewer = endpoint === STOP_ENDPOINT;
+				const reads = statusReads.current;
+				if (stopsViewer) {
+					reads.applied = reads.requested + 1;
+					(0, react_dom.flushSync)(() => setStopping(true));
+				}
 				setBusy(true);
+				let actionError;
 				try {
 					await requestJson(endpoint, {
 						method: "POST",
@@ -16429,12 +16450,24 @@ window.__ModuleLoader__.load({
 							...endpoint === START_ENDPOINT && typeof navigator !== "undefined" ? { language: navigator.language } : {}
 						})
 					});
-					await refresh();
 				} catch (cause) {
-					setError(String(cause));
-				} finally {
-					setBusy(false);
+					actionError = String(cause);
 				}
+				if (stopsViewer) {
+					reads.applied = reads.requested + 1;
+					setPayload((current) => {
+						if (current === void 0 || actionError !== void 0) return void 0;
+						const { driverPreparation: _driverPreparation, ...rest } = current;
+						return {
+							...rest,
+							status: { state: "stopped" }
+						};
+					});
+				}
+				if (stopsViewer || actionError === void 0) await refresh(AbortSignal.timeout(1e4));
+				if (actionError !== void 0) setError(actionError);
+				setBusy(false);
+				setStopping(false);
 			}, [refresh]);
 			const onStart = (0, react.useCallback)(() => {
 				if (!approved) {
@@ -16460,34 +16493,42 @@ window.__ModuleLoader__.load({
 					flexDirection: "column",
 					gap: 8
 				},
-				children: [inProgress ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					hidden: true,
-					ref: progressResource
-				}) : null, payload?.target === "local" || payload?.target === "current-desktop" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
-					t,
-					observeResource,
-					target: payload.target
-				}, payload.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
-					t,
-					state: payload?.status.state ?? "absent",
-					...phase === void 0 ? {} : { phase },
-					...payload?.status.detail === void 0 ? {} : { detail: payload.status.detail },
-					...payload?.status.progress === void 0 ? {} : { progress: payload.status.progress },
-					runtimeAvailable: payload?.probe.available ?? true,
-					confirming,
-					busy,
-					elapsed,
-					nowTs,
-					...error === void 0 ? {} : { error },
-					...displayName === void 0 ? {} : { botSlug: displayName },
-					...payload?.status.storage === void 0 ? {} : { storage: payload.status.storage },
-					...payload?.resolution === void 0 ? {} : { resolution: payload.resolution },
-					onStart,
-					onConfirmStart,
-					onStop: () => void act(STOP_ENDPOINT),
-					onApprove,
-					onCancel: () => setConfirming(false)
-				})]
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						hidden: true,
+						ref: statusWatch
+					}),
+					inProgress ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						hidden: true,
+						ref: progressResource
+					}) : null,
+					payload?.target === "local" || payload?.target === "current-desktop" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
+						t,
+						observeResource,
+						target: payload.target
+					}, payload.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
+						t,
+						state: payload?.status.state ?? "absent",
+						...phase === void 0 ? {} : { phase },
+						...payload?.driverPreparation === void 0 ? {} : { driverPreparation: payload.driverPreparation },
+						...payload?.status.detail === void 0 ? {} : { detail: payload.status.detail },
+						...payload?.status.progress === void 0 ? {} : { progress: payload.status.progress },
+						runtimeAvailable: payload?.probe.available ?? true,
+						confirming,
+						busy,
+						elapsed,
+						nowTs,
+						...error === void 0 ? {} : { error },
+						...displayName === void 0 ? {} : { botSlug: displayName },
+						...payload?.status.storage === void 0 ? {} : { storage: payload.status.storage },
+						...payload?.resolution === void 0 ? {} : { resolution: payload.resolution },
+						onStart,
+						onConfirmStart,
+						onStop: () => void act(STOP_ENDPOINT),
+						onApprove,
+						onCancel: () => setConfirming(false)
+					})
+				]
 			});
 		}
 		function apply(ctx) {

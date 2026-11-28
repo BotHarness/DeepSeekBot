@@ -6,8 +6,6 @@ import {
   behavior,
   coverageRow,
   digest,
-  knownIssues,
-  knownViewerTransient,
   phases,
   requiredEvidence,
   visualEvidence,
@@ -70,7 +68,7 @@ function fixture() {
       accessLabel: `${phase === 'off' ? 'Enable' : 'Disable'} Computer Access`,
       text: `Docker Computer ${phase === 'authorized' ? 'Authorize and start' : phase === 'running' ? 'Running' : 'Stopped'}`,
       live: phase === 'running',
-      viewers: [{ visible: true, src: './botharness-computer/viewer/' }],
+      viewers: phase === 'running' ? [{ visible: true, src: './botharness-computer/viewer/' }] : [],
     };
     data[`${phase}.diagnostics`] = {
       host: { ok: true },
@@ -223,79 +221,36 @@ describe('bounded Container Computer qualification', () => {
     change(dir, name, update);
     expect(coverageRow(dir, commit).status).toBe('needs-revalidation');
   });
-  it('accepts only tracked desktop-viewer churn while the Container starts or stops', () => {
-    const teardown = {
-      stage: 'stop-from-panel',
-      status: 404,
-      url: '[redacted]/botharness-computer/viewer/api/websockets',
-    };
-    const dir = fixture();
-    change(dir, 'http-errors', (v) => {
-      v.push(teardown);
-    });
-    change(dir, 'console', (v) => {
-      v.push({
-        source: 'console',
-        stage: 'stop-from-panel',
-        url: teardown.url,
-        message: 'Failed to load resource: the server responded with a status of 404 (Not Found)',
-      });
-    });
-    expect(coverageRow(dir, commit).status).toBe('pass');
-    expect(knownIssues.map((k) => k.issue)).toEqual([5274]);
-    const booting = {
-      stage: 'observe-real-frame',
-      status: 404,
-      url: '[redacted]/botharness-computer/viewer/api/status',
-    };
-    for (const entry of [
-      booting,
-      { ...teardown, stage: 'observe-real-frame' },
-      { ...booting, stage: 'stop-from-panel', status: 503 },
+  it.each([
+    [
+      'http-errors',
       {
-        ...booting,
-        stage: 'stop-from-panel',
-        status: 503,
-        url: '[redacted]/botharness-computer/viewer/',
+        stage: 'start-from-panel',
+        status: 404,
+        url: '[redacted]/botharness-computer/viewer/api/status',
       },
+    ],
+    [
+      'http-errors',
+      {
+        stage: 'stop-from-panel',
+        status: 404,
+        url: '[redacted]/botharness-computer/viewer/api/websockets',
+      },
+    ],
+    [
+      'console',
       {
         source: 'console',
-        stage: 'observe-real-frame',
+        stage: 'stop-from-panel',
         url: '[redacted]/botharness-computer/viewer/selkies-core.js',
         message: '[websockets] Error: [object Object]',
       },
-    ])
-      expect(knownViewerTransient(entry)).toBe(true);
-    for (const entry of [
-      { ...teardown, status: 500 },
-      { ...booting, stage: 'observe-Access-off' },
-      { ...booting, stage: 'enable-Computer-Access' },
-      { ...booting, status: 502 },
-      { ...booting, url: '[redacted]/botharness-computer/viewer/index.html' },
-      { ...booting, url: '[redacted]/botharness-computer/viewer/' },
-      {
-        ...booting,
-        stage: 'stop-from-panel',
-        status: 404,
-        url: '[redacted]/botharness-computer/viewer/',
-      },
-      { ...booting, url: '[redacted]/botharness-computer/viewer/selkies-core.js' },
-      {
-        source: 'console',
-        stage: 'observe-real-frame',
-        url: '[redacted]/botharness-computer/viewer/selkies-core.js',
-        message: 'Uncaught TypeError: frame is undefined',
-      },
-      { ...booting, url: '[redacted]/api/botharness/computer/status' },
-      { source: 'pageerror', stage: 'observe-real-frame', message: 'TypeError: x is undefined' },
-      {
-        source: 'console',
-        stage: 'observe-real-frame',
-        url: '[redacted]/assets/client.js',
-        message: 'Uncaught TypeError',
-      },
-    ])
-      expect(knownViewerTransient(entry)).toBe(false);
+    ],
+  ])('rejects viewer errors recorded in %s', (name, entry) => {
+    const dir = fixture();
+    change(dir, name, (v) => v.push(entry));
+    expect(coverageRow(dir, commit).status).toBe('needs-revalidation');
   });
   it('expires a null run record instead of aborting the report', () => {
     const dir = fixture();

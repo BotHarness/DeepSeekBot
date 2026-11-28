@@ -195,6 +195,8 @@ export function createDockerComputerProvider(
   let phase: ComputerPhase = 'idle';
   let detail: string | undefined;
   let running = false;
+  let viewerReady = false;
+  let phaseRevision = 0;
   let operation: Promise<void> | undefined;
   let pullProgress: ComputerProgress | undefined;
   let lifecycle: Promise<unknown> = Promise.resolve();
@@ -205,6 +207,8 @@ export function createDockerComputerProvider(
   const setPhase = (next: ComputerPhase): void => {
     if (next === phase) return;
     phase = next;
+    phaseRevision += 1;
+    if (next !== 'running') viewerReady = false;
     options.onStatusChanged?.();
   };
 
@@ -252,13 +256,11 @@ export function createDockerComputerProvider(
       config.containerName,
     ]);
     if (result.code !== 0) {
-      running = false;
       observe('absent', undefined);
       return { state: 'absent' };
     }
     const [status = '', exitCode = ''] = result.stdout.trim().split(/\s+/);
-    running = status === 'running';
-    if (running) {
+    if (status === 'running') {
       observe('running', undefined);
       return { state: 'running' };
     }
@@ -455,23 +457,32 @@ export function createDockerComputerProvider(
     }
   };
 
+  const probeDesktop = async (): Promise<boolean> => {
+    try {
+      const response = await (fetchImpl ?? globalThis.fetch)(
+        `http://127.0.0.1:${config.hostPort}/api/status`,
+        { signal: AbortSignal.timeout(DESKTOP_PROBE_TIMEOUT_MS), redirect: 'error' },
+      );
+      await response.arrayBuffer();
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const waitForDesktop = async (): Promise<void> => {
     const timeoutMs = readyTimeoutMs ?? DESKTOP_READY_TIMEOUT_MS;
     const delay =
       sleepImpl ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-    const probeFetch = fetchImpl ?? globalThis.fetch;
     setPhase('starting');
     detail = '正在等待桌面响应…';
     const startedAt = Date.now();
     for (;;) {
       throwIfCancelled();
-      try {
-        const response = await probeFetch(`http://127.0.0.1:${config.hostPort}/`, {
-          signal: AbortSignal.timeout(DESKTOP_PROBE_TIMEOUT_MS),
-        });
-        await response.arrayBuffer();
-        if (response.ok) return;
-      } catch {}
+      if (await probeDesktop()) {
+        throwIfCancelled();
+        return;
+      }
       if (Date.now() - startedAt > timeoutMs) {
         fail(`桌面在 ${Math.round(timeoutMs / 1000)} 秒内未响应，请重试启动`);
       }
@@ -481,9 +492,10 @@ export function createDockerComputerProvider(
 
   const confirmRunning = async (): Promise<void> => {
     await waitForDesktop();
-    setPhase('running');
     detail = undefined;
     running = true;
+    viewerReady = true;
+    setPhase('running');
   };
 
   const runStart = async (): Promise<void> => {
@@ -682,7 +694,8 @@ export function createDockerComputerProvider(
             onEvent?.('desktop readiness unconfirmed after export restart');
           }
           running = confirmed;
-          setPhase('idle');
+          viewerReady = confirmed;
+          setPhase(confirmed ? 'running' : 'idle');
           detail = undefined;
         }
       }
@@ -738,12 +751,21 @@ export function createDockerComputerProvider(
       if (phase === 'failed') {
         return withStorage(withDetail({ state: 'failed', phase: 'failed' }));
       }
+      const observed = phaseRevision;
       const status = await inspect();
+      if (observed !== phaseRevision) return this.status();
       running = status.state === 'running';
+      if (!running) viewerReady = false;
       if (phase === 'stopping' || phase === 'exporting' || phase === 'importing') {
         return withStorage(withDetail({ ...status, phase }));
       }
-      if (status.state === 'running') phase = 'running';
+      if (status.state === 'running' && !viewerReady) {
+        const confirmed = await probeDesktop();
+        if (observed !== phaseRevision) return this.status();
+        if (!confirmed) return withStorage({ ...status, phase: 'starting' });
+        viewerReady = true;
+        setPhase('running');
+      }
       if (status.state === 'absent') return withStorage(status);
       const hint = await migrationHint(status.state);
       return {
@@ -764,6 +786,7 @@ export function createDockerComputerProvider(
         setPhase('stopping');
         detail = undefined;
         const result = await runner.run(['docker', 'stop', config.containerName]);
+        cancelRequested = false;
         if (result.code !== 0 && !result.stderr.includes('No such container')) {
           setPhase('failed');
           detail = result.stderr.trim() || 'docker stop failed';
@@ -775,7 +798,9 @@ export function createDockerComputerProvider(
       });
     },
     upstream(): URL | undefined {
-      return running ? new URL(`http://127.0.0.1:${config.hostPort}/`) : undefined;
+      return running && viewerReady && !cancelRequested
+        ? new URL(`http://127.0.0.1:${config.hostPort}/`)
+        : undefined;
     },
     webrtc: {
       async media() {
