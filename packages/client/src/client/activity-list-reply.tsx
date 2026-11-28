@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 
@@ -152,7 +153,7 @@ export function ActivityListReply({
     setSending(true);
     setSendError(false);
     if (attempt.current?.body !== body)
-      attempt.current = { body, id: 'human-' + crypto.randomUUID() };
+      attempt.current = { body, id: 'human-' + createBrowserUuid() };
     try {
       const reply = await actions.replyFromActivityList(
         channelId,

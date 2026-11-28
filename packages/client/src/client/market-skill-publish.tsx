@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import * as stylex from '@stylexjs/stylex';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import type {
@@ -117,7 +118,7 @@ function SkillRejection({
 }
 
 function revisionKey(): string {
-  return crypto.randomUUID().replaceAll('-', '');
+  return createBrowserUuid().replaceAll('-', '');
 }
 
 export function MarketSkillPublishDialog({

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
@@ -368,7 +369,7 @@ export function MarketUploadDialog({
   const askTob = async (message: string): Promise<void> => {
     const home = await actions.tobHome();
     if (typeof home.channelId !== 'string') throw new Error('No Tob on this Host');
-    await actions.sendHome(home.channelId, message, 'human-' + crypto.randomUUID());
+    await actions.sendHome(home.channelId, message, 'human-' + createBrowserUuid());
     registry?.open(CHANNEL_BODY_PANEL);
     onClose();
   };

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import {
   Component,
   useMemo,
@@ -240,7 +241,7 @@ interface FrameProps {
 
 export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
   override state = { failed: false };
-  private readonly instanceId = crypto.randomUUID();
+  private readonly instanceId = createBrowserUuid();
   private container: HTMLDivElement | null = null;
   private surface: GenuiDocumentHandle | undefined;
   private shell: HTMLIFrameElement | undefined;
