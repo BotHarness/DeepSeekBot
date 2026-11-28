@@ -9,6 +9,18 @@ export const connectorsRpc = {
     return unwrapAsync(this.methods.connectors({}));
   },
 
+  connectorGoogleSetup() {
+    return unwrapAsync(this.methods.connectorGoogleSetup({}));
+  },
+
+  connectorGoogleAdd(input: { clientId: string; clientSecret: string }) {
+    return unwrapAsync(this.methods.connectorGoogleAdd(input));
+  },
+
+  connectorGoogleLogin(label: string) {
+    return unwrapAsync(this.methods.connectorGoogleLogin({ label }));
+  },
+
   connectorKeySet(apiKey: string): Promise<ConnectorsView> {
     return unwrapAsync(this.methods.connectorKeySet({ apiKey }));
   },

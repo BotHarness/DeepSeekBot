@@ -140,8 +140,9 @@ export function MarketplaceAvatarScreen() {
           )}
         </ScrollView>
       )}
-      {choosing && actions ? (
+      {actions ? (
         <MarketplaceTopics
+          visible={choosing}
           resource={actions.tags}
           title={copy.tags}
           allLabel={copy.allTags}
