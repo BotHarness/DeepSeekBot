@@ -1,4 +1,3 @@
-import { useNavigationContainerRef } from 'expo-router';
 import { useState } from 'react';
 import { FlatList } from 'react-native';
 
@@ -8,34 +7,23 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { openConversation } from '../shell/open-conversation';
 import { useStrings } from '../strings';
 import { conversationChannelId, setConversationHidden } from './conversation-actions';
 import { hiddenConversations, titleOf, type Conversation } from './conversations';
 
 export function HiddenChatsScreen({ hostId }: { hostId: string }) {
   const host = useHostSessions().find((candidate) => candidate.saved.hostId === hostId);
-  return (
-    <HiddenChats
-      key={hostId}
-      hostId={hostId}
-      client={host?.client}
-      roster={host?.snapshot.roster}
-    />
-  );
+  return <HiddenChats key={hostId} client={host?.client} roster={host?.snapshot.roster} />;
 }
 
 export function HiddenChats({
-  hostId,
   client,
   roster,
 }: {
-  hostId: string;
   client: Pick<HostClient, 'call' | 'refresh'> | undefined;
   roster: RosterView | undefined;
 }) {
   const t = useStrings();
-  const navigation = useNavigationContainerRef();
   const [busy, setBusy] = useState<string>();
   const [failed, setFailed] = useState(false);
   const rows = hiddenConversations(roster);
@@ -71,7 +59,6 @@ export function HiddenChats({
           on="canvas"
           testID={`hidden-chat-${item.key}`}
           title={titleOf(item)}
-          onPress={() => openConversation(navigation, item, hostId)}
           trailing={
             <Button
               testID={`hidden-chat-unhide-${item.key}`}

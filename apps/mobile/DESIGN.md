@@ -918,7 +918,7 @@ A retained conversation becomes foreground only after it settles open. Preloadin
 
 ### Hidden chats (#5623)
 
-Hide sits in every Chats row menu next to Mute, on both platforms, and replaces the hidden roster through the same `hiddenSet` method that desktop and `deepseekbot roster-hidden-set` use. It is per member and never leaves the conversation, so a Team member hides an auto-joined Group instead of leaving it. When a Host has hidden chats, the end of the Chats list shows a Hidden chats row with the count. It opens a list where a tap opens the chat and Unhide returns it to Chats.
+Hide sits in every Chats row menu next to Mute, on both platforms, and replaces the hidden roster through the same `hiddenSet` method that desktop and `deepseekbot roster-hidden-set` use. It is per member and never leaves the conversation, so a Team member hides an auto-joined Group instead of leaving it. When a Host has hidden chats, the end of the Chats list shows a Hidden chats row with the count. It opens a list of those chats, each with an Unhide button that returns it to Chats. The row itself is not a button, so VoiceOver and TalkBack reach Unhide on its own.
 
 ### Conversation identity islands (#3621)
 

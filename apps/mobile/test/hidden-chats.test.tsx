@@ -3,24 +3,11 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const opened = vi.hoisted(() => vi.fn(() => true));
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('expo-router', () => ({ useNavigationContainerRef: () => ({}) }));
 vi.mock('../src/host/host-session', () => ({ useHostSessions: () => [] }));
-vi.mock('../src/ui/shell/open-conversation', () => ({ openConversation: opened }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
-  SettingsRow: (props: {
-    title: string;
-    testID?: string;
-    trailing?: ReactNode;
-    onPress?: () => void;
-  }) =>
-    createElement(
-      'div',
-      { 'data-testid': props.testID },
-      createElement('button', { type: 'button', onClick: props.onPress }, props.title),
-      props.trailing,
-    ),
+  SettingsRow: (props: { title: string; testID?: string; trailing?: ReactNode }) =>
+    createElement('div', { 'data-testid': props.testID }, props.title, props.trailing),
 }));
 vi.mock('../src/ui/primitives/button', () => ({
   Button: (props: { label: string; testID?: string; disabled?: boolean; onPress(): void }) =>
@@ -68,7 +55,7 @@ it('moves hidden chats out of Chats and lists them by name for restoring', () =>
   expect(hiddenConversations(roster([]))).toEqual([]);
 });
 
-it('unhides one chat through the Host hidden roster and opens a hidden chat on tap', async () => {
+it('unhides one chat through the Host hidden roster', async () => {
   let hidden = ['studio', 'dm-ada'];
   const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
     if (method === 'rosterGet') return { pins: [], hidden, sections: [], sectionOrder: [] };
@@ -80,7 +67,7 @@ it('unhides one chat through the Host hidden roster and opens a hidden chat on t
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(<HiddenChats hostId="h1" client={client} roster={roster(hidden)} />));
+  act(() => root!.render(<HiddenChats client={client} roster={roster(hidden)} />));
   const unhide = host.querySelector<HTMLButtonElement>(
     '[data-testid="hidden-chat-unhide-channel:studio"]',
   )!;
@@ -88,10 +75,6 @@ it('unhides one chat through the Host hidden roster and opens a hidden chat on t
   await act(async () => unhide.click());
   expect(call).toHaveBeenCalledWith('hiddenSet', { hidden: ['dm-ada'] });
   expect(refresh).toHaveBeenCalledOnce();
-  act(() =>
-    host!.querySelector<HTMLButtonElement>('[data-testid="hidden-chat-bot:ada"] button')!.click(),
-  );
-  expect(opened).toHaveBeenCalledWith({}, expect.objectContaining({ key: 'bot:ada' }), 'h1');
-  act(() => root!.render(<HiddenChats hostId="h1" client={client} roster={roster([])} />));
+  act(() => root!.render(<HiddenChats client={client} roster={roster([])} />));
   expect(host.textContent).toContain(t.hiddenChats.empty);
 });
