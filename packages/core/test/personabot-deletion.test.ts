@@ -1,6 +1,7 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -176,6 +177,52 @@ describe('confirmed terminal PersonaBot deletion', () => {
         }).channel.members,
       ).toEqual([]);
     }
+  });
+
+  it('archives a deleted Bot DM with its history and erases a read-only Git object on Windows', async () => {
+    const f = fixture();
+    const memory = f.create();
+    if (process.platform === 'win32') {
+      const object = join(memory, '.git', 'objects', 'read-only-fixture');
+      writeFileSync(object, 'object', { mode: 0o444 });
+      chmodSync(object, 0o444);
+    }
+    const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'a', 'Same name');
+    if (dm === undefined) throw new Error('fixture DM unavailable');
+    await f.core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
+      id: 'dm-history-4038',
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: 'Previously visible DM',
+    });
+    const preview = f.core.deletions.preview('a');
+    expect(preview.dependencies.dmChannelsToArchive).toEqual([dm.id]);
+    expect(f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, dm.id)?.entries).toHaveLength(1);
+    const deletion = await f.core.deletions.confirm('a', preview.token, true);
+    expect.soft(deletion).toMatchObject({ phase: 'complete', memory: 'erased' });
+    expect(f.core.registry.get('a')).toBeUndefined();
+    expect.soft(f.core.channels.list().map(({ id }) => id)).not.toContain(dm.id);
+    expect.soft(f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, dm.id)).toBeUndefined();
+    expect(f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'a', 'Same name')).toBeUndefined();
+  });
+  it('archives a legacy DM only with the current deletion token and leaves accepted Memory intact', async () => {
+    const f = fixture();
+    const memory = f.create();
+    const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'a', 'Same name');
+    if (dm === undefined) throw new Error('fixture DM unavailable');
+    const old = await f.deletion.confirm('a', f.deletion.preview('a').token, false);
+    expect(f.core.channels.get(dm.id)).toEqual(dm);
+    await expect(f.core.deletions.retry('a', 'stale-token')).rejects.toMatchObject({
+      code: 'stale-deletion',
+    });
+    expect(f.core.channels.get(dm.id)).toEqual(dm);
+    const preview = f.core.deletions.preview('a');
+    expect(preview.dependencies.dmChannelsToArchive).toEqual([dm.id]);
+    expect(await f.core.deletions.retry('a')).toEqual(old);
+    expect(f.core.channels.get(dm.id)).toEqual(dm);
+    expect(await f.core.deletions.retry('a', preview.token)).toEqual(old);
+    expect(f.core.channels.get(dm.id)).toBeUndefined();
+    expect(existsSync(memory)).toBe(true);
   });
 
   it('allows removing an already missing Bot member without requiring an active Bot', async () => {
@@ -661,7 +708,7 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(existsSync(path)).toBe(false);
     expect(f.core.registry.get('a')).toBeDefined();
   });
-  it('uses the production bridge to keep history readable while rejecting deleted DM input and restart', async () => {
+  it('uses the production bridge to close the deleted DM while retaining Bot Session references', async () => {
     const f = fixture();
     f.create();
     const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
@@ -693,14 +740,8 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(methods.sessions({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.assignments({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.botAttention({ slug: 'a' })).toMatchObject({ ok: true });
-    expect(await methods.profileActivity({ channelId: channel.id })).toMatchObject({
-      ok: true,
-      value: { slug: 'a' },
-    });
-    expect(await erased.profileActivity({ channelId: channel.id })).toMatchObject({
-      ok: true,
-      value: { slug: 'a', memoryCommits: [] },
-    });
+    expect(await methods.profileActivity({ channelId: channel.id })).toMatchObject({ ok: false });
+    expect(methods.channelMessages({ channelId: channel.id })).toMatchObject({ ok: false });
     expect(methods.resume({ slug: 'a' })).toMatchObject({ ok: false });
     expect(
       await methods.channelSend({ channelId: channel.id, body: 'late delivery' }),

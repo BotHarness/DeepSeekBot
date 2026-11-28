@@ -1,4 +1,5 @@
 import type { ChannelBotChange } from '@botharness/host-protocol/channel-bots';
+import type { RoleBotScope } from '@botharness/host-protocol/team-roles';
 import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PrivateKind } from '../../team-policy/private-content.js';
 import type { SpaceAudience } from '../../workspaces/spaces.js';
@@ -373,6 +374,22 @@ export function channelPublicSet(
 }
 
 export const teamServiceRpc = {
+  botAccessDirectory() {
+    return unwrapAsync(this.methods.botAccessDirectory({}));
+  },
+
+  botAccessRoles(slug: string) {
+    return unwrapAsync(this.methods.botAccessRoles({ slug }));
+  },
+
+  roleBotScope(roleId: string) {
+    return unwrapAsync(this.methods.roleBotScope({ roleId }));
+  },
+
+  roleBotScopeSet(roleId: string, expectedRevision: number, scope: RoleBotScope) {
+    return unwrapAsync(this.methods.roleBotScopeSet({ roleId, expectedRevision, scope }));
+  },
+
   spaceAudienceDirectory() {
     return spaceAudienceDirectory(this.methods);
   },

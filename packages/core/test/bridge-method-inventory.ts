@@ -1,4 +1,6 @@
 export const bridgeMethodInventory = [
+  'botAccessDirectory',
+  'botAccessRoles',
   'botVisibility',
   'botVisibilitySet',
   'botSwitches',
@@ -30,6 +32,8 @@ export const bridgeMethodInventory = [
   'memberCreate',
   'permissionCatalog',
   'roles',
+  'roleBotScope',
+  'roleBotScopeSet',
   'roleCreate',
   'roleUpdate',
   'roleDelete',

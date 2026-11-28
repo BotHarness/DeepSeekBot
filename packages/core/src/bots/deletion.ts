@@ -41,6 +41,7 @@ export interface PersonaBotDeletionDependencies {
   grants: string[];
   identities: string[];
   channels: string[];
+  dmChannelsToArchive?: string[];
 }
 
 export interface PersonaBotDeletionPreview {
@@ -59,7 +60,7 @@ export interface PersonaBotDeletions {
   preview(slug: string): PersonaBotDeletionPreview;
   memberPreview(humanId: string, slug: string): PersonaBotDeletionPreview;
   confirm(slug: string, token: string, eraseMemory: boolean): Promise<PersonaBotDeletion>;
-  retry(slug: string): Promise<PersonaBotDeletion>;
+  retry(slug: string, archiveDmToken?: string): Promise<PersonaBotDeletion>;
   get(slug: string): PersonaBotDeletion | undefined;
   folder(slug: string): { path: string; relativePath: string; kind: 'directory' };
 }
@@ -248,6 +249,7 @@ export function createPersonaBotDeletions(options: {
   protectedPaths?: string[];
   stop(slug: string): Promise<void>;
   accept?(slug: string, commit: (database: DatabaseSync) => void): void;
+  archiveDms?(slug: string): void;
   changed?(slug: string): void;
   capture?: TelemetryCapture;
   log?(event: {
@@ -465,9 +467,17 @@ export function createPersonaBotDeletions(options: {
       } catch {}
       return run(state);
     },
-    async retry(slug) {
+    async retry(slug, archiveDmToken) {
       const state = get(slug);
       if (state === undefined) throw new Error('Deletion has not been accepted');
+      if (archiveDmToken !== undefined) {
+        if (options.archiveDms === undefined)
+          throw new HarnessError('DM archival is unavailable', 'unavailable');
+        if (snapshot(slug).token !== archiveDmToken)
+          throw new HarnessError('Deletion scope changed; reopen confirmation', 'stale-deletion');
+        options.archiveDms(slug);
+        return state;
+      }
       if (state.phase === 'complete') return state;
       return run(state);
     },

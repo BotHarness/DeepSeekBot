@@ -220,9 +220,15 @@ export async function runBotCreateCli(
       };
       if (
         action &&
-        ['visibility', 'visibility-set', 'switches', 'reachable', 'proactive-opt-out'].includes(
-          action,
-        )
+        [
+          'visibility',
+          'visibility-set',
+          'switches',
+          'reachable',
+          'proactive-opt-out',
+          'access-directory',
+          'access-roles',
+        ].includes(action)
       ) {
         command = 'bot-access';
       } else {

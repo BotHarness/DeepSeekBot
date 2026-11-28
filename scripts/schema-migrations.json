@@ -808,6 +808,10 @@
     "sha256": "0e8130fb66b84cdfde484667ebf8eb940afec2ddf63e10a8d3871ea751747833"
   },
   {
+    "id": "host-role-bot-scope",
+    "sha256": "bdf981f5ad39f703b055145fa15435f6e105849a039fad07824a55066111f357"
+  },
+  {
     "id": "team-member-settings",
     "sha256": "37dd66fa4deb86f9d0f8504bbd0edb7d744d8db794ee93d5c83b095ebdfe0d79"
   }

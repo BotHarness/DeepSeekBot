@@ -8,7 +8,7 @@ import {
   selectNativeModel,
 } from './native-agent-compat.js';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
-import { replyReminderText } from '../features/messaging/prompt.js';
+import { replyReminderText } from '../prompts/prompt-parts.js';
 import { agentFeatureContext } from './agent-feature-context.js';
 import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
 import type { Context } from '@deepseek-ai/cordis';

@@ -285,3 +285,5 @@ export class AssignmentApprovalCapacity {
     acquire.signal.removeEventListener('abort', acquire.abort);
   }
 }
+
+export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;

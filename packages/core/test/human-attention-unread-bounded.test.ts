@@ -9,7 +9,7 @@ import {
 } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 describe('Human attention unread status', () => {

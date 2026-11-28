@@ -388,6 +388,7 @@ it('derives visible sections from the viewer and defaults to the internal member
   const context = { view: owner, roles: [role()], members: [] };
   expect(visibleSections(context).map((section) => section.id)).toEqual([
     'members',
+    'bots',
     'channels',
     'roles',
     'externalRoles',
@@ -400,7 +401,7 @@ it('derives visible sections from the viewer and defaults to the internal member
   } as never;
   expect(
     visibleSections({ view: member, roles: [], members: [] }).map((section) => section.id),
-  ).toEqual(['channels']);
+  ).toEqual(['bots', 'channels']);
   expect(resolveSection({ view: member, roles: [], members: [] }, 'roles')?.id).toBe('channels');
 });
 

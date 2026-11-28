@@ -6,10 +6,8 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import {
-  createHumanAttentionDecisions,
-  createHumanAttentionQuery,
-} from '../src/runtime/human-attention.js';
+import { createHumanAttentionDecisions } from '../src/features/activity/human-attention-decisions.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 function fixture() {

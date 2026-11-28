@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
-import { UNREAD_COUNT_LIMIT } from '../src/runtime/human-attention.js';
+import { UNREAD_COUNT_LIMIT } from '../src/features/activity/human-attention-query.js';
 import { createTempRoot } from './helpers.js';
 
 it('stops unread counts at the display limit and keeps smaller counts exact', async () => {

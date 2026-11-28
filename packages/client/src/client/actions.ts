@@ -132,6 +132,7 @@ import { createGitActions, type GitActions } from './actions-git.js';
 import { createActivityActions, type ActivityActions } from './actions-activity.js';
 import { createConversationActions, type ConversationActions } from './actions-conversation.js';
 import { createFileActions, type FileActions } from './actions-files.js';
+import type { AttachmentOpenRequests } from './attachment-open-requests.js';
 import { createMemoryActions, type MemoryActions } from './actions-memory.js';
 import { createUsageActions, type UsageActions } from './actions-usage.js';
 import {
@@ -436,6 +437,7 @@ export interface ActionFolderAccess {
   createWorkspace(input: { path: string }): Promise<{ workspaceId: string }>;
   openSession?(sessionId: string): void;
   nativeFiles?: NativeHostFiles;
+  attachmentOpenRequests?: AttachmentOpenRequests;
   fileOpenPreferences?: FileOpenPreferences;
   submissions?: ComposerSubmissionStore;
   openModelPresets?(): void;
@@ -779,6 +781,7 @@ export function createActions(
     messageAttachmentTarget: filesActions.messageAttachmentTarget,
     messageAttachmentApplications: filesActions.messageAttachmentApplications,
     messageAttachmentOpen: filesActions.messageAttachmentOpen,
+    messageAttachmentOpenDefault: filesActions.messageAttachmentOpenDefault,
     messageAttachmentDownload: filesActions.messageAttachmentDownload,
     workspaceFileTarget: filesActions.workspaceFileTarget,
     workspaceFileApplications: filesActions.workspaceFileApplications,

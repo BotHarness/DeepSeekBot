@@ -62,6 +62,24 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('Harness Bot tool runner commands', () => {
+  it('runs the live Bot credential inventory without supplying another Bot or account', async () => {
+    const value = {
+      tool: 'list_secret_accounts',
+      sessionId: 'direct',
+      result: JSON.stringify({ accounts: ['Synthetic DNS'] }),
+    };
+    const live = await host(() => ({ ok: true, value }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'list_secret_accounts', '--args-stdin'],
+      live.url,
+      '{}',
+    );
+    expect(result).toEqual({ code: 0, json: value });
+    expect(live.calls).toEqual([
+      { method: 'botToolRun', args: { slug: 'ada', tool: 'list_secret_accounts', args: {} } },
+    ]);
+  });
+
   it('passes explicit Source Event causation separately from Bot tool arguments', async () => {
     const live = await host(() => ({ ok: true, value: { result: 'accepted' } }));
     const result = await invoke(

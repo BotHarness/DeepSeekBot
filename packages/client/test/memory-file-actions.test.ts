@@ -270,6 +270,7 @@ describe('message attachment menus', () => {
         applications: [{ id: 'editor', name: 'Editor', default: true, icon: null }],
       })),
       messageAttachmentOpen: vi.fn(async () => undefined),
+      messageAttachmentOpenDefault: vi.fn(async () => 'opened' as const),
       messageAttachmentDownload: vi.fn(async () => undefined),
     };
     const bubble = vi.fn();
@@ -335,13 +336,11 @@ describe('message attachment menus', () => {
       'message-owner',
       attachment.fileId,
     );
-    a.messageAttachmentOpen.mockClear();
     await click(file);
-    expect(a.messageAttachmentOpen).toHaveBeenCalledWith(
+    expect(a.messageAttachmentOpenDefault).toHaveBeenCalledWith(
       'group-owner',
       'message-owner',
       attachment.fileId,
-      { application: 'editor' },
     );
     expect(document.querySelector('[data-pointer-menu] [role="menu"]')).toBeNull();
   });

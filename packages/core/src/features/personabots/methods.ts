@@ -379,13 +379,18 @@ export function createPersonaBotsBridgeMethods(
     async deletionRetry(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
+      const archiveDmToken = asObject(payload)['archiveDmToken'];
+      if (archiveDmToken !== undefined && typeof archiveDmToken !== 'string')
+        return invalidInput('DM archival requires a confirmation token');
       if (deps.deletions === undefined) return unavailable();
       try {
         return {
           ok: true,
-          value: { deletion: await deps.deletions.retry(slug) },
+          value: { deletion: await deps.deletions.retry(slug, archiveDmToken) },
         };
       } catch (error) {
+        if (error instanceof HarnessError)
+          return { ok: false, error: { code: error.code, message: error.message } };
         return invalidInput(error instanceof Error ? error.message : 'Deletion retry unavailable');
       }
     },

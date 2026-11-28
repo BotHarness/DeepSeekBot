@@ -1847,7 +1847,10 @@ printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-
 # Only after explicitly reviewing erasure of the owner's displayed Memory folder:
 printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-id> --confirmation-stdin --confirm --erase-memory
 deepseekbot bot-delete-retry <bot-id> --confirm
+printf '%s' '{"token":"<fresh preview.token>"}' | deepseekbot bot-delete-retry <bot-id> --confirm --confirmation-stdin
 ```
+
+`preview.dependencies.dmChannelsToArchive` lists the DMs that deletion archives along with their history. Archived DMs leave the Channel list and their messages are unavailable through Channel reads. The Host retains the stored history for attribution. For a Bot deleted on an older Host, run `bot-delete-preview` again and pipe its fresh token to the last command above. This archives the listed DMs independently of any pending Memory cleanup.
 
 Deletion retains Memory by default. `--erase-memory` selects the exact owner-reviewed Memory directory, only when `preview.eraseAvailable` permits it; caller-selected paths are rejected. `bot-delete-memory-folder` returns the validated `{target:{path,relativePath,kind}}` for inspection, not arbitrary filesystem access. Preview tokens, dependency scope and path ownership checks remain authoritative. Deletion retry continues the already accepted retention/erasure choice; it cannot change that choice. Scoped confirm and retry require a fresh Human decision each time, including under full access, remembered rules or automatic approval. Both Human commands now require `--confirm`, so update existing cleanup scripts. Any Bot, Tob included, can be archived or deleted; the preview carries `lastAppManager: true` when the Bot is the last one with "Manage the App". Names, personality text and imports never grant an App management grant.
 
@@ -2500,6 +2503,8 @@ same report ID. To edit it, explicitly refresh the preview. Receipt returns `rep
 
 Submission uses the existing PostHog ingest path without extra configuration. No dedicated receiver or private archive storage is deployed. See [feedback and local diagnostics](message-feedback.md).
 
+When upload fails, `feedback-submit` returns `feedback-failed`. Read `error.details.reason` for `network`, `timeout`, `auth`, or `receiver-error`. For `auth` and `receiver-error`, `error.details.status` is the receiver's HTTP status. The same preview token and rating can be retried while the preview is valid.
+
 ### Failed-turn feedback
 
 `feedback-preview` accepts `failureTurn: true` alongside the canonical failed message's `channelId` and `messageId` in stdin JSON. Its frozen preview includes `uploadEvidence`: only the matching turn input and tool call/result events, redacted and capped at 128 KiB. Ambiguous/missing turn identity and oversized evidence refuse instead of uploading a whole Session. `feedback-submit --confirm` uploads that frozen turn with rating/tags/comment to the existing feedback endpoint. The diagnostic ZIP stays a separate download. Ordinary feedback keeps its existing metadata-only POST.
@@ -2507,6 +2512,8 @@ Submission uses the existing PostHog ingest path without extra configuration. No
 ### Private credential tools in the direct runner
 
 After a Bot has a live Orchestrator Agent, `bot-tools` also lists its registered `ask_secret`, `protected_cli`, `secret_http`, `secret_cli` and `secret_mcp_connect` tools. Invoke them with `bot-tool <bot-id> <tool> --args-stdin`. Arguments are a JSON object on stdin; never put private values or references in shell arguments. The runner uses the existing Agent and native tool execution/approval pipeline without calling the model or creating a new source. Missing live registration is refused. An execution approval can be pending while the command waits; use the usual approval commands or Web card. Private arguments/results are omitted from both direct and native diagnostic traces.
+
+Pass `{}` on stdin to `bot-tool <bot-id> list_secret_accounts --args-stdin` to list the exact account names the live Bot can look up. The Owner can also use `ask-secret-accounts <bot-id>` without a live Agent. `ask_secret` defaults to `mode: "reuse"`. A lookup miss returns `not-found` and those same names without opening a card. Use `mode: "collect"` only when the Human requests setup or agrees to enter new values, and tell them what to enter in `purpose`. If they cancel, confirm in chat before trying again. The Host refuses the same account and fields in that conversation for five minutes with `private-input-declined`.
 
 Execution approvals follow the authenticated caller's Bot DM, bound to the live Agent Session and exact direct call ID. Concurrent callers keep separate destinations; completing or cancelling a call releases only its routing record. Human decision permissions still apply, and opening a new secret-input card still requires a current Human Source Event and existing credential authorization. This routing also covers a read-only `secret_http` GET when the existing input policy requires approval. Direct-call review uses the selected template and pending input without copying the borrowed Session history into the Reviewer.
 
@@ -2619,6 +2626,22 @@ deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 When editing a role from an earlier `roles list`, pass its `revision` as `--expected-revision`.
 If the Host returns `stale-role`, read the role again and review the latest grants before retrying.
 Without the flag, `roles update` reads the current revision using the same caller as the update.
+
+```sh
+deepseekbot roles bot-scope <roleId>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --expected-editable-bots-revision <editableBotsRevision> --set selected:<slug>,<slug>
+deepseekbot roles bot-scope-set <roleId> --expected-revision <revision> --set all
+deepseekbot bots access-directory
+deepseekbot bots access-roles <slug>
+```
+
+Use the revision from `roles bot-scope` when saving. For selected scope, also pass its `editableBotsRevision`. `selected:` replaces the editable selections on
+public Bots with role audiences. An empty list clears those selections. The Host Owner and eligible role
+managers who already hold the grant can choose `all` to cover all current and future public Bots.
+The explicit selections stay saved. Each Bot row reports its `audience` (`everyone`, `roles` or
+`members`) and whether it is `editable`; only role-audience Bots can be selected for a role.
+The Bot access directory lists Bots whose access the caller can inspect. `access-roles` shows the
+role sources. Active invitees are visible to callers with `members.manage`. A private Bot's access is visible to its owner only.
 
 `--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 

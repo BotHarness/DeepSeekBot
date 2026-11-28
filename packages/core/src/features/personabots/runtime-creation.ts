@@ -20,7 +20,7 @@ import {
   type BotCreateInput,
   type BotCreateOutcome,
 } from '../../bots/create-contract.js';
-import { DirectBotToolError } from '../sessions/direct-tools.js';
+import { DirectBotToolError } from '../../kernel/direct-bot-tool.js';
 
 interface RuntimeBotCreationPorts {
   channels: ChannelStore;

@@ -26,6 +26,7 @@ export type AttachmentActions =
       | 'messageAttachmentTarget'
       | 'messageAttachmentApplications'
       | 'messageAttachmentOpen'
+      | 'messageAttachmentOpenDefault'
       | 'messageAttachmentDownload'
     > &
       Partial<Pick<BridgeActions, 'fileOpenPreferences'>>)

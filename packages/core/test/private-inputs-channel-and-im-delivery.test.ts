@@ -3,6 +3,50 @@ import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('private input card in the Channel the task came from', () => {
+  it('blocks a cancelled request only in its originating Channel and only during the cooldown', async () => {
+    let channelId = 'dm-ada';
+    const f = await fixture(true, undefined, { askChannel: () => channelId });
+    const ask = () => f.owner.ask(f.agent, declaration, new AbortController().signal);
+    const request = () =>
+      vi.waitFor(() => {
+        const card = f.channels
+          .readMessages(channelId)
+          .find(
+            (message) =>
+              message.privateInputRequest && f.owner.status(channelId, message.id) === 'pending',
+          );
+        if (card === undefined) throw new Error('No pending private input in this conversation');
+        return card.id;
+      });
+    try {
+      const first = ask();
+      const id = await request();
+      expect(await f.owner.cancel(true, channelId, id)).toBe(true);
+      expect((await first).status).toBe('cancelled');
+      await expect(ask()).rejects.toMatchObject({ code: 'private-input-declined' });
+
+      channelId = f.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Different conversation',
+        members: ['ada', 'bea'],
+      }).id;
+      const differentChannel = ask();
+      expect(await f.owner.cancel(true, channelId, await request())).toBe(true);
+      expect((await differentChannel).status).toBe('cancelled');
+
+      channelId = 'dm-ada';
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 5 * 60_000 + 1);
+      try {
+        const afterCooldown = ask();
+        expect(await f.owner.cancel(true, channelId, await request())).toBe(true);
+        expect((await afterCooldown).status).toBe('cancelled');
+      } finally {
+        clock.mockRestore();
+      }
+    } finally {
+      await f.close();
+    }
+  });
+
   it('opens the card in the Group turn, accepts the Owner submission there and keeps values out of every Channel', async () => {
     let group = '';
     const f = await fixture(true, undefined, { askChannel: () => group });

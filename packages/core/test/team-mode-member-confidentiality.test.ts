@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { openLiveFrames } from '../src/channels/live-frames.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';

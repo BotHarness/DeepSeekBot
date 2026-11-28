@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -62,6 +63,90 @@ describe('binary discovery and launch arguments', () => {
 });
 
 describe('runtime lifecycle', () => {
+  it.each([0, 21])('opens and stops the Windows browser after launcher exit %i', async (code) => {
+    const userDataDir = mkdtempSync(join(tmpdir(), 'botharness-browser-handoff-'));
+    const lock = join(userDataDir, 'lockfile');
+    const portFile = join(userDataDir, 'DevToolsActivePort');
+    const endpointPath = '/devtools/browser/f69d3c99-cffa-42d1-b1bc-41c325b7887b';
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const client = fakeClient();
+    const send = client.send;
+    client.send = vi.fn(async (method, params, sessionId) => {
+      if (method === 'Browser.close') rmSync(lock);
+      return send(method, params, sessionId);
+    });
+    const connect = vi.fn(async () => client);
+    const runtime = createBotBrowserRuntime({
+      userDataDir,
+      platform: 'win32',
+      browserPath: 'chrome.exe',
+      fileExists: () => true,
+      launchTimeoutMs: 2_000,
+      connect,
+    });
+    try {
+      writeFileSync(lock, '');
+      if (code === 21) writeFileSync(portFile, `49801\n${endpointPath}`);
+      const opened = runtime.open('https://example.com');
+      child.proc.exitCode = code;
+      child.proc.emit('exit', code);
+      child.proc.emit('close', code);
+      const publish = setTimeout(() => writeFileSync(portFile, `49801\n${endpointPath}`), 30);
+      try {
+        await expect(opened).resolves.toMatchObject({
+          url: 'https://example.com/',
+          title: 'Example',
+        });
+      } finally {
+        clearTimeout(publish);
+      }
+      expect(connect).toHaveBeenCalledExactlyOnceWith(`ws://127.0.0.1:49801${endpointPath}`);
+      expect(runtime.isRunning()).toBe(true);
+      await runtime.stop();
+      expect(client.send).toHaveBeenCalledWith('Browser.close');
+      expect(child.proc.kill).not.toHaveBeenCalled();
+      expect(runtime.isRunning()).toBe(false);
+    } finally {
+      await runtime.stop();
+      rmSync(userDataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a Windows hand-off when the occupied profile has no usable DevTools endpoint', async () => {
+    const userDataDir = mkdtempSync(join(tmpdir(), 'botharness-browser-locked-'));
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const connect = vi.fn(async () => fakeClient());
+    const runtime = createBotBrowserRuntime({
+      userDataDir,
+      platform: 'win32',
+      browserPath: 'chrome.exe',
+      fileExists: () => true,
+      launchTimeoutMs: 250,
+      connect,
+    });
+    try {
+      writeFileSync(join(userDataDir, 'lockfile'), '');
+      writeFileSync(
+        join(userDataDir, 'DevToolsActivePort'),
+        '49777\n/devtools/browser/../../other-endpoint',
+      );
+      const pending = runtime.ensure();
+      child.proc.exitCode = 0;
+      child.proc.emit('exit', 0);
+      child.proc.emit('close', 0);
+      await expect(pending).rejects.toThrow(
+        /Close the other browser using this Bot Browser profile/,
+      );
+      expect(connect).not.toHaveBeenCalled();
+      expect(runtime.isRunning()).toBe(false);
+    } finally {
+      await runtime.stop();
+      rmSync(userDataDir, { recursive: true, force: true });
+    }
+  });
+
   it('errors readably when no browser is installed and the Host stays up', async () => {
     const runtime = createBotBrowserRuntime({
       userDataDir: '/tmp/browser-test',

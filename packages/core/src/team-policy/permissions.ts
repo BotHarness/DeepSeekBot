@@ -85,6 +85,7 @@ export const roleSchema = z.object({
   policy: z.string().transform((v) => rolePolicySchema.parse(JSON.parse(v))),
   policyRevision: z.number().int().positive(),
   revision: roleRevisionSchema,
+  allPublicBots: z.coerce.boolean(),
   memberCount: z.number().int().nonnegative(),
 });
 export type HostRole = z.infer<typeof roleSchema>;

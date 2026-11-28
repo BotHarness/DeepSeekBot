@@ -5,7 +5,7 @@ import {
   isChannelVoiceCallRecord,
   voiceCallRecordBody,
 } from '../src/channels/voice-call-record.js';
-import { callVisualNote } from '../src/runtime/bot-runtime.js';
+import { callVisualNote } from '../src/features/voice/events.js';
 import { type VoiceCallEvent } from '../src/voice/call-contract.js';
 
 const types = (events: readonly VoiceCallEvent[]) => events.map((event) => event.type);

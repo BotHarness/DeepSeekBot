@@ -13,7 +13,13 @@ import {
   type HostFileOptions,
   type HostFileOpen,
 } from './host-file-actions.js';
-import { createFileOpenPreferences, type FileOpenPreferences } from './file-open-preferences.js';
+import {
+  createFileOpenPreferences,
+  fileOpenScope,
+  resolveFileOpenDefault,
+  type FileOpenPreferences,
+} from './file-open-preferences.js';
+import { createAttachmentOpenRequests } from './attachment-open-requests.js';
 import type { ActionFolderAccess, ActionResources } from './actions.js';
 
 export interface FileActions {
@@ -40,6 +46,11 @@ export interface FileActions {
     fileId: string,
     choice: HostFileOpen,
   ): Promise<void>;
+  messageAttachmentOpenDefault(
+    channelId: string,
+    messageId: string,
+    fileId: string,
+  ): Promise<'opened' | 'choose-application'>;
   messageAttachmentDownload(channelId: string, messageId: string, fileId: string): Promise<void>;
   bridgeFileCommands?(sourceEventId: string):
     | (import('./host-file-menu.js').HostFileCommands & {
@@ -64,6 +75,46 @@ export function createFileActions(
   let openingFile = false;
   const fileOpenPreferences =
     folderAccess?.fileOpenPreferences ?? createFileOpenPreferences({ storage: undefined });
+  const attachmentRequests = folderAccess?.attachmentOpenRequests ?? createAttachmentOpenRequests();
+  const openAttachment = async (
+    channelId: string,
+    messageId: string,
+    fileId: string,
+    choice?: HostFileOpen,
+  ): Promise<'opened' | 'choose-application'> => {
+    if (openingFile) throw new Error('A Host file open is already in progress');
+    openingFile = true;
+    try {
+      return await attachmentRequests.run(async (signal) => {
+        const target = await loadMessageAttachmentTarget(
+          call,
+          channelId,
+          messageId,
+          fileId,
+          signal,
+        );
+        signal.throwIfAborted();
+        const native = folderAccess?.nativeFiles;
+        if (native === undefined) throw new Error('DSH Host opening is unavailable');
+        if (choice === undefined) {
+          const options = await native.applications(target, signal);
+          signal.throwIfAborted();
+          await fileOpenPreferences.ready().catch(() => undefined);
+          signal.throwIfAborted();
+          const current = resolveFileOpenDefault(
+            options,
+            fileOpenPreferences.get(fileOpenScope(target)),
+          );
+          if (!options.available || !('application' in current)) return 'choose-application';
+          choice = { application: current.application.id };
+        }
+        await native.open(target, choice, signal);
+        return 'opened';
+      });
+    } finally {
+      openingFile = false;
+    }
+  };
 
   return {
     async deletionFolderApplications(slug) {
@@ -146,17 +197,10 @@ export function createFileActions(
       );
     },
     async messageAttachmentOpen(channelId, messageId, fileId, choice) {
-      if (openingFile) throw new Error('A Host file open is already in progress');
-      openingFile = true;
-      try {
-        const target = await loadMessageAttachmentTarget(call, channelId, messageId, fileId);
-        if (folderAccess?.nativeFiles === undefined)
-          throw new Error('DSH Host opening is unavailable');
-        await folderAccess.nativeFiles.open(target, choice);
-      } finally {
-        openingFile = false;
-      }
+      await openAttachment(channelId, messageId, fileId, choice);
     },
+    messageAttachmentOpenDefault: (channelId, messageId, fileId) =>
+      openAttachment(channelId, messageId, fileId),
     async messageAttachmentDownload(channelId, messageId, fileId) {
       const target = await loadMessageAttachmentTarget(call, channelId, messageId, fileId);
       const path =

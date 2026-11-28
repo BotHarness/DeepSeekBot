@@ -240,6 +240,7 @@ export interface WireBotDeletionPreview {
     grants: string[];
     identities: string[];
     channels: string[];
+    dmChannelsToArchive?: string[];
   };
   deletion?: WireBotDeletion;
 }
