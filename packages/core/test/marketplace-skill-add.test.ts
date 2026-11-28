@@ -612,3 +612,53 @@ it('refuses to write over a Skill folder unless replacing, and keeps it on failu
   await writeSkill(staged, skillsDir, 'tidy-notes', { replace: true });
   expect(readFileSync(join(skillsDir, 'tidy-notes', 'SKILL.md'), 'utf8')).toContain('tobs-source');
 });
+
+it('lists the Marketplace Skills added to Bots and globally, and skips hand-written ones', async () => {
+  const market = createMarket();
+  publishSkill(market, { 'SKILL.md': SKILL_MD });
+  const id = await listedId(market);
+  const host = makeHost(market);
+  host.bot('first');
+  host.bot('second');
+  const bridge = host.methods(owner);
+  expect(value(await bridge.marketplaceSkillAdded({}))).toEqual({ skills: [] });
+
+  const review = value(await bridge.marketplaceSkillReview({ id }));
+  value(
+    await bridge.marketplaceSkillAdd({
+      id,
+      reviewId: review.reviewId,
+      bots: ['first'],
+      global: true,
+    }),
+  );
+  const handWritten = join(host.core.registry.memoryDirFor('second')!, '.agents/skills/own-notes');
+  mkdirSync(handWritten, { recursive: true });
+  writeFileSync(
+    join(handWritten, 'SKILL.md'),
+    '---\nname: own-notes\ndescription: Written by hand.\n---\n',
+  );
+
+  const added = value(await bridge.marketplaceSkillAdded({}));
+  expect(added.skills).toEqual([
+    {
+      id,
+      name: 'tidy-notes',
+      description: 'Keep meeting notes tidy.',
+      target: 'first',
+      hash: review.hash,
+    },
+    {
+      id,
+      name: 'tidy-notes',
+      description: 'Keep meeting notes tidy.',
+      target: 'global',
+      hash: review.hash,
+    },
+  ]);
+  const live = await cliHost((method, args) => {
+    if (method === 'marketplaceSkillAdded') return bridge.marketplaceSkillAdded(args);
+    throw new Error(`Unexpected method ${method}`);
+  });
+  expect((await invoke(['skills', 'added'], live.url)).json).toEqual(added);
+});

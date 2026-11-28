@@ -558,6 +558,7 @@ export const CLI_EFFECTS = {
   'skills-delete': { effects: externalIrreversibleManagement, brokerRead: false },
   'skills-mine': { effects: externalRead, brokerRead: false },
   'skills-add': { effects: externalWrite, brokerRead: false },
+  'skills-added': { effects: memoryRead, brokerRead: true },
   'marketplace-skill-list': { effects: externalRead, brokerRead: true },
   'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
   'skills-remove': { effects: memoryWrite, brokerRead: false },
@@ -673,7 +674,13 @@ function familyEffects(
       }
     }
     case 'skills':
-      if (action === 'mine' || action === 'publish' || action === 'replace' || action === 'delete')
+      if (
+        action === 'mine' ||
+        action === 'added' ||
+        action === 'publish' ||
+        action === 'replace' ||
+        action === 'delete'
+      )
         return declarations[`skills-${action}`]?.effects;
       return undefined;
     case 'engine':

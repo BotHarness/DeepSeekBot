@@ -111,6 +111,18 @@ export interface MarketplaceSkillAddResult {
   added: { target: 'global' | string; name: string; path: string }[];
 }
 
+export interface MarketplaceSkillAdded {
+  id: string;
+  name: string;
+  description: string;
+  target: 'global' | string;
+  hash: string;
+}
+
+export interface MarketplaceSkillAddedList {
+  skills: MarketplaceSkillAdded[];
+}
+
 const record = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
