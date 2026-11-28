@@ -298,7 +298,7 @@ export function GoogleConnectDialog({
       secondary={
         replacing ? (
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => setReplacing(false)}>
-            {t('common.cancel')}
+            {t('connectors.google.keep')}
           </Button>
         ) : (
           back

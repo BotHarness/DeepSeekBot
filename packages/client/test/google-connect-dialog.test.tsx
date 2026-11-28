@@ -132,6 +132,8 @@ it('keeps sign-in off when the Host has no loopback redirect, and lets the Owner
   await act(async () => buttonNamed(t('connectors.google.replace')).click());
   expect(submit().dataset['googleSubmit']).toBe('client');
   expect(fieldNamed(t('connectors.google.clientSecret')).value).toBe('');
+  await act(async () => buttonNamed(t('connectors.google.keep')).click());
+  expect(submit().dataset['googleSubmit']).toBe('sign-in');
 });
 
 it('asks for a new Google sign-in only when a Bot holds Write but Google consent is still Read', () => {
