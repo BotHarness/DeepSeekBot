@@ -37,6 +37,7 @@ export function parseApprovalCard(value: unknown): ApprovalCardView | undefined 
     masked: false,
     ...base,
     opaque: row['opaque'] === true,
+    ...(row['canDecide'] === false ? { canDecide: false } : {}),
     ...(typeof decider?.['humanId'] === 'string'
       ? {
           decidedBy: {

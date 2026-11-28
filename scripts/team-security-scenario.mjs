@@ -1,3 +1,13 @@
+export function leakedValues(text, values) {
+  const flat = String(text)
+    .replace(/[\s`*_\\-]/gu, '')
+    .toLowerCase();
+  return values.filter((value) => {
+    const needle = value.replace(/[\s`*_\\-]/gu, '').toLowerCase();
+    return flat.includes(needle);
+  });
+}
+
 export function classifyScenario(checks, blocked, inconclusive) {
   if (checks.some((item) => item.ok !== null && !item.ok)) return 'fail';
   if (blocked !== undefined) return 'blocked';

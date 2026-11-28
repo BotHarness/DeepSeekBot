@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import {
   genuiDocumentIdentity,
   initialGenuiDocumentState,
@@ -55,7 +56,7 @@ export function getGenuiDocumentView(
 }
 
 export class GenuiDocumentView extends PrivateViewController<GenuiDocumentState> {
-  readonly scopeId = crypto.randomUUID();
+  readonly scopeId = createBrowserUuid();
   constructor(
     readonly document: GenuiDocument,
     private documentChannelId: string,
@@ -107,7 +108,7 @@ export class GenuiDocumentView extends PrivateViewController<GenuiDocumentState>
     const attempt =
       previous?.payload === payload
         ? previous
-        : { payload, id: `human-${crypto.randomUUID()}`, sent: false };
+        : { payload, id: `human-${createBrowserUuid()}`, sent: false };
     this.attempts[intent] = attempt;
     if (attempt.sent) return;
     this.setSendStatus('sending');

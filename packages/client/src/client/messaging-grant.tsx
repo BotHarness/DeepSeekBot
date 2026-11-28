@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
@@ -128,7 +129,7 @@ export function MessagingGrantRow({
         request.current.grantId !== grant.id ||
         request.current.text !== text
       ) {
-        request.current = { id: crypto.randomUUID(), grantId: grant.id, text };
+        request.current = { id: createBrowserUuid(), grantId: grant.id, text };
       }
       await actions.messagingSend(slug, grant.id, request.current.id, text);
       setText('');

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { Button } from './ds/button.js';
 import { ActionButton } from './ds/action-button.js';
 import { useRef, useState, type ReactElement } from 'react';
@@ -74,7 +75,7 @@ export function ActivityListAssignment({
     setSending(true);
     setSendError(false);
     if (attempt.current?.body !== body)
-      attempt.current = { body, id: 'human-' + crypto.randomUUID() };
+      attempt.current = { body, id: 'human-' + createBrowserUuid() };
     try {
       const reply = await actions.replyToHumanAssignment(
         source.botSlug,

@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { SegmentedControl } from './ds/segmented.js';
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
@@ -147,7 +148,7 @@ export function Workspace({
             .then(async (tob) => {
               if (tob === undefined) return;
               if (await onboarding.prepareSend(tob.channelId, tob.botSlug, body))
-                await options.actions.sendHome(tob.channelId, body, 'human-' + crypto.randomUUID());
+                await options.actions.sendHome(tob.channelId, body, 'human-' + createBrowserUuid());
             })
             .catch(() => {}),
       );

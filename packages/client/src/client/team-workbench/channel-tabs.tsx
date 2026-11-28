@@ -7,7 +7,7 @@ import { ChannelBotSettingsPanel } from '../channel-bot-settings.js';
 import type { BotHarnessKey, BotHarnessTranslate } from '../locale.js';
 import { ChannelMembersTab } from './channel-members-tab.js';
 
-export type ChannelTabId = 'members' | 'bots' | 'permissions';
+export type ChannelTabId = 'members' | 'bots' | 'permissions' | 'approvals';
 
 export interface ChannelTabProps {
   readonly call: BridgeCall;
@@ -50,6 +50,21 @@ export const CHANNEL_TABS: readonly ChannelTab[] = [
         t={t}
         humans={channel.humanMembers ?? []}
         permissionsOnly
+      />
+    ),
+  },
+  {
+    id: 'approvals',
+    label: 'channelApprovals.tab',
+    count: () => undefined,
+    render: ({ call, t, channel }) => (
+      <ChannelAccessSettings
+        key={channel.id}
+        channelId={channel.id}
+        call={call}
+        t={t}
+        humans={channel.humanMembers ?? []}
+        approvalsOnly
       />
     ),
   },

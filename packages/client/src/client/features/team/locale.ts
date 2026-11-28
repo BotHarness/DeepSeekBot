@@ -964,7 +964,7 @@ export const en = {
   'team.workbench.noRoles': 'No roles yet.',
   'team.workbench.builtin': 'Built-in',
   'team.workbench.channels.search': 'Search channels',
-  'team.workbench.channels.headcount': '{people} people',
+  'team.workbench.channels.headcount': 'People: {people}',
   'team.workbench.channels.pick': 'Pick a channel.',
   'team.workbench.channels.people': 'People',
   'team.workbench.channels.noMembers': 'No one is in this channel yet.',

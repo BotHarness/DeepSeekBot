@@ -51,6 +51,7 @@ export interface ApprovalRequest extends RequestRef {
   expiresAt?: string;
   execution?: ApprovalExecution;
   shellSuggestions?: WireShellApprovalSuggestions;
+  canDecide?: boolean;
 }
 
 export type ApprovalContent = Pick<
@@ -119,14 +120,15 @@ async function readRequest(
 }
 
 export async function loadApproval(client: HostClient, ref: RequestRef): Promise<ApprovalRequest> {
-  const [{ request, later }, { status, expiresAt, execution, shellSuggestions }] =
+  const [{ request, later }, { status, expiresAt, execution, shellSuggestions, approval }] =
     await Promise.all([
       readRequest(client, ref),
       readToolApprovalStatus(client, ref.channelId, ref.messageId),
     ]);
   const card =
     request.contentPurge === undefined ? approvalContent(request.toolApprovalRequest) : undefined;
-  if (card === undefined) throw new Error('This message is not a Tool approval.');
+  if (card === undefined || approval?.masked === true)
+    throw new Error('This message is not a visible Tool approval.');
   const decision = later.find(
     (entry) => entry.toolApprovalDecision?.requestMessageId === ref.messageId,
   )?.toolApprovalDecision;
@@ -138,6 +140,7 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
     cwd: card.cwd,
     input: card.input,
     allowAlways: card.allowAlways === true,
+    ...(approval?.masked === false && approval.canDecide === false ? { canDecide: false } : {}),
     status:
       decision !== undefined
         ? 'decided'

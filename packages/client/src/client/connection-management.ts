@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
 import type { HostClient } from '@botharness/host-client/client';
 import type { RemoteHost, RemoteHosts } from './remote-hosts.js';
@@ -575,7 +576,7 @@ async function executeConnections(
     path = '/api/botharness/devices/connect';
     body = { action: 'sign-out', confirm: true };
   }
-  const generation = crypto.randomUUID();
+  const generation = createBrowserUuid();
   const dispatched = await sources.dispatchConnectionOperation(
     remote.host.hostId,
     client,
