@@ -6,9 +6,9 @@ As of 2026-11-16. Measured by giving each model the same one-paragraph task in i
 
 ## Merge gate by task tier
 
-Vain approves and queues PRs labeled `needs-human`. GitHub's merge queue does not enforce labels.
+Agents must never queue or merge a PR labeled `needs-human`. Vain approves and queues PRs labeled `needs-human`. GitHub's merge queue does not enforce labels.
 
-After the merge queue is enabled, queue an eligible PR for `main` with `gh pr merge <n> --merge --match-head-commit <sha>`. Use the verified PR head SHA. Run `gh pr view <n> --json state --jq .state` and confirm `MERGED` before reporting completion.
+After the merge queue is enabled, queue an eligible PR for `main` with `gh pr merge <n> --merge --match-head-commit <sha>`. Before the queue is enabled, this command can merge the PR immediately. Use the verified PR head SHA. Run `gh pr view <n> --json state --jq .state` and confirm `MERGED` before reporting completion.
 
 | Tier                                                                                                                           | Example used                                          | Who can take it                                                                                         | Merge gate                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
