@@ -164,11 +164,11 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
         await f.send('Try the paused Bot', async (run) => {
           pausedResult = await send(run, { bot_id: 'bea', body: 'Paused recipient' });
         });
-        expect(pausedResult).toEqual({ status: 'error', reason: 'recipient-paused' });
+        expect(pausedResult).toEqual({ status: 'error', reason: 'bot-principal-inactive' });
         expect(record).toHaveBeenCalledWith(
           'bot-send-message',
           'failed',
-          expect.objectContaining({ reason: 'recipient-paused' }),
+          expect.objectContaining({ reason: 'bot-principal-inactive' }),
           { bot: 'ada', includeInErrors: true },
         );
       } finally {
