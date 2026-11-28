@@ -688,6 +688,7 @@ export interface ToolApprovalRequestCard {
   cwd: string;
   input: string;
   allowAlways?: boolean;
+  connectorRequest?: unknown;
 }
 
 export type ToolApprovalOutcome =

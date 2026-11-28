@@ -621,12 +621,16 @@ export function mountConnectors(
             defineTool({
               name: 'connector_request',
               description:
-                'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval its tools appear under mcp__composio__ or the mcp__app_… name it returns.',
+                'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval its tools appear under mcp__composio__ or the mcp__app_… name it returns. When no account fits, pass service from the catalog instead of account_id: the card asks the Owner to connect one first.',
               parameters: {
                 account_id: {
                   type: 'string',
-                  required: true,
-                  description: 'account_id from connector_catalog.',
+                  description: 'account_id from connector_catalog requestable.',
+                },
+                service: {
+                  type: 'string',
+                  description:
+                    'service from connector_catalog catalog or mcp_servers, when no account fits.',
                 },
                 access: {
                   type: 'string',
@@ -652,11 +656,14 @@ export function mountConnectors(
                     granted: false,
                     refused: 'access must be read or write',
                   });
-                const account = service.account(args.account_id);
+                const account = service.requestedAccount(args);
                 if (account === undefined)
                   return JSON.stringify({
                     granted: false,
-                    refused: 'Unknown account_id',
+                    refused:
+                      args.account_id === undefined
+                        ? 'No single connected account for this service yet; call connector_catalog again'
+                        : 'Unknown account_id',
                   });
                 const once = await service.takeOnceDecision(scope.sessionId, call.callId);
                 call.signal.throwIfAborted();

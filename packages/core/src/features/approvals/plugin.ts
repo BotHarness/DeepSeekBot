@@ -543,6 +543,10 @@ export function mount(
       const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const owner = core.ownership.resolve(agent.session.id);
+      const connectorRequest =
+        execution.name === 'connector_request' && owner !== undefined
+          ? core.connectors?.requestPreview(owner.botSlug, execution.arguments)
+          : undefined;
       const untrack = toolApproval.track(
         execution,
         execution.name === 'secret_mcp_connect' ? 'each-use' : 'operation',
@@ -551,6 +555,7 @@ export function mount(
         execution.name === 'bot_create' && owner !== undefined
           ? core.runtime.botCreatePreview?.(owner.botSlug, execution.arguments)
           : undefined,
+        connectorRequest === undefined ? undefined : { connectorRequest },
       );
       if (approval === undefined || untrack === undefined) {
         return {

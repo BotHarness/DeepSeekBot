@@ -9,6 +9,7 @@ export interface ConnectorAccountRecord {
   identity?: string;
   status: ConnectorStatus;
   access?: ConnectorAccess;
+  holderSlug?: string;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -71,6 +72,12 @@ export interface BotConnector {
 }
 
 import type { InvokeAction } from '../../actions.js';
+import type { ConnectorRequestChoice } from '@botharness/host-client/shared/connector-request';
+
+export interface OnceGrant {
+  accountId: string;
+  access: ConnectorAccess;
+}
 
 export interface ConnectorActions {
   connectors?(): Promise<ConnectorsView>;
@@ -96,9 +103,14 @@ export interface ConnectorActions {
     slug: string,
     accountId: string,
     access: ConnectorAccess | null,
-  ): Promise<{ changed: boolean; connectors: BotConnector[] }>;
+  ): Promise<{ changed: boolean; connectors: BotConnector[]; once?: OnceGrant[] }>;
   connectorAccountRemove?(accountId: string): Promise<{ removed: boolean }>;
-  botConnectors?(slug: string): Promise<{ connectors: BotConnector[] }>;
+  botConnectors?(slug: string): Promise<{ connectors: BotConnector[]; once?: OnceGrant[] }>;
+  connectorRequestDecide?(
+    channelId: string,
+    messageId: string,
+    choice: ConnectorRequestChoice,
+  ): Promise<{ accepted: boolean }>;
 }
 
 export function createConnectorActions(invoke: InvokeAction) {
@@ -120,5 +132,7 @@ export function createConnectorActions(invoke: InvokeAction) {
       invoke('connectorGrantSet', { slug, accountId, access }),
     connectorAccountRemove: (accountId) => invoke('connectorAccountRemove', { accountId }),
     botConnectors: (slug) => invoke('botConnectors', { slug }),
+    connectorRequestDecide: (channelId, messageId, choice) =>
+      invoke('connectorRequestDecide', { channelId, messageId, choice }),
   } satisfies Required<ConnectorActions>;
 }

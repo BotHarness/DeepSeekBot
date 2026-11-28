@@ -157,6 +157,59 @@ describe('connector accounts and grants', () => {
     }
   });
 
+  it('previews a connector request for the card and lists one-time grants until revoked', () => {
+    const { client } = fakeClient();
+    const { owner, store, service } = setup(client);
+    try {
+      const own = store.createAccount({
+        service: 'gmail',
+        label: 'Ada mail',
+        externalId: 'ca_ada',
+        holderSlug: 'ada',
+      });
+      store.updateAccount(own.accountId, { status: 'active', identity: 'ada@example.com' });
+      expect(
+        service.requestPreview('ada', {
+          account_id: own.accountId,
+          access: 'read',
+          reason: 'Find the invoice',
+        }),
+      ).toEqual({
+        service: 'gmail',
+        name: 'Gmail',
+        access: 'read',
+        reason: 'Find the invoice',
+        account: {
+          accountId: own.accountId,
+          label: 'Ada mail',
+          identity: 'ada@example.com',
+          holder: 'bot',
+        },
+      });
+      expect(
+        service.requestPreview('ada', { service: 'notion', access: 'write', reason: 'Draft' }),
+      ).toEqual({ service: 'notion', name: 'Notion', access: 'write', reason: 'Draft' });
+      expect(service.requestedAccount({ service: 'gmail' })?.accountId).toBe(own.accountId);
+      const second = store.createAccount({
+        service: 'gmail',
+        label: 'Shared',
+        externalId: 'ca_shared',
+      });
+      store.updateAccount(second.accountId, { status: 'active' });
+      expect(service.requestedAccount({ service: 'gmail' })).toBeUndefined();
+      expect(
+        service.requestPreview('ada', { service: 'gmail', access: 'read', reason: '' }),
+      ).toEqual({ service: 'gmail', name: 'Gmail', access: 'read', reason: '' });
+      service.grantOnce('ada', 'session-1', second.accountId, 'read');
+      expect(service.onceGrants('ada')).toEqual([{ accountId: second.accountId, access: 'read' }]);
+      expect(service.onceGrants('grace')).toEqual([]);
+      service.grant('ada', second.accountId, undefined);
+      expect(service.onceGrants('ada')).toEqual([]);
+    } finally {
+      owner.close();
+    }
+  });
+
   it('refuses the next tool call in a running Session after revoking one of two pinned accounts', async () => {
     const { client } = fakeClient();
     const { owner, store, service } = setup(client);

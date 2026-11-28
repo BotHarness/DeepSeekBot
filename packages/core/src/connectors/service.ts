@@ -61,6 +61,14 @@ export interface BotConnector {
   access: ConnectorAccess;
 }
 
+export interface ConnectorRequestPreview {
+  service: string;
+  name: string;
+  access: ConnectorAccess;
+  reason: string;
+  account?: { accountId: string; label: string; identity?: string; holder: 'shared' | 'bot' };
+}
+
 export interface BotConnectorSession {
   url: string;
   headers: Record<string, string>;
@@ -643,6 +651,54 @@ export class ConnectorService {
 
   account(accountId: string): ConnectorAccountRecord | undefined {
     return this.#store.account(accountId);
+  }
+
+  requestedAccount(args: unknown): ConnectorAccountRecord | undefined {
+    if (typeof args !== 'object' || args === null) return undefined;
+    const { account_id: accountId, service } = args as Record<string, unknown>;
+    if (typeof accountId === 'string' && accountId !== '') return this.account(accountId);
+    if (typeof service !== 'string') return undefined;
+    const active = this.#store
+      .accounts()
+      .filter((account) => account.service === service && account.status === 'active');
+    return active.length === 1 ? active[0] : undefined;
+  }
+
+  requestPreview(botSlug: string, args: unknown): ConnectorRequestPreview | undefined {
+    if (typeof args !== 'object' || args === null) return undefined;
+    const source = args as Record<string, unknown>;
+    const account = this.requestedAccount(args);
+    const service = account?.service ?? source['service'];
+    if (typeof service !== 'string' || service === '') return undefined;
+    const reason = typeof source['reason'] === 'string' ? source['reason'].slice(0, 500) : '';
+    const asked = source['access'] === 'write' ? 'write' : 'read';
+    return {
+      service,
+      name: this.appName(service),
+      access: account?.provider === 'mcp' ? (account.access ?? asked) : asked,
+      reason,
+      ...(account === undefined
+        ? {}
+        : {
+            account: {
+              accountId: account.accountId,
+              label: account.label,
+              ...(account.identity === undefined ? {} : { identity: account.identity }),
+              holder: account.holderSlug === botSlug ? ('bot' as const) : ('shared' as const),
+            },
+          }),
+    };
+  }
+
+  onceGrants(botSlug: string): Array<{ accountId: string; access: ConnectorAccess }> {
+    const found = new Map<string, ConnectorAccess>();
+    for (const grants of this.#once.values())
+      for (const grant of grants.values()) {
+        if (grant.botSlug !== botSlug) continue;
+        if (this.account(grant.accountId)?.revision !== grant.revision) continue;
+        if (found.get(grant.accountId) !== 'write') found.set(grant.accountId, grant.access);
+      }
+    return [...found].map(([accountId, access]) => ({ accountId, access }));
   }
 
   async session(

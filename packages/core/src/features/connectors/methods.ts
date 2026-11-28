@@ -45,10 +45,12 @@ export type ConnectorsBridgeMethods = {
   connectorMcpFinish(payload: unknown): Promise<BridgeResult<{ account: ConnectorAccountRecord }>>;
   connectorGrantSet(
     payload: unknown,
-  ): BridgeResult<{ changed: boolean; connectors: BotConnector[] }>;
+  ): BridgeResult<{ changed: boolean; connectors: BotConnector[]; once: OnceGrant[] }>;
   connectorAccountRemove(payload: unknown): Promise<BridgeResult<{ removed: boolean }>>;
-  botConnectors(payload: unknown): BridgeResult<{ connectors: BotConnector[] }>;
+  botConnectors(payload: unknown): BridgeResult<{ connectors: BotConnector[]; once: OnceGrant[] }>;
 };
+
+type OnceGrant = ReturnType<ConnectorService['onceGrants']>[number];
 
 function failure(error: unknown): BridgeResult<never> {
   if (!(error instanceof ConnectorError)) throw error;
@@ -275,7 +277,11 @@ export function createConnectorsBridgeMethods(
         const changed = deps.connectors.grant(slug, accountId, access ?? undefined);
         return {
           ok: true,
-          value: { changed, connectors: deps.connectors.forBot(slug) },
+          value: {
+            changed,
+            connectors: deps.connectors.forBot(slug),
+            once: deps.connectors.onceGrants(slug),
+          },
         };
       } catch (error) {
         return failure(error);
@@ -299,7 +305,10 @@ export function createConnectorsBridgeMethods(
           ok: false,
           error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` },
         };
-      return { ok: true, value: { connectors: deps.connectors.forBot(slug) } };
+      return {
+        ok: true,
+        value: { connectors: deps.connectors.forBot(slug), once: deps.connectors.onceGrants(slug) },
+      };
     },
   };
 }

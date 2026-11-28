@@ -1,3 +1,4 @@
+import { parseConnectorRequest } from '@botharness/host-client/shared/connector-request';
 import { parseAuthor } from '../../bridge-channel-author.js';
 import { parseApprovalCard } from '../approvals/bridge.js';
 
@@ -143,6 +144,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
               : {}),
           }
         : undefined;
+    const connectorRequest = parseConnectorRequest(request['connectorRequest']);
     const effects = parseToolEffects(request['effects']);
     const review = asRecord(request['approvalReview']);
     let approvalReview: import('../../bridge.js').ToolApprovalReview | undefined;
@@ -177,6 +179,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       cwd: request['cwd'],
       input: request['input'],
       ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
+      ...(connectorRequest === undefined ? {} : { connectorRequest }),
     };
   }
   let userQuestionRequest: ChannelMessage['userQuestionRequest'];

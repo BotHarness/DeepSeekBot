@@ -195,6 +195,7 @@ export interface ToolApprovalRequestCard {
   cwd: string;
   input: string;
   botCreatePreview?: BotCreatePreview;
+  connectorRequest?: import('@botharness/host-client/shared/connector-request').ConnectorRequestView;
 }
 
 export type ApprovalCardView = import('../../../core/src/team/approval-contract.js').ApprovalCard;
