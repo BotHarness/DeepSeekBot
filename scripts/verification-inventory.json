@@ -2244,6 +2244,14 @@
       "sha256": "cbe7b658af75c2cad45f3a0cd1d7a2f712a3f324e6fe2144516cc800417cc743"
     },
     {
+      "path": "scripts/e2e-model-picker-alignment.mjs",
+      "category": "mapped",
+      "behaviors": ["orchestrator-model-switch"],
+      "reason": "Measures the Main model picker against its trigger and viewport in an isolated Web Client, then scrolls a long model list.",
+      "task": 4641,
+      "sha256": "0f9ae37f4445c1f48c13879c7fa9f93afdc259b213b0afcaec9b97c90a6e105f"
+    },
+    {
       "path": "scripts/e2e-model-usage.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.usage", "desktop.model.routing"],
