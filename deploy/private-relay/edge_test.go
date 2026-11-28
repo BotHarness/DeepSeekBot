@@ -106,3 +106,55 @@ func TestEdgeBindFailureCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestEdgeBindCandidatesSkipTailscaleAndLoopback(t *testing.T) {
+	addrs := []net.Addr{}
+	for _, cidr := range []string{"127.0.0.1/8", "100.101.102.103/32", "fd7a:115c:a1e0::1/128",
+		"fe80::1/64", "10.8.0.4/20", "203.0.113.7/24", "2001:db8::7/64"} {
+		ip, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		network.IP = ip
+		addrs = append(addrs, network)
+	}
+	var got []string
+	for _, ip := range edgeBindCandidates(addrs) {
+		got = append(got, ip.String())
+	}
+	if want := "10.8.0.4,203.0.113.7,2001:db8::7"; strings.Join(got, ",") != want {
+		t.Fatalf("candidates = %v, want %s", got, want)
+	}
+}
+
+func TestMultiListenerAcceptsFromEveryListener(t *testing.T) {
+	var listeners []net.Listener
+	for range 2 {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		listeners = append(listeners, l)
+	}
+	m := newMultiListener(listeners)
+	defer m.Close()
+	for _, l := range listeners {
+		client, err := net.Dial("tcp", l.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn, err := m.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if conn.LocalAddr().String() != l.Addr().String() {
+			t.Fatalf("accepted on %s, want %s", conn.LocalAddr(), l.Addr())
+		}
+		conn.Close()
+		client.Close()
+	}
+	m.Close()
+	if _, err := m.Accept(); err == nil {
+		t.Fatal("Accept after Close succeeded")
+	}
+}
