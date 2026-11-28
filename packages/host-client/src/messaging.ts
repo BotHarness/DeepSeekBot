@@ -1,3 +1,8 @@
+import type {
+  MessagingConnection,
+  MessagingConnectionsView,
+  ReceptionRecovery,
+} from '@botharness/host-protocol/messaging-connections';
 import type { MessagingIdentity, MessagingIdentityInput } from '../../core/src/messaging/identity';
 import type {
   MessagingApp,
@@ -6,7 +11,7 @@ import type {
 } from '../../core/src/messaging/outbound-types';
 import type { PairingRequest, PairingReviewInput } from '../../core/src/messaging/pairing';
 import type { SenderAccessInput } from '../../core/src/messaging/permissions/index.js';
-import { HostAnswerInvalid, record, type HostCall } from './host-answer';
+import { answerRecord, HostAnswerInvalid, record, type HostCall } from './host-answer';
 
 export type MessagingAppSetup = NonNullable<MessagingSnapshot['appSetups']>[number];
 
@@ -15,7 +20,7 @@ export interface MessagingApps {
   setups: MessagingAppSetup[];
 }
 
-export function validReceptionRecovery(value: unknown): boolean {
+export function validReceptionRecovery(value: unknown): value is ReceptionRecovery | undefined {
   if (value === undefined) return true;
   const row = record(value);
   if (row?.['kind'] === 'action-required')
@@ -28,6 +33,73 @@ export function validReceptionRecovery(value: unknown): boolean {
     typeof row['nextRetryAt'] === 'string' &&
     Number.isFinite(Date.parse(row['nextRetryAt']))
   );
+}
+
+export async function readMessagingConnections(
+  host: HostCall,
+  mode?: MessagingReadMode,
+): Promise<MessagingConnectionsView> {
+  const result = answerRecord(
+    await host.call('messagingConnections', mode === undefined ? {} : { mode }),
+    'messagingConnections',
+  );
+  const { checks } = result;
+  if ((checks !== 'pending' && checks !== 'complete') || !Array.isArray(result.bindings))
+    throw new HostAnswerInvalid('Invalid messaging connections');
+  const bindings = result.bindings.map((value: unknown): MessagingConnection => {
+    const row = record(value);
+    if (row === undefined) throw new HostAnswerInvalid('Invalid messaging connection');
+    const {
+      id,
+      botSlug,
+      botName,
+      canOpenSettings,
+      providerId,
+      platform,
+      accountRef,
+      name,
+      enabled,
+      availability,
+      reception,
+      recovery,
+    } = row;
+    if (
+      typeof id !== 'string' ||
+      typeof botSlug !== 'string' ||
+      typeof botName !== 'string' ||
+      typeof canOpenSettings !== 'boolean' ||
+      typeof providerId !== 'string' ||
+      typeof platform !== 'string' ||
+      typeof accountRef !== 'string' ||
+      typeof name !== 'string' ||
+      typeof enabled !== 'boolean' ||
+      (availability !== 'available' &&
+        availability !== 'paused' &&
+        availability !== 'unavailable' &&
+        availability !== 'rebind-required') ||
+      (reception !== 'off' &&
+        reception !== 'connecting' &&
+        reception !== 'receiving' &&
+        reception !== 'unavailable') ||
+      !validReceptionRecovery(recovery)
+    )
+      throw new HostAnswerInvalid('Invalid messaging connection');
+    return {
+      id,
+      botSlug,
+      botName,
+      canOpenSettings,
+      providerId,
+      platform,
+      accountRef,
+      name,
+      enabled,
+      availability,
+      reception,
+      ...(recovery === undefined ? {} : { recovery }),
+    };
+  });
+  return { checks, bindings };
 }
 
 const REPLY_STATES = [

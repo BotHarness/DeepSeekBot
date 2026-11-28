@@ -4,6 +4,10 @@ import type {
   HostExternalRole,
   HostExternalRoleChange,
 } from '@botharness/host-protocol/external-roles';
+import type {
+  MessagingConnection,
+  MessagingReadMode,
+} from '@botharness/host-protocol/messaging-connections';
 import type { BotSourceBlockInput, botSourceBlocks } from './permissions/index.js';
 import type { ReceptionRecovery } from './receiver-recovery.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
@@ -139,7 +143,7 @@ export type MessagingApp = MessagingAccount & {
   bindingId?: string;
 };
 
-export type MessagingReadMode = 'saved' | 'status';
+export type { MessagingReadMode } from '@botharness/host-protocol/messaging-connections';
 
 export type ProviderRegistration = { provider: MessagingProvider; token: object };
 
@@ -270,6 +274,9 @@ export interface OutboundMessaging {
   ): Promise<OutboxIntent>;
   register(provider: MessagingProvider): () => void;
   snapshot(botSlug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot>;
+  connections(
+    mode: MessagingReadMode,
+  ): Promise<Omit<MessagingConnection, 'botName' | 'canOpenSettings'>[]>;
   disableBot(botSlug: string): Promise<void>;
   deletionDependencies(botSlug: string): { identities: string[]; grants: string[] };
   apps(): Promise<MessagingApp[]>;

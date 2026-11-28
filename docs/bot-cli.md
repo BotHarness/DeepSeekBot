@@ -529,6 +529,7 @@ deepseekbot im-app-status discord
 deepseekbot im-bind <bot-id> --app <app-id>
 deepseekbot im-status <bot-id>
 deepseekbot im-status <bot-id> --read-mode saved
+deepseekbot im-connections [--read-mode saved|status]
 deepseekbot messaging-grants <bot-id> --read-mode status
 deepseekbot channel-bridges <channel-id> --read-mode saved
 deepseekbot channel-ingests <channel>
@@ -543,6 +544,8 @@ deepseekbot im-app-remove discord --app <app-id>
 `im-status` and `messaging-grants` include process-local `recovery` metadata: `retrying` with `reason`, `attempt`, `nextRetryAt`, or `action-required` with `reason`. Temporary provider readiness failures retry exponentially from 250 ms to a 30 s cap until recovery. Host restart reconstructs receivers from enabled bindings and grants. `im-reconnect` uses the existing Owner and current revision without changing conversation access. Failed mutations are reported, never automatically replayed.
 
 `im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](decisions/im-providers.md#adr-0343).
+
+`im-connections` lists App Bindings for all Bots on the Host, including paused bindings and bindings whose Provider is unavailable. It requires the Host Owner. The default `status` checks each bound account. Use `--read-mode saved` for the same inventory without Provider checks (`checks: pending`). `canOpenSettings` indicates whether the Host Owner also owns the Bot.
 
 ### IM messaging, approvals and failure alerts from the CLI
 
