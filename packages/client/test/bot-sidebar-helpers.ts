@@ -133,7 +133,6 @@ function stubActions(): BridgeActions {
     marketplaceAvatarDetail: vi.fn(),
     marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),
-    marketplaceSkillSections: vi.fn(async () => []),
     marketplaceSkillList: vi.fn(),
     marketplaceSkillDetail: vi.fn(),
     marketplaceSkillAddCandidates: vi.fn(),
