@@ -115,13 +115,18 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
                     status={account.status}
                     identity={account.identity}
                     extra={
-                      account.access !== undefined
-                        ? t(
-                            account.access === 'read'
-                              ? 'connectors.bot.read'
-                              : 'connectors.bot.write',
-                          )
-                        : undefined
+                      account.provider === 'google' &&
+                      account.status === 'active' &&
+                      account.access !== 'write' &&
+                      load.access[account.accountId] === 'write'
+                        ? t('connectors.google.writeInSettings')
+                        : account.access !== undefined
+                          ? t(
+                              account.access === 'read'
+                                ? 'connectors.bot.read'
+                                : 'connectors.bot.write',
+                            )
+                          : undefined
                     }
                     t={t}
                   />
