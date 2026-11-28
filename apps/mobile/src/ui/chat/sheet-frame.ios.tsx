@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
-import { SystemSheet, systemSheetBackdrop } from '../primitives/system-sheet';
+import { systemSheetBackdrop } from '../primitives/sheet-backdrop';
+import { SystemSheet } from '../primitives/system-sheet';
 import type { SheetFrameProps } from './sheet-frame';
 import { sheetContentCap, sheetDetent, type SheetDetent } from './sheet-detent';
 

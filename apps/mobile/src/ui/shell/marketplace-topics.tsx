@@ -7,7 +7,6 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { CheckmarkRow } from '../primitives/checkmark-row';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { SettingsGroupItem } from '../primitives/settings-row';
 import { SystemListSheet, type SystemListRow } from '../primitives/system-list-sheet';
 import { useStrings } from '../strings';
 
@@ -100,24 +99,19 @@ export function MarketplaceTopics({
         </>
       ) : null}
       <FlatList
+        nestedScrollEnabled
         testID={`${testIDPrefix}-list`}
         data={topics}
         keyExtractor={(item) => item.topic}
         style={{ flexShrink: 1 }}
         contentContainerStyle={{ paddingTop: space.x3 }}
-        renderItem={({ item, index }) => (
-          <SettingsGroupItem
-            first={index === 0}
-            last={index === topics.length - 1}
-            on={SHEET_GROUP}
-          >
-            <CheckmarkRow
-              testID={testID(item)}
-              label={label(item)}
-              selected={item.topic === value}
-              onPress={() => onChange(item.topic)}
-            />
-          </SettingsGroupItem>
+        renderItem={({ item }) => (
+          <CheckmarkRow
+            testID={testID(item)}
+            label={label(item)}
+            selected={item.topic === value}
+            onPress={() => onChange(item.topic)}
+          />
         )}
       />
     </Sheet>
