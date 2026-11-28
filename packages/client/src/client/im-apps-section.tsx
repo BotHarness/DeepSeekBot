@@ -37,6 +37,7 @@ export interface ImAppsFace {
   bind(app: MessagingApp, botSlug: string): Promise<void>;
   unbind(app: MessagingApp): Promise<void>;
   bindCreated(botSlug: string): Promise<void>;
+  openConnections?(): void;
   appSetup?: ProviderAppSetup;
 }
 
@@ -44,6 +45,7 @@ export function createImApps({
   call,
   botSettings,
   actions,
+  openConnections,
   openDshSettings = (returned, unavailable) =>
     openExternalBindingSettings(document, returned, () => {
       if (document.querySelector('[role="dialog"][aria-modal="true"]') !== null)
@@ -54,6 +56,7 @@ export function createImApps({
   call: BridgeCall;
   botSettings: Pick<BotSettings, 'open' | 'close'>;
   actions: Pick<BridgeActions, 'messagingIdentity' | 'messagingSnapshot' | 'appSetup'>;
+  openConnections?: (() => void) | undefined;
   openDshSettings?: (returned: () => void, unavailable: () => void) => () => void;
 }): ImAppsFace {
   let notice: ImAppsNotice | undefined;
@@ -104,6 +107,14 @@ export function createImApps({
       await actions.messagingIdentity(botSlug, setup.binding(botSlug));
       setup.forget(botSlug);
     },
+    ...(openConnections === undefined
+      ? {}
+      : {
+          openConnections: () => {
+            botSettings.close();
+            openConnections();
+          },
+        }),
     ...(actions.appSetup === undefined ? {} : { appSetup: actions.appSetup }),
   };
 }
@@ -243,6 +254,19 @@ export function ImAppsSection({
             <Note>{t('imApps.settingsUnavailable')}</Note>
           ) : null}
         </SettingsRow>
+        {imApps.openConnections === undefined ? null : (
+          <SettingsRow
+            title={t('team.imConnections.title')}
+            icon={<Icon name="messages-square" />}
+            description={t('team.imConnections.fromSettings')}
+            data={{ 'data-im-connections-link': '' }}
+            control={
+              <Button variant="outline" size="sm" onClick={imApps.openConnections}>
+                {t('team.imConnections.openWorkbench')}
+              </Button>
+            }
+          />
+        )}
         {loaded.status === 'loading' ? null : loaded.status === 'failed' ? (
           <SettingsRow title={<span role="status">{t('imApps.loadFailed')}</span>} />
         ) : loaded.apps.length === 0 ? (

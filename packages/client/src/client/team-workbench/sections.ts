@@ -2,14 +2,21 @@ import type { BotHarnessKey } from '../locale.js';
 import type { TeamMember, TeamModeView } from '../team-bridge.js';
 import { MANAGE_MEMBERS, MANAGE_ROLES, canManage, type TeamRole } from '../team-roles-bridge.js';
 
-export type TeamSectionGroupId = 'people' | 'resources' | 'permissions';
+export type TeamSectionGroupId = 'people' | 'resources' | 'permissions' | 'settings';
 
-export type TeamSectionId = 'members' | 'bots' | 'channels' | 'roles' | 'externalRoles';
+export type TeamSectionId =
+  | 'members'
+  | 'bots'
+  | 'channels'
+  | 'roles'
+  | 'externalRoles'
+  | 'imConnections';
 
 export interface TeamSectionContext {
   readonly view: TeamModeView | undefined;
   readonly roles: readonly TeamRole[];
   readonly members: readonly TeamMember[];
+  readonly imConnections?: boolean;
 }
 
 export interface TeamSectionGroup {
@@ -31,6 +38,7 @@ export const TEAM_SECTION_GROUPS: readonly TeamSectionGroup[] = [
   { id: 'people', label: 'team.workbench.section.people' },
   { id: 'resources', label: 'team.workbench.channels.resources' },
   { id: 'permissions', label: 'team.workbench.section.permissions' },
+  { id: 'settings', label: 'team.workbench.section.settings' },
 ];
 
 export const TEAM_SECTIONS: readonly TeamSection[] = [
@@ -77,6 +85,15 @@ export const TEAM_SECTIONS: readonly TeamSection[] = [
     label: 'team.externalRoles.title',
     priority: 3,
     visible: ({ view }) => view?.viewer.owner === true,
+    count: () => undefined,
+  },
+  {
+    id: 'imConnections',
+    group: 'settings',
+    icon: 'messages-square',
+    label: 'team.imConnections.title',
+    priority: 4,
+    visible: ({ view, imConnections }) => imConnections === true && view?.viewer.owner === true,
     count: () => undefined,
   },
 ];

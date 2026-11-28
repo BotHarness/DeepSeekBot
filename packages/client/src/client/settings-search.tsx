@@ -114,6 +114,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   ],
   'im-apps': [
     'imApps.allApps',
+    'team.imConnections.title',
     'defaults.title',
     'identity.platform',
     'bridge.condition',
@@ -332,6 +333,7 @@ export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>
   'identity.typing.label': 'defaults.enableTyping',
   'identity.newConversations': 'defaults.newConversationsHint',
   'imApps.allApps': 'imApps.description',
+  'team.imConnections.title': 'team.imConnections.fromSettings',
   'companion.speechSound': 'companion.speechSoundHint',
   'companion.retention': 'companion.capacityHint',
   'devices.pair.title': 'devices.pair.description',
