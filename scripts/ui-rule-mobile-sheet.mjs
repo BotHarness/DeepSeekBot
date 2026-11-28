@@ -15,6 +15,7 @@ const PRIMITIVES =
   /\/(?:primitives\/(?:sheet-[\w-]+|drawer-header)|chat\/sheet(?:-frame)?)(?:\.\w+)?\.tsx$/u;
 const PAGE_FILL =
   /^theme\.(?:color\.(?:base|surface|sheet|well|field)|layer\.(?:canvas|sheet|well|field)\.fill|layer\.canvas\.\w+)$/u;
+const OVERLAY_FILL = /^theme\.overlay\.fill$/u;
 const PAGE_LAYERS = new Set(['canvas', 'well', 'field']);
 const SURFACE_PROPS = new Set(['containerColor', 'backgroundColor', 'backdropColor']);
 
@@ -54,17 +55,34 @@ function chain(node) {
   return undefined;
 }
 
-function pageFills(path) {
-  if (path.isConditionalExpression())
-    return [...pageFills(path.get('consequent')), ...pageFills(path.get('alternate'))];
+function platformTest(path) {
+  let found = false;
+  path.traverse({
+    MemberExpression(member) {
+      if (chain(member.node) === 'Platform.OS') found = true;
+    },
+  });
+  return found || (path.isMemberExpression() && chain(path.node) === 'Platform.OS');
+}
+
+function pageFills(path, platform = false) {
+  if (path.isConditionalExpression()) {
+    const guarded = platform || platformTest(path.get('test'));
+    return [
+      ...pageFills(path.get('consequent'), guarded),
+      ...pageFills(path.get('alternate'), guarded),
+    ];
+  }
   if (path.isLogicalExpression())
-    return [...pageFills(path.get('left')), ...pageFills(path.get('right'))];
+    return [...pageFills(path.get('left'), platform), ...pageFills(path.get('right'), platform)];
   if (path.isStringLiteral())
     return path.node.value === 'transparent' || path.node.value === 'clear'
       ? []
       : [JSON.stringify(path.node.value)];
   const text = chain(path.node);
-  return text !== undefined && PAGE_FILL.test(text) ? [text] : [];
+  if (text === undefined) return [];
+  if (OVERLAY_FILL.test(text)) return platform ? [] : [text];
+  return PAGE_FILL.test(text) ? [text] : [];
 }
 
 function scopeOf(element) {

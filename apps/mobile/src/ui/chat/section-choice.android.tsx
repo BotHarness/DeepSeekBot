@@ -3,6 +3,7 @@ import { HorizontalDivider, Icon } from '@expo/ui/jetpack-compose';
 import { semantics } from '@expo/ui/jetpack-compose/modifiers';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
+import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import type { SectionChoiceProps } from './section-choice';
 
@@ -32,7 +33,7 @@ export function SectionChoice({ title, testID, onPress, selected = false }: Sect
           ) : undefined
         }
         {...(onPress ? { onPress } : {})}
-        colors={{ containerColor: theme.layer.sheet.fill, contentColor: theme.color.fg }}
+        colors={{ containerColor: 'transparent' }}
       >
         {title}
       </ListItem>
@@ -42,9 +43,10 @@ export function SectionChoice({ title, testID, onPress, selected = false }: Sect
 
 export function SectionChoiceDivider() {
   const theme = useDesignTheme();
+  const roles = useMaterialRoles();
   return (
     <Host matchContents={{ vertical: true }} colorScheme={theme.scheme}>
-      <HorizontalDivider color={theme.layer.sheet.divider} />
+      <HorizontalDivider color={roles.outlineVariant} />
     </Host>
   );
 }

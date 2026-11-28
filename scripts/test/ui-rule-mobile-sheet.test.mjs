@@ -82,7 +82,7 @@ describe('mobile sheet surface', () => {
           return (
             <Sheet visible label="x" onClose={close}>
               <SheetHeader title="x" onClose={close} trailing={<SheetSaveButton />} />
-              <View style={{ backgroundColor: theme.overlay.fill }}>
+              <View style={{ backgroundColor: Platform.OS === 'android' ? theme.overlay.fill : 'transparent' }}>
                 <View style={{ backgroundColor: theme.layer[SHEET_GROUP].fill }} />
                 <View style={{ backgroundColor: selected ? theme.layer.raised.selected : 'transparent' }} />
                 <Button label="x" on="sheet" onPress={close} />
@@ -109,6 +109,7 @@ describe('mobile sheet surface', () => {
     ).toEqual([
       ['sheetSurface', 'ModalBottomSheet containerColor', 4],
       ['sheetSurface', 'ModalBottomSheet contentColor', 4],
+      ['sheetSurface', 'containerColor: theme.overlay.fill', 5],
     ]);
   });
 
@@ -135,6 +136,27 @@ describe('mobile sheet surface', () => {
     expect(check(source, 'apps/mobile/src/ui/chat/sheet-frame.ios.tsx')).toEqual([
       ['sheetSurface', 'Modal pageSheet without backdropColor', 5],
       ['sheetSurface', 'Modal pageSheet without backdropColor', 9],
+    ]);
+  });
+
+  it('allows the overlay fill only where a Platform.OS check picks it', () => {
+    expect(
+      check(`
+        export function Flow() {
+          return (
+            <SheetScreen>
+              <Frame backgroundColor={theme.overlay.fill} />
+              <Stack screenOptions={{ contentStyle: { backgroundColor: theme.overlay.fill } }} />
+              <View style={{ backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.overlay.fill }} />
+              <View style={{ backgroundColor: system ? 'transparent' : theme.overlay.fill }} />
+            </SheetScreen>
+          );
+        }
+      `),
+    ).toEqual([
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 5],
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 6],
+      ['sheetSurface', 'backgroundColor: theme.overlay.fill', 8],
     ]);
   });
 

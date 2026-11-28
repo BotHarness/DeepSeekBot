@@ -24,6 +24,7 @@ import { Button } from '../primitives/button';
 import { CreationField } from '../primitives/creation-field';
 import { SettingsForm, SettingsFormItem } from '../primitives/settings-form';
 import { SettingsGroupItem, SettingsRow, SettingsSection } from '../primitives/settings-row';
+import { SystemListSheet } from '../primitives/system-list-sheet';
 import { LoadFailed, Loading, Notice } from '../request-parts';
 import { useStrings } from '../strings';
 import { VoiceServiceSheet, type VoiceServiceSheetPort } from './voice-service-sheet';
@@ -75,7 +76,52 @@ function ChoiceSheet({
   onClose(): void;
 }) {
   const theme = useDesignTheme();
+  const close = useStrings().close;
   const [text, setText] = useState(custom?.initial ?? '');
+  const testID = (row: ChoiceRow) =>
+    `voice-choice-${row.service?.id ?? (row.id === NONE ? 'none' : row.id === PROVIDER_VOICE ? 'provider' : row.id)}`;
+  if (custom === undefined && SystemListSheet !== undefined)
+    return (
+      <SystemListSheet
+        visible
+        title={title}
+        closeLabel={close}
+        onClose={onClose}
+        sections={[
+          {
+            key: 'choices',
+            rows: [
+              ...rows.map((row) => ({
+                kind: 'choice' as const,
+                key: row.id,
+                testID: testID(row),
+                label: row.name,
+                ...(row.service === undefined
+                  ? {}
+                  : {
+                      leading: {
+                        size: theme.type.title.line,
+                        node: (
+                          <ModelBrandIcon
+                            brand={providerBrand(row.service.preset, row.service.name)}
+                            size={theme.type.title.line}
+                            color={theme.color.muted}
+                          />
+                        ),
+                      },
+                    }),
+                selected: row.id === value,
+                disabled: busy,
+                onPress: () => onChoose(row.id),
+              })),
+              ...(error === undefined
+                ? []
+                : [{ kind: 'note' as const, key: 'error', text: error, tone: 'danger' as const }]),
+            ],
+          },
+        ]}
+      />
+    );
   return (
     <Sheet visible title={title} label={title} onClose={onClose} avoidKeyboard>
       <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
@@ -88,7 +134,7 @@ function ChoiceSheet({
           >
             <SettingsRow
               on={SHEET_GROUP}
-              testID={`voice-choice-${row.service?.id ?? (row.id === NONE ? 'none' : row.id === PROVIDER_VOICE ? 'provider' : row.id)}`}
+              testID={testID(row)}
               {...(row.service === undefined
                 ? {}
                 : {

@@ -4,6 +4,7 @@ import { segmentCorners } from '../design/segment-corners';
 import { useDesignTheme } from '../design/theme';
 import { androidSettings, space } from '../design/tokens';
 import { RadioMark } from '../primitives/radio-mark';
+import { SystemListSheet } from '../primitives/system-list-sheet';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 
@@ -35,6 +36,28 @@ type Row =
 export function HostSessionOptionsSheet({ open, groups, onClose }: HostSessionOptionsSheetProps) {
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
+  const close = useStrings().close;
+  if (SystemListSheet !== undefined)
+    return (
+      <SystemListSheet
+        visible={open}
+        title={t.options}
+        closeLabel={close}
+        onClose={onClose}
+        sections={groups.map((group) => ({
+          key: group.id,
+          title: group.label,
+          rows: group.choices.map((choice) => ({
+            kind: 'choice' as const,
+            key: choice.id,
+            testID: `host-sessions-${group.id}-${choice.id}`,
+            label: choice.label,
+            selected: group.selected === choice.id,
+            onPress: choice.select,
+          })),
+        }))}
+      />
+    );
   if (!open) return null;
   const rows = groups.flatMap((group): Row[] => [
     { kind: 'heading', key: group.id, label: group.label },

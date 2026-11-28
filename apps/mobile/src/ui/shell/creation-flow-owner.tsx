@@ -1,6 +1,6 @@
 import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import { useMemo, useRef, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CreationEntrySource } from '../../host/bot-creation-entry';
@@ -60,6 +60,7 @@ function CreationFlowOwner({
   );
   const reducedMotion = useReducedMotion();
   const { theme, bar, exit, mounted, pairedMount, slowMount } = model;
+  const page = Platform.OS === 'ios' ? 'transparent' : theme.overlay.fill;
   return (
     <CreationContext.Provider value={model}>
       <CreationLeaveContext.Provider value={leave}>
@@ -67,15 +68,12 @@ function CreationFlowOwner({
           <View ref={mounted} testID="create-bot-flow" style={{ flex: 1 }}>
             {header(model)}
             <View ref={slowMount} style={{ flex: 1 }}>
-              <KeyboardFormFrame
-                footer={bar ? <StepBar {...bar} /> : null}
-                backgroundColor={theme.overlay.fill}
-              >
+              <KeyboardFormFrame footer={bar ? <StepBar {...bar} /> : null} backgroundColor={page}>
                 <View ref={pairedMount} style={{ flex: 1 }}>
                   <Stack
                     screenOptions={{
                       headerShown: false,
-                      contentStyle: { backgroundColor: theme.overlay.fill },
+                      contentStyle: { backgroundColor: page },
                       animation: reducedMotion ? 'none' : 'slide_from_right',
                       freezeOnBlur: true,
                     }}
