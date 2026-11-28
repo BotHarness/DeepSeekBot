@@ -32,6 +32,7 @@ import * as skillsCopy from './features/skills/locale.js';
 import * as takeoverCopy from './features/takeover/locale.js';
 import * as teamCopy from './features/team/locale.js';
 import * as teamBotAccessCopy from './features/team/bot-access-locale.js';
+import * as teamExternalRolesCopy from './features/team/external-roles-locale.js';
 import * as tobCopy from './features/tob/locale.js';
 import * as usageCopy from './features/usage/locale.js';
 import * as voiceCopy from './features/voice/locale.js';
@@ -81,6 +82,7 @@ export const zh = {
   ...takeoverCopy.zh,
   ...teamCopy.zh,
   ...teamBotAccessCopy.zh,
+  ...teamExternalRolesCopy.zh,
   ...tobCopy.zh,
   ...usageCopy.zh,
   ...voiceCopy.zh,
@@ -249,6 +251,7 @@ export const en = {
   ...takeoverCopy.en,
   ...teamCopy.en,
   ...teamBotAccessCopy.en,
+  ...teamExternalRolesCopy.en,
   ...tobCopy.en,
   ...usageCopy.en,
   ...voiceCopy.en,

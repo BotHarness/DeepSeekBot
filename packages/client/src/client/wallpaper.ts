@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import {
   DEFAULT_CROP,
   IMAGE_LIMIT,
@@ -282,7 +283,7 @@ export class Wallpaper {
     try {
       if (Date.now() > expiresAt || this.#disposed)
         throw new WallpaperError('appearance-request-stale');
-      const next = { ...change(this.#library), revision: crypto.randomUUID() };
+      const next = { ...change(this.#library), revision: createBrowserUuid() };
       await this.store.write(next, expected);
       await this.#accept(next, prepared, true);
       prepared = undefined;
@@ -318,11 +319,11 @@ export class Wallpaper {
       if (this.#library.items.length >= LIBRARY_LIMIT)
         throw new WallpaperError('wallpaper-library-full');
       const resource = await this.decode(blob);
-      const id = crypto.randomUUID();
+      const id = createBrowserUuid();
       const record: WallpaperRecord = {
         version: 1,
         id,
-        revision: crypto.randomUUID(),
+        revision: createBrowserUuid(),
         kind: resource.kind ?? 'image',
         ...(resource.poster ? { poster: resource.poster } : {}),
         blob,
@@ -354,7 +355,7 @@ export class Wallpaper {
         ...library,
         items: library.items.map((item) =>
           item.id === record.id
-            ? { ...item, crop: { ...crop }, revision: crypto.randomUUID() }
+            ? { ...item, crop: { ...crop }, revision: createBrowserUuid() }
             : item,
         ),
       }));

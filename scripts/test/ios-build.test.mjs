@@ -48,7 +48,6 @@ describe('iOS build with the shared compilation cache', () => {
       expect.arrayContaining([
         '-derivedDataPath',
         '/w/a/apps/mobile/ios/build/DerivedData',
-        'CODE_SIGNING_ALLOWED=NO',
         'COMPILATION_CACHE_ENABLE_CACHING=YES',
         'COMPILATION_CACHE_CAS_PATH=/cas',
         'SWIFT_ENABLE_PREFIX_MAPPING=YES',
@@ -57,6 +56,23 @@ describe('iOS build with the shared compilation cache', () => {
         'CLANG_OTHER_PREFIX_MAPPINGS=/w/a=/^wt',
       ]),
     );
+  });
+
+  it('ad-hoc signs Simulator builds and lets later xcodebuild settings override the defaults', () => {
+    const args = xcodebuildArgs({
+      workspace: 'App.xcworkspace',
+      scheme: 'App',
+      derivedData: 'dd',
+      configuration: 'Debug',
+      destination: 'generic/platform=iOS Simulator',
+      worktree: '/w/a',
+      extra: ['CODE_SIGNING_ALLOWED=NO'],
+    });
+    expect(args.slice(-3)).toEqual([
+      'CODE_SIGNING_ALLOWED=YES',
+      'CODE_SIGN_IDENTITY=-',
+      'CODE_SIGNING_ALLOWED=NO',
+    ]);
   });
 
   it('keeps signing for device builds and drops cache settings with --no-cache', () => {
@@ -70,7 +86,7 @@ describe('iOS build with the shared compilation cache', () => {
       cas: undefined,
       extra: ['DEVELOPMENT_TEAM=T'],
     });
-    expect(args).not.toContain('CODE_SIGNING_ALLOWED=NO');
+    expect(args.some((arg) => arg.startsWith('CODE_SIGN'))).toBe(false);
     expect(args.some((arg) => arg.startsWith('COMPILATION_CACHE'))).toBe(false);
     expect(args.at(-1)).toBe('DEVELOPMENT_TEAM=T');
     expect(productsFolder('Release', 'id=PHONE')).toBe('Release-iphoneos');

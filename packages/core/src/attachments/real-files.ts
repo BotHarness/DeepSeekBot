@@ -131,7 +131,7 @@ export function createRealAttachments(root: string, maxBytes: number) {
       const ref = {
         fileId: id,
         name: checked.relativePath,
-        mime: sniffAttachmentMime(head.subarray(0, count)),
+        mime: sniffAttachmentMime(head.subarray(0, count), info.size),
         size: info.size,
       };
       return { fd, ref, path: checked.path };
@@ -329,7 +329,7 @@ export function createRealAttachments(root: string, maxBytes: number) {
             const ref = {
               fileId: id,
               name,
-              mime: sniffAttachmentMime(head.subarray(0, headSize)),
+              mime: sniffAttachmentMime(head.subarray(0, headSize), size),
               size,
             };
             const record = join(dir, 'record.json');

@@ -804,6 +804,10 @@
     "sha256": "952697044a5c515fe7cde3271f66907563463642db9b382565623687793a3d14"
   },
   {
+    "id": "host-external-roles",
+    "sha256": "0e8130fb66b84cdfde484667ebf8eb940afec2ddf63e10a8d3871ea751747833"
+  },
+  {
     "id": "host-role-bot-scope",
     "sha256": "bdf981f5ad39f703b055145fa15435f6e105849a039fad07824a55066111f357"
   }

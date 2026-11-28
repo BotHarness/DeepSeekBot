@@ -127,6 +127,8 @@ export async function withPanel(
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceSkillMine: vi.fn(async () => ({ skills: [] })),
     marketplaceSkillList: vi.fn(async () => ({ skills: [], nextCursor: null })),
+    marketplaceSkillAdded: vi.fn(async () => ({ skills: [] })),
+    marketplaceSkillAddCandidates: vi.fn(async () => ({ bots: [], global: true })),
     marketplaceAvatarList: vi.fn(async () => ({ avatars: [], nextCursor: null })),
     telemetryEvent: vi.fn(),
     ...extra,

@@ -511,6 +511,10 @@ export const CLI_EFFECTS = {
   'secret-unset': { effects: destructiveSecret, brokerRead: false },
   send: { effects: external, brokerRead: false },
   'send-status': { effects: read, brokerRead: true },
+  'external-roles': { effects: read, brokerRead: false },
+  'external-role-create': { effects: management, brokerRead: false },
+  'external-role-update': { effects: management, brokerRead: false },
+  'external-contact-access': { effects: read, brokerRead: false },
   'sender-access': { effects: management, brokerRead: false },
   'session-answer-approval': { effects: externalIrreversibleManagement, brokerRead: false },
   'session-answer-question': { effects: external, brokerRead: false },
@@ -558,6 +562,7 @@ export const CLI_EFFECTS = {
   'skills-delete': { effects: externalIrreversibleManagement, brokerRead: false },
   'skills-mine': { effects: externalRead, brokerRead: false },
   'skills-add': { effects: externalWrite, brokerRead: false },
+  'skills-added': { effects: memoryRead, brokerRead: true },
   'marketplace-skill-list': { effects: externalRead, brokerRead: true },
   'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
   'skills-remove': { effects: memoryWrite, brokerRead: false },
@@ -674,7 +679,13 @@ function familyEffects(
       }
     }
     case 'skills':
-      if (action === 'mine' || action === 'publish' || action === 'replace' || action === 'delete')
+      if (
+        action === 'mine' ||
+        action === 'added' ||
+        action === 'publish' ||
+        action === 'replace' ||
+        action === 'delete'
+      )
         return declarations[`skills-${action}`]?.effects;
       return undefined;
     case 'engine':

@@ -119,6 +119,10 @@ export function checkPackage(manifest, artifact, files, inventory) {
       !files.includes(`package/bin/${platform.executable}`))
   )
     throw new Error(`Invalid platform package: ${artifact.name}`);
+  for (const name of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })) {
+    if (name.startsWith('@deepseek-ai/'))
+      throw new Error(`Packed ${artifact.name} would install ${name} into the DSH Profile`);
+  }
   for (const [name, spec] of Object.entries({
     ...manifest.dependencies,
     ...manifest.optionalDependencies,

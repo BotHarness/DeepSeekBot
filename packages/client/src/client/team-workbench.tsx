@@ -28,6 +28,7 @@ import {
 import { teamErrorText } from './team-settings.js';
 import { BotsSection } from './team-workbench/bots-section.js';
 import { ChannelsSection } from './team-workbench/channels-section.js';
+import { ExternalRolesSection } from './team-workbench/external-roles-section.js';
 import { DetailNotice, EmptyDetail, WorkbenchFrame } from './team-workbench/frame.js';
 import { MembersSection } from './team-workbench/members-section.js';
 import { withChoice, type PermissionChoice } from './team-workbench/permission-model.js';
@@ -263,6 +264,7 @@ export function TeamWorkbench({
         <BotsSection call={call} t={t} view={view} roles={roles} members={members} />
       ),
     channels: () => <ChannelsSection call={call} t={t} />,
+    externalRoles: () => <ExternalRolesSection call={call} t={t} />,
   };
 
   return (

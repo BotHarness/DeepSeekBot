@@ -7,6 +7,8 @@ An Owner's phone manages the Host's TTS and ASR Voice Providers in **Settings â†
 - `apps/mobile/app/settings/voice.tsx`
 - `apps/mobile/src/ui/voice/*.tsx`
 - `apps/mobile/src/ui/voice/voice-sample.ts`
+- `apps/mobile/src/ui/primitives/sheet-search-field*.tsx`
+- `apps/mobile/modules/sheet-search/ios/SheetSearchModule.swift`
 - `packages/host-client/src/voice-providers.ts`
 - `packages/host-client/src/shared/voice-options.ts`
 - `packages/host-client/src/shared/voice-template-*.ts`
@@ -46,6 +48,7 @@ An Owner's phone manages the Host's TTS and ASR Voice Providers in **Settings â†
 5. Add a Custom request service from the Google Cloud TTS example with a placeholder key; open its actions, **Edit request**, change the URL and save. Read back with `deepseekbot voice-provider-template <id>`. At Android's maximum font size, check that both the edit heading and service name are visible and that Save and test can be reached with the keyboard open.
 6. Set the default service and voice, and read back `defaults` with `deepseekbot voice-providers`.
 7. On Android, search the Public library, dismiss the keyboard, clear the query and immediately swipe up in the results. The refreshed list must scroll, and the picker Back button must return to the form. Check that dragging the sheet handle still dismisses the sheet.
+8. On iOS, open Public library and check that the native search bar stays above the filters and starts unfocused. Tap it, type and clear a query, and check that results narrow and return. Drag the results, then tap the search field again. Check that Back and selecting a result dismiss the keyboard. Repeat with light and dark appearance at default, intermediate and maximum text sizes, including a query typed with a CJK keyboard.
 
 ## Gotchas
 

@@ -376,6 +376,7 @@ it('derives visible sections from the viewer and defaults to the roles section',
     'bots',
     'channels',
     'roles',
+    'externalRoles',
   ]);
   expect(resolveSection(context, undefined)?.id).toBe('roles');
   expect(resolveSection(context, 'channels')?.id).toBe('channels');

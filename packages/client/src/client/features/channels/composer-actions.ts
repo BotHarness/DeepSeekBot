@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from '../../composer-draft-store.js';
 import {
   quoteRefOf,
@@ -99,7 +100,7 @@ export function createComposerMessageActions({
     setChannelRefTokens(message.channelRefs ?? []);
     setUploadItems(
       (message.attachments ?? []).map((ref) => ({
-        id: crypto.randomUUID(),
+        id: createBrowserUuid(),
         file: new File([], ref.name, { type: ref.mime }),
         ref,
         status: 'ready' as const,
@@ -255,7 +256,7 @@ export function createComposerUploads({
     if (recovery.blocked || unavailable || mutationLocked) return;
     const available = Math.max(0, 10 - uploadItems.length);
     const added = files.slice(0, available).map((file) => ({
-      id: crypto.randomUUID(),
+      id: createBrowserUuid(),
       file,
       status: 'uploading' as const,
     }));

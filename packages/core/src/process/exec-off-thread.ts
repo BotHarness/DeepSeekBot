@@ -10,6 +10,7 @@ export interface OffThreadOptions {
   readonly cwd?: string | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly timeout?: number | undefined;
+  readonly killSignal?: NodeJS.Signals | undefined;
   readonly maxBuffer?: number | undefined;
   readonly windowsHide?: boolean | undefined;
   readonly stdio?: readonly ('ignore' | 'pipe')[] | undefined;
@@ -83,7 +84,8 @@ function ensureWorker(): Worker | undefined {
       waiter.resolve(reply);
     });
     const lost = (error: Error) => {
-      if (worker === created) worker = undefined;
+      if (worker !== created) return;
+      worker = undefined;
       failAll(error);
       created.unref();
     };

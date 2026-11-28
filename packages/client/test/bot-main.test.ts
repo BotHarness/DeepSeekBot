@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 import { BotMain, committedMessageIds, resolvedGrantRequestIds } from '../src/client/bot-main.js';
+import { clearConversationDrafts } from '../src/client/conversation-draft.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
@@ -34,7 +35,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
 });
 
-it('keeps settled message groups mounted without rerendering their author cards during drafts', async () => {
+it.each(['native UUID', 'no native UUID'])('keeps message groups stable with %s', async (mode) => {
   const previous = store.getSnapshot();
   const bot = {
     slug: 'stream-isolation',
@@ -91,6 +92,12 @@ it('keeps settled message groups mounted without rerendering their author cards 
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
+  const nativeUuid = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+  if (mode === 'no native UUID') {
+    Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+    expect(typeof crypto.randomUUID).toBe('undefined');
+  }
+  clearConversationDrafts();
   try {
     await act(async () =>
       root.render(
@@ -140,6 +147,11 @@ it('keeps settled message groups mounted without rerendering their author cards 
     expect(humanRenders()).toBeGreaterThan(initialRenders);
     expect(container.querySelector('[data-message-id="streaming-draft"]')).toBeNull();
   } finally {
+    if (mode === 'no native UUID') {
+      if (nativeUuid === undefined) Reflect.deleteProperty(crypto, 'randomUUID');
+      else Object.defineProperty(crypto, 'randomUUID', nativeUuid);
+    }
+    clearConversationDrafts();
     await act(async () => root.unmount());
     container.remove();
     authorCards.mockRestore();

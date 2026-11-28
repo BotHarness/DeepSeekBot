@@ -131,6 +131,31 @@ export function createInboundControlReceiver(wiring: {
         if (account.fingerprint !== identity.fingerprint)
           throw new MessagingError('rebind-required');
         if (!account.connected) throw new MessagingError('provider-unavailable');
+        if (
+          identity.platform === 'slack' &&
+          account.contactWorkspaceId &&
+          identity.contactWorkspaceId !== account.contactWorkspaceId
+        ) {
+          transaction(
+            (db) => {
+              controller.signal.throwIfAborted();
+              if (providers.get(identity.providerId) !== entry || controls.get(id) !== lease)
+                throw new MessagingError('consumer-unavailable');
+              const latest = assertMessagingIdentity(db, id);
+              if (
+                latest.fingerprint !== account.fingerprint ||
+                (latest.contactWorkspaceId &&
+                  latest.contactWorkspaceId !== account.contactWorkspaceId)
+              )
+                throw new MessagingError('rebind-required');
+              db.prepare('UPDATE messaging_bindings SET contact_workspace_id = ? WHERE id = ?').run(
+                account.contactWorkspaceId ?? null,
+                id,
+              );
+            },
+            ['bindings', 'pairing'],
+          );
+        }
         if (identity.platform === 'qq')
           transaction((db) => {
             controller.signal.throwIfAborted();

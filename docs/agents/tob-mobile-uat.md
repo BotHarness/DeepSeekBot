@@ -88,7 +88,7 @@ Capture real UI before creation, owner selected, member read-only, restored owne
 
 See `.github/pr-screenshots/tob-t1-organizations/README.md` for exact runtimes and native evidence. One organization was created on the phone and independently selected/read by the formal CLI. Live owner → member → owner checks passed without changing the instance administrator. Stale-owner writes were denied; the native rerun also verified discarded unsaved drafts and refreshed role labels. Optional second-organization creation and membership deactivation were rejected by automatic approval review and did not execute.
 
-For Simulator SecureStore checks, preserve normal local ad-hoc code signing. The initial `CODE_SIGNING_ALLOWED=NO` build produced a Keychain error; a signed incremental build resolved it without erasing app data. This was a test-build issue, not an authentication bypass. Current screenshots use per-process English launch options; global Simulator language preferences remain unchanged.
+`node scripts/ios-build.mjs` uses local ad-hoc signing for Simulator builds. The initial unsigned QA build produced a Keychain error in SecureStore, and an incremental build with ad-hoc signing resolved it without erasing app data. Current screenshots use per-process English launch options.
 
 ## Ordinary-user workspace continuation — #2130 / #2131
 
