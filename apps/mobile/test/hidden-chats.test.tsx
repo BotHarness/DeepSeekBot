@@ -9,28 +9,9 @@ vi.mock('../src/ui/primitives/loading-indicator', () => ({
   LoadingIndicator: () => createElement('span', { 'data-testid': 'hidden-chats-loading' }),
 }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
-  SettingsRow: (props: {
-    title: string;
-    testID?: string;
-    accessibilityLabel?: string;
-    trailing?: unknown;
-    control?: { kind: string; text?: string };
-    onPress?: () => void;
-  }) =>
-    createElement(
-      'button',
-      {
-        type: 'button',
-        'data-testid': props.testID,
-        'aria-label': props.accessibilityLabel,
-        'data-trailing': String(props.trailing !== undefined),
-        'data-control': props.control?.kind,
-        disabled: props.onPress === undefined,
-        onClick: props.onPress,
-      },
-      props.title,
-      props.control?.kind === 'value' ? ` ${props.control.text}` : '',
-    ),
+  SettingsRow: () => {
+    throw new Error('Hidden chats rows must not use the Compose-hosted settings row');
+  },
 }));
 
 import type { RosterView } from '@botharness/host-client/client';
@@ -81,10 +62,9 @@ it('unhides one chat through the Host hidden roster', async () => {
   const unhide = host.querySelector<HTMLButtonElement>(
     '[data-testid="hidden-chat-channel:studio"]',
   )!;
-  expect(unhide.getAttribute('data-trailing')).toBe('false');
-  expect(unhide.getAttribute('data-control')).toBe('value');
-  expect(unhide.textContent).toBe(`Studio ${t.hiddenChats.unhide}`);
+  expect(unhide.getAttribute('role')).toBe('button');
   expect(unhide.getAttribute('aria-label')).toBe(t.hiddenChats.unhideLabel('Studio'));
+  expect(unhide.textContent).toBe(`Studio${t.hiddenChats.unhide}`);
   await act(async () => unhide.click());
   expect(call).toHaveBeenCalledWith('hiddenSet', { hidden: ['dm-ada'] });
   expect(refresh).toHaveBeenCalledOnce();

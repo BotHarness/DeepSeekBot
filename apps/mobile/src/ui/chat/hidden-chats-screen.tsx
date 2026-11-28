@@ -5,11 +5,11 @@ import type { HostClient, RosterView } from '@botharness/host-client/client';
 import { useHostSessions } from '../../host/host-session';
 import { space } from '../design/tokens';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { conversationChannelId, setConversationHidden } from './conversation-actions';
 import { hiddenConversations, titleOf, type Conversation } from './conversations';
+import { HiddenChatRow } from './hidden-chat-row';
 
 export function HiddenChatsScreen({ hostId }: { hostId: string }) {
   const host = useHostSessions().find((candidate) => candidate.saved.hostId === hostId);
@@ -59,15 +59,12 @@ export function HiddenChats({
         )
       }
       renderItem={({ item }) => (
-        <SettingsRow
-          on="canvas"
+        <HiddenChatRow
           testID={`hidden-chat-${item.key}`}
-          title={titleOf(item)}
-          accessibilityLabel={t.hiddenChats.unhideLabel(titleOf(item))}
-          control={
-            busy === item.key ? { kind: 'busy' } : { kind: 'value', text: t.hiddenChats.unhide }
-          }
-          onPress={client === undefined || busy !== undefined ? undefined : () => unhide(item)}
+          name={titleOf(item)}
+          busy={busy === item.key}
+          disabled={client === undefined || busy !== undefined}
+          onUnhide={() => unhide(item)}
         />
       )}
     />
