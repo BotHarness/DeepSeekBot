@@ -50,6 +50,7 @@ import {
 import { requestCreation } from './create-request.js';
 import { watchFullClientLanding, watchPrivateInputNavigation } from './private-input-navigation.js';
 import { createNativeHostFiles } from './host-file-actions.js';
+import { createAttachmentOpenRequests } from './attachment-open-requests.js';
 import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
@@ -235,6 +236,9 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => () => zoom.dispose(), 'botharness: device-local window zoom');
   const nativeChatT = ctx.locale.bind('chat');
   const call = createBridgeCall(ctx);
+  const attachmentOpenRequests = createAttachmentOpenRequests();
+  ctx.on('connection/reset', attachmentOpenRequests.reset);
+  ctx.effect(() => attachmentOpenRequests.dispose, 'botharness: attachment open requests');
   const profileContext = async (): Promise<{ profileId: string }> => {
     const response = await fetch('./api/botharness/companion', {
       credentials: 'same-origin',
@@ -253,6 +257,7 @@ export function apply(ctx: ClientContext): void {
   const actions: BridgeActions = createActions(call, store, {
     openModelPresets: () => botSettings.open(BOT_SETTINGS_SECTIONS.modelPresets),
     ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
+    attachmentOpenRequests,
     fileOpenPreferences: createFileOpenPreferences({
       storage,
       context: profileContext,
