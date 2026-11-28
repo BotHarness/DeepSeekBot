@@ -67,3 +67,7 @@ The first run against the legacy `peerCycles` baseline measures the base commit'
 ## Runtime imports and Feature Contributions
 
 [#5638](https://github.com/BotHarness/DeepSeekBot/issues/5638) removes runtime dependencies from Runtime to Features. Runtime assembly calls the services supplied through Feature Contributions. Activity and Assignment consumers read their queries from the owning features. Kernel owns the direct tool error shared by Runtime and Features, and Prompts owns the reply transport reminder used in both native and Engine turns. Runtime owns the Session busy result and Assignment concurrency default. Type-only references to Feature port signatures are erased by the compiler.
+
+## Devices transport dependencies
+
+[#5640](https://github.com/BotHarness/DeepSeekBot/issues/5640) puts the Bot Network transport port in Devices. Runtime implements message admission and consumes the same port as the transport adapters. Kernel owns the delivery error shared by Channels and Devices, and the timer coalescer shared by Runtime and device push. Devices owns the Connect route refusal used before forwarding requests. Environments owns Connect account composition. Devices retains the Connected Host record read by the Client.

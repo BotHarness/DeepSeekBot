@@ -1,5 +1,5 @@
 import type {} from '../../core/src/channels/resource-events.js';
-import { coalesce } from '../../core/src/runtime/coalesce.js';
+import { coalesce } from '../../core/src/kernel/coalesce.js';
 import { openComputerPermissionSettings } from './permission-settings.js';
 import ComputerUseRegistry from './native-registry.js';
 import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';

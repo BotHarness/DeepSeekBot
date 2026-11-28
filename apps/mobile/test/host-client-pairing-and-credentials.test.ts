@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import { parsePairingLink, redeemPairing } from '@botharness/host-client/pairing';
 import { checkRoute } from '@botharness/host-protocol/route';
-import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
+import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/devices/secret-route';
 import { openLocalStore } from '@botharness/host-client/local-store';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { nodeSqlConnection } from './node-sql-connection';

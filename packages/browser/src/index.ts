@@ -1,5 +1,5 @@
 import type {} from '../../core/src/channels/resource-events.js';
-import { coalesce } from '../../core/src/runtime/coalesce.js';
+import { coalesce } from '../../core/src/kernel/coalesce.js';
 import { BROWSER_TOOLS, browserToolName } from './tool/catalog.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';

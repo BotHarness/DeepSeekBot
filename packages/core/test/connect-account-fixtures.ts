@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { createConnectAccount } from '../src/devices/connect-account.js';
+import { createConnectAccount } from '../src/features/environments/connect-account.js';
 import type { ConnectStatus, DeviceConnect } from '../src/devices/connect.js';
 
 export const RELAY = 'https://relay.test';

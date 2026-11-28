@@ -1,4 +1,4 @@
-import type { Coalesced } from '../../core/src/runtime/coalesce.js';
+import type { Coalesced } from '../../core/src/kernel/coalesce.js';
 import { installSystemPackages } from '../../core/src/system/system-packages.js';
 import type { ComputerConfig } from './computer-config.js';
 import type { ComputerRuntimeRunner, ComputerStatus } from './provider.js';

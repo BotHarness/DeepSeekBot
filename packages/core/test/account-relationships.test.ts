@@ -16,7 +16,7 @@ import {
 import type {
   AccountRelationshipSession,
   OfferVerification,
-} from '../src/devices/connect-account.js';
+} from '../src/features/environments/connect-account-types.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 function fixture(relayKey = randomBytes(32), hostnames = new Map<string, string>()) {

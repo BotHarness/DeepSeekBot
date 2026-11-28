@@ -4,8 +4,8 @@ import {
   type BotNetworkMembership,
   type LanBotMembership,
 } from '../channels/channel.js';
-import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
-import { BotNetworkDeliveryError, type NetworkBotMessage } from '../runtime/bot-network.js';
+import type { NetworkBotContact, NetworkBotMessage } from './bot-network-port.js';
+import { BotNetworkDeliveryError } from '../kernel/bot-network-error.js';
 import type { createLanBotMembership, LanBotCandidate } from './bot-lan-membership.js';
 import { createBotPeerChannel } from './bot-peer-channel.js';
 import { contactSchema, hostId, messageSchema, pageSchema } from './bot-network-wire.js';

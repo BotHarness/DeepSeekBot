@@ -8,7 +8,10 @@ import {
   type DevicePairingEvent,
 } from '../src/devices/pairing.js';
 import { createDevicesHttp, offeredRoutes, type PairingOfferView } from '../src/devices/http.js';
-import type { AccountResult, ConnectedHostsResult } from '../src/devices/connect-account.js';
+import type {
+  AccountResult,
+  ConnectedHostsResult,
+} from '../src/features/environments/connect-account-types.js';
 import { detectPhoneRoutes, type RunCommand } from '../src/devices/routes.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 

@@ -1,30 +1,16 @@
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import type { BotMessageCausation, ChannelMessage } from '../channels/channel.js';
-import type { NetworkBotContact } from './bot-contact-discovery.js';
+import type { ChannelMessage } from '../channels/channel.js';
+import type { NetworkBotContact, NetworkBotMessage } from '../devices/bot-network-port.js';
+export type {
+  BotNetworkPort,
+  NetworkBotAvailability,
+  NetworkBotMessage,
+} from '../devices/bot-network-port.js';
 import { isChannelMessage } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 
-export interface NetworkBotMessage {
-  id: string;
-  at: string;
-  senderBotSlug: string;
-  recipientBotSlug: string;
-  body: string;
-  causation: BotMessageCausation;
-}
-
-export type NetworkBotAvailability = 'available' | 'unavailable' | 'withdrawn' | 'bot-unavailable';
-
-export interface BotNetworkPort {
-  availability?(hostId: string, botSlug: string): NetworkBotAvailability;
-  refresh?(): Promise<void>;
-  contacts(): readonly NetworkBotContact[];
-  membership?(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'>;
-  send(hostId: string, message: NetworkBotMessage): Promise<void>;
-}
-
-export { BotNetworkDeliveryError } from '../channels/bot-network-error.js';
+export { BotNetworkDeliveryError } from '../kernel/bot-network-error.js';
 
 export function receivedNetworkMessage(hostId: string, message: NetworkBotMessage): ChannelMessage {
   return {

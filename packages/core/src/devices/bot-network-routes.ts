@@ -1,5 +1,5 @@
-import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
-import { BotNetworkDeliveryError, type BotNetworkPort } from '../runtime/bot-network.js';
+import type { NetworkBotContact, BotNetworkPort } from './bot-network-port.js';
+import { BotNetworkDeliveryError } from '../kernel/bot-network-error.js';
 
 type BotNetworkProvider = BotNetworkPort & {
   probeWithdrawalMembership?: BotNetworkPort['membership'];

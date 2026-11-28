@@ -43,7 +43,8 @@ import type { VoiceCalls } from '../../voice/calls.js';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../../database/owner.js';
 import { openLogDatabase, type LogDatabase } from '../../logs/log-db.js';
-import { createConnectAccount, type ConnectAccount } from '../../devices/connect-account.js';
+import { createConnectAccount } from './connect-account.js';
+import type { ConnectAccount } from './connect-account-types.js';
 import { cloudflaredCacheRoot } from '../../devices/cloudflared.js';
 import { createDeviceConnect } from '../../devices/connect.js';
 import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from '../../devices/http.js';
@@ -60,7 +61,7 @@ import { mountRemoteCustodyRoutes } from '../../devices/mount-remote-custody.js'
 import { isDeviceRouteConnection, isDeviceRouteWebServer } from '../../devices/mount-types.js';
 import type { PushDelivery } from '../../push/delivery.js';
 import type { TelemetryService } from '../../telemetry/service.js';
-import { coalesce } from '../../runtime/coalesce.js';
+import { coalesce } from '../../kernel/coalesce.js';
 
 export type { DevicePushOptions } from '../../devices/mount-push.js';
 

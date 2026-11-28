@@ -6,7 +6,7 @@ import {
   accountRelationshipVerifier,
   type AccountRelationshipProof,
 } from '../src/devices/account-relationship-proof.js';
-import type { AccountRelationshipSession } from '../src/devices/connect-account.js';
+import type { AccountRelationshipSession } from '../src/features/environments/connect-account-types.js';
 import { CONNECT_PROTOCOL } from '@botharness/host-protocol/noise/channel';
 import { createRelationshipControl } from '../src/devices/relationship-control.js';
 import { createRelationshipHttp } from '../src/devices/relationship-http.js';

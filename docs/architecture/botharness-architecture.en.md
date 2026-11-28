@@ -226,6 +226,8 @@ New attachments implement ADR-0100's real destination semantics: independent equ
 
 Runtime calls Feature services supplied by composition through Feature Contributions. Its runtime imports point to its own module or to lower layers.
 
+Devices defines the Bot Network transport port and Connect route refusals. Runtime admits received Bot messages, and Environments composes the Connect account.
+
 ```mermaid
 flowchart TD
   Start["Host starts"] --> Lease{"Acquire profile writer lease"}
