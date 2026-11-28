@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { AssignmentInboxAcceptanceUncertainError } from '../src/runtime/assignment-delivery.js';
 import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery } from '../src/features/activity/human-attention-query.js';
 import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
 import { setup } from './assignment-collaboration-fixtures.js';
 

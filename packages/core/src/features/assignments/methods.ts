@@ -24,7 +24,7 @@ import type {
   AssignmentAccessStore,
   AssignmentAccessPreset,
 } from '../../workspaces/assignment-access.js';
-import { queryAssignmentDirectory } from '../../runtime/bot-runtime.js';
+import { queryAssignmentDirectory } from './runtime-records.js';
 import type {
   AssignmentDetail,
   AssignmentSummary,

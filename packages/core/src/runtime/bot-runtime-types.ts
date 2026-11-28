@@ -1,9 +1,6 @@
 import type { FeatureContribution } from '../kernel/feature-contribution.js';
-import {
-  type DirectBotToolCall,
-  type DirectBotToolSpec,
-} from '../features/sessions/direct-tools.js';
-import { type TobCliAuthority } from '../features/tob/cli-runtime.js';
+import type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
+import type { TobCliAuthority } from '../features/tob/cli-runtime.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { type TurnTargetSegment } from './turn-targets.js';
@@ -19,7 +16,7 @@ import {
   type AssignmentApprovalWaitLease,
   type AssignmentExecutionWait,
 } from './assignment-approval-capacity.js';
-import { type CallFrameAccess } from '../features/voice/events.js';
+import type { CallFrameAccess } from '../features/voice/events.js';
 import type { OutboundMessaging } from '../messaging/outbound.js';
 import { type PrivateInputOrigin } from '../credentials/im-origin.js';
 import { type InboxHistoryQuery } from './inbox-history.js';
@@ -305,3 +302,9 @@ export interface BotRuntimeOptions {
   createMessageId?: () => string;
   createBotId?: () => string;
 }
+
+export const BOT_BUSY = {
+  outcome: 'refused',
+  code: 'bot-busy',
+  message: 'This Bot is working right now; wait for it to finish, then try again.',
+} as const;

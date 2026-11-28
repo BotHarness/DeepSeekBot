@@ -6,7 +6,10 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
-import { createHumanAttentionQuery, UNREAD_COUNT_LIMIT } from '../src/runtime/human-attention.js';
+import {
+  createHumanAttentionQuery,
+  UNREAD_COUNT_LIMIT,
+} from '../src/features/activity/human-attention-query.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const canonicalHistorySql = `SELECT source_event_id, source_kind, bot_slug, channel_id, message_id,

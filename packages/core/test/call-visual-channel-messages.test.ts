@@ -6,7 +6,7 @@ import {
   voiceCallRecordBody,
   type ChannelVoiceCallRecord,
 } from '../src/channels/voice-call-record.js';
-import { callTimelineNote, callVisualNote } from '../src/runtime/bot-runtime.js';
+import { callTimelineNote, callVisualNote } from '../src/features/voice/events.js';
 
 describe('call visuals in Channel messages', () => {
   it('accepts a grid or an unchanged view and refuses anything else', () => {

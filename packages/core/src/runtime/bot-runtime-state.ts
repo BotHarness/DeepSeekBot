@@ -1,8 +1,5 @@
-import {
-  type ActiveDirectTool,
-  type DirectBotToolCall,
-} from '../features/sessions/direct-tools.js';
-import { type TobCliRequestLease } from '../features/tob/cli-runtime.js';
+import type { ActiveDirectTool, DirectBotToolCall } from '../features/sessions/direct-tools.js';
+import type { TobCliRequestLease } from '../features/tob/cli-runtime.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
 import { sessionModelChoices } from './session-model-choices.js';
 import { type PendingAutoContinue } from './orchestrator-continuation.js';
