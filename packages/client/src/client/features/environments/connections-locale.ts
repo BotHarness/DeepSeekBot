@@ -121,13 +121,12 @@ export const zh = {
   'privateRelay.code': '连接码',
   'privateRelay.useCode': '使用连接码',
   'privateRelay.useLegacyKey': '使用旧版设置密钥',
-  'privateRelay.codeInvalid': '请完整粘贴终端显示的一行连接码。',
+  'privateRelay.codeInvalid': '粘贴终端显示的一整行连接码。',
   'privateRelay.codeExpired':
-    '连接码已过期。请在中继服务器上运行 tobs-relay add-host --reissue {host}。',
+    '连接码已过期。在中继服务器运行 tobs-relay add-host --reissue {host}。',
   'privateRelay.codeUsed':
-    '连接码已使用。请使用原电脑；如需连接另一台电脑，请运行 tobs-relay add-host 并指定新名称。仅可用 tobs-relay add-host --reissue {host} 为未认领的电脑生成新码。',
-  'privateRelay.codeRefused':
-    '连接码无效。请在中继服务器上运行 tobs-relay add-host --reissue {host}。',
+    '连接码已使用，继续使用原电脑。未认领的电脑可运行 tobs-relay add-host --reissue {host}。',
+  'privateRelay.codeRefused': '连接码无效。在中继服务器运行 tobs-relay add-host --reissue {host}。',
   'privateRelay.address': '私有服务 HTTPS 地址',
   'privateRelay.secret': '首次设置密钥',
   'privateRelay.claim': '认领并连接',
@@ -466,7 +465,7 @@ export const en = {
   'privateRelay.codeExpired':
     'Connect code expired. Run tobs-relay add-host --reissue {host} on the relay server.',
   'privateRelay.codeUsed':
-    'Connect code already used. Continue on the original computer, or run tobs-relay add-host with a new name. Use tobs-relay add-host --reissue {host} only for an unclaimed computer.',
+    'Connect code already used. Continue on the original computer, or run tobs-relay add-host --reissue {host} for an unclaimed computer.',
   'privateRelay.codeRefused':
     'Connect code was refused. Run tobs-relay add-host --reissue {host} on the relay server.',
   'privateRelay.address': 'Private service HTTPS address',
