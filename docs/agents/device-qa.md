@@ -112,6 +112,9 @@ package with native code (an Expo SDK patch bump counts). Check every PR in the 
   independent of the worktree path, so a new worktree reuses what any other worktree compiled.
   Measured on Xcode 27.2: 21 minutes without the cache, about 5 minutes with a warm cache (about
   95% cache hits). `pod install` still takes about 2 minutes per worktree.
+- Simulator builds use local ad-hoc signing by default (`CODE_SIGNING_ALLOWED=YES` and
+  `CODE_SIGN_IDENTITY=-`). This preserves the simulated Keychain entitlements that SecureStore
+  needs for pairing. Settings passed after `--` override the defaults.
 - A Debug build's DerivedData is about 17 GB even with a warm cache, so keep it only while you
   need it (`--keep-derived-data`). The cache itself stays between builds; `ios-build.mjs` clears
   it when it grows past 25 GB (`BOTHARNESS_IOS_CAS_MAX_GB`) and no other build is using it.

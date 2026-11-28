@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store';
 
 import type {
@@ -132,13 +133,12 @@ export function parseUpdateRun(value: unknown): UpdateRun | undefined {
 }
 
 export function newUpdateRequestId(): string {
-  const crypto = globalThis.crypto as Crypto | undefined;
-  if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID();
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.getRandomValues === 'function') return createBrowserUuid(crypto);
+
   const bytes = new Uint8Array(16);
-  if (typeof crypto?.getRandomValues === 'function') crypto.getRandomValues(bytes);
-  else
-    for (let index = 0; index < bytes.length; index += 1)
-      bytes[index] = Math.floor(Math.random() * 256);
+  for (let index = 0; index < bytes.length; index += 1)
+    bytes[index] = Math.floor(Math.random() * 256);
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 

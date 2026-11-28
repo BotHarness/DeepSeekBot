@@ -251,7 +251,8 @@ export function ToolApprovalCard({
     );
     return () => clearTimeout(timer);
   }, [expiresAt, now]);
-  const actionable = status === 'pending' && effectiveDecision === undefined;
+  const viewOnly = message.approval?.masked === false && message.approval.canDecide === false;
+  const actionable = status === 'pending' && effectiveDecision === undefined && !viewOnly;
   const focusMount = useMountedResource<HTMLDivElement>(
     (node) => {
       if (companionTarget !== undefined || surface === 'activity') return;
@@ -696,6 +697,10 @@ export function ToolApprovalCard({
             {t('approval.reject')}
           </ActionButton>
         </ActionGroup>
+      ) : viewOnly && status === 'pending' && effectiveDecision === undefined ? (
+        <div role="status" data-approval-view-only="" {...stylex.props(styles.caption)}>
+          {t('approval.viewOnly')}
+        </div>
       ) : status === 'loading' || status === 'unavailable' ? (
         <div role="status" {...stylex.props(styles.caption)}>
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}

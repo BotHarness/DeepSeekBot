@@ -39,6 +39,12 @@ describe('approval masking client', () => {
       opaque: true,
       decidedBy: { humanId: 'h1', displayName: 'Alice' },
     });
+    expect(
+      parseApprovalCard({ ...masked, masked: false, opaque: false, canDecide: false }),
+    ).toMatchObject({ masked: false, canDecide: false });
+    expect(parseApprovalCard({ ...masked, masked: false, opaque: false })).not.toHaveProperty(
+      'canDecide',
+    );
     expect(parseApprovalCard({ kind: 'nope' })).toBeUndefined();
   });
 

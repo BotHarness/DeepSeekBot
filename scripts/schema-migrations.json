@@ -800,6 +800,14 @@
     "sha256": "de2602befc612092b29d849b01425ac37fea1aaa1014dbd166a30d56c2a4ba1a"
   },
   {
+    "id": "channel-approval-policy",
+    "sha256": "952697044a5c515fe7cde3271f66907563463642db9b382565623687793a3d14"
+  },
+  {
+    "id": "host-external-roles",
+    "sha256": "0e8130fb66b84cdfde484667ebf8eb940afec2ddf63e10a8d3871ea751747833"
+  },
+  {
     "id": "team-member-settings",
     "sha256": "37dd66fa4deb86f9d0f8504bbd0edb7d744d8db794ee93d5c83b095ebdfe0d79"
   }

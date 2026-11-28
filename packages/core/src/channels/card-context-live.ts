@@ -2,7 +2,6 @@ import { TURN_TARGET_TOPIC } from '../sessions/turn-target-topic.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { BotHarnessCore } from '../plugin.js';
-import { TeamError } from '../team-policy/error.js';
 import { ownsBot } from '../team-policy/bot-access.js';
 import type { ChannelUserQuestions } from './user-questions.js';
 import type { ChannelToolApproval, ToolApprovalNotice } from '../workspaces/tool-approval.js';
@@ -31,13 +30,11 @@ export function mountCardContextLive(
         )
       )
         return false;
-      try {
-        core.team.approvals.requireRequest(human, channelId, messageId);
-        return true;
-      } catch (error) {
-        if (error instanceof TeamError) return false;
-        throw error;
-      }
+      const message = core.team.approvals.request(channelId, messageId);
+      return (
+        message !== undefined &&
+        core.team.approvals.card(human, channelId, message)?.masked === false
+      );
     });
   };
   const publishContext = (slug: string) =>

@@ -133,7 +133,7 @@ it('appends account150 after published Team models148 and usage149 while preserv
     ...before,
     channel_records: before.channel_records?.map(({ policy_json: _, ...record }) => ({
       ...record,
-      permission_table_json: JSON.stringify(DEFAULT_CHANNEL_POLICY),
+      permission_table_json: JSON.stringify({ ...DEFAULT_CHANNEL_POLICY, approvalMode: 'legacy' }),
     })),
   });
   expect(

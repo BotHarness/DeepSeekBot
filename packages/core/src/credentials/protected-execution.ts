@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { hostNodeEnv } from '../execution/host-node-env.js';
 import { PrivateInputFailure, type PrivateInputLog } from './diagnostics.js';
 
 const AUTHENTICATED_STATUS_CLI = String.raw`
@@ -175,11 +176,9 @@ export class ProtectedExecution {
     this.log('credential-cli-started', { program: 'http-status-v1' });
     const output = await this.#spawn(
       'http-status-v1',
-      process.execPath,
       ['--disable-proto=throw', '-e', AUTHENTICATED_STATUS_CLI],
       JSON.stringify(values),
       signal,
-      true,
       32,
     );
     const failure = /^failure:([a-z]+)$/.exec(output)?.[1];
@@ -261,7 +260,6 @@ export class ProtectedExecution {
     this.log('credential-cli-started', { program: 'http-request-v1' });
     const output = await this.#spawn(
       'http-request-v1',
-      process.execPath,
       ['--disable-proto=throw', '-e', AUTHENTICATED_REQUEST_CLI],
       JSON.stringify({
         url: target.href,
@@ -274,7 +272,6 @@ export class ProtectedExecution {
         limit: SECRET_HTTP_RESPONSE_LIMIT,
       }),
       signal,
-      true,
       SECRET_HTTP_RESPONSE_LIMIT * 8,
       30_000,
     );
@@ -339,13 +336,11 @@ export class ProtectedExecution {
 
   #spawn(
     label: string,
-    program: string,
     args: string[],
     stdin: string,
     signal: AbortSignal,
-    credentialBearing: boolean,
-    outputLimit?: number,
-    timeoutMs?: number,
+    outputLimit: number,
+    timeoutMs = 15_000,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       if (this.#closed || signal.aborted) {
@@ -357,40 +352,41 @@ export class ProtectedExecution {
         );
         return;
       }
-      const child = spawn(program, args, {
+      const child = spawn(process.execPath, args, {
         cwd: tmpdir(),
         stdio: ['pipe', 'pipe', 'pipe'],
-        ...(credentialBearing
-          ? {
-              env: process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot } : {},
-            }
-          : {}),
+        env: hostNodeEnv(
+          process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot } : {},
+        ),
         shell: false,
         windowsHide: true,
       });
       this.#children.add(child);
       let output = '';
       let failure: 'cancelled' | 'timeout' | 'output-limit' | 'start' | 'stdin' | undefined;
-      const limit = outputLimit ?? (credentialBearing ? 3 : 16_000);
-      const wait = timeoutMs ?? (credentialBearing ? 15_000 : 30_000);
       const stop = (reason: NonNullable<typeof failure>) => {
         failure ??= reason;
         child.kill();
       };
-      const timer = setTimeout(() => stop('timeout'), wait);
+      const timer = setTimeout(() => stop('timeout'), timeoutMs);
       const abort = () => stop('cancelled');
       signal.addEventListener('abort', abort, { once: true });
       child.stdout.on('data', (chunk: Buffer) => {
         output += chunk.toString('utf8');
-        if (output.length > limit) {
+        if (output.length > outputLimit) {
           output = '';
           stop('output-limit');
         }
       });
       child.stderr.on('data', () => undefined);
       child.stdin.on('error', () => stop('stdin'));
-      child.on('error', () => {
+      child.on('error', (error: NodeJS.ErrnoException) => {
         failure ??= 'start';
+        this.log('execution-spawn-failed', {
+          consumer: label,
+          program: child.spawnfile,
+          errorCode: error.code ?? error.name,
+        });
       });
       child.on('close', (code) => {
         clearTimeout(timer);
@@ -404,7 +400,7 @@ export class ProtectedExecution {
         const reason = failure ?? 'exit';
         const message = {
           cancelled: 'The protected request was cancelled before it finished.',
-          timeout: `The protected helper did not finish within ${Math.round(wait / 1000)} seconds and was stopped.`,
+          timeout: `The protected helper did not finish within ${Math.round(timeoutMs / 1000)} seconds and was stopped.`,
           'output-limit': 'The protected helper returned more output than allowed and was stopped.',
           start: 'The Host could not start its protected helper process.',
           stdin: 'The protected helper closed before the Host could hand it the request.',

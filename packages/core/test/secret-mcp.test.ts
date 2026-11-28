@@ -91,6 +91,7 @@ describe('Host-started MCP server with Owner secrets', () => {
           PATH: process.env['PATH'],
           DEMO_TOKEN: 'SYNTHETIC-demo-token',
           AMBIENT_HOST_SETTING: 'ambient',
+          ELECTRON_RUN_AS_NODE: '1',
           [SECRET_MCP_KEEP]: 'PATH,DEMO_TOKEN',
         },
         shell: false,
@@ -102,6 +103,28 @@ describe('Host-started MCP server with Owner secrets', () => {
     expect(names).toContain('DEMO_TOKEN');
     expect(names).toContain('PATH');
     expect(names).not.toContain('AMBIENT_HOST_SETTING');
+    expect(names).not.toContain('ELECTRON_RUN_AS_NODE');
     expect(names).not.toContain(SECRET_MCP_KEEP);
+  });
+
+  it('reports a launcher spawn error on stderr and keeps stdio free for MCP', () => {
+    const program = 'bh-no-such-mcp-program-5614';
+    const result = spawnSync(process.execPath, ['-e', SECRET_MCP_LAUNCHER, '--', program], {
+      encoding: 'utf8',
+      env: { SystemRoot: process.env.SystemRoot },
+      shell: false,
+      windowsHide: true,
+    });
+    expect(result.status).toBe(127);
+    expect(result.stdout).toBe('');
+    expect(result.stderr.trim()).toBe(
+      'private-input ' +
+        JSON.stringify({
+          phase: 'execution-spawn-failed',
+          consumer: 'mcp-v1',
+          program,
+          errorCode: 'ENOENT',
+        }),
+    );
   });
 });

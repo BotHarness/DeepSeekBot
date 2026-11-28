@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@botharness/host-protocol/browser-uuid';
 import type { OutboxState } from '../../../core/src/messaging/outbound.js';
 
 export interface ReachablePostRequest {
@@ -112,7 +113,7 @@ export class ReachablePostRequests {
     const previous = this.read(group, text);
     if (previous?.state === 'unknown-outcome') throw new Error('Unknown post must not be resent');
     const request: ReachablePostRequest = {
-      id: previous && unsettled(previous.state) ? previous.id : crypto.randomUUID(),
+      id: previous && unsettled(previous.state) ? previous.id : createBrowserUuid(),
       group,
       text: text.trim(),
       state: 'pending',

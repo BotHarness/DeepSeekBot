@@ -375,6 +375,7 @@ it('derives visible sections from the viewer and defaults to the roles section',
     'members',
     'channels',
     'roles',
+    'externalRoles',
   ]);
   expect(resolveSection(context, undefined)?.id).toBe('roles');
   expect(resolveSection(context, 'channels')?.id).toBe('channels');
@@ -478,7 +479,7 @@ it('filters channels by visibility and shows the channel tabs with counts', asyn
   const tabs = [...host.querySelectorAll('[data-team-channel-detail] [role="tab"]')].map(
     (node) => node.textContent,
   );
-  expect(tabs).toEqual(['成员 1', 'Bot 1', '权限']);
+  expect(tabs).toEqual(['成员 1', 'Bot 1', '权限', '审批']);
   expect(host.querySelector('[data-team-channel-bot="bot-a"]')?.textContent).toBe('Helper');
   const privateTab = [
     ...host.querySelectorAll<HTMLButtonElement>('[data-team-list] [role="radio"]'),

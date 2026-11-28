@@ -29,7 +29,8 @@ const USAGE = `Usage: node scripts/ios-build.mjs [options] [-- <xcodebuild setti
   --no-cache                       Build without the shared compilation cache
   --help                           Show this help
 
-The .app is copied to apps/mobile/ios/build/ and its path is printed as JSON.`;
+Simulator builds use ad-hoc signing. The .app is copied to apps/mobile/ios/build/
+and its path is printed as JSON.`;
 
 export function parseArgs(argv) {
   const options = {
@@ -101,7 +102,9 @@ export function xcodebuildArgs({
     derivedData,
     'COMPILER_INDEX_STORE_ENABLE=NO',
     'INDEX_ENABLE_DATA_STORE=NO',
-    ...(destination.includes('Simulator') ? ['CODE_SIGNING_ALLOWED=NO'] : []),
+    ...(destination.includes('Simulator')
+      ? ['CODE_SIGNING_ALLOWED=YES', 'CODE_SIGN_IDENTITY=-']
+      : []),
     ...(cas === undefined ? [] : cacheSettings(worktree, cas)),
     ...extra,
   ];

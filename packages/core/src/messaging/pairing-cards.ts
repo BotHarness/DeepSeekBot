@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
 import {
+  canDelegateExternalRole,
+  readExternalRoleForBot,
   platformPeople,
   effectivePairingPermissions,
   externalUserRoles,
-  type ExternalUserRole,
 } from './permissions/index.js';
 import { assertMessagingIdentity } from './identity.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
@@ -103,19 +104,19 @@ export function createPairingCards(options: {
       return permissions;
     });
   };
-  const permitted = (value: Delivery, actorId: string, role: ExternalUserRole) => {
+  const permitted = (
+    value: Delivery,
+    actorId: string,
+    role: Parameters<typeof canDelegateExternalRole>[0],
+  ) => {
     const permissions = reviewer(value, actorId);
-    return [...role.capabilities, ...(role.delegableCapabilities ?? [])].every((cap) =>
-      (permissions.delegableCapabilities ?? []).includes(cap),
-    );
+    return canDelegateExternalRole(role, value.botSlug, permissions.delegableCapabilities ?? []);
   };
   const render = (value: Delivery): MessagingPairingCard => {
     const applicant = request(value);
     const selected = value.roles.find((role) => role.id === value.selected?.id);
     const currentRole = value.selected
-      ? database.read((db) =>
-          externalUserRoles(db, value.botSlug).find((role) => role.id === value.selected!.id),
-        )
+      ? database.read((db) => readExternalRoleForBot(db, value.botSlug, value.selected?.id))
       : undefined;
     const pages = Math.max(1, Math.ceil(value.roles.length / 20));
     return {
@@ -419,7 +420,7 @@ export function createPairingCards(options: {
         if (event.action === 'select-role') {
           const snapshot = value.roles.find((role) => role.id === event.roleId);
           const role = database.read((db) =>
-            externalUserRoles(db, value.botSlug).find((role) => role.id === event.roleId),
+            readExternalRoleForBot(db, value.botSlug, event.roleId),
           );
           if (
             !snapshot ||

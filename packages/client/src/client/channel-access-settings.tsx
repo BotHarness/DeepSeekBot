@@ -1,3 +1,4 @@
+import { ChannelApprovalSettings } from './channel-approval-settings.js';
 import { ChannelPermissionTable } from './channel-permission-table.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
@@ -47,12 +48,14 @@ export function ChannelAccessSettings({
   humans,
   t,
   permissionsOnly = false,
+  approvalsOnly = false,
 }: {
   readonly call: BridgeCall;
   readonly channelId: string;
   readonly humans: readonly ChannelHumanMember[];
   readonly t: BotHarnessTranslate;
   readonly permissionsOnly?: boolean;
+  readonly approvalsOnly?: boolean;
 }): ReactElement | null {
   const team = useTeamMode(call);
   const [access, setAccess] = useState<ChannelAccess>();
@@ -99,7 +102,7 @@ export function ChannelAccessSettings({
       .finally(() => setBusy(false));
   };
   const visible = team?.enabled === true && access !== undefined;
-  if (!visible && permissionsOnly && team?.enabled === true)
+  if (!visible && (permissionsOnly || approvalsOnly) && team?.enabled === true)
     return (
       <div ref={mount} data-channel-access={readFailed ? 'failed' : 'loading'}>
         {readFailed ? (
@@ -150,14 +153,30 @@ export function ChannelAccessSettings({
     });
   };
   const errorNote = error === undefined ? undefined : <Note tone="danger">{error}</Note>;
-  const canManage =
-    current.role !== 'member' || team?.viewer.permissions.includes('channels.manageAll') === true;
+  const manageAll = team?.viewer.permissions.includes('channels.manageAll') === true;
+  const canManage = current.role !== 'member' || manageAll;
+  const approvalManager =
+    current.role !== 'member' || (manageAll && current.visibility.kind !== 'private');
+  if (approvalsOnly)
+    return (
+      <div ref={mount} data-channel-access={current.role}>
+        {errorNote}
+        <ChannelApprovalSettings
+          t={t}
+          policy={current.policy}
+          manager={approvalManager}
+          disabled={busy}
+          onChange={choosePolicy}
+        />
+      </div>
+    );
   const table = (
     <ChannelPermissionTable
       t={t}
       policy={current.policy}
       roles={roles}
       disabled={busy || !canManage}
+      approvalLocked={!approvalManager}
       onChange={choosePolicy}
     />
   );

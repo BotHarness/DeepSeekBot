@@ -1,4 +1,5 @@
 import type { TeamBots } from './bots.js';
+import type { TeamChannels } from './channels.js';
 import { channelRoleEligibleSql } from '../team-policy/channel-contract.js';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -14,6 +15,12 @@ const HOST_OWNER_TOOLS = new Set(['connector_request']);
 
 function approvalGate(toolName: string): ApprovalGate {
   return HOST_OWNER_TOOLS.has(toolName) ? 'host-owner' : isDshGovernedTool(toolName);
+}
+
+function gateFor(message: ChannelMessage): ApprovalGate {
+  return message.toolApprovalRequest === undefined
+    ? false
+    : approvalGate(message.toolApprovalRequest.toolName);
 }
 import type { TeamRoles } from './roles.js';
 import { TeamError } from '../team-policy/error.js';
@@ -79,6 +86,10 @@ export class TeamApprovals {
     private readonly channels: ChannelStore,
     private readonly roles: TeamRoles,
     private readonly bots: Pick<TeamBots, 'privateSessions'>,
+    private readonly access: Pick<
+      TeamChannels,
+      'canRead' | 'allowsAction' | 'usesChannelApprovalPolicy'
+    >,
   ) {}
 
   botOwner(botSlug: string): string | undefined {
@@ -98,13 +109,20 @@ export class TeamApprovals {
     }
   }
 
-  require(human: HumanContext, botSlug: string, opaque: ApprovalGate = false): void {
+  require(
+    human: HumanContext,
+    botSlug: string,
+    opaque: ApprovalGate = false,
+    channelDecision = false,
+  ): void {
     const owner = this.botOwner(botSlug);
     const permissions = this.roles.permissions(human);
     if (
       owner === undefined ||
       !this.active(human) ||
-      (owner !== human.humanId && !permissions.includes('approvals.opaqueTools'))
+      (owner !== human.humanId &&
+        !permissions.includes('approvals.opaqueTools') &&
+        !channelDecision)
     )
       throw new TeamError('approval-not-allowed');
     if (
@@ -169,17 +187,91 @@ export class TeamApprovals {
 
   requireRequest(human: HumanContext, channelId: string, messageId: string): void {
     const message = this.request(channelId, messageId);
-    if (
-      message?.author.kind !== 'bot' ||
-      !this.decisionAudience(human, channelId, message.author.slug)
-    )
-      throw new TeamError('approval-not-allowed');
+    if (message === undefined) throw new TeamError('approval-not-allowed');
+    this.requireMessageDecision(human, channelId, message);
+  }
+
+  channelDecisionForActivity(
+    human: HumanContext,
+    channelId: string,
+    messageId: string,
+  ): boolean | undefined {
+    const message = this.request(channelId, messageId);
+    if (message && this.usesChannelPolicy(channelId, message))
+      return this.canDecideMessage(human, channelId, message, true);
+    return undefined;
+  }
+
+  canReadToolHistory(human: HumanContext, channelId: string, messageId: string): boolean {
+    const message = this.request(channelId, messageId);
+    return (
+      message !== undefined &&
+      (!this.usesChannelPolicy(channelId, message) ||
+        this.messageAccess(human, channelId, message, true).canSee)
+    );
+  }
+
+  private messageAccess(
+    human: HumanContext,
+    channelId: string,
+    message: ChannelMessage,
+    channelPolicy = this.usesChannelPolicy(channelId, message),
+  ): { canDecide: boolean; canSee: boolean } {
+    const canDecide = this.canDecideMessage(human, channelId, message, channelPolicy);
+    return {
+      canDecide,
+      canSee:
+        canDecide || (channelPolicy && this.access.allowsAction(human, channelId, 'seeApprovals')),
+    };
+  }
+
+  private canDecideMessage(
+    human: HumanContext,
+    channelId: string,
+    message: ChannelMessage,
+    channelPolicy: boolean,
+  ): boolean {
+    if (message.author.kind !== 'bot') return false;
+    if (!channelPolicy)
+      return (
+        this.canApprove(human, message.author.slug, gateFor(message)) &&
+        this.decisionAudience(human, channelId, message.author.slug)
+      );
+    try {
+      this.requireMessageDecision(human, channelId, message, channelPolicy);
+      return true;
+    } catch (error) {
+      if (error instanceof TeamError) return false;
+      throw error;
+    }
+  }
+
+  private usesChannelPolicy(channelId: string, message: ChannelMessage): boolean {
+    if (message.toolApprovalRequest === undefined) return false;
+    const channel = this.channels.get(channelId);
+    return (
+      channel?.type === 'group' &&
+      channel.deletedAt === undefined &&
+      this.access.usesChannelApprovalPolicy(channelId)
+    );
+  }
+
+  private requireMessageDecision(
+    human: HumanContext,
+    channelId: string,
+    message: ChannelMessage,
+    channelPolicy = this.usesChannelPolicy(channelId, message),
+  ): void {
+    if (message.author.kind !== 'bot') throw new TeamError('approval-not-allowed');
+    const inAudience = channelPolicy
+      ? this.access.canRead(human, channelId, true)
+      : this.decisionAudience(human, channelId, message.author.slug);
+    if (!inAudience) throw new TeamError('approval-not-allowed');
     this.require(
       human,
       message.author.slug,
-      message.toolApprovalRequest === undefined
-        ? false
-        : approvalGate(message.toolApprovalRequest.toolName),
+      gateFor(message),
+      channelPolicy && this.access.allowsAction(human, channelId, 'decideApprovals'),
     );
   }
 
@@ -202,10 +294,7 @@ export class TeamApprovals {
     if (index === -1) return undefined;
     const kind: ApprovalKind =
       index === 0 ? 'tool-approval' : index === 1 ? 'user-question' : 'private-input';
-    const opaque =
-      message.toolApprovalRequest === undefined
-        ? false
-        : approvalGate(message.toolApprovalRequest.toolName);
+    const opaque = gateFor(message);
     const row = this.database.read((db) =>
       db
         .prepare(`SELECT created_at, payload_json FROM source_events
@@ -230,11 +319,8 @@ export class TeamApprovals {
       requestedAt: message.at,
       ...(typeof row?.created_at === 'string' ? { decidedAt: row.created_at } : {}),
     };
-    if (
-      !this.canApprove(human, message.author.slug, opaque) ||
-      !this.decisionAudience(human, channelId, message.author.slug)
-    )
-      return { masked: true, ...base };
+    const { canDecide, canSee } = this.messageAccess(human, channelId, message);
+    if (!canSee) return { masked: true, ...base };
     const decidedBy = z
       .object({ humanId: z.string(), displayName: z.string().optional() })
       .safeParse(decision?.['decidedBy']);
@@ -242,6 +328,7 @@ export class TeamApprovals {
       masked: false,
       ...base,
       opaque: opaque !== false,
+      ...(canDecide ? {} : { canDecide: false }),
       ...(decidedBy.success ? { decidedBy: decidedBy.data } : {}),
     };
   }
