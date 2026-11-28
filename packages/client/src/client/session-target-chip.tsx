@@ -6,29 +6,38 @@ import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { SessionEngine, SessionModelRoute } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { TargetBrandIcon } from './model-brand.js';
+import { engineAccountTitle } from './session-engine.js';
 import { SessionMetaChip } from './session-progress-view.js';
 
-export function SessionTargetChip({
-  target,
-  engine,
-  route,
-  catalog,
-  t,
-}: {
+interface SessionTargetChipProps {
   target?: TurnTarget | undefined;
   engine?: Omit<SessionEngine, 'state'> | undefined;
   route?: SessionModelRoute | undefined;
   catalog?: TurnTargetCatalog | undefined;
   t: BotHarnessTranslate;
-}) {
+}
+
+export function sessionTargetChipData({
+  target,
+  engine,
+  route,
+  catalog,
+  t,
+}: SessionTargetChipProps) {
   const selected: TurnTarget | undefined =
     target ??
     (engine !== undefined && isEngineId(engine.engine)
-      ? { kind: 'engine', engine: engine.engine }
+      ? {
+          kind: 'engine',
+          engine: engine.engine,
+          ...(engine.account === undefined ? {} : { account: engine.account }),
+        }
       : route === undefined
         ? undefined
         : { kind: 'dsh', provider: route.provider, model: route.model });
-  if (selected?.model === undefined) return null;
+  const accountTitle =
+    selected?.kind === 'engine' ? engineAccountTitle(selected.engine, selected.account) : undefined;
+  if (selected?.model === undefined) return { accountTitle, model: undefined };
   const label = turnTargetLabel(selected, catalog);
   const short =
     label.short === selected.model ? modelShortName(selected.model, label.brand) : label.short;
@@ -53,19 +62,33 @@ export function SessionTargetChip({
           entry?.efforts?.find((item) => item.id === effortId)?.name,
         );
   const full = selected.kind === 'dsh' ? `${selected.provider}/${selected.model}` : short;
+  return {
+    accountTitle,
+    model: {
+      brand: label.brand,
+      external: label.external,
+      label: effort === undefined ? short : `${short} · ${effort}`,
+      title: effortId === undefined || effortId === '' ? full : `${full} · ${effortId}`,
+    },
+  };
+}
+
+export function SessionTargetChip(props: SessionTargetChipProps) {
+  const { model } = sessionTargetChipData(props);
+  if (model === undefined) return null;
   return (
     <SessionMetaChip
-      kind={label.external ? 'engine' : 'model'}
+      kind={model.external ? 'engine' : 'model'}
       icon={
         <TargetBrandIcon
-          brand={label.brand}
-          external={label.external}
+          brand={model.brand}
+          external={model.external}
           size={14}
-          externalLabel={t('engine.externalLabel')}
+          externalLabel={props.t('engine.externalLabel')}
         />
       }
-      label={effort === undefined ? short : `${short} · ${effort}`}
-      title={effortId === undefined || effortId === '' ? full : `${full} · ${effortId}`}
+      label={model.label}
+      title={model.title}
     />
   );
 }
